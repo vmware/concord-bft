@@ -23,7 +23,7 @@ using com::vmware::concord::thin_replica::Data;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
-using concord::util::openssl_utils::computeSHA256Hash;
+using concord::crypto::openssl::computeSHA256Hash;
 using std::invalid_argument;
 using std::list;
 using std::map;

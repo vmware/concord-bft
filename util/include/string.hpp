@@ -104,5 +104,9 @@ std::string toString(const Container& container, const char* const separator = "
   return out.str();
 }
 
+inline bool isValidHexString(const std::string& str) {
+  return str.length() % 2 == 0 && (str.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos);
+}
+
 }  // namespace util
 }  // namespace concord

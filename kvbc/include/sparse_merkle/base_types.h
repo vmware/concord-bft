@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "assertUtils.hpp"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 
 namespace concord {
 namespace kvbc {
@@ -229,7 +229,7 @@ class Hasher {
   }
 
  private:
-  util::SHA3_256 sha3_256;
+  concord::crypto::openssl::SHA3_256 sha3_256;
 };
 
 static const Hash PLACEHOLDER_HASH = Hash(Hash::EMPTY_BUF);

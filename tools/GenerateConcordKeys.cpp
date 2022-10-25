@@ -15,13 +15,14 @@
 #include <iostream>
 #include <vector>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#pragma GCC diagnostic pop
-
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
+#include "util/filesystem.hpp"
+#include "crypto/crypto.hpp"
+
+using bftEngine::ReplicaConfig;
+using concord::crypto::SignatureAlgorithm;
+using concord::crypto::generateEdDSAKeyPair;
 
 // Helper functions and static state to this executable's main function.
 
@@ -32,27 +33,6 @@ static bool containsHelpOption(int argc, char** argv) {
     }
   }
   return false;
-}
-
-static CryptoPP::RandomPool sGlobalRandGen;
-const unsigned int rsaKeyLength = 2048;
-
-static std::pair<std::string, std::string> generateRsaKey() {
-  // Uses CryptoPP implementation of RSA key generation.
-
-  std::pair<std::string, std::string> keyPair;
-
-  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor priv(sGlobalRandGen, rsaKeyLength);
-  CryptoPP::HexEncoder privEncoder(new CryptoPP::StringSink(keyPair.first));
-  priv.AccessMaterial().Save(privEncoder);
-  privEncoder.MessageEnd();
-
-  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
-  CryptoPP::HexEncoder pubEncoder(new CryptoPP::StringSink(keyPair.second));
-  pub.AccessMaterial().Save(pubEncoder);
-  pubEncoder.MessageEnd();
-
-  return keyPair;
 }
 
 /**
@@ -98,8 +78,7 @@ int main(int argc, char** argv) {
         "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "Currently, the following cryptosystem types are supported (and take the following as parameters):\n";
 
-    std::vector<std::pair<std::string, std::string>> cryptosystemTypes;
-    Cryptosystem::getAvailableCryptosystemTypes(cryptosystemTypes);
+    auto& cryptosystemTypes = Cryptosystem::getAvailableCryptosystemTypes();
     for (size_t i = 0; i < cryptosystemTypes.size(); ++i) {
       usageMessage += "  " + cryptosystemTypes[i].first + " (" + cryptosystemTypes[i].second + ")\n";
     }
@@ -115,17 +94,24 @@ int main(int argc, char** argv) {
       std::cout << usageMessage;
       return 0;
     }
-    bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
+    ReplicaConfig& config = ReplicaConfig::instance();
     uint16_t n = 0;
     uint16_t ro = 0;
     std::string outputPrefix;
 
-    std::string slowType = MULTISIG_BLS_SCHEME;
-    std::string slowParam = "BN-P254";
-    std::string commitType = MULTISIG_BLS_SCHEME;
-    std::string commitParam = "BN-P254";
-    std::string optType = MULTISIG_BLS_SCHEME;
-    std::string optParam = "BN-P254";
+    std::string defaultSysType = "UninitializedCryptoSystem";
+    std::string defaultSubSysType = "UninitializedCryptoSubSystem";
+
+    defaultSysType = MULTISIG_EDDSA_SCHEME;
+    defaultSubSysType = "ED25519";
+
+    // These are currently unused
+    std::string slowType = defaultSysType;
+    std::string slowParam = defaultSubSysType;
+    std::string commitType = defaultSysType;
+    std::string commitParam = defaultSubSysType;
+    std::string optType = defaultSysType;
+    std::string optParam = defaultSubSysType;
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -187,26 +173,32 @@ int main(int argc, char** argv) {
 
     config.cVal = (n - (3 * config.fVal) - 1) / 2;
 
-    std::vector<std::pair<std::string, std::string>> rsaKeys;
+    std::vector<std::pair<std::string, std::string>> replicaKeyPairs;
+
     for (uint16_t i = 0; i < n + ro; ++i) {
-      rsaKeys.push_back(generateRsaKey());
-      config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
+      if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+        replicaKeyPairs.push_back(generateEdDSAKeyPair());
+      }
+      config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, replicaKeyPairs[i].second));
     }
 
     // We want to generate public key for n-out-of-n case
-    Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
+    Cryptosystem cryptoSys(defaultSysType, defaultSubSysType, n, n);
     cryptoSys.generateNewPseudorandomKeys();
+
+    LOG_INFO(GL, "Outputting initial replica keys to: " << fs::absolute(outputPrefix).parent_path().string());
+
     // Output the generated keys.
     for (uint16_t i = 0; i < n; ++i) {
       config.replicaId = i;
-      config.replicaPrivateKey = rsaKeys[i].first;
+      config.replicaPrivateKey = replicaKeyPairs[i].first;
       outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
     }
 
     for (uint16_t i = n; i < n + ro; ++i) {
       config.isReadOnly = true;
       config.replicaId = i;
-      config.replicaPrivateKey = rsaKeys[i].first;
+      config.replicaPrivateKey = replicaKeyPairs[i].first;
       outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i));
     }
   } catch (std::exception& e) {

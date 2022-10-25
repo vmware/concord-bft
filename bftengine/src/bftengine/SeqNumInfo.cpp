@@ -103,7 +103,7 @@ bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd, bool isTimeCorrect) {
 
   // set expected
   Digest tmpDigest;
-  Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
+  m->digestOfRequests().calcCombination(m->viewNumber(), m->seqNumber(), tmpDigest);
   if (!directAdd)
     prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
   else
@@ -129,7 +129,7 @@ bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
 
   // set expected
   Digest tmpDigest;
-  Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
+  m->digestOfRequests().calcCombination(m->viewNumber(), m->seqNumber(), tmpDigest);
   if (!directAdd)
     prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
   else
@@ -195,7 +195,7 @@ bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& c
   ConcordAssert(!forcedCompleted);
 
   Digest tmpDigest;
-  Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
+  commitDigest.calcCombination(m->viewNumber(), m->seqNumber(), tmpDigest);
   bool r;
   if (!directAdd) {
     commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
@@ -387,14 +387,14 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
 
 bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd) {
   ConcordAssert(m != nullptr);
-
   if (hasFastPathFullCommitProof()) return false;
 
   PartialCommitProofMsg* myPCP = getFastPathSelfPartialCommitProofMsg();
 
   if (myPCP == nullptr) {
     // TODO(GG): can be improved (we can keep the FullCommitProof  message until myPCP!=nullptr
-    LOG_WARN(CNSUS, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
+    LOG_WARN(CNSUS,
+             "FullCommitProofMsg arrived before PartialCommitProofMsg. TODO(GG): should be handled to avoid delays. ");
     return false;
   }
 

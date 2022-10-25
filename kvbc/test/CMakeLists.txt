@@ -23,7 +23,7 @@ target_link_libraries(kvbc_filter_test
         ${yaml-cpp_LIBRARIES}
         kvbc
         concord-kvbc-proto
-        concordbft_reconfiguration
+        corebft
         logging)
 
 add_executable(order_test order_test.cpp )
@@ -142,7 +142,7 @@ add_test(kv_blockchain_db_editor_test_v4 kv_blockchain_db_editor_test v4)
 add_test(kv_blockchain_db_editor_test_categorized kv_blockchain_db_editor_test categorized)
 
 target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/ 
-																${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
+                                                                ${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
 target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest

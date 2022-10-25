@@ -13,25 +13,23 @@
 
 #pragma once
 
-#include "Digest.hpp"
 #include "blockchain_misc.hpp"
 
 namespace concord::kvbc::adapter::v4blockchain::utils {
 
 class V4BlockUtils {
  public:
-  static concord::util::digest::BlockDigest getparentDigest(const std::string_view& block_ser) {
+  static concord::crypto::BlockDigest getparentDigest(const std::string_view& block_ser) {
     return getparentDigest(block_ser.data(), block_ser.size());
   }
-  static concord::util::digest::BlockDigest getparentDigest(const concord::kvbc::RawBlock& block_ser) {
+  static concord::crypto::BlockDigest getparentDigest(const concord::kvbc::RawBlock& block_ser) {
     return getparentDigest(block_ser.data(), block_ser.size());
   }
 
  private:
-  static concord::util::digest::BlockDigest getparentDigest(const char* raw_block_ser, size_t len) {
+  static concord::crypto::BlockDigest getparentDigest(const char* raw_block_ser, size_t len) {
     ConcordAssertGE(len, concord::kvbc::BLOCK_VERSION_SIZE + DIGEST_SIZE);
-    return *reinterpret_cast<const concord::util::digest::BlockDigest*>(raw_block_ser +
-                                                                        concord::kvbc::BLOCK_VERSION_SIZE);
+    return *reinterpret_cast<const concord::crypto::BlockDigest*>(raw_block_ser + concord::kvbc::BLOCK_VERSION_SIZE);
   }
 };
 

@@ -19,16 +19,22 @@
 #include <chrono>
 #include <optional>
 
+#include "crypto/crypto.hpp"
 #include "AsyncTlsConnection.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
-#include "crypto_utils.hpp"
 #include "communication/StateControl.hpp"
 #include "hex_tools.h"
+#include "crypto/openssl/certificates.hpp"
 
 namespace bft::communication::tls {
+using bftEngine::ReplicaConfig;
+using concord::crypto::SignatureAlgorithm;
+using concord::crypto::verifyCertificate;
+using concord::crypto::EdDSAHexToPem;
+using concord::crypto::getFormat;
 
 void AsyncTlsConnection::startReading() {
   auto self = shared_from_this();
@@ -406,7 +412,7 @@ bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx,
     LOG_WARN(logger_, "No certificate from server at node " << expected_dest_id);
     return false;
   }
-  auto [valid, _] = checkCertificate(cert, expected_dest_id);
+  auto [valid, _] = checkCertificate(*cert, expected_dest_id);
   (void)_;  // unused variable hack
   return valid;
 }
@@ -422,37 +428,38 @@ bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx)
     LOG_WARN(logger_, "No certificate from client");
     return false;
   }
-  auto [valid, peer_id] = checkCertificate(cert, std::nullopt);
+  auto [valid, peer_id] = checkCertificate(*cert, std::nullopt);
   peer_id_ = peer_id;
   return valid;
 }
 
-std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cert,
+std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509& received_cert,
                                                               std::optional<NodeNum> expected_peer_id) {
   uint32_t peerId = UINT32_MAX;
   std::string conn_type;
   // (1) First, try to verify the certificate against the latest saved certificate
-  bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
+  bool res = verifyCertificate(
       received_cert, config_.certificatesRootPath_, peerId, conn_type, config_.useUnifiedCertificates_);
   if (expected_peer_id.has_value() && peerId != expected_peer_id.value()) return std::make_pair(false, peerId);
   if (res) return std::make_pair(res, peerId);
   LOG_INFO(logger_,
-           "Unable to validate certificate against the local storage, falling back to validate against the RSA "
-           "public key");
+           "Unable to validate certificate against the local storage, falling back to validate against the replica "
+           "main key");
   std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
   if (pem_pub_key.empty()) return std::make_pair(false, peerId);
-  if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) != concord::util::crypto::KeyFormat::PemFormat) {
-    pem_pub_key = concord::util::crypto::Crypto::instance()
-                      .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
-                      .second;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    if (getFormat(pem_pub_key) != concord::crypto::KeyFormat::PemFormat) {
+      pem_pub_key = EdDSAHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId))).second;
+    }
   }
+
   // (2) Try to validate the certificate against the peer's public key
-  res = concord::util::crypto::CertificateUtils::verifyCertificate(received_cert, pem_pub_key);
+  res = verifyCertificate(received_cert, pem_pub_key);
   if (!res) return std::make_pair(false, peerId);
 
   // (3) If valid, exchange the stored certificate
   BIO* outbio = BIO_new(BIO_s_mem());
-  if (!PEM_write_bio_X509(outbio, received_cert)) {
+  if (!PEM_write_bio_X509(outbio, &received_cert)) {
     BIO_free(outbio);
     return std::make_pair(false, peerId);
   }

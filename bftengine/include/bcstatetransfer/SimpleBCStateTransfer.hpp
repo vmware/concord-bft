@@ -21,10 +21,7 @@
 #include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
 #include "kvstream.h"
-#include "Digest.hpp"
-
-using concord::util::digest::Digest;
-using concord::util::digest::BlockDigest;
+#include "crypto/digest.hpp"
 
 namespace concord {
 namespace storage {
@@ -48,7 +45,7 @@ namespace bcst {
 // blocks.
 // Blocks are numbered. The first block should be block number 1.
 
-// represnts a digest
+// represents a digest
 #pragma pack(push, 1)
 struct StateTransferDigest {
   char content[DIGEST_SIZE];
@@ -61,7 +58,7 @@ void computeBlockDigest(const uint64_t blockId,
                         const uint32_t blockSize,
                         StateTransferDigest *outDigest);
 
-BlockDigest computeBlockDigest(const uint64_t blockId, const char *block, const uint32_t blockSize);
+concord::crypto::BlockDigest computeBlockDigest(const uint64_t blockId, const char *block, const uint32_t blockSize);
 
 // This interface should be implemented by the application/storage layer.
 // It is used by the state transfer module.

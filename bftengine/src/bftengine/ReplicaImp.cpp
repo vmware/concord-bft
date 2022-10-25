@@ -523,7 +523,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
           requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), m);
         }
         send(m, currentPrimary());
-        LOG_INFO(CNSUS, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
+        LOG_INFO(CNSUS,
+                 "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId, currentPrimary()));
         return;
       }
       if (clientsManager->isPending(clientId, reqSeqNum)) {
@@ -1356,7 +1357,7 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
         commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
       Digest tmpDigest;
-      Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+      ppDigest.calcCombination(getCurrentView(), seqNum, tmpDigest);
 
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
       part = new PartialCommitProofMsg(
@@ -1429,8 +1430,8 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
   LOG_INFO(CNSUS, "Sending CommitPartialMsg, sequence number:" << pp->seqNumber());
 
-  Digest d;
-  Digest::digestOfDigest(pp->digestOfRequests(), d);
+  Digest digest;
+  pp->digestOfRequests().digestOfDigest(digest);
 
   auto prepareFullMsg = seqNumInfo.getValidPrepareFullMsg();
 
@@ -1438,10 +1439,10 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
       CommitPartialMsg::create(getCurrentView(),
                                s,
                                config_.getreplicaId(),
-                               d,
+                               digest,
                                CryptoManager::instance().thresholdSignerForSlowPathCommit(s),
                                prepareFullMsg->spanContext<std::remove_pointer<decltype(prepareFullMsg)>::type>());
-  seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d);
+  seqNumInfo.addSelfCommitPartialMsgAndDigest(c, digest);
 
   if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(c, currentPrimary(), s);
 }
@@ -2192,6 +2193,10 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  // One replica produces FullCommitProofMsg Immediately
+  ConcordAssert(fcp == nullptr || config_.numReplicas != 1);
+
   seqNumInfo.onCompletionOfCommitSignaturesProcessing(
       seqNumber, view, cPath, combinedSig, combinedSigLen, span_context);
 
@@ -2199,7 +2204,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
   seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
   // of the  FullCommitProofMsg message)
 
-  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   ConcordAssert(fcp != nullptr);
 
   if (ps_) {
@@ -4174,7 +4179,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
         Digest tmpDigest;
-        Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+        ppDigest.calcCombination(getCurrentView(), seqNum, tmpDigest);
 
         PartialCommitProofMsg *p = new PartialCommitProofMsg(
             config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
@@ -4203,15 +4208,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           throw;
         }
 
-        Digest d;
-        Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
+        Digest digest;
+        e.getPrePrepareMsg()->digestOfRequests().digestOfDigest(digest);
+
         CommitPartialMsg *c = CommitPartialMsg::create(getCurrentView(),
                                                        s,
                                                        config_.getreplicaId(),
-                                                       d,
+                                                       digest,
                                                        CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
 
-        ConcordAssert(seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true));
+        ConcordAssert(seqNumInfo.addSelfCommitPartialMsgAndDigest(c, digest, true));
       }
 
       if (e.isCommitFullMsgSet()) {
@@ -4483,9 +4489,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
-                                       concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                       concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                        ReplicaConfig::instance().getPublicKeysOfClients(),
-                                       concord::util::crypto::KeyFormat::PemFormat,
+                                       concord::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {
@@ -4681,7 +4687,7 @@ void ReplicaImp::start() {
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
     KeyExchangeManager::instance().sendInitialKey(this);
   } else {
-    // If key exchange is disabled, first publish the replica's main (rsa) key to clients
+    // If key exchange is disabled, first publish the replica's main (rsa/eddsa) key to clients
     if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
@@ -5373,10 +5379,8 @@ void ReplicaImp::onExecutionFinish() {
     // Mark this request as an internal one
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
-    std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    uint16_t sig_length{0};
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
-    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+    req.signature.resize(SigManager::instance()->getMySigLength());
+    SigManager::instance()->sign(data_vec.data(), data_vec.size(), req.signature.data());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
@@ -5848,8 +5852,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       std::vector<uint8_t> data_vec;
       concord::messages::serialize(data_vec, req);
       std::string sig(SigManager::instance()->getMySigLength(), '\0');
-      uint16_t sig_length{0};
-      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
       req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
       data_vec.clear();
       concord::messages::serialize(data_vec, req);
@@ -5880,8 +5883,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
     std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    uint16_t sig_length{0};
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
     req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);

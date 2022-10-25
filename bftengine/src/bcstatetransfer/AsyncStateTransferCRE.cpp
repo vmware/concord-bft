@@ -72,15 +72,13 @@ class Communication : public ICommunication {
   uint16_t repId_;
 };
 
-class InternalSigner : public concord::util::crypto::ISigner {
+class InternalSigner : public concord::crypto::ISigner {
  public:
-  std::string sign(const std::string& data) override {
-    std::string out;
-    out.resize(bftEngine::impl::SigManager::instance()->getMySigLength());
-    bftEngine::impl::SigManager::instance()->sign(data.data(), data.size(), out.data(), signatureLength());
-    return out;
+  size_t signBuffer(const concord::Byte* dataIn, size_t dataLen, concord::Byte* sigOutBuffer) override {
+    return bftEngine::impl::SigManager::instance()->sign(dataIn, dataLen, sigOutBuffer);
   }
-  uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+
+  size_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
   std::string getPrivKey() const override { return ""; }
 };
 

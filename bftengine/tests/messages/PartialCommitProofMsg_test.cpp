@@ -20,7 +20,7 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "helper.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"

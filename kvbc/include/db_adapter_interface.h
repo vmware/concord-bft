@@ -6,15 +6,15 @@
 
 #include "kv_types.hpp"
 #include <utility>
-#include "Digest.hpp"
-
-using concord::util::digest::BlockDigest;
+#include "crypto/digest.hpp"
 
 namespace concord::storage {
 class IDBClient;
 }
 
 namespace concord::kvbc {
+
+using concord::crypto::BlockDigest;
 
 class NotFoundException : public std::runtime_error {
  public:

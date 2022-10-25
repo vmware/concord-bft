@@ -86,7 +86,7 @@ std::optional<v4blockchain::detail::Block> StChain::getBlock(kvbc::BlockId id) c
   return v4blockchain::detail::Block(*opt_block_str);
 }
 
-std::optional<concord::util::digest::BlockDigest> StChain::getBlockParentDigest(concord::kvbc::BlockId id) const {
+std::optional<concord::crypto::BlockDigest> StChain::getBlockParentDigest(concord::kvbc::BlockId id) const {
   auto block = getBlock(id);
   if (!block) {
     LOG_ERROR(V4_BLOCK_LOG, "Block does not exist in ST chain!" << KVLOG(id));
@@ -96,7 +96,7 @@ std::optional<concord::util::digest::BlockDigest> StChain::getBlockParentDigest(
   return block->parentDigest();
 }
 
-std::optional<concord::util::digest::BlockDigest> StChain::getBlockDigest(concord::kvbc::BlockId id) const {
+std::optional<concord::crypto::BlockDigest> StChain::getBlockDigest(concord::kvbc::BlockId id) const {
   auto block = getBlock(id);
   if (!block) {
     LOG_ERROR(V4_BLOCK_LOG, "Block does not exist in ST chain!" << KVLOG(id));

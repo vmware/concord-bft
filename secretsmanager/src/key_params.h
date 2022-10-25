@@ -18,11 +18,13 @@
 #include <vector>
 #include <string>
 #include <stdint.h>
+#include "hex_tools.h"
 
 namespace concord::secretsmanager {
 
 struct KeyParams {
-  KeyParams(const std::string& pkey, const std::string& piv);
+  KeyParams(const std::string& pkey, const std::string& piv)
+      : key{concordUtils::unhex(pkey)}, iv{concordUtils::unhex(piv)} {}
 
   std::vector<uint8_t> key;
   std::vector<uint8_t> iv;

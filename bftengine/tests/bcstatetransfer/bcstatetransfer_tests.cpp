@@ -55,7 +55,9 @@ using concord::storage::rocksdb::KeyComparator;
 using namespace std;
 using namespace bftEngine::bcst;
 using namespace concord::util;
+using concord::crypto::DigestGenerator;
 
+using concord::crypto::DigestGenerator;
 using std::chrono::milliseconds;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 
@@ -103,7 +105,7 @@ struct UserInput {
   }
 };
 
-namespace bftEngine::bcst::impl {
+namespace bftEngine::bcst::impl::test {
 
 using FetchingState = BCStateTran::FetchingState;
 
@@ -3026,7 +3028,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
 
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
-    digest::Digest stateDigest, reservedPagesDigest, rvbDataDigest;
+    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     uint64_t outBlockId;
 
     stateTransfer_->getDigestOfCheckpoint(
@@ -3041,7 +3043,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
       const auto& defaultRvbDataDigest = stDelegator_->computeDefaultRvbDataDigest();
       ASSERT_TRUE(!memcmp(defaultRvbDataDigest.content(), rvbDataDigest.content(), sizeof(Digest)));
     } else {
-      digest::DigestUtil::Context digestCtx;
+      DigestGenerator digestCtx;
       Digest rvbDataDigest;
       auto rvbDataSize = desc.rvbData.size();
       digestCtx.update(reinterpret_cast<const char*>(desc.rvbData.data()), rvbDataSize);
@@ -3054,7 +3056,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
   }
 }
 
-}  // namespace bftEngine::bcst::impl
+}  // namespace bftEngine::bcst::impl::test
 
 int main(int argc, char** argv) {
   srand(time(NULL));

@@ -17,7 +17,7 @@
 
 #include "assertUtils.hpp"
 #include "kv_types.hpp"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 
 using concord::storage::rocksdb::NativeWriteBatch;
 using concord::storage::rocksdb::detail::toSlice;

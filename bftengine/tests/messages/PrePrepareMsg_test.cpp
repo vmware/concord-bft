@@ -28,7 +28,7 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-using concord::util::digest::DigestUtil;
+using concord::crypto::DigestGenerator;
 
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
@@ -100,7 +100,7 @@ class PrePrepareMsgTestFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo)) {}
 
@@ -138,7 +138,8 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   for (const auto& crm : crmv) {
     msg.addRequest(crm->body(), crm->size());
     Digest d;
-    DigestUtil::compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
+    DigestGenerator digestGenerator;
+    digestGenerator.compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
     dv.push_back({d.content(), sizeof(Digest)});
   }
   EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
@@ -149,7 +150,8 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
     dod.append(s);
   }
   Digest d;
-  DigestUtil::compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
+  DigestGenerator digestGenerator;
+  digestGenerator.compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
   EXPECT_EQ(d, msg.digestOfRequests());
   EXPECT_NO_THROW(msg.validate(replicaInfo));  // validate the same digest
 }

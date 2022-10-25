@@ -4,7 +4,7 @@
 #include "messages/MsgsCertificate.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "CheckpointInfo.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include "ReservedPagesMock.hpp"
@@ -31,7 +31,7 @@ class msgsCertificateTestsFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo))
 

@@ -30,7 +30,9 @@ class TestKeyManager {
 };
 
 struct DummyKeyGen : public IMultiSigKeyGenerator, public IKeyExchanger {
-  std::pair<std::string, std::string> generateMultisigKeyPair() { return std::make_pair(prv, pub); }
+  std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() {
+    return std::make_tuple(prv, pub, concord::crypto::SignatureAlgorithm::Uninitialized);
+  }
   void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) {
     selfpub = verificationKey;
     selfprv = secretKey;
@@ -466,7 +468,7 @@ TEST(KeyExchangeManager, endToEnd) {
   dkg.prv = "private2";
   dkg.pub = "public2";
   // set published private key of replica 2
-  test.km_.sendKeyExchange();
+  test.km_.sendConsensusKeyExchange();
 
   // rotation candidate for replica 0
   KeyExchangeMsg kem5;

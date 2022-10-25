@@ -38,10 +38,10 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;
   (void)lib;
 
-  std::vector<std::pair<int, int>> nk = {{1, 1},
-                                         {2, 1},
+  std::vector<std::pair<int, int>> nk = {/*{1, 1},
+                                         {2, 1},*/
                                          {3, 2},
-                                         {3, 3},
+                                         /*{3, 3},
                                          {5, 3},
                                          {5, 4},
                                          {10, 4},
@@ -54,7 +54,7 @@ int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
                                          {257, 129},
                                          {260, 159},
                                          {257, 257},
-                                         {276, 275}};
+                                         {276, 275}*/};
 
   //    std::vector<std::pair<int, int>> nk;
   //	for(size_t i = 1; i <= 301; i += 1) {

@@ -61,7 +61,7 @@ BlockId Blockchain::addBlock(const concord::kvbc::categorization::Updates& categ
 BlockId Blockchain::addBlock(v4blockchain::detail::Block& block, storage::rocksdb::NativeWriteBatch& wb) {
   BlockId id = last_reachable_block_id_ + 1;
   // If future from the previous add exist get its value
-  concord::util::digest::BlockDigest digest;
+  concord::crypto::BlockDigest digest;
   if (future_digest_) {
     ++from_future;
     digest = future_digest_->get();
@@ -153,9 +153,9 @@ void Blockchain::deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch& wr
   deleteBlock(last_reachable_block_id_, write_batch);
 }
 
-concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::BlockId id) const {
+concord::crypto::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::BlockId id) const {
   if (id < concord::kvbc::INITIAL_GENESIS_BLOCK_ID) {
-    concord::util::digest::BlockDigest empty_digest;
+    concord::crypto::BlockDigest empty_digest;
     empty_digest.fill(0);
     return empty_digest;
   }
@@ -164,7 +164,7 @@ concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvb
   return v4blockchain::detail::Block::calculateDigest(id, block_str->c_str(), block_str->size());
 }
 
-concord::util::digest::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
+concord::crypto::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
   auto block_str = getBlockData(id);
   ConcordAssert(block_str.has_value());
   return v4blockchain::detail::Block{*block_str}.parentDigest();

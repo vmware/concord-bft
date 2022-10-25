@@ -83,21 +83,21 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
     }
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->verifyPreProcessReplySig);
     if (!sigManager->verifySig(msgHeader.senderId,
-                               (char*)msgBody()->resultsHash,
-                               SHA3_256::SIZE_IN_BYTES,
-                               (char*)msgBody() + headerSize,
+                               msgBody()->resultsHash,
+                               concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES,
+                               reinterpret_cast<concord::Byte*>(msgBody()) + headerSize,
                                sigLen))
       throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig failed"));
   }
 }  // namespace preprocessor
 
-std::vector<char> PreProcessReplyMsg::getResultHashSignature() const {
+std::vector<uint8_t> PreProcessReplyMsg::getResultHashSignature() const {
   const uint64_t headerSize = sizeof(Header);
   const auto& msgHeader = *msgBody();
   auto sigManager = SigManager::instance();
   uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);
 
-  return std::vector<char>((char*)msgBody() + headerSize, (char*)msgBody() + headerSize + sigLen);
+  return std::vector<uint8_t>((uint8_t*)msgBody() + headerSize, (uint8_t*)msgBody() + headerSize + sigLen);
 }
 
 void PreProcessReplyMsg::setParams(NodeIdType senderId,
@@ -151,17 +151,19 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
                                                   msgBody()->preProcessResult,
                                                   msgBody()->clientId,
                                                   msgBody()->reqSeqNum);
-  memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
+  memcpy(msgBody()->resultsHash, hash.data(), concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES);
   {
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
-    sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header), sigSize);
+    sigManager->sign(hash.data(),
+                     concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES,
+                     reinterpret_cast<concord::Byte*>(body() + sizeof(Header)));
   }
   setLeftMsgParams(reqCid, sigSize);
 }
 
 // Used by PreProcessBatchReplyMsg while retrieving PreProcessReplyMsgs from the batch
 void PreProcessReplyMsg::setupMsgBody(const uint8_t* resultsHash, const char* signature, const string& reqCid) {
-  memcpy(msgBody()->resultsHash, resultsHash, SHA3_256::SIZE_IN_BYTES);
+  memcpy(msgBody()->resultsHash, resultsHash, concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES);
   const uint16_t sigLen = SigManager::instance()->getMySigLength();
   memcpy(body() + sizeof(Header), signature, sigLen);
   setLeftMsgParams(reqCid, sigLen);

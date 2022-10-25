@@ -19,8 +19,8 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Enable debug or release builds" FORCE)
 endif()
 
-if (NOT DEFINED USE_LOG4CPP)
-  option(USE_LOG4CPP "Enable LOG4CPP" ON)
+if(NOT DEFINED USE_LOG4CPP)
+    option(USE_LOG4CPP "Enable LOG4CPP" ON)
 endif()
 
 option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
@@ -48,7 +48,7 @@ option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" ON)
 
-if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
+if((USE_OPENSSL) AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
 endif()
 

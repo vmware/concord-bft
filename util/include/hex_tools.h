@@ -37,4 +37,9 @@ std::string sliverToHex(const Sliver &sliver);
 // Converts a byte vector into a hex string
 std::string vectorToHex(const std::vector<std::uint8_t> &data);
 
+// Converts a hex string into a char vector. Handles leading 0x characters (if present).
+// Input hex: "616263" or "0x616263"
+// Returns: abc
+std::vector<uint8_t> unhex(const std::string &hex);
+
 }  // namespace concordUtils

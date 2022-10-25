@@ -191,7 +191,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // cases:
   //   - The given NodeIdType parameter is not the ID of a valid client.
   //   - The given public key does not fit in a single reserved page under ClientsManager's implementation.
-  void setClientPublicKey(NodeIdType, const std::string& key, concord::util::crypto::KeyFormat) override;
+  void setClientPublicKey(NodeIdType, const std::string& key, concord::crypto::KeyFormat) override;
 
   // General
   static uint32_t reservedPagesPerRequest(uint32_t sizeOfReservedPage, uint32_t maxReplySize);
@@ -273,7 +273,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   struct ClientInfo {
     std::shared_ptr<RequestsInfo> requestsInfo;
     std::shared_ptr<RepliesInfo> repliesInfo;
-    std::pair<std::string, concord::util::crypto::KeyFormat> pubKey;
+    std::pair<std::string, concord::crypto::KeyFormat> pubKey;
   };
 
   std::set<NodeIdType> proxyClients_;

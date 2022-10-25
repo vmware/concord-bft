@@ -100,8 +100,9 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
 
   if (requestSignature) {
     ConcordAssert(sigManager->isClientTransactionSigningEnabled());
-    if (!sigManager->verifySig(
-            header->clientId, requestBuf(), header->requestLength, requestSignature, header->reqSignatureLength)) {
+    if (!sigManager->verifySig(header->clientId,
+                               std::string_view{requestBuf(), header->requestLength},
+                               std::string_view{requestSignature, header->reqSignatureLength})) {
       std::stringstream msg;
       LOG_WARN(logger(),
                "Signature verification failed for " << KVLOG(header->reqSeqNum, header->clientId, this->senderId()));

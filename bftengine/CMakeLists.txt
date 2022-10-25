@@ -80,7 +80,6 @@ set(corebft_source_files
 find_package(Threads REQUIRED)
 #message("Threads library: ${CMAKE_THREAD_LIBS_INIT}")
 
-
 #
 # Targets
 #

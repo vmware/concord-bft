@@ -56,7 +56,7 @@ void AppStateAdapter::getPrevDigestFromBlock(const char *blockData,
                                              bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGE(blockSize, ::v4blockchain::detail::Block::HEADER_SIZE);
   const auto &digest =
-      *reinterpret_cast<const concord::util::digest::BlockDigest *>(blockData + sizeof(concord::kvbc::version_type));
+      *reinterpret_cast<const concord::crypto::BlockDigest *>(blockData + sizeof(concord::kvbc::version_type));
 
   std::memcpy(outPrevBlockDigest, digest.data(), DIGEST_SIZE);
 }

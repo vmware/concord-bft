@@ -75,13 +75,13 @@ Parameter | Expected Value | Description
 `c_val` | non-negative integer | C parameter to the SBFT algorithm, that is, the maximum number of slow, crashed, or otherwise unresponsive replicas that can be tolerated before Concord must fall back to the slow path for committing transactions.
 `replica_id` | non-negative integer | Replica ID for the replica to which this keyfile belongs; replica IDs must be in the range [0, `num_replicas` - 1], inclusive, and no two replicas should have the same ID.
 
-##### List of Public RSA Keys #####
+##### List of Replica Public Keys #####
 
-A list of public RSA keys is expected under the identifier `rsa_public_keys`:
+A list of replica public keys is expected under the identifier `replica_public_keys`:
 
 Parameter | Expected Value | Description
 --- | --- | ---
-`rsa_public_keys` | list of RSA keys in hexadecimal | A public RSA key for each replica for non-threshold cryptographic purposes. The keys should be in hexadecimal, and there should be as many keys as there are replicas. The keys should be given in ascending order of ID of the replica they belong to.
+`replica_public_keys` | list of public keys in hexadecimal | A public key for each replica for non-threshold cryptographic purposes. The keys should be in hexadecimal, and there should be as many keys as there are replicas. The keys should be given in ascending order of ID of the replica they belong to.
 
 ##### Threshold Cryptosystem Public Configuration #####
 

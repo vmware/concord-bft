@@ -31,8 +31,9 @@ class StChain {
   std::optional<v4blockchain::detail::Block> getBlock(kvbc::BlockId) const;
   // Returns the buffer that represents the block
   std::optional<std::string> getBlockData(concord::kvbc::BlockId) const;
-  std::optional<concord::util::digest::BlockDigest> getBlockParentDigest(concord::kvbc::BlockId id) const;
-  std::optional<concord::util::digest::BlockDigest> getBlockDigest(concord::kvbc::BlockId id) const;
+
+  std::optional<concord::crypto::BlockDigest> getBlockParentDigest(concord::kvbc::BlockId id) const;
+  std::optional<concord::crypto::BlockDigest> getBlockDigest(concord::kvbc::BlockId id) const;
 
   ///////// ST last block ID
   void resetChain() { last_block_id_ = 0; }

@@ -18,6 +18,7 @@
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
 #include "Logger.hpp"
+#include "crypto/crypto.hpp"
 
 namespace bftEngine {
 typedef std::int64_t SeqNum;                    // TODO [TK] redefinition
@@ -51,11 +52,29 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const SeqNum sn) const {
     return get(sn)->thresholdVerifierForOptimisticCommit_;
   }
-  // IMultiSigKeyGenerator methods
-  std::pair<std::string, std::string> generateMultisigKeyPair() override {
-    LOG_INFO(logger(), "Generating new multisig key pair");
-    return cryptoSystems_.rbegin()->second->cryptosys_->generateNewKeyPair();
+
+  std::unique_ptr<Cryptosystem>& getLatestCryptoSystem() const { return cryptoSystems_.rbegin()->second->cryptosys_; }
+
+  /**
+   * @return An algorithm identifier for the latest threshold signature scheme
+   */
+  concord::crypto::SignatureAlgorithm getLatestSignatureAlgorithm() const {
+    const std::unordered_map<std::string, concord::crypto::SignatureAlgorithm> typeToAlgorithm{
+        {MULTISIG_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
+        {THRESHOLD_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
+        {MULTISIG_EDDSA_SCHEME, concord::crypto::SignatureAlgorithm::EdDSA},
+    };
+    auto currentType = getLatestCryptoSystem()->getType();
+    return typeToAlgorithm.at(currentType);
   }
+
+  // IMultiSigKeyGenerator methods
+  std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override {
+    LOG_INFO(logger(), "Generating new multisig key pair");
+    auto [priv, pub] = getLatestCryptoSystem()->generateNewKeyPair();
+    return {priv, pub, getLatestSignatureAlgorithm()};
+  }
+
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.
   // Therefore the first called will create a CryptoSys

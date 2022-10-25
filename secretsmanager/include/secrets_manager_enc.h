@@ -18,8 +18,6 @@
 #include <set>
 #include <functional>
 
-#include <cryptopp/osrng.h>
-
 #include "Logger.hpp"
 
 #include "secrets_manager_impl.h"
