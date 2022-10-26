@@ -74,9 +74,12 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& cha
   std::cout << "Public config size: " << configureResp.public_config().size() << '\n';
 
   utt::Configuration config(configureResp.config().begin(), configureResp.config().end());
-  // utt::PublicConfig publicConfig(configureResp.public_config().begin(), configureResp.public_config().end());
+  utt::PublicConfig publicConfig(configureResp.public_config().begin(), configureResp.public_config().end());
 
-  auto publicConfig = utt::client::getPublicConfig(config);
+  auto otherPublicConfig = utt::client::getPublicConfig(config);
+  if (publicConfig != otherPublicConfig) {
+    throw std::runtime_error("The public config doesn't correspond to the one in the full config!");
+  }
 
   return std::pair<utt::Configuration, utt::PublicConfig>{std::move(config), std::move(publicConfig)};
 }
