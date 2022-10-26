@@ -24,7 +24,7 @@ Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, c
 }
 
 Wallet::Connection Wallet::newConnection() {
-  std::string grpcServerAddr = "127.0.0.1:49000";
+  std::string grpcServerAddr = "127.0.0.1:49001";
 
   std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
 
@@ -53,35 +53,32 @@ void Wallet::showInfo(Channel& chan) {
   std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
-std::pair<utt::Configuration, utt::PublicConfig> Wallet::deployApp(Channel& chan) {
-  // Generate a privacy config for a N=4 replica system tolerating F=1 failures
-  utt::client::ConfigInputParams params;
-  params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
-  params.threshold = 2;                                                              // F + 1
-  auto config = utt::client::generateConfig(params);
-  if (config.empty()) throw std::runtime_error("Failed to generate a privacy app configuration!");
-
+std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& chan) {
   WalletRequest req;
-  req.mutable_deploy()->set_config(config.data(), config.size());
+  req.mutable_configure();
   chan->Write(req);
 
   WalletResponse resp;
   chan->Read(&resp);
-  if (!resp.has_deploy()) throw std::runtime_error("Expected deploy response from wallet service!");
-  std::cout << "response case: " << resp.resp_case() << '\n';
-  const auto& deployResp = resp.deploy();
-  std::cout << "has_privacy_contract_addr:" << deployResp.has_privacy_contract_addr() << '\n';
-  std::cout << "has_token_contract_addr:" << deployResp.has_token_contract_addr() << '\n';
+  if (!resp.has_configure()) throw std::runtime_error("Expected configure response from wallet service!");
+  const auto& configureResp = resp.configure();
 
   // Note that keeping the config around in memory is just a temp solution and should not happen in real system
-  if (deployResp.has_err()) throw std::runtime_error("Failed to deploy privacy app: " + resp.err());
+  if (configureResp.has_err()) throw std::runtime_error("Failed to configure: " + resp.err());
 
-  std::cout << "\nDeployed privacy application\n";
+  std::cout << "\nConfigured privacy application\n";
   std::cout << "-----------------------------------\n";
-  std::cout << "Privacy contract: " << deployResp.privacy_contract_addr() << '\n';
-  std::cout << "Token contract: " << deployResp.token_contract_addr() << '\n';
+  std::cout << "Privacy contract: " << configureResp.privacy_contract_addr() << '\n';
+  std::cout << "Token contract: " << configureResp.token_contract_addr() << '\n';
+  std::cout << "Full config size: " << configureResp.config().size() << '\n';
+  std::cout << "Public config size: " << configureResp.public_config().size() << '\n';
 
-  return std::pair<utt::Configuration, utt::PublicConfig>{config, utt::client::getPublicConfig(config)};
+  utt::Configuration config(configureResp.config().begin(), configureResp.config().end());
+  // utt::PublicConfig publicConfig(configureResp.public_config().begin(), configureResp.public_config().end());
+
+  auto publicConfig = utt::client::getPublicConfig(config);
+
+  return std::pair<utt::Configuration, utt::PublicConfig>{std::move(config), std::move(publicConfig)};
 }
 
 void Wallet::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
