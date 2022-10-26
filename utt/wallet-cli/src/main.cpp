@@ -51,8 +51,7 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy                    -- generates a privacy app config, deploys it on the blockchain and creates "
-               "test users.\n";
+  std::cout << "config                    -- configures wallets with the privacy application.\n";
   std::cout << "show <user-id>            -- prints information about the user managed by this wallet\n";
   std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
   std::cout
@@ -70,7 +69,7 @@ struct CLIApp {
   utt::Configuration config;
   utt::client::TestUserPKInfrastructure pki;
   std::map<std::string, Wallet> wallets;
-  bool deployed = false;
+  bool configured = false;
 
   CLIApp() {
     conn = Wallet::newConnection();
@@ -89,21 +88,21 @@ struct CLIApp {
     std::cout << "gRPC error details: " << status.error_details() << '\n';
   }
 
-  void deploy() {
-    if (deployed) {
-      std::cout << "The privacy app is already deployed.\n";
+  void configure() {
+    if (configured) {
+      std::cout << "The wallets are already configured.\n";
       return;
     }
 
-    auto configs = Wallet::deployApp(chan);
-    config = std::move(configs.first);  // Save the full config for creating budgets locally later
+    auto configs = Wallet::getConfigs(chan);
+    config = configs.first;
 
     auto testUserIds = pki.getUserIds();
     for (const auto& userId : testUserIds) {
       std::cout << "Creating test user with id '" << userId << "'\n";
       wallets.emplace(userId, Wallet(userId, pki, configs.second));
     }
-    deployed = true;
+    configured = true;
   }
 
   Wallet* getWallet(const std::string& userId) {
@@ -240,10 +239,10 @@ int main(int argc, char* argv[]) {
 
       if (cmd == "h") {
         printHelp();
-      } else if (cmd == "deploy") {
-        app.deploy();
-      } else if (!app.deployed) {
-        std::cout << "You must first deploy the privacy application. Use the 'deploy' command.\n";
+      } else if (cmd == "config") {
+        app.configure();
+      } else if (!app.configured) {
+        std::cout << "You must first configure the privacy application. Use the 'config' command.\n";
       } else {
         // Tokenize params
         std::vector<std::string> cmdTokens;

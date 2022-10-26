@@ -30,10 +30,12 @@ class Wallet {
 
   static Connection newConnection();
 
-  /// [TODO-UTT] Should be performed by an admin app
-  /// @brief Deploy a privacy application
-  /// @return The public configuration of the deployed application
-  static std::pair<utt::Configuration, utt::PublicConfig> deployApp(Channel& chan);
+  /// @brief Get the configuration for a privacy application
+  /// @return The full and public configurations of the deployed application
+  /// [TODO-UTT] We only need the public config but the full config is returned
+  /// because we needed for createPrivacyBudgetLocal which should also be removed
+  /// in favor of a system-created budget tokens by the admin
+  static std::pair<utt::Configuration, utt::PublicConfig> getConfigs(Channel& chan);
 
   /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
   /// @brief Create a privacy budget locally for the user. This function is only for testing.

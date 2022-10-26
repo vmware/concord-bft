@@ -8,39 +8,6 @@ package vmware.concord.utt.wallet.api.v1;
 
 // Privacy Wallet Service Interface
 service WalletService {
-    // Temporary adding the deployment of privacy app to the wallet service
-    // [TODO-UTT] This operation should be performed by an administrator-only tool
-    rpc deployPrivacyApp(DeployPrivacyAppRequest) returns (DeployPrivacyAppResponse);
-    rpc registerUser(RegisterUserRequest) returns (RegisterUserResponse);
-
-    // A non-standard way for a client to force the creation of a privacy budget.
-    // Usually this operation is performed by an administrator.
-    // The value of the returned budget is determined by the system
-    rpc createPrivacyBudget(CreatePrivacyBudgetRequest) returns (CreatePrivacyBudgetResponse);
-
-    rpc transfer(TransferRequest) returns (TransferResponse);
-
-    // Note: mint is supposed to convert public funds (Ether, ERC-20 tokens, etc.) to private funds (UTT tokens).
-    // Here we make an assumption that the wallet service keeps track of our public funds but in reality
-    // we need a way to use one or more Ethereum accounts representing the public funds of the user.
-    rpc mint(MintRequest) returns (MintResponse);
-
-    // Note: burn is supposed to convert private funds (UTT tokens) to public funds (Ether, ERC-20 tokens, etc.).
-    // Here we make an assumption that the wallet service keeps track of our public funds but in reality
-    // we need a way to use one or more Ethereum accounts representing the public funds of the user.
-    rpc burn(BurnRequest) returns (BurnResponse);
-
-    // Same as getNumOfLastAddedTranscation from spec
-    rpc getLastAddedTxNumber(GetLastAddedTxNumberRequest) returns (GetLastAddedTxNumberResponse);
-
-    // Same as getNumOfLastSignedTranscation from spec
-    rpc getLastSignedTxNumber(GetLastSignedTxNumberRequest) returns (GetLastSignedTxNumberResponse);
-
-    // Fetch an already signed (completed) transaction (either mint, burn or transfer).
-    rpc getSignedTransaction(GetSignedTransactionRequest) returns (GetSignedTransactionResponse);
-
-    rpc getPublicBalance(GetPublicBalanceRequest) returns (GetPublicBalanceResponse);
-
     rpc walletChannel(stream WalletRequest) returns (stream WalletResponse);
 }
 
@@ -51,14 +18,19 @@ enum TxType {
     TRANSFER = 3;
 }
 
-message DeployPrivacyAppRequest {
-    optional bytes config = 1;
+message ConfigureRequest {
 }
 
-message DeployPrivacyAppResponse {
-    optional string err = 1;    // Returns any error generated during deployment
-    optional string privacy_contract_addr = 2; // Address of the deployed privacy contract
-    optional string token_contract_addr = 3; // Address of the deployed token contract
+message ConfigureResponse {
+    optional string err = 1;
+    optional string privacy_contract_addr = 2;
+    optional string token_contract_addr = 3;
+    optional bytes public_config = 4;
+    
+    // [TODO-UTT] Remove the whole configuration. We need only the public config and not the full config.
+    // The full config is only needed to create budget tokens locally, but budget tokens should be
+    // create by a request from an admin to the system.
+    optional bytes config = 5; 
 }
 
 message RegisterUserRequest {
@@ -156,7 +128,7 @@ message GetPublicBalanceResponse {
 message WalletRequest {
     oneof req {
         // init
-        DeployPrivacyAppRequest deploy = 1;
+        ConfigureRequest configure = 1;
         RegisterUserRequest register_user = 2;
         // transact
         TransferRequest transfer = 3;
@@ -173,7 +145,7 @@ message WalletResponse {
     optional string err = 1;
     oneof resp {
         // init
-        DeployPrivacyAppResponse deploy = 2;
+        ConfigureResponse configure = 2;
         RegisterUserResponse register_user = 3;
         // transact
         TransferResponse transfer = 4;
