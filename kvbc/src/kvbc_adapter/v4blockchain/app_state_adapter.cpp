@@ -15,6 +15,7 @@
 #include "kvbc_adapter/v4blockchain/app_state_adapter.hpp"
 #include "v4blockchain/detail/blocks.h"
 #include "v4blockchain/detail/detail.h"
+#include "assertUtils.hpp"
 
 using namespace concord::kvbc;
 
@@ -41,9 +42,12 @@ bool AppStateAdapter::getPrevDigestFromBlock(uint64_t blockId,
                                              bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssert(blockId > 0);
   const auto parent_digest = kvbc_->parentDigest(blockId);
-  static_assert(parent_digest.size() == DIGEST_SIZE);
   static_assert(sizeof(bftEngine::bcst::StateTransferDigest) == DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, parent_digest.data(), DIGEST_SIZE);
+  if (parent_digest == std::nullopt) {
+    return false;
+  }
+  ConcordAssertEQ(parent_digest.value().size(), DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, parent_digest.value().data(), DIGEST_SIZE);
   return true;
 }
 
@@ -52,7 +56,7 @@ void AppStateAdapter::getPrevDigestFromBlock(const char *blockData,
                                              bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGE(blockSize, ::v4blockchain::detail::Block::HEADER_SIZE);
   const auto &digest =
-      *reinterpret_cast<const concord::util::digest::BlockDigest *>(blockData + sizeof(concord::kvbc::version_type));
+      *reinterpret_cast<const concord::crypto::BlockDigest *>(blockData + sizeof(concord::kvbc::version_type));
 
   std::memcpy(outPrevBlockDigest, digest.data(), DIGEST_SIZE);
 }

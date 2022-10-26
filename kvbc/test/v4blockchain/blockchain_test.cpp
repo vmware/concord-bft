@@ -44,7 +44,7 @@ class v4_blockchain : public Test {
 };
 
 TEST_F(v4_blockchain, creation) {
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -89,7 +89,7 @@ TEST_F(v4_blockchain, creation) {
 }
 
 TEST_F(v4_blockchain, calculate_empty_digest) {
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -105,7 +105,7 @@ TEST_F(v4_blockchain, calculate_empty_digest) {
 }
 
 TEST_F(v4_blockchain, basic_chain) {
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -187,7 +187,7 @@ TEST_F(v4_blockchain, basic_chain) {
 }
 
 TEST_F(v4_blockchain, adv_chain) {
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }

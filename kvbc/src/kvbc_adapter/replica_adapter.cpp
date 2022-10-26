@@ -108,10 +108,10 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(db_chkpt_, nullptr);
 }
 
-BlockId ReplicaBlockchain::deleteBlocksUntil(BlockId until) {
+BlockId ReplicaBlockchain::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   auto prev_dur = delete_blocks_until_duration.Get().Get();
   auto start = std::chrono::steady_clock::now();
-  auto id = deleter_->deleteBlocksUntil(until);
+  auto id = deleter_->deleteBlocksUntil(until, delete_files_in_range);
   auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
   delete_blocks_until_duration.Get().Set(prev_dur + dur);
   metrics_comp_.UpdateAggregator();

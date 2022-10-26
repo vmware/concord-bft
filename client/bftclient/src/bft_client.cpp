@@ -16,11 +16,16 @@
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
+#include "crypto/factory.hpp"
+#include "ReplicaConfig.hpp"
 
 using namespace concord::diagnostics;
 using namespace concord::secretsmanager;
 using namespace bftEngine;
 using namespace bftEngine::impl;
+using concord::crypto::KeyFormat;
+using concord::crypto::Factory;
+using bftEngine::ReplicaConfig;
 
 namespace bft::client {
 
@@ -55,9 +60,11 @@ Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<c
     }
 
     key_plaintext = secretsManager->decryptFile(file_path);
-    if (!key_plaintext) throw InvalidPrivateKeyException(file_path, config.secrets_manager_config != std::nullopt);
-    transaction_signer_ = std::make_unique<concord::util::crypto::RSASigner>(
-        key_plaintext.value().c_str(), concord::util::crypto::KeyFormat::PemFormat);
+    if (!key_plaintext) {
+      throw InvalidPrivateKeyException(file_path, config.secrets_manager_config != std::nullopt);
+    }
+    transaction_signer_ = Factory::getSigner(
+        key_plaintext.value(), ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
   }
   communication_->setReceiver(config_.id.val, &receiver_);
   communication_->start();
@@ -124,12 +131,8 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     size_t actualSigSize = 0;
     position += config.correlation_id.size();
     {
-      std::string sig;
-      std::string data(request.begin(), request.end());
       TimeRecorder scoped_timer(*histograms_->sign_duration);
-      sig = transaction_signer_->sign(data);
-      actualSigSize = sig.size();
-      std::memcpy(position, sig.data(), sig.size());
+      actualSigSize = transaction_signer_->sign(request, position);
       ConcordAssert(expected_sig_len == actualSigSize);
       header->reqSignatureLength = actualSigSize;
       histograms_->transaction_size->record(request.size());
@@ -376,7 +379,8 @@ std::string Client::signMessage(std::vector<uint8_t>& data) {
   if (transaction_signer_) {
     auto expected_sig_len = transaction_signer_->signatureLength();
     signature.resize(expected_sig_len);
-    signature = transaction_signer_->sign(std::string(data.begin(), data.end()));
+    auto actual_sig_len = transaction_signer_->sign(data, reinterpret_cast<uint8_t*>(signature.data()));
+    ConcordAssertEQ(actual_sig_len, expected_sig_len);
   }
   return signature;
 }

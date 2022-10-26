@@ -4,15 +4,15 @@
 
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 
 #include <cstdint>
 #include <iterator>
 #include <unordered_map>
 
-using concord::util::digest::BlockDigest;
-
 namespace concord::kvbc::v2MerkleTree::block::detail {
+
+using concord::crypto::BlockDigest;
 
 // Creates a block that adds a set of key/values.
 RawBlock create(const SetOfKeyValuePairs &updates,

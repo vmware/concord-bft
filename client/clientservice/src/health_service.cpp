@@ -102,6 +102,9 @@ void HealthCheckServiceImpl::updateAggregateHealth() {
   bool aggregate_health = true;  // reports healthy iff all services are healthy
   for (auto& [k, v] : status_map_) {
     if (k == "") continue;
+    if (k == kRequestService) {
+      v = getRequeserviceHealthStatus();
+    }
     aggregate_health = aggregate_health && (v == HealthCheckResponse::SERVING);
   }
   status_map_[""] = aggregate_health ? HealthCheckResponse::SERVING : HealthCheckResponse::NOT_SERVING;

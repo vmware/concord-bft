@@ -25,7 +25,7 @@
 #include "kv_types.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 #include "status.hpp"
 #include "concord_kvbc.pb.h"
 
@@ -45,7 +45,7 @@ using concord::kvbc::KvbFilteredUpdate;
 using concord::kvbc::KvbFilteredEventGroupUpdate;
 using concord::kvbc::KvbUpdate;
 using concord::kvbc::NoLegacyEvents;
-using concord::util::openssl_utils::computeSHA256Hash;
+using concord::crypto::openssl::computeSHA256Hash;
 
 namespace {
 

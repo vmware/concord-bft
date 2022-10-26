@@ -213,9 +213,10 @@ BNT BNT::invertModPrime(const BNT& p) const {
  * G1T
  */
 
-void G1T::toBytes(unsigned char* buf, int size) const {
+size_t G1T::toBytes(unsigned char* buf, int size) const {
   assertGreaterThanOrEqual(size, getByteCount());
   g1_write_bin(buf, size, n, 1);
+  return static_cast<size_t>(getByteCount());
   // LOG_TRACE(BLS_LOG, "Wrote G1T of " << size << " bytes");
 }
 

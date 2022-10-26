@@ -21,11 +21,16 @@
 #include "communication/StateControl.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/DbCheckpointManager.hpp"
+#include "ReplicaConfig.hpp"
+#include "crypto/factory.hpp"
 
 #include <fstream>
 
-using namespace concord::messages;
 namespace concord::reconfiguration {
+
+using namespace concord::messages;
+using concord::crypto::KeyFormat;
+using concord::crypto::Factory;
 
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
@@ -70,7 +75,7 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
   if (command.tls) {
     bftEngine::impl::KeyExchangeManager::instance().exchangeTlsKeys(sequence_number);
   } else {
-    bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
+    bftEngine::impl::KeyExchangeManager::instance().generateConsensusKeyAndSendInternalClientMsg(sequence_number);
   }
   return true;
 }
@@ -329,8 +334,10 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
     key_str.append(buf, 0, key_content.gcount());
   }
   key_str.append(buf, 0, key_content.gcount());
-  verifier_.reset(new concord::util::crypto::ECDSAVerifier(key_str, concord::util::crypto::KeyFormat::PemFormat));
+  verifier_ =
+      Factory::getVerifier(key_str, bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo, KeyFormat::PemFormat);
 }
+
 bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                 const std::string& data,
                                                 const std::string& signature) const {
@@ -363,7 +370,7 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
   // assuming we always send hex DER over the wire
   for (const auto& clientId : affected_clients)
     bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(
-        msg.pub_key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat, clientId);
+        msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;
 }
 }  // namespace concord::reconfiguration

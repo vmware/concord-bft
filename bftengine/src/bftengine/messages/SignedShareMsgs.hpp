@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "MessageBase.hpp"
 #include <memory>
 
-using concord::util::digest::Digest;
+using concord::crypto::Digest;
 
 class IThresholdSigner;
 

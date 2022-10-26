@@ -12,14 +12,11 @@
 #include "gtest/gtest.h"
 
 #include "helper.hpp"
-#include "DigestType.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"
 #include "messages/MsgCode.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
-#include "bftengine/ClientMsgs.hpp"
-#include "bftengine/ReplicaConfig.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
 
@@ -36,7 +33,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);

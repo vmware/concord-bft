@@ -59,11 +59,14 @@ using concord::client::reconfiguration::ClientReconfigurationEngine;
 
 namespace bftEngine::bcst::impl {
 
+namespace test {
+class BcStTestDelegator;
+}
 class RVBManager;
 
 class BCStateTran : public IStateTransfer {
   // The next friend declerations are used strictly for testing
-  friend class BcStTestDelegator;
+  friend class test::BcStTestDelegator;
 
  public:
   //////////////////////////////////////////////////////////////////////////////
@@ -518,7 +521,9 @@ class BCStateTran : public IStateTransfer {
                                    const uint32_t blockSize,
                                    Digest* outDigest);
 
-  static BlockDigest computeDigestOfBlock(const uint64_t blockNum, const char* block, const uint32_t blockSize);
+  static concord::crypto::BlockDigest computeDigestOfBlock(const uint64_t blockNum,
+                                                           const char* block,
+                                                           const uint32_t blockSize);
 
  protected:
   // A wrapper function to get a block from the IAppState and compute its digest.

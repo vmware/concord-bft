@@ -36,7 +36,8 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   if (genesis_blockId) {
     ConcordAssertGT(genesis_blockId.value(), INVALID_BLOCK_ID);
     ConcordAssertLE(genesis_blockId.value(), last_reachable_block_id_);
-    ConcordAssert(!hasBlock(genesis_blockId.value() - 1));
+    // The following is not necessarily true when we use DeleteFilesInRange()
+    // ConcordAssert(!hasBlock(genesis_blockId.value() - 1));
     setGenesisBlockId(genesis_blockId.value());
     LOG_INFO(V4_BLOCK_LOG, "Genesis block was loaded from storage " << genesis_block_id_);
   }
@@ -60,7 +61,7 @@ BlockId Blockchain::addBlock(const concord::kvbc::categorization::Updates& categ
 BlockId Blockchain::addBlock(v4blockchain::detail::Block& block, storage::rocksdb::NativeWriteBatch& wb) {
   BlockId id = last_reachable_block_id_ + 1;
   // If future from the previous add exist get its value
-  concord::util::digest::BlockDigest digest;
+  concord::crypto::BlockDigest digest;
   if (future_digest_) {
     ++from_future;
     digest = future_digest_->get();
@@ -78,7 +79,7 @@ BlockId Blockchain::addBlock(v4blockchain::detail::Block& block, storage::rocksd
 
 // Delete up to until not including until,
 // returns the last block id that was deleted.
-BlockId Blockchain::deleteBlocksUntil(BlockId until) {
+BlockId Blockchain::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   ConcordAssertGT(genesis_block_id_, INVALID_BLOCK_ID);
   ConcordAssertLT(genesis_block_id_, until);
   // We have a single block on the chain
@@ -92,15 +93,47 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
 
   // Removes the database entries in the range ["begin_key", "end_key"), i.e.,
   // including "begin_key" and excluding "end_key" --> this is why end is (last_deleted_block + 1)
-  write_batch.delRange(
-      v4blockchain::detail::BLOCKS_CF, generateKey(genesis_block_id_), generateKey(last_deleted_block + 1));
+  //
+  // We sometimes want to re-run the prune so it is better to delete from 1 than
+  // from genesis_block_id_.
+  if (delete_files_in_range) {
+    // Allows fast removal of SST files in a range but can "leak" keys
+    native_client_->deleteFilesInRange(
+        v4blockchain::detail::BLOCKS_CF, generateKey(1), generateKey(last_deleted_block + 1), false);
+  } else {
+    // Slow but safe deletion
+    write_batch.delRange(v4blockchain::detail::BLOCKS_CF, generateKey(1), generateKey(last_deleted_block + 1));
+    compaction_mutex_.lock();
+    need_compaction_ = true;
+    compaction_mutex_.unlock();
+  }
   write_batch.put(v4blockchain::detail::MISC_CF, keyTypes::genesis_block_key, generateKey(last_deleted_block + 1));
   native_client_->write(std::move(write_batch));
   auto blocks_deleted = (last_deleted_block - genesis_block_id_) + 1;
   setGenesisBlockId(last_deleted_block + 1);
 
-  LOG_INFO(V4_BLOCK_LOG, "Deleted " << blocks_deleted << " blocks, new genesis is " << genesis_block_id_);
+  LOG_INFO(V4_BLOCK_LOG,
+           "Deleted " << blocks_deleted << " blocks, new genesis is " << genesis_block_id_
+                      << " delete_files_in_range is " << delete_files_in_range);
   return last_deleted_block;
+}
+
+// atomically get and reset the need_compaction_ flag
+// to ensure that compaction is not started unnecessarily
+bool Blockchain::needCompaction() {
+  bool res;
+  compaction_mutex_.lock();
+  res = need_compaction_;
+  need_compaction_ = false;
+  compaction_mutex_.unlock();
+  return res;
+}
+
+// Compacts between 1 and genesis_block_id - 1 in order to physically reclaim space
+// from the last delRange()
+void Blockchain::compaction() {
+  native_client_->compactRange(v4blockchain::detail::BLOCKS_CF, generateKey(1), generateKey(genesis_block_id_ - 1));
+  LOG_INFO(V4_BLOCK_LOG, "Compacted until " << genesis_block_id_);
 }
 
 void Blockchain::deleteGenesisBlock() {
@@ -120,9 +153,9 @@ void Blockchain::deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch& wr
   deleteBlock(last_reachable_block_id_, write_batch);
 }
 
-concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::BlockId id) const {
+concord::crypto::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::BlockId id) const {
   if (id < concord::kvbc::INITIAL_GENESIS_BLOCK_ID) {
-    concord::util::digest::BlockDigest empty_digest;
+    concord::crypto::BlockDigest empty_digest;
     empty_digest.fill(0);
     return empty_digest;
   }
@@ -131,7 +164,7 @@ concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvb
   return v4blockchain::detail::Block::calculateDigest(id, block_str->c_str(), block_str->size());
 }
 
-concord::util::digest::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
+concord::crypto::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
   auto block_str = getBlockData(id);
   ConcordAssert(block_str.has_value());
   return v4blockchain::detail::Block{*block_str}.parentDigest();
@@ -229,7 +262,9 @@ void Blockchain::setBlockId(BlockId id) {
 }
 
 bool Blockchain::hasBlock(BlockId block_id) const {
-  if (block_id > last_reachable_block_id_) return false;
+  if ((block_id > last_reachable_block_id_) || (block_id < genesis_block_id_)) {
+    return false;
+  }
   return native_client_->getSlice(v4blockchain::detail::BLOCKS_CF, generateKey(block_id)).has_value();
 }
 

@@ -113,9 +113,9 @@ BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
 
 //////////////////////////// DELETER////////////////////////////////////////////
 
-BlockId KeyValueBlockchain::deleteBlocksUntil(BlockId until) {
+BlockId KeyValueBlockchain::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   auto scoped = v4blockchain::detail::ScopedDuration{"deleteBlocksUntil"};
-  auto id = block_chain_.deleteBlocksUntil(until);
+  auto id = block_chain_.deleteBlocksUntil(until, delete_files_in_range);
   blocks_deleted_.Get().Set(id);
   v4_metrics_comp_.UpdateAggregator();
   return id;
@@ -276,9 +276,24 @@ uint64_t KeyValueBlockchain::onNewBFTSequenceNumber(const categorization::Update
     new_snap_shot.releasePreviousSnapshot(snap_shot_);
   }
 
+  if (block_chain_.needCompaction()) {
+    auto compaction_res_ = compaction_thread_pool_.async([this]() {
+      auto start = std::chrono::steady_clock::now();
+      LOG_INFO(V4_BLOCK_LOG, "Compaction starting monotonic time: " << start.time_since_epoch().count());
+      block_chain_.compaction();
+      auto end = std::chrono::steady_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+      LOG_INFO(V4_BLOCK_LOG,
+               "Compaction completed at monotonic time: " << end.time_since_epoch().count()
+                                                          << ", duration (seconds): " << duration);
+    });
+    (void)compaction_res_;
+  }
+
   native_client_->put(v4blockchain::detail::MISC_CF,
                       kvbc::keyTypes::v4_snapshot_sequence,
                       new_snap_shot.getStorableSeqNumAndPreventRelease(bft_stable_sn));
+
   snap_shot_ = new_snap_shot.get();
   LOG_DEBUG(V4_BLOCK_LOG,
             "New sequence number identified "
@@ -337,34 +352,30 @@ std::optional<BlockId> KeyValueBlockchain::getLastStatetransferBlockId() const {
   return state_transfer_chain_.getLastBlockId();
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId block_id) const {
+std::optional<concord::crypto::BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
-    return state_transfer_chain_.getBlockParentDigest(block_id);
+    return std::optional<concord::crypto::BlockDigest>(state_transfer_chain_.getBlockParentDigest(block_id));
   }
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
-              "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
-    empty_digest.fill(0);
-    return empty_digest;
+              "Trying to get parent digest from block " << block_id << " while genesis is " << getGenesisBlockId());
+    return std::nullopt;
   }
-  return block_chain_.getBlockParentDigest(block_id);
+  return std::optional<concord::crypto::BlockDigest>(block_chain_.getBlockParentDigest(block_id));
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+std::optional<concord::crypto::BlockDigest> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
-    return state_transfer_chain_.getBlockDigest(block_id);
+    return std::optional<concord::crypto::BlockDigest>(state_transfer_chain_.getBlockDigest(block_id));
   }
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
               "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
-    empty_digest.fill(0);
-    return empty_digest;
+    return std::nullopt;
   }
-  return block_chain_.calculateBlockDigest(block_id);
+  return std::optional<concord::crypto::BlockDigest>(block_chain_.calculateBlockDigest(block_id));
 }
 
 void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,

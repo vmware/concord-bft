@@ -48,7 +48,7 @@ TEST(v4_block, creation) {
 
 TEST(v4_block, new_block_digest) {
   // New blocks should have empty digest
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -69,11 +69,11 @@ TEST(v4_block, new_block_digest) {
 
 TEST(v4_block, add_digest) {
   // New blocks should have empty digest
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
-  concord::util::digest::BlockDigest digest;
+  concord::crypto::BlockDigest digest;
   int i = 0;
   for (auto& d : digest) {
     d = i++;
@@ -99,7 +99,7 @@ TEST(v4_block, add_digest) {
 
 TEST(v4_block, add_updates) {
   // New blocks should have empty digest
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -161,12 +161,12 @@ TEST(v4_block, add_updates) {
 
 TEST(v4_block, calculate_digest) {
   // New blocks should have empty digest
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
   // Genesis block
-  concord::util::digest::BlockDigest genesis_digest;
+  concord::crypto::BlockDigest genesis_digest;
   {
     v4blockchain::detail::Block block;
     auto imm_cat = std::string("immuatables");
@@ -239,7 +239,7 @@ TEST(v4_block, calculate_digest) {
 
 TEST(v4_block, buffer_size_for_updates) {
   // New blocks should have empty digest
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }

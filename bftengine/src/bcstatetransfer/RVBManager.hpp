@@ -20,7 +20,9 @@
 using BlockId = std::uint64_t;
 
 namespace bftEngine::bcst::impl {
-
+namespace test {
+class BcStTestDelegator;
+}
 using CheckpointDesc = DataStore::CheckpointDesc;
 using RVBGroupId = uint64_t;
 using RVBId = uint64_t;
@@ -60,7 +62,7 @@ class RangeValidationTree;
 
 class RVBManager {
   // For testing only
-  friend class BcStTestDelegator;
+  friend class test::BcStTestDelegator;
 
  public:
   enum class RvbDataInitialSource { FROM_STORAGE_CP, FROM_NETWORK, FROM_STORAGE_RECONSTRUCTION, NIL };

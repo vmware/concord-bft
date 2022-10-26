@@ -20,8 +20,7 @@
 #include <chrono>
 #include "string.hpp"
 #include "kvstream.h"
-
-#include "Serializable.h"
+#include "crypto/factory.hpp"
 
 namespace bftEngine {
 
@@ -122,10 +121,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(adaptiveBatchingDecCond, std::string, "0.5", "The decrease condition");
 
   // Crypto system
-  // RSA public keys of all replicas. map from replica identifier to a public key
+
+  // Public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
-  // RSA public keys of all clients. Each public key holds set of distinct client (principal) ids which are expected to
+  // Public keys of clients. Each public key holds set of distinct client ids which are expected to
   // sign with the matching private key
   std::set<std::pair<const std::string, std::set<uint16_t>>> publicKeysOfClients;
   std::unordered_map<uint16_t, std::set<uint16_t>> clientGroups;
@@ -281,6 +281,16 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "the concord-ctl script");
   CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
 
+  CONFIG_PARAM(replicaMsgSigningAlgo,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
+               "A flag to specify the replica message signing algorithm. It is defaulted to use EDDSA algo.");
+
+  CONFIG_PARAM(operatorMsgSigningAlgo,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
+               "A flag to specify the operator message signing algorithm. It is defaulted to use EDDSA algo.");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -406,6 +416,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, diagnosticsServerPort);
     serialize(outStream, useUnifiedCertificates);
     serialize(outStream, kvBlockchainVersion);
+    serialize(outStream, operatorMsgSigningAlgo);
+    serialize(outStream, replicaMsgSigningAlgo);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -506,6 +518,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, diagnosticsServerPort);
     deserialize(inStream, useUnifiedCertificates);
     deserialize(inStream, kvBlockchainVersion);
+    deserialize(inStream, operatorMsgSigningAlgo);
+    deserialize(inStream, replicaMsgSigningAlgo);
   }
 
  private:
@@ -591,6 +605,9 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptivePruningIntervalPeriod,
               rc.dbSnapshotIntervalSeconds.count());
   os << ",";
+  const auto replicaMsgSignAlgo =
+      (concord::crypto::SignatureAlgorithm::EdDSA == rc.replicaMsgSigningAlgo) ? "eddsa" : "undefined";
+  const auto operatorMsgSignAlgo = "eddsa";
   os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
@@ -599,7 +616,9 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enablePreProcessorMemoryPool,
               rc.diagnosticsServerPort,
               rc.useUnifiedCertificates,
-              rc.kvBlockchainVersion);
+              rc.kvBlockchainVersion,
+              replicaMsgSignAlgo,
+              operatorMsgSignAlgo);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

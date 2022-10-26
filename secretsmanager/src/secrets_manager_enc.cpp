@@ -17,6 +17,7 @@
 
 #include "aes.h"
 #include "base64.h"
+#include "assertUtils.hpp"
 
 namespace concord::secretsmanager {
 
@@ -32,6 +33,9 @@ SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
 }
 
 bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::string& input) {
+  if (file_path.empty()) {
+    return false;
+  }
   auto ct_encoded = encrypt(input);
   if (!ct_encoded.has_value()) {
     return false;
@@ -50,6 +54,9 @@ bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::strin
 std::optional<std::string> SecretsManagerEnc::encryptString(const std::string& input) { return encrypt(input); }
 
 std::optional<std::string> SecretsManagerEnc::decryptFile(std::string_view path) {
+  if (path.empty()) {
+    return std::nullopt;
+  }
   std::string data;
   try {
     data = readFile(path);
@@ -76,21 +83,25 @@ std::optional<std::string> SecretsManagerEnc::decryptFile(const std::ifstream& f
 std::optional<std::string> SecretsManagerEnc::decryptString(const std::string& input) { return decrypt(input); }
 
 std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
+  if (data.empty()) {
+    return std::nullopt;
+  }
   try {
-    // AES_CBC is created on each call fir thread safety
+    // AES_CBC is created on each call for thread safety
     auto aes = AES_CBC(*key_params_);
     auto cipher_text = base64Dec(data);
     auto pt = aes.decrypt(cipher_text);
-
     return std::optional<std::string>{pt};
   } catch (std::exception& e) {
     LOG_ERROR(logger_, "Decryption error: " << e.what());
   }
-
   return std::nullopt;
 }
 
 std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
+  if (data.empty()) {
+    return std::nullopt;
+  }
   try {
     // AES_CBC is created on each call fir thread safety
     auto aes = AES_CBC(*key_params_);
@@ -99,7 +110,6 @@ std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
   } catch (std::exception& e) {
     LOG_ERROR(logger_, "Encryption error: " << e.what());
   }
-
   return std::nullopt;
 }
 

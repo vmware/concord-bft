@@ -15,19 +15,21 @@
 
 #include "kv_types.hpp"
 #include "sliver.hpp"
-#include "Digest.hpp"
+#include "crypto/digest_parametes.hpp"
+#include "crypto/digest.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-
-using concord::util::digest::BlockDigest;
 
 namespace concord {
 namespace kvbc {
 namespace v1DirectKeyValue {
 namespace block {
 namespace detail {
+
+using concord::crypto::BlockDigest;
+
 // Creates a block with the user data appended at the end of the returned Sliver. The passed parentDigest buffer must be
 // of size DIGEST_SIZE bytes.
 concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,

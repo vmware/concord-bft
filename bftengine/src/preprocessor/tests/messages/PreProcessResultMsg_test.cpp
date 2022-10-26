@@ -39,7 +39,7 @@ bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal,
 bftEngine::impl::SigManager* createSigManagerWithSigning(
     size_t myId,
     std::string& myPrivateKey,
-    concord::util::crypto::KeyFormat replicasKeysFormat,
+    concord::crypto::KeyFormat replicasKeysFormat,
     std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
     const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
     ReplicasInfo& replicasInfo) {
@@ -48,7 +48,7 @@ bftEngine::impl::SigManager* createSigManagerWithSigning(
                           publicKeysOfReplicas,
                           replicasKeysFormat,
                           publicKeysOfClients,
-                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                           replicasInfo);
 }
 
@@ -64,6 +64,10 @@ struct MsgParams {
   const std::string spanContext{rawSpanContext};
 };
 
+std::vector<concord::Byte> copyAsBytes(const std::vector<char>& vec) {
+  return reinterpret_cast<const std::vector<concord::Byte>&>(vec);
+}
+
 std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,
                                                                   const MsgParams& p,
                                                                   const int sigCount) {
@@ -71,12 +75,12 @@ std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::uni
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       p.result, sizeof(p.result), OperationResult::SUCCESS, p.senderId, p.reqSeqNum);
-  sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data());
 
   // for simplicity, copy the same signatures
   std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < sigCount; i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
   return std::make_pair(PreProcessResultSignature::serializeResultSignatures(resultSigs, sigCount), msgSig);
 }
@@ -111,7 +115,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
         replicaInfo{config, false, false},
         sigManager(createSigManagerWithSigning(config.replicaId,
                                                config.replicaPrivateKey,
-                                               concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                               concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                config.publicKeysOfReplicas,
                                                &config.publicKeysOfClients,
                                                replicaInfo)) {}
@@ -127,12 +131,12 @@ class PreProcessResultMsgTestFixture : public testing::Test {
 
     auto hash = PreProcessResultHashCreator::create(
         p.result, sizeof(p.result), OperationResult::SUCCESS, p.senderId, p.reqSeqNum);
-    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data());
 
     // For simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
     for (int i = 0; i < sigCount; i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+      resultSigs.emplace_back(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
     }
 
     return std::make_unique<PreProcessResultMsg>(p.senderId,
@@ -160,7 +164,7 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
         replicaInfo{config, false, false},
         sigManager(createSigManagerWithSigning(config.replicaId,
                                                config.replicaPrivateKey,
-                                               concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                               concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                config.publicKeysOfReplicas,
                                                &config.publicKeysOfClients,
                                                replicaInfo)) {}
@@ -204,7 +208,7 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialization) {
 
   std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
   auto resultSigsBuf =
       PreProcessResultSignature::serializeResultSignatures(resultSigs, replicaInfo.getNumberOfReplicas());
@@ -220,7 +224,7 @@ TEST_F(PreProcessResultMsgTestFixture, ShrinkSignaturesToSize) {
   auto numReplies = 7;
   auto numRepliesNeeded = 4;
   for (int i = 0; i < numReplies; i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
 
   auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatures(resultSigs, numRepliesNeeded);
@@ -256,11 +260,11 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
-  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data());
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);
-    EXPECT_THAT(msgSig, s.signature);
+    EXPECT_THAT(copyAsBytes(msgSig), s.signature);
   }
 }
 
@@ -290,11 +294,11 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
-  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data());
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);
-    EXPECT_THAT(msgSig, s.signature);
+    EXPECT_THAT(copyAsBytes(msgSig), s.signature);
   }
 }
 

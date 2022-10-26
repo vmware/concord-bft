@@ -19,14 +19,14 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "helper.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-using concord::util::digest::Digest;
+using concord::crypto::Digest;
 
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 

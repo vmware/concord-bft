@@ -20,7 +20,7 @@
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
 #include "client/clientservice/client_service.hpp"
-#include "crypto_utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
 using concord::client::concordclient::StateSnapshotConfig;
@@ -295,7 +295,7 @@ void readCert(const std::string& input_filename, std::string& out_data) {
 
 std::string getClientIdFromClientCert(const std::string& client_cert_path, bool use_unified_certs) {
   auto field_name = (use_unified_certs ? "O" : "OU");
-  return util::crypto::CertificateUtils::getSubjectFieldByName(client_cert_path, field_name);
+  return crypto::getSubjectFieldByName(client_cert_path, field_name);
 }
 
 // Parses the value of the OU field i.e., the client id from the subject

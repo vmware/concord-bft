@@ -36,7 +36,7 @@ class BlsMultisigAccumulator : public BlsAccumulatorBase {
 
   // IThresholdAccumulator overloads.
  public:
-  virtual void getFullSignedData(char* outThreshSig, int threshSigLen);
+  virtual size_t getFullSignedData(char* outThreshSig, int threshSigLen);
 
   virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }
 
@@ -44,7 +44,7 @@ class BlsMultisigAccumulator : public BlsAccumulatorBase {
  public:
   virtual void aggregateShares();
 
-  virtual void sigToBytes(unsigned char* buf, int len) const;
+  virtual size_t sigToBytes(unsigned char* buf, int len) const;
 };
 
 } /* namespace Relic */

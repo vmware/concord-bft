@@ -41,7 +41,7 @@ class KeyValueBlockchain {
               v4blockchain::detail::Block &block,
               storage::rocksdb::NativeWriteBatch &);
   ////////////////////// DELETE //////////////////////////
-  BlockId deleteBlocksUntil(BlockId until);
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range = false);
   void deleteGenesisBlock();
   void deleteLastReachableBlock();
   void onFinishDeleteLastReachable();
@@ -64,9 +64,15 @@ class KeyValueBlockchain {
   // Each block contains the genesis block at the time of that block insertion.
   // On State-transfer, we read this key and prune up to this block.
   void pruneOnSTLink(const categorization::Updates &);
-  // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
-  concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
-  concord::util::digest::BlockDigest calculateBlockDigest(BlockId block_id) const;
+
+  // Gets the parent digest from block block_id: this is the digest pointer to the previous block block_id-1.
+  // It is calculated over block's block_id-1, and is integrated as part of  block block_id content.
+  // Return: a optional - if call failed, optional is empty, else it holds the requested digest.
+  std::optional<concord::crypto::BlockDigest> parentDigest(BlockId block_id) const;
+
+  // Calculates the digest of a block.
+  // Return: a optional. if call failed, optional is empty, else it holds the requested digest.
+  std::optional<concord::crypto::BlockDigest> calculateBlockDigest(BlockId block_id) const;
 
   std::optional<BlockId> getLastStatetransferBlockId() const;
 
@@ -271,6 +277,7 @@ class KeyValueBlockchain {
   std::map<kvbc::BlockId, const ::rocksdb::Snapshot *> chkpnt_snap_shots_;
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
+  util::ThreadPool compaction_thread_pool_{1};
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

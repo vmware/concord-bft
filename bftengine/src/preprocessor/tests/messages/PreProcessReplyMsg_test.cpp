@@ -30,7 +30,7 @@ class PreProcessReplyMsgTestFixture : public testing::Test {
         replicaInfo{config, false, false},
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo)) {
     PreProcessReplyMsg::setPreProcessorHistograms(&preProcessorRecorder);
@@ -109,8 +109,8 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
                                                viewNum);
   const auto hash =
       PreProcessResultHashCreator::create(preProcessResultBuf, preProcessResultBufLen, opResult, clientId, reqSeqNum);
-  auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
-  sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data(), expected_signature.size());
+  auto expected_signature = std::vector<concord::Byte>(sigManager->getMySigLength());
+  sigManager->sign(hash.data(), sizeof(hash), expected_signature.data());
   EXPECT_THAT(expected_signature, testing::ContainerEq(preProcessReplyMsg.getResultHashSignature()));
   clearDiagnosticsHandlers();
 }

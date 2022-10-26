@@ -60,6 +60,10 @@ TestConfig = namedtuple('TestConfig', [
     'num_ro_replicas'
 ])
 
+# NOTE: When the value is changed, then ensure to change in ReplicaConfig class'
+# 'operatorMsgSigningAlgo' value also.
+operator_msg_signing_algo = "eddsa" # or "ecdsa"
+
 class ConsensusPathPrevalentResult(Enum):
    OK = 0
    TOO_FEW_REQUESTS_ON_EXPECTED_PATH = 1
@@ -500,22 +504,38 @@ class BftTestNetwork:
         if self.config.num_ro_replicas > 0:
             args.extend(["-r", str(self.config.num_ro_replicas)])
         args.extend(["-o", self.config.key_file_prefix])
-        subprocess.run(args, check=True)
+        with log.start_action(action_type="Key Generation", cmdline=' '.join(args)):
+            subprocess.run(args, check=True)
 
     def _generate_operator_keys(self):
         if self.builddir is None:
             return
         with open(self.builddir + "/operator_pub.pem", 'w') as f:
-            f.write("-----BEGIN PUBLIC KEY-----\n"
-                    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
-                    "NfwGuJpAg84an5FdPALwZwBp/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
-                    "-----END PUBLIC KEY-----")
+            if ("ecdsa" == operator_msg_signing_algo):
+                # ECDSA public key.
+                f.write("-----BEGIN PUBLIC KEY-----\n"
+                        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
+                        "NfwGuJpAg84an5FdPALwZwBp/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
+                        "-----END PUBLIC KEY-----")
+            elif ("eddsa" == operator_msg_signing_algo):
+                # EdDSA public key.
+                f.write("-----BEGIN PUBLIC KEY-----\n"
+                        "MCowBQYDK2VwAyEAq6x6mTckhvzscZmDtRAwgneYpIE3sqkdLdaZ4B5JBbw=\n"
+                        "-----END PUBLIC KEY-----")
+
         with open(self.builddir + "/operator_priv.pem", 'w') as f:
-            f.write("-----BEGIN EC PRIVATE KEY-----\n"
-                    "MHcCAQEEIEWf8ZTkCWbdA9WrMSNGCC7GQxvSXiDlU6dlZAi6JaCboAoGCCqGSM49"
-                    "AwEHoUQDQgAENEMHcbJgnnYxfa1zDlIF7lzp/IoaNfwGuJpAg84an5FdPALwZwBp"
-                    "/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
-                    "-----END EC PRIVATE KEY-----")
+            if ("ecdsa" == operator_msg_signing_algo):
+                # ECDSA private key.
+                f.write("-----BEGIN EC PRIVATE KEY-----\n"
+                        "MHcCAQEEIEWf8ZTkCWbdA9WrMSNGCC7GQxvSXiDlU6dlZAi6JaCboAoGCCqGSM49"
+                        "AwEHoUQDQgAENEMHcbJgnnYxfa1zDlIF7lzp/IoaNfwGuJpAg84an5FdPALwZwBp"
+                        "/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
+                        "-----END EC PRIVATE KEY-----")
+            elif ("eddsa" == operator_msg_signing_algo):
+                # EdDSA private key.
+                f.write("-----BEGIN PRIVATE KEY-----\n"
+                        "MC4CAQAwBQYDK2VwBCIEIIIyaCtHzqPqMdvvcTIp+ZtOGccurc7e8qMPs8+jt0xo\n"
+                        "-----END PRIVATE KEY-----")
 
     def generate_tls_certs(self, num_to_generate, start_index=0, use_unified_certs=False):
         """
@@ -805,7 +825,7 @@ class BftTestNetwork:
         digest = self.binary_digest(replica_binary_path) if Path(replica_binary_path).exists() else 'Unknown'
 
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
-                              binary_path=replica_binary_path, binary_digest=digest):
+                              binary_path=replica_binary_path, binary_digest=digest, cmd=' '.join(start_cmd)):
             my_env = os.environ.copy()
             my_env["RID"] = str(replica_id)
             if is_external:
@@ -821,7 +841,7 @@ class BftTestNetwork:
                     stderr=stderr_file,
                     close_fds=True,
                     env=my_env
-                    )
+                )
 
                 if keep_logs:
                     self.verify_matching_replica_client_communication(replica_test_log_path)

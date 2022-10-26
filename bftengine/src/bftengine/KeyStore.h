@@ -16,7 +16,7 @@
 #include "KeyExchangeMsg.hpp"
 #include <map>
 #include <optional>
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 
 namespace bftEngine::impl {
 

@@ -36,6 +36,10 @@ Msg LatestPrunableBlock 14 {
    bytes signature
 }
 
+Msg PruneCompactRequest 16 {
+  uint64 sender
+}
+
 Msg PruneRequest 15 {
   uint64 sender
   list LatestPrunableBlock latest_prunable_block
@@ -45,6 +49,9 @@ Msg PruneRequest 15 {
 
   # The number of blocks in a pruning batch.
   uint64 batch_blocks_num
+
+  # Use fast deletion of blocks
+  bool delete_files_in_range
 }
 
 Msg PruneStatusRequest 17 {
@@ -232,6 +239,7 @@ Msg ReplicaMainKeyUpdate 64 {
     uint64 sender_id
     string key
     string format
+    uint8 algorithm
 }
 
 Msg ClientStateReply 39 {
@@ -450,6 +458,7 @@ Msg ReconfigurationRequest 1 {
     GetVersionCommand
     DownloadCommand
     DownloadStatusCommand
+    PruneCompactRequest
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest

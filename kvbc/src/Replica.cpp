@@ -385,7 +385,7 @@ BlockId Replica::addBlockToIdleReplica(categorization::Updates &&updates) {
 
 void Replica::deleteGenesisBlock() { return m_kvBlockchain->deleteGenesisBlock(); }
 
-BlockId Replica::deleteBlocksUntil(BlockId until) {
+BlockId Replica::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   // Inform State Transfer about pruning. We must do it in this thread context for persistency considerations, and in
   // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not
   // notified to ST. In that case, ST state will be corrupted.
@@ -394,7 +394,7 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
     m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
   }
   ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_, ISystemResourceEntity::type::pruning_utilization);
-  return m_kvBlockchain->deleteBlocksUntil(until);
+  return m_kvBlockchain->deleteBlocksUntil(until, delete_files_in_range);
 }
 
 void Replica::deleteLastReachableBlock() { return m_kvBlockchain->deleteLastReachableBlock(); }

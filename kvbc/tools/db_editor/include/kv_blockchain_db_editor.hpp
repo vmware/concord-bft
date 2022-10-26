@@ -30,18 +30,14 @@
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
-#include "crypto_utils.hpp"
+#include "crypto/factory.hpp"
 #include "json_output.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
+#include "hex_tools.h"
 
 #include <unordered_map>
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#pragma GCC diagnostic pop
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -267,7 +263,6 @@ struct GetBlockRequests {
   }
 
   std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
-    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -289,12 +284,7 @@ struct GetBlockRequests {
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
-      HexEncoder encoder;
-      std::string hex_digest;
-      encoder.Attach(new StringSink(hex_digest));
-      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
-      encoder.MessageEnd();
-
+      auto hex_digest = concordUtils::bufferToHex(req.signature.c_str(), req.signature.size());
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";
@@ -316,7 +306,6 @@ struct VerifyBlockRequests {
   }
 
   std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
-    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -355,20 +344,17 @@ struct VerifyBlockRequests {
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
-      HexEncoder encoder;
-      std::string hex_digest;
-      encoder.Attach(new StringSink(hex_digest));
-      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
-      encoder.MessageEnd();
+      auto hex_digest = concordUtils::bufferToHex(req.signature.c_str(), req.signature.size());
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";
       out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
       out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
       std::string verification_result;
-      auto verifier = std::make_unique<concord::util::crypto::RSAVerifier>(
+      const auto verifier = concord::crypto::Factory::getVerifier(
           client_keys.ids_to_keys[req.clientId].key,
-          (concord::util::crypto::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+          bftEngine::ReplicaConfig::instance().replicaMsgSigningAlgo,
+          (concord::crypto::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
 
       if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
         auto result = verifier->verify(req.request, req.signature);
@@ -1068,9 +1054,8 @@ struct VerifyDbCheckpoint {
   using CheckPointMsgStatus = std::vector<std::pair<const CheckpointMsg &, bool>>;
   using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
   using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
-  using IVerifier = concord::util::crypto::IVerifier;
-  using RSAVerifier = concord::util::crypto::RSAVerifier;
-  using KeyFormat = concord::util::crypto::KeyFormat;
+  using IVerifier = concord::crypto::IVerifier;
+  using KeyFormat = concord::crypto::KeyFormat;
   using ReplicaId = uint16_t;
   const bool read_only = true;
   std::string description() const {
@@ -1117,7 +1102,11 @@ struct VerifyDbCheckpoint {
               auto format = cmd.format;
               transform(format.begin(), format.end(), format.begin(), ::tolower);
               auto key_format = ((format == "hex") ? KeyFormat::HexaDecimalStrippedFormat : KeyFormat::PemFormat);
-              replica_keys.emplace(repId, std::make_unique<RSAVerifier>(cmd.key, key_format));
+
+              replica_keys.emplace(
+                  repId,
+                  concord::crypto::Factory::getVerifier(
+                      cmd.key, bftEngine::ReplicaConfig::instance().replicaMsgSigningAlgo, key_format));
             },
             *val);
       }
@@ -1129,9 +1118,7 @@ struct VerifyDbCheckpoint {
     if (verifier) {
       auto signature_len = verifier->signatureLength();
       if (signature_len == sig_len) {
-        std::string _data(data, data_len);
-        std::string _sig(sig, sig_len);
-        return verifier->verify(_data, _sig);
+        return verifier->verify(std::string_view{data, data_len}, std::string_view{sig, sig_len});
       }
     }
     return false;

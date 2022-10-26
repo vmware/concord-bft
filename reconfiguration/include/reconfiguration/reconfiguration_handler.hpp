@@ -18,7 +18,6 @@
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
-#include "crypto_utils.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
@@ -26,7 +25,7 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
   BftReconfigurationHandler();
   bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override;
 
-  std::unique_ptr<concord::util::crypto::IVerifier> verifier_;
+  std::unique_ptr<concord::crypto::IVerifier> verifier_;
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
@@ -107,8 +106,7 @@ class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigu
 
   bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override {
     if (!bftEngine::impl::SigManager::instance()->hasVerifier(sender_id)) return false;
-    return bftEngine::impl::SigManager::instance()->verifySig(
-        sender_id, data.data(), data.size(), signature.data(), signature.size());
+    return bftEngine::impl::SigManager::instance()->verifySig(sender_id, data, signature);
   }
 };
 

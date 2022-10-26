@@ -18,7 +18,7 @@
 
 #include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "SimpleThreadPool.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IncomingMsgsStorage.hpp"
@@ -27,7 +27,8 @@
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "demangle.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/IThresholdVerifier.h"
+#include "threshsign/IThresholdAccumulator.h"
 
 namespace bftEngine {
 namespace impl {
@@ -49,6 +50,10 @@ class CollectorOfThresholdSignatures {
     // add partialSigMsg to replicasInfo
     RepInfo info = {partialSigMsg, SigState::Unknown};
     replicasInfo[repId] = info;
+
+    /*if ((((InternalReplicaApi*)this->context)->getReplicaConfig().numReplicas) == 1) {
+      return true;
+    }*/
 
     numberOfUnknownSignatures++;
     LOG_TRACE(THRESHSIGN_LOG,
@@ -368,6 +373,7 @@ class CollectorOfThresholdSignatures {
       // TODO(GG): can utilize several threads (discuss with Alin)
 
       const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
+      size_t fullSignedDataLength = bufferSize;
       std::vector<char> bufferForSigComputations(bufferSize);
 
       const auto& span_context_of_last_message =
@@ -375,20 +381,22 @@ class CollectorOfThresholdSignatures {
       {
         // optimistically, don't use share verification
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(false)};
-        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
+        fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
       }
 
-      if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+      if (!verifier->verify(
+              (char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), fullSignedDataLength)) {
         // if verification failed, use accumulator with share verification enabled.
         // this still can succeed if there're enough valid shares.
         // at least replica with bad   signatures will be identified.
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(true)};
-        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
-        if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
+        fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+        if (!verifier->verify(
+                (char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), fullSignedDataLength)) {
           // if verification failed again
           // signer index starts with 1, therefore shareId-1
           std::set<uint16_t> replicasWithBadSigs;
@@ -400,8 +408,11 @@ class CollectorOfThresholdSignatures {
         }
       }
       // send success message
-      auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(
-          expectedSeqNumber, expectedView, bufferForSigComputations.data(), bufferSize, span_context_of_last_message));
+      auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(expectedSeqNumber,
+                                                              expectedView,
+                                                              bufferForSigComputations.data(),
+                                                              fullSignedDataLength,
+                                                              span_context_of_last_message));
       repMsgsStorage->pushInternalMsg(std::move(iMsg));
     }
   };

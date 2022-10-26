@@ -19,6 +19,7 @@
 #include "details.h"
 
 #include <rocksdb/options.h>
+#include <rocksdb/convenience.h>
 
 #include <memory>
 #include <optional>
@@ -216,6 +217,27 @@ inline std::vector<NativeIterator> NativeClient::getIterators(const std::vector<
 inline void NativeClient::write(NativeWriteBatch &&b) {
   auto s = client_->dbInstance_->Write(::rocksdb::WriteOptions{}, &b.batch_);
   detail::throwOnError("write(batch) failed"sv, std::move(s));
+}
+
+template <typename BeginSpan, typename EndSpan>
+inline void NativeClient::compactRange(const std::string &cFamily, const BeginSpan &startKey, const EndSpan &endKey) {
+  ::rocksdb::Slice startKeySlice(detail::toSlice(startKey));
+  ::rocksdb::Slice endKeySlice(detail::toSlice(endKey));
+  auto s = client_->dbInstance_->CompactRange(
+      ::rocksdb::CompactRangeOptions{}, columnFamilyHandle(cFamily), &startKeySlice, &endKeySlice);
+  detail::throwOnError("compact range failed"sv, std::move(s));
+}
+
+template <typename BeginSpan, typename EndSpan>
+inline void NativeClient::deleteFilesInRange(const std::string &cFamily,
+                                             const BeginSpan &startKey,
+                                             const EndSpan &endKey,
+                                             bool include_end) {
+  ::rocksdb::Slice startKeySlice(detail::toSlice(startKey));
+  ::rocksdb::Slice endKeySlice(detail::toSlice(endKey));
+  auto s = DeleteFilesInRange(
+      client_->dbInstance_.get(), columnFamilyHandle(cFamily), &startKeySlice, &endKeySlice, include_end);
+  detail::throwOnError("delete files in range failed"sv, std::move(s));
 }
 
 inline std::unordered_set<std::string> NativeClient::columnFamilies(const std::string &path) {

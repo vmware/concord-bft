@@ -30,6 +30,25 @@ using namespace concord::performance;
 
 namespace bftEngine {
 
+void RequestHandler::setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
+  if (userHdlr) {
+    userRequestsHandler_ = userHdlr;
+    for (const auto& rh : userHdlr->getReconfigurationHandler()) {
+      reconfig_dispatcher_.addReconfigurationHandler(rh);
+    }
+  }
+}
+
+void RequestHandler::setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
+                                               concord::reconfiguration::ReconfigurationHandlerType type) {
+  IRequestsHandler::setReconfigurationHandler(rh, type);
+  reconfig_dispatcher_.addReconfigurationHandler(rh, type);
+}
+
+void RequestHandler::setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry>& reg) {
+  cron_table_registry_ = reg;
+}
+
 void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
                              std::optional<Timestamp> timestamp,
                              const std::string& batchCid,

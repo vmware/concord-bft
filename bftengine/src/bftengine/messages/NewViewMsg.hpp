@@ -12,10 +12,10 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "ReplicaConfig.hpp"
 
-using concord::util::digest::Digest;
+using concord::crypto::Digest;
 
 namespace bftEngine {
 namespace impl {

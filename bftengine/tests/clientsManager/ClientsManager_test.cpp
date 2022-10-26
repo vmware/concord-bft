@@ -16,7 +16,10 @@
 #include "gtest/gtest.h"
 #include "messages/ClientReplyMsg.hpp"
 #include "ReservedPagesMock.hpp"
+#include "crypto/factory.hpp"
+#include "crypto/crypto.hpp"
 
+using concord::crypto::Factory;
 using bftEngine::impl::ClientsManager;
 using bftEngine::impl::NodeIdType;
 using bftEngine::impl::ReplicasInfo;
@@ -24,9 +27,7 @@ using bftEngine::impl::SigManager;
 using bftEngine::ReplicaConfig;
 using bftEngine::ReservedPagesClientBase;
 using bftEngine::test::ReservedPagesMock;
-using concord::util::crypto::Crypto;
-using concord::util::crypto::KeyFormat;
-using concord::util::crypto::RSASigner;
+using concord::crypto::KeyFormat;
 using concord::secretsmanager::ISecretsManagerImpl;
 using concordUtil::Timers;
 using std::chrono::milliseconds;
@@ -41,14 +42,16 @@ using std::string;
 using std::string_view;
 using std::this_thread::sleep_for;
 using std::unique_ptr;
+using std::tuple;
+
+using concord::crypto::SignatureAlgorithm;
+using concord::crypto::generateEdDSAKeyPair;
 
 // Testing values to be used for certain Concord-BFT configuration that ClientsManager and/or its dependencies may
 // reference.
 const ReplicaId kReplicaIdForTesting = 0;
-const uint32_t kRSASigLengthForTesting = 2048;
 const KeyFormat kKeyFormatForTesting = KeyFormat::HexaDecimalStrippedFormat;
-const SigManager::Key kReplicaPrivateKeyForTesting(
-    Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting).first);
+
 const set<pair<PrincipalId, const string>> kPublicKeysOfReplicasForTesting{};
 const set<pair<const string, set<uint16_t>>> kInitialPublicKeysOfClientsForTesting;
 unique_ptr<ReplicasInfo> sigManagerReplicasInfoForTesting;
@@ -92,7 +95,9 @@ class MockInternalBFTClient : public IInternalBFTClient {
 class MockMultiSigKeyGenerator : public IMultiSigKeyGenerator {
  public:
   virtual ~MockMultiSigKeyGenerator() override{};
-  virtual pair<string, string> generateMultisigKeyPair() override { return pair("", ""); }
+  virtual tuple<string, string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override {
+    return tuple("", "", concord::crypto::SignatureAlgorithm::Uninitialized);
+  }
 };
 
 class MockKeyExchanger : public IKeyExchanger {
@@ -136,6 +141,10 @@ static void resetMockReservedPages() {
 }
 
 static void resetSigManager() {
+  SigManager::Key kReplicaPrivateKeyForTesting;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    kReplicaPrivateKeyForTesting = generateEdDSAKeyPair().first;
+  }
   sig_manager_for_key_exchange_manager.reset(SigManager::init(kReplicaIdForTesting,
                                                               kReplicaPrivateKeyForTesting,
                                                               kPublicKeysOfReplicasForTesting,
@@ -218,13 +227,11 @@ static bool verifyClientPublicKeyLoadedToKEM(NodeIdType client_id, const pair<st
   if (!(SigManager::instance()->hasVerifier(client_id))) {
     return false;
   }
-  RSASigner signer(expected_key.first, kKeyFormatForTesting);
-  string signature = signer.sign(kArbitraryMessageForTestingKeyAgreement);
-  return SigManager::instance()->verifySig(client_id,
-                                           kArbitraryMessageForTestingKeyAgreement.data(),
-                                           kArbitraryMessageForTestingKeyAgreement.length(),
-                                           signature.data(),
-                                           signature.length());
+  const auto signer =
+      Factory::getSigner(expected_key.first, ReplicaConfig::instance().replicaMsgSigningAlgo, kKeyFormatForTesting);
+  std::vector<uint8_t> signature(signer->signatureLength());
+  EXPECT_EQ(signer->sign(kArbitraryMessageForTestingKeyAgreement, signature.data()), signer->signatureLength());
+  return SigManager::instance()->verifySig(client_id, kArbitraryMessageForTestingKeyAgreement, signature);
 }
 static bool verifyNoClientPublicKeyLoadedToKEM(NodeIdType client_id) {
   // Note KeyExchangeManager passes keys a ClientsManager loads to it through to SigManager.
@@ -317,7 +324,10 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   set<NodeIdType> internal_client_ids{};
 
   map<NodeIdType, pair<string, string>> client_keys;
-  client_keys[2] = Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
+
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    client_keys[2] = generateEdDSAKeyPair();
+  }
 
   map<NodeIdType, pair<ReqId, string>> client_replies;
   client_replies[2] = {9, "reply 9 to client 2"};
@@ -435,8 +445,11 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesNoInfoAvailable) {
 }
 
 TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager) {
-  pair<string, string> client_key_pair =
-      Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
+  pair<string, string> client_key_pair;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    client_key_pair = generateEdDSAKeyPair();
+  }
+
   string reply_message = "reply 1 to client 2";
 
   resetMockReservedPages();
@@ -1240,10 +1253,13 @@ TEST(ClientsManager, isInternal) {
 TEST(ClientsManager, setClientPublicKey) {
   resetMockReservedPages();
   map<NodeIdType, pair<string, string>> client_keys;
-  pair<string, string> client_2_key =
-      Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
-  pair<string, string> client_7_key =
-      Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
+
+  pair<string, string> client_2_key;
+  pair<string, string> client_7_key;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    client_2_key = generateEdDSAKeyPair();
+    client_7_key = generateEdDSAKeyPair();
+  }
 
   unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {}, {}, metrics));
   cm->setClientPublicKey(7, client_7_key.second, kKeyFormatForTesting);

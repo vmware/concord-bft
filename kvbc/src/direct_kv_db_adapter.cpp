@@ -20,7 +20,7 @@
 #include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 #include "string.hpp"
 #include "assertUtils.hpp"
 #include "categorization/kv_blockchain.h"
@@ -78,8 +78,8 @@ Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
 }
 
 Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
-  auto digest = concord::util::SHA3_256().digest(key.data(), key.length());
-  auto digest_str = concord::util::SHA3_256::toHexString(digest);
+  auto digest = concord::crypto::openssl::SHA3_256().digest(key.data(), key.length());
+  auto digest_str = concord::crypto::openssl::SHA3_256().toHexString(digest);
   LOG_DEBUG(logger(), prefix_ + std::string("keys/") + digest_str);
   return prefix_ + std::string("keys/") + digest_str;
 }

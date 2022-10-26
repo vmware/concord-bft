@@ -21,9 +21,9 @@ BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4bloc
   ConcordAssertNE(kvbc_, nullptr);
 }
 
-BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
+BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   const auto start = std::chrono::steady_clock::now();
-  auto upTo = kvbc_->deleteBlocksUntil(until);
+  auto upTo = kvbc_->deleteBlocksUntil(until, delete_files_in_range);
 
   auto jobDuration =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();

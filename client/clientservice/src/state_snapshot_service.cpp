@@ -59,12 +59,14 @@ using namespace std;
 
 namespace concord::client::clientservice {
 
-static concord::util::SHA3_256::Digest singleHash(const std::string& key) {
-  return concord::util::SHA3_256{}.digest(key.data(), key.size());
+static concord::crypto::openssl::SHA3_256::Digest singleHash(const std::string& key) {
+  return concord::crypto::openssl::SHA3_256{}.digest(key.data(), key.size());
 }
 
-static void nextHash(const std::string& key, const std::string& value, concord::util::SHA3_256::Digest& prev_hash) {
-  auto hasher = concord::util::SHA3_256{};
+static void nextHash(const std::string& key,
+                     const std::string& value,
+                     concord::crypto::openssl::SHA3_256::Digest& prev_hash) {
+  auto hasher = concord::crypto::openssl::SHA3_256{};
   hasher.init();
   hasher.update(prev_hash.data(), prev_hash.size());
   const auto key_hash = singleHash(key);
@@ -362,7 +364,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
 }
 
 void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
-                                           const concord::util::SHA3_256::Digest& final_hash,
+                                           const concord::crypto::openssl::SHA3_256::Digest& final_hash,
                                            const chrono::milliseconds& timeout,
                                            Status& return_status) {
   auto read_config = std::shared_ptr<ReadConfig>(

@@ -27,7 +27,7 @@
 #include "concord_kvbc.pb.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 
 using namespace std::chrono_literals;
 
@@ -42,8 +42,8 @@ using com::vmware::concord::kvbc::ValueWithTrids;
 using concord::kvbc::BlockId;
 using concord::kvbc::categorization::ImmutableInput;
 using concord::kvbc::InvalidBlockRange;
-using concord::util::openssl_utils::computeSHA256Hash;
-using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
+using concord::crypto::openssl::computeSHA256Hash;
+using concord::crypto::openssl::kExpectedSHA256HashLengthInBytes;
 
 namespace concord {
 namespace kvbc {

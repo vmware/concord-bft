@@ -58,7 +58,7 @@ class PreProcessReplyMsg : public MessageBase {
   const ReplyStatus status() const { return msgBody()->status; }
   const bftEngine::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
   const ViewNum viewNum() const { return msgBody()->viewNum; }
-  std::vector<char> getResultHashSignature() const;
+  std::vector<uint8_t> getResultHashSignature() const;
   std::string getCid() const;
 
   static void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
@@ -75,7 +75,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint16_t reqOffsetInBatch = 0;
     ReplyStatus status = STATUS_GOOD;
     bftEngine::OperationResult preProcessResult = bftEngine::OperationResult::UNKNOWN;
-    uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
+    uint8_t resultsHash[concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength = 0;
     uint32_t cidLength = 0;
     uint64_t reqRetryId = 0;

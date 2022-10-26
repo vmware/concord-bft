@@ -45,25 +45,13 @@ class RequestHandler : public IRequestsHandler {
                   const std::string &batchCid,
                   concordUtils::SpanWrapper &parent_span) override;
 
-  void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
-    if (userHdlr) {
-      userRequestsHandler_ = userHdlr;
-      for (const auto &rh : userHdlr->getReconfigurationHandler()) {
-        reconfig_dispatcher_.addReconfigurationHandler(rh);
-      }
-    }
-  }
+  void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr);
 
   void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                  concord::reconfiguration::ReconfigurationHandlerType type =
-                                     concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
-    IRequestsHandler::setReconfigurationHandler(rh, type);
-    reconfig_dispatcher_.addReconfigurationHandler(rh, type);
-  }
+                                     concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override;
 
-  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg) {
-    cron_table_registry_ = reg;
-  }
+  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg);
   void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) override;
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
   std::shared_ptr<IRequestsHandler> getUserHandler() { return userRequestsHandler_; }

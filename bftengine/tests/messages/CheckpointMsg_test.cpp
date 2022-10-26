@@ -13,7 +13,7 @@
 #include <iostream>
 #include <memory>
 #include "gtest/gtest.h"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"
@@ -32,7 +32,7 @@ class CheckpointMsgTestsFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo))
 

@@ -36,7 +36,7 @@ class BlocksDeleterAdapter : public concord::kvbc::IBlocksDeleter {
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final;
-  BlockId deleteBlocksUntil(BlockId until) override final;
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) override final;
   void deleteLastReachableBlock() override final { return kvbc_->deleteLastReachableBlock(); }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "types.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "SharedTypes.hpp"
 #include <list>
@@ -60,13 +61,13 @@ class PreProcessResultMsg : public ClientRequestMsg {
 };
 
 struct PreProcessResultSignature {
-  std::vector<char> signature;
+  std::vector<concord::Byte> signature;
   NodeIdType sender_replica;
   bftEngine::OperationResult pre_process_result;
 
   PreProcessResultSignature() = default;
 
-  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender, bftEngine::OperationResult result)
+  PreProcessResultSignature(std::vector<concord::Byte>&& sig, NodeIdType sender, bftEngine::OperationResult result)
       : signature{std::move(sig)}, sender_replica{sender}, pre_process_result{result} {}
 
   bool operator==(const PreProcessResultSignature& rhs) const {

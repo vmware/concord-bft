@@ -110,6 +110,15 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   NativeWriteBatch getBatch(std::string &&data) const;
   void write(NativeWriteBatch &&);
 
+  // Compaction interface
+  template <typename BeginSpan, typename EndSpan>
+  void compactRange(const std::string &cFamily, const BeginSpan &startKey, const EndSpan &endKey);
+  template <typename BeginSpan, typename EndSpan>
+  void deleteFilesInRange(const std::string &cFamily,
+                          const BeginSpan &startKey,
+                          const EndSpan &endKey,
+                          bool include_end);
+
   // MultiGet interface
   //
   // Return values in the same order of keys. All keys reside in the same column family. There

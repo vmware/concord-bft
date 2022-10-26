@@ -1,11 +1,11 @@
 add_subdirectory(lib)
 
 set(bls_bench_sources
-  BenchThresholdBls.cpp
-  BenchRelic.cpp
-  BenchLagrange.cpp
-  BenchMultiExp.cpp
-)
+        BenchThresholdBls.cpp
+        BenchRelic.cpp
+        BenchLagrange.cpp
+        BenchMultiExp.cpp
+        )
 
 foreach(appSrc ${bls_bench_sources})
     get_filename_component(appName ${appSrc} NAME_WE)

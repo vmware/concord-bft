@@ -93,8 +93,8 @@ class BlsThresholdFactory : public IThresholdFactory {
    * @return a vector of IThresholdSigner's (indexed from 1 to reqSigners) and the IThresholdVerifier object
    *         (caller is responsible for deleting them)
    */
-  std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> newRandomSigners(
-      NumSharesType reqSigners, NumSharesType numSigners) const override;
+  IThresholdFactory::SignersVerifierTuple newRandomSigners(NumSharesType reqSigners,
+                                                           NumSharesType numSigners) const override;
 
   /**
    * Generates a single BLS key pair

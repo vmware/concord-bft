@@ -31,7 +31,9 @@ using concordMetrics::CounterHandle;
 namespace bftEngine {
 namespace bcst {
 namespace impl {
-
+namespace test {
+class BcStTestDelegator;
+}
 static const uint16_t NO_REPLICA = UINT16_MAX;
 
 enum class SourceReplacementMode { GRACEFUL, IMMEDIATE, DO_NOT };
@@ -40,7 +42,7 @@ enum class SourceReplacementMode { GRACEFUL, IMMEDIATE, DO_NOT };
 // preferred, as well as data that helps to select a current source replica.
 class SourceSelector {
   // This class is strictly used for testing
-  friend class BcStTestDelegator;
+  friend class test::BcStTestDelegator;
 
  public:
   SourceSelector(std::set<uint16_t> allOtherReplicas,

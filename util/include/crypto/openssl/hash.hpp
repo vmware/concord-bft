@@ -14,28 +14,27 @@
 #pragma once
 
 #include <array>
-#include <utility>
 #include <iomanip>
 
 #include <openssl/evp.h>
 
+#include "types.hpp"
+#include "hex_tools.h"
 #include "assertUtils.hpp"
 
-namespace concord {
-namespace util {
-namespace detail {
+namespace concord::crypto::openssl {
 
 // A simple wrapper class around OpenSSL versions > 1.1.1 that implements EVP hash functions.
 template <const EVP_MD* (*EVPMethod)(), size_t DIGEST_SIZE_IN_BYTES>
 class EVPHash {
  public:
   static constexpr size_t SIZE_IN_BYTES = DIGEST_SIZE_IN_BYTES;
-  typedef std::array<uint8_t, SIZE_IN_BYTES> Digest;
+  using Digest = std::array<concord::Byte, SIZE_IN_BYTES>;
 
   EVPHash() noexcept : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
   ~EVPHash() noexcept {
-    if (ctx_) {
+    if (nullptr != ctx_) {
       EVP_MD_CTX_destroy(ctx_);
     }
   }
@@ -68,7 +67,7 @@ class EVPHash {
     ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
 
     Digest digest;
-    unsigned int _digest_len;
+    unsigned int _digest_len{0};
     ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
     ConcordAssert(_digest_len == SIZE_IN_BYTES);
     return digest;
@@ -92,13 +91,14 @@ class EVPHash {
 
   Digest finish() noexcept {
     Digest digest;
-    unsigned int _digest_len;
+    unsigned int _digest_len{0};
     ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
     ConcordAssert(_digest_len == SIZE_IN_BYTES);
     updating_ = false;
     return digest;
   }
-  static std::string toHexString(const Digest& digest) {
+
+  std::string toHexString(const Digest& digest) {
     std::ostringstream oss;
     for (size_t i = 0; i < SIZE_IN_BYTES; ++i)
       oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)digest[i]);
@@ -106,10 +106,11 @@ class EVPHash {
   }
 
  private:
-  EVP_MD_CTX* ctx_;
-  bool updating_ = false;
+  EVP_MD_CTX* ctx_{nullptr};
+  bool updating_{false};
 };
 
-}  // namespace detail
-}  // namespace util
-}  // namespace concord
+using SHA3_256 = EVPHash<EVP_sha3_256, 32>;
+using SHA2_256 = EVPHash<EVP_sha256, 32>;
+
+}  // namespace concord::crypto::openssl

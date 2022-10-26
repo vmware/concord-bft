@@ -50,7 +50,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final { return deleter_->deleteGenesisBlock(); }
-  BlockId deleteBlocksUntil(BlockId until) override final;
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) override final;
   void deleteLastReachableBlock() override final { return deleter_->deleteLastReachableBlock(); }
 
   // Helper method, not part of the interface
@@ -233,11 +233,11 @@ class ReplicaBlockchain : public IBlocksDeleter,
   }
 
   ////////////////////////////Tools support//////////////////////////
-  std::optional<concord::util::digest::Digest> getParentDigest(BlockId block_id) {
+  std::optional<concord::crypto::BlockDigest> getParentDigest(BlockId block_id) {
     return kvbc_ == nullptr ? v4_kvbc_->parentDigest(block_id) : kvbc_->parentDigest(block_id);
   }
 
-  std::optional<concord::util::digest::Digest> calculateBlockDigest(BlockId block_id) {
+  std::optional<concord::crypto::BlockDigest> calculateBlockDigest(BlockId block_id) {
     return kvbc_ == nullptr ? v4_kvbc_->calculateBlockDigest(block_id) : kvbc_->calculateBlockDigest(block_id);
   }
 

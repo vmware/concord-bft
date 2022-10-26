@@ -69,7 +69,7 @@ install_third_party_libraries() {
         libz-dev \
         libzstd-dev
 
-    pip3 install --upgrade wheel && pip3 install --upgrade trio
+    pip3 install --upgrade wheel && pip3 install --upgrade trio && pip3 install --upgrade pip
     pip3 install \
         eliot eliot-tree \
         tatsu==4.4.0 \
@@ -78,7 +78,8 @@ install_third_party_libraries() {
         ecdsa \
         protobuf==3.15.8 \
         grpcio==1.37.1 \
-        grpcio-tools==1.37.1
+        grpcio-tools==1.37.1 \
+        cryptography==3.3.2
 }
 
 
@@ -145,26 +146,6 @@ install_googletest() {
       cmake --build "build" --config Release --target install
       cd ${HOME} && \
       rm -r benchmark
-
-}
-
-# Here we compile cryptopp and cryptoopp-pem in a single library libcryptopp
-# cryptopp-pem provides PEM parsing for Wei Dai's Crypto++ (cryptopp).
-install_cryptopp() {
-    cd ${HOME}
-    wget ${WGET_FLAGS} \
-        https://github.com/weidai11/cryptopp/archive/CRYPTOPP_8_2_0.tar.gz && \
-        tar -xzf CRYPTOPP_8_2_0.tar.gz && \
-        rm CRYPTOPP_8_2_0.tar.gz && \
-        git clone https://github.com/noloader/cryptopp-pem.git && \
-        cd cryptopp-pem && \
-        git checkout CRYPTOPP_8_2_0 && \
-        cp *.h *.cpp ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
-        cd ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
-        rm -r ${HOME}/cryptopp-pem && \
-        CXX_FLAGS="-march=x86-64 -mtune=generic" make -j$(nproc) && \
-        make install && \
-        rm -r ${HOME}/cryptopp-CRYPTOPP_8_2_0
 
 }
 
@@ -464,7 +445,6 @@ install_cmake
 install_HdrHistogram_lib
 install_log4cpp_lib
 install_googletest
-install_cryptopp
 install_gmp_lib
 install_relic_toolkit
 install_rocksdb_lib

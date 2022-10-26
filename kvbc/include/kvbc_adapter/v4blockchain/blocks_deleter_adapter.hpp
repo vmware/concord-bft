@@ -32,7 +32,7 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final { kvbc_->deleteGenesisBlock(); }
   void deleteLastReachableBlock() override final { return kvbc_->deleteLastReachableBlock(); }
-  BlockId deleteBlocksUntil(BlockId until) override final;
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) override final;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
  private:

@@ -16,6 +16,7 @@
 #include "transaction.hpp"
 #include "budget.hpp"
 #include "Logger.hpp"
+#undef UNUSED
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>
@@ -49,10 +50,15 @@ logging::Logger logger = logging::getLogger("sigProcessorTests");
 
 class TestComm : public ICommunication {
   std::vector<NodeNum> isolated;
+  std::mutex isolated_lock_;
 
  public:
-  void isolateNode(NodeNum node) { isolated.push_back(node); }
+  void isolateNode(NodeNum node) {
+    std::unique_lock lk(isolated_lock_);
+    isolated.push_back(node);
+  }
   void deisolatedNode(NodeNum node) {
+    std::unique_lock lk(isolated_lock_);
     for (auto iter = isolated.begin(); iter != isolated.end(); iter++) {
       if (*iter == node) {
         isolated.erase(iter);
@@ -69,7 +75,10 @@ class TestComm : public ICommunication {
 
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override { return ConnectionStatus::Connected; }
   int send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum = MAX_ENDPOINT_NUM) override {
-    if (std::find(isolated.begin(), isolated.end(), destNode) != isolated.end()) return 0;
+    {
+      std::unique_lock lk(isolated_lock_);
+      if (std::find(isolated.begin(), isolated.end(), destNode) != isolated.end()) return 0;
+    }
     std::unique_lock lk(locks_[destNode]);
     receivers_[destNode]->onNewMessage(0, (const char*)msg.data(), msg.size());
     return 0;
@@ -101,10 +110,15 @@ class TestReceiver : public bft::communication::IReceiver {
                     const char* const message,
                     size_t messageLength,
                     NodeNum endpointNum = MAX_ENDPOINT_NUM) override {
-    std::unique_ptr<MessageBase> msg;
-    msg.reset(
-        new MessageBase(sourceNode, reinterpret_cast<MessageBase::Header*>((char*)message), messageLength, false));
-    ims_->pushExternalMsg(std::move(msg));
+    if (!ims_->isRunning()) return;
+    auto* msgBody = (MessageBase::Header*)std::malloc(messageLength);
+    memcpy(msgBody, message, messageLength);
+
+    auto node = sourceNode;
+
+    std::unique_ptr<MessageBase> pMsg(new MessageBase(node, msgBody, messageLength, true));
+
+    ims_->pushExternalMsg(std::move(pMsg));
   }
   void onConnectionStatusChanged(NodeNum, ConnectionStatus) override {}
   ~TestReceiver() {}

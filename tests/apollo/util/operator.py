@@ -20,25 +20,47 @@ import concord_msgs as cmf_msgs
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
-import bft_client
+# For EdDSA algorithm.
+from cryptography.hazmat.primitives import serialization
+
+# For ECDSA algorithm.
 from ecdsa import SigningKey
 from ecdsa import SECP256k1
 import hashlib
-from Crypto.PublicKey import RSA
+
+import bft_client
 
 import util.eliot_logging as log
 
+# NOTE: When the value is changed, then ensure to change in ReplicaConfig class'
+# 'operatorMsgSigningAlgo' value also.
+operator_msg_signing_algo = "eddsa" # or "ecdsa"
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
-        with open(priv_key_dir + "/operator_priv.pem") as f:
-            self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Read ECDSA signing key.
+            with open(priv_key_dir + "/operator_priv.pem") as f:
+                self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+        elif ("eddsa" == operator_msg_signing_algo):
+            # Read EdDSA signing key.
+            txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
+            if txn_signing_key_path:
+                with open(txn_signing_key_path, 'rb') as f:
+                    self.private_key = serialization.load_pem_private_key(f.read(), password=None)
 
     def _sign_reconf_msg(self, msg):
-        return self.private_key.sign_deterministic(msg.serialize())
-
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Return ECDSA signature.
+            return self.private_key.sign_deterministic(msg.serialize())
+        elif ("eddsa" == operator_msg_signing_algo):
+            signature = b''
+            if self.private_key:
+                signature = self.private_key.sign(bytes(msg.serialize()))
+            return signature
 
     def  _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()
@@ -50,10 +72,10 @@ class Operator:
         return reconf_msg
 
     def _construct_reconfiguration_wedge_command(self):
-            wedge_cmd = cmf_msgs.WedgeCommand()
-            wedge_cmd.sender = 1000
-            wedge_cmd.noop = False
-            return self._construct_basic_reconfiguration_request(wedge_cmd)
+        wedge_cmd = cmf_msgs.WedgeCommand()
+        wedge_cmd.sender = 1000
+        wedge_cmd.noop = False
+        return self._construct_basic_reconfiguration_request(wedge_cmd)
 
     def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
@@ -86,6 +108,7 @@ class Operator:
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
         prune_cmd.tick_period_seconds = tick_period_seconds
         prune_cmd.batch_blocks_num = batch_blocks_num
+        prune_cmd.delete_files_in_range = False
         return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):
