@@ -37,6 +37,8 @@ class Wallet {
   /// in favor of a system-created budget tokens by the admin
   static std::pair<utt::Configuration, utt::PublicConfig> getConfigs(Channel& chan);
 
+  bool isRegistered() const;
+
   /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
   /// @brief Create a privacy budget locally for the user. This function is only for testing.
   /// @param config A Privacy app configuration
@@ -82,4 +84,5 @@ class Wallet {
   utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
   uint64_t publicBalance_ = 0;
+  bool registered_ = false;
 };
