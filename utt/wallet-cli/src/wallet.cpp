@@ -88,7 +88,11 @@ void Wallet::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t
   user_->createPrivacyBudgetLocal(config, amount);
 }
 
+bool Wallet::isRegistered() const { return registered_; }
+
 void Wallet::registerUser(Channel& chan) {
+  if (registered_) throw std::runtime_error("Wallet is already registered!");
+
   auto userRegInput = user_->getRegistrationInput();
   if (userRegInput.empty()) throw std::runtime_error("Failed to create user registration input!");
 
@@ -116,6 +120,8 @@ void Wallet::registerUser(Channel& chan) {
     std::cout << "]\n";
 
     user_->updateRegistration(user_->getPK(), sig, s2);
+
+    registered_ = true;
   }
 }
 
