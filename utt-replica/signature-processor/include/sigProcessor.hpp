@@ -36,6 +36,25 @@ class SigProcessor {
    */
   using GenerateAppClientRequestCb = std::function<std::vector<uint8_t>(uint64_t, const std::vector<uint8_t>&)>;
 
+  class CompleteSignatureMsg {
+    std::map<uint32_t, std::vector<uint8_t>> sigs;
+    std::vector<uint8_t> full_sig;
+    uint32_t num_replicas{0};
+
+   public:
+    CompleteSignatureMsg(uint32_t n, const std::map<uint32_t, std::vector<uint8_t>>&, const std::vector<uint8_t>&);
+    explicit CompleteSignatureMsg() = default;
+    CompleteSignatureMsg(const std::vector<uint8_t>& buffer);
+    bool validate() const;
+    const std::vector<uint8_t>& getFullSig() const;
+    /*
+      The serialized output is in the following format:
+      [num_replicas|full_sig.size()|full_sig|sigs.size()|s.size()|s] (for s in sigs)
+    */
+    std::vector<uint8_t> serialize() const;
+    CompleteSignatureMsg& deserialize(const std::vector<uint8_t>&);
+  };
+
   static const GenerateAppClientRequestCb default_client_app_request_generator;
 
  private:
@@ -136,13 +155,9 @@ class SigProcessor {
   /**
    * @brief Publishing the complete signature to the consensus
    *
-   * @param sig_id the signature id
-   * @param complete_signature the complete aggregated signature
-   * @param cb a callback that defines how the upper level generates the application request to the consensus
+   * @param job_entry The relevant job
    */
-  void publishCompleteSignature(uint64_t sig_id,
-                                const std::vector<uint8_t>& complete_signature,
-                                const GenerateAppClientRequestCb& cb);
+  void publishCompleteSignature(const SigJobEntry& job_entry);
   /**
    * @brief Handles the event of timeout for a specific job
    *
