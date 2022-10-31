@@ -304,9 +304,13 @@ class test_utt_instance : public ::testing::Test {
       msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](bftEngine::impl::MessageBase* message) {
         ClientRequestMsg* msg = (ClientRequestMsg*)message;
         uint64_t job_id{0};
-        libutt::api::types::Signature fsig(msg->requestLength() - sizeof(uint64_t));
+
+        std::vector<uint8_t> cs_buffer(msg->requestLength() - sizeof(uint64_t));
         std::memcpy(&job_id, msg->requestBuf(), sizeof(uint64_t));
-        std::memcpy(fsig.data(), msg->requestBuf() + sizeof(uint64_t), fsig.size());
+        std::memcpy(cs_buffer.data(), msg->requestBuf() + sizeof(uint64_t), cs_buffer.size());
+        utt::SigProcessor::CompleteSignatureMsg cs_msg(cs_buffer);
+        ASSERT_TRUE(cs_msg.validate());
+        auto fsig = cs_msg.getFullSig();
         {
           std::unique_lock lk(sigs_lock);
           for (size_t j = 0; j < n; j++) {
@@ -418,7 +422,6 @@ class utt_complete_system : public utt_system_include_budget {
   }
   std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
 };
-
 TEST_F(test_utt_instance, test_clients_registration) {
   registerClients(
       job_id,

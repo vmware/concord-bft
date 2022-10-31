@@ -142,8 +142,7 @@ void SigProcessor::processSignature(uint64_t sig_id,
 #endif
     // if we already have enough valid partial signatures, lets publish the complete signature and return
     if (entry->partial_sigs.size() == threshold_) {
-      auto complete_sig = libutt::api::Utils::aggregateSigShares(n_, entry->partial_sigs);
-      publishCompleteSignature(sig_id, complete_sig, entry->client_app_data_generator_cb_);
+      publishCompleteSignature(*entry);
       return;
     }
   }
@@ -180,18 +179,19 @@ void SigProcessor::onReceivingNewPartialSig(uint64_t sig_id,
     // We don't care doing this part under the entry lock, because if we did reach the threshold, we won't use this
     // entry anymore
     if (entry->client_app_data_generator_cb_ != nullptr && entry->partial_sigs.size() == threshold_) {
-      auto sig = libutt::api::Utils::aggregateSigShares(n_, entry->partial_sigs);
-      publishCompleteSignature(sig_id, sig, entry->client_app_data_generator_cb_);
+      publishCompleteSignature(*entry);
     }
   }
 }
-void SigProcessor::publishCompleteSignature(uint64_t sig_id,
-                                            const std::vector<uint8_t>& sig,
-                                            const GenerateAppClientRequestCb& cb) {
+
+void SigProcessor::publishCompleteSignature(const SigJobEntry& job_entry) {
+  auto sig_id = job_entry.job_id;
+  auto fsig = libutt::api::Utils::aggregateSigShares(n_, job_entry.partial_sigs);
+  CompleteSignatureMsg msg(n_, job_entry.partial_sigs, fsig);
   auto requestSeqNum =
       std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-  std::vector<uint8_t> appClientReq = cb(sig_id, sig);
-  auto crm = std::make_unique<bftEngine::impl::ClientRequestMsg>(repId_,
+  std::vector<uint8_t> appClientReq = job_entry.client_app_data_generator_cb_(sig_id, msg.serialize());
+  auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
                                                    bftEngine::MsgFlag::INTERNAL_FLAG,
                                                    requestSeqNum,
                                                    (uint32_t)appClientReq.size(),
@@ -226,5 +226,72 @@ void SigProcessor::onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig
     messages::PartialSigMsg msg(repId_, sig, job_id);
     msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg.body(), msg.size());
   }
+}
+
+SigProcessor::CompleteSignatureMsg::CompleteSignatureMsg(uint32_t n,
+                                                         const std::map<uint32_t, std::vector<uint8_t>>& psigs,
+                                                         const std::vector<uint8_t>& fsig)
+    : sigs{psigs}, full_sig{fsig}, num_replicas{n} {}
+bool SigProcessor::CompleteSignatureMsg::validate() const {
+  auto complete_sig = libutt::api::Utils::aggregateSigShares(num_replicas, sigs);
+  return full_sig == complete_sig;
+}
+SigProcessor::CompleteSignatureMsg::CompleteSignatureMsg(const std::vector<uint8_t>& buffer) { deserialize(buffer); }
+const std::vector<uint8_t>& SigProcessor::CompleteSignatureMsg::getFullSig() const { return full_sig; }
+
+std::vector<uint8_t> SigProcessor::CompleteSignatureMsg::serialize() const {
+  uint64_t loc{0};
+  uint64_t fsig_size = full_sig.size();
+  uint64_t psigs_size = sigs.size();
+  size_t msg_size = sizeof(num_replicas) + sizeof(fsig_size) + full_sig.size();
+  msg_size += sizeof(psigs_size);
+  for (const auto& [k, v] : sigs) msg_size += (sizeof(k) + sizeof(uint64_t) + v.size());
+  std::vector<uint8_t> ret(msg_size);
+  std::memcpy(ret.data(), &num_replicas, sizeof(num_replicas));
+  loc += sizeof(num_replicas);
+  std::memcpy(ret.data() + loc, &fsig_size, sizeof(fsig_size));
+  loc += sizeof(fsig_size);
+  std::memcpy(ret.data() + loc, full_sig.data(), full_sig.size());
+  loc += full_sig.size();
+  std::memcpy(ret.data() + loc, &psigs_size, sizeof(psigs_size));
+  loc += sizeof(psigs_size);
+  for (const auto& [k, v] : sigs) {
+    std::memcpy(ret.data() + loc, &k, sizeof(k));
+    loc += sizeof(k);
+    uint64_t ssize = v.size();
+    std::memcpy(ret.data() + loc, &ssize, sizeof(ssize));
+    loc += sizeof(ssize);
+    std::memcpy(ret.data() + loc, v.data(), v.size());
+    loc += v.size();
+  }
+  return ret;
+}
+
+SigProcessor::CompleteSignatureMsg& SigProcessor::CompleteSignatureMsg::deserialize(
+    const std::vector<uint8_t>& buffer) {
+  size_t loc{0};
+  std::memcpy(&num_replicas, buffer.data(), sizeof(num_replicas));
+  loc += sizeof(num_replicas);
+  uint64_t fsig_size{0};
+  std::memcpy(&fsig_size, buffer.data() + loc, sizeof(fsig_size));
+  loc += sizeof(fsig_size);
+  full_sig.resize(fsig_size);
+  std::memcpy(full_sig.data(), buffer.data() + loc, fsig_size);
+  loc += fsig_size;
+  uint64_t psigs_nums{0};
+  std::memcpy(&psigs_nums, buffer.data() + loc, sizeof(psigs_nums));
+  loc += sizeof(psigs_nums);
+  for (size_t i = 0; i < psigs_nums; i++) {
+    uint32_t rep_id{0};
+    std::memcpy(&rep_id, buffer.data() + loc, sizeof(rep_id));
+    loc += sizeof(rep_id);
+    uint64_t s_size{0};
+    std::memcpy(&s_size, buffer.data() + loc, sizeof(s_size));
+    loc += sizeof(s_size);
+    sigs[rep_id] = std::vector<uint8_t>(s_size);
+    std::memcpy(sigs[rep_id].data(), buffer.data() + loc, s_size);
+    loc += s_size;
+  }
+  return *this;
 }
 }  // namespace utt
