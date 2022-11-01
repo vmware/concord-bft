@@ -67,6 +67,7 @@ optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
   uint64_t global_eg_id_oldest = getOldestGlobalEventGroupId();
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                                 concordUtils::toBigEndianStringBuffer(global_eg_id_oldest));
+  num_storage_reads++;
   if (not opt.has_value()) {
     return std::nullopt;
   }
@@ -263,8 +264,12 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
                                   spsc_queue<KvbFilteredUpdate> &queue_out,
                                   const std::atomic_bool &stop_execution) {
   if (block_id_start > block_id_end || block_id_end > rostorage_->getLastBlockId()) {
+    if (block_id_start <= block_id_end) {
+      num_storage_reads++;
+    }
     throw InvalidBlockRange(block_id_start, block_id_end);
   }
+  num_storage_reads++;
 
   BlockId block_id(block_id_start);
 
@@ -293,6 +298,7 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
 
 uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) const {
   const auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, key);
+  num_storage_reads++;
   if (not opt) {
     LOG_DEBUG(logger_, "External event group ID for key \"" << key << "\" doesn't exist yet");
     // In case there are no public or private event groups for a client, return 0.
@@ -311,6 +317,7 @@ uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) const {
 TagTableValue KvbAppFilter::getValueFromTagTable(const std::string &tag, uint64_t pvt_eg_id) const {
   auto key = tag + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(pvt_eg_id);
   const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupTagCategory, key);
+  num_storage_reads++;
   if (not opt) {
     std::stringstream msg;
     msg << "Failed to get event group id from tag table for key " << key;
@@ -545,8 +552,10 @@ void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
 
 string KvbAppFilter::readBlockHash(BlockId block_id) {
   if (block_id > rostorage_->getLastBlockId()) {
+    num_storage_reads++;
     throw InvalidBlockRange(block_id, block_id);
   }
+  num_storage_reads++;
 
   std::string cid;
   auto events = getBlockEvents(block_id, cid);
@@ -593,8 +602,12 @@ string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
 
 string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id_end) {
   if (block_id_start > block_id_end || block_id_end > rostorage_->getLastBlockId()) {
+    if (block_id_start <= block_id_end) {
+      num_storage_reads++;
+    }
     throw InvalidBlockRange(block_id_start, block_id_end);
   }
+  num_storage_reads++;
   BlockId block_id(block_id_start);
 
   LOG_DEBUG(logger_, "readBlockRangeHash block " << block_id << " to " << block_id_end);
@@ -635,6 +648,7 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
     }
   }
   const auto updates = rostorage_->getBlockUpdates(block_id);
+  num_storage_reads++;
   if (!updates) {
     LOG_ERROR(logger_, "Couldn't get block updates");
     return {};
@@ -662,6 +676,7 @@ kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId 
   // get event group
   const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                          concordUtils::toBigEndianStringBuffer(global_event_group_id));
+  num_storage_reads++;
   if (not opt) {
     stringstream msg;
     msg << "Failed to get global event group " << global_event_group_id;

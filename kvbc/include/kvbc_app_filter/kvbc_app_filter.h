@@ -223,6 +223,9 @@ class KvbAppFilter {
   // kExecutionEventGroupTagCategory
   static inline const std::string kTagTableKeySeparator{"#"};
 
+  // counter to calculate number of storage reads made by the filter
+  mutable uint64_t num_storage_reads = 0;
+
  private:
   logging::Logger logger_;
   const concord::kvbc::IReader *rostorage_{nullptr};
