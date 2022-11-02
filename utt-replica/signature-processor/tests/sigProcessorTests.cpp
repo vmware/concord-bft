@@ -16,7 +16,7 @@
 #include "transaction.hpp"
 #include "budget.hpp"
 #include "Logger.hpp"
-#undef UNUSED
+
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>

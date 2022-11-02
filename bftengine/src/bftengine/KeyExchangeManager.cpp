@@ -245,7 +245,7 @@ void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqN
   }
 
   auto& candidate = candidate_private_keys_.generated;
-  bool generateNewPair = sn != candidate.sn || candidate.cid.empty();
+  bool generateNewPair = (sn != candidate.sn) || candidate.cid.empty();
   KeyExchangeMsg msg;
   msg.repID = repID_;
   msg.generated_sn = sn;

@@ -9,16 +9,17 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
+#include <iostream>
+#include <boost/algorithm/hex.hpp>
+
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+
 #include "threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "crypto/openssl/crypto.hpp"
 #include "threshsign/eddsa/EdDSAThreshsignKeys.h"
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
-#include <boost/algorithm/hex.hpp>
-#include <iostream>
-#include "crypto/openssl/crypto.hpp"
 
 using concord::crypto::openssl::UniquePKEY;
 using concord::crypto::openssl::UniquePKEYContext;
@@ -26,11 +27,10 @@ using concord::crypto::openssl::OPENSSL_SUCCESS;
 
 IThresholdVerifier *EdDSAMultisigFactory::newVerifier(ShareID reqSigners,
                                                       ShareID totalSigners,
-                                                      const char *publicKeyStr,
+                                                      [[maybe_unused]] const char *publicKeyStr,
                                                       const std::vector<std::string> &verifKeysStr) const {
   using SingleVerifier = EdDSAMultisigVerifier::SingleVerifier;
   using PublicKey = SingleVerifier::VerifierKeyType;
-  UNUSED(publicKeyStr);
   ConcordAssertEQ(verifKeysStr.size(), static_cast<std::vector<std::string>::size_type>(totalSigners + 1));
   std::vector<SingleVerifier> verifiers;
   verifiers.emplace_back(SingleVerifier{EdDSAThreshsignPublicKey{EdDSAThreshsignPublicKey::ByteArray{}}});

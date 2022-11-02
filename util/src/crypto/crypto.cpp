@@ -11,6 +11,8 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include <utility>
+
 #include "crypto/crypto.hpp"
 #include "Logger.hpp"
 #include "assertUtils.hpp"
@@ -19,7 +21,6 @@
 #include "types.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 #include "util/filesystem.hpp"
-#include <utility>
 
 namespace concord::crypto {
 using std::array;

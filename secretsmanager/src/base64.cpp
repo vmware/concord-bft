@@ -36,7 +36,7 @@ string base64Enc(const vector<uint8_t>& msgBytes) {
 
   const auto msgLen = (*bufferPtr).length;
   vector<uint8_t> encodedMsg(msgLen);
-  memcpy(&encodedMsg[0], (*bufferPtr).data, msgLen);
+  memcpy(encodedMsg.data(), (*bufferPtr).data, msgLen);
   BUF_MEM_free(bufferPtr);
   return string(encodedMsg.begin(), encodedMsg.end());
 }
@@ -54,7 +54,7 @@ vector<uint8_t> base64Dec(const string& b64message) {
 
   const int outputLen = BIO_read(bio, decodedOutput.data(), b64msg.size());
   vector<uint8_t> dec(outputLen);
-  memcpy(&dec[0], decodedOutput.data(), outputLen);
+  memcpy(dec.data(), decodedOutput.data(), outputLen);
   BIO_free_all(bio);
   return dec;
 }

@@ -33,9 +33,8 @@ void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
   block.signature = std::move(signature);
 }
 
-PruningSigner::PruningSigner(const std::string& key) {
-  signer_ = concord::crypto::Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo);
-}
+PruningSigner::PruningSigner(const std::string& key)
+    : signer_{concord::crypto::Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo)} {}
 
 PruningVerifier::PruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
   auto i = 0u;

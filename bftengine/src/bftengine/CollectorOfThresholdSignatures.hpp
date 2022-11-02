@@ -51,10 +51,6 @@ class CollectorOfThresholdSignatures {
     RepInfo info = {partialSigMsg, SigState::Unknown};
     replicasInfo[repId] = info;
 
-    /*if ((((InternalReplicaApi*)this->context)->getReplicaConfig().numReplicas) == 1) {
-      return true;
-    }*/
-
     numberOfUnknownSignatures++;
     LOG_TRACE(THRESHSIGN_LOG,
               KVLOG(partialSigMsg->seqNumber(), partialSigMsg->viewNumber(), numberOfUnknownSignatures));

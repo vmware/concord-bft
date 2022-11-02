@@ -30,5 +30,7 @@ void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, 
   result.id = id_;
   std::memcpy(outSig, &result, sizeof(SingleEdDSASignature));
 }
+
 const IShareSecretKey &EdDSAMultisigSigner::getShareSecretKey() const { return privateKey_; }
+
 const IShareVerificationKey &EdDSAMultisigSigner::getShareVerificationKey() const { return publicKey_; }

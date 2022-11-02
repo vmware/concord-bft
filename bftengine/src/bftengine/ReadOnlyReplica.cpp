@@ -9,10 +9,11 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include <bftengine/Replica.hpp>
 #include <optional>
 #include <functional>
 #include <bitset>
+
+#include <bftengine/Replica.hpp>
 #include <messages/StateTransferMsg.hpp>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"

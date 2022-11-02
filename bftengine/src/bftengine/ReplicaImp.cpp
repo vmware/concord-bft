@@ -4141,34 +4141,34 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       s++;
       ConcordAssert(mainLog->insideActiveWindow(s));
 
-      const SeqNumData &e = ld.seqNumWinArr[i];
+      const SeqNumData &seqNumData = ld.seqNumWinArr[i];
 
-      if (!e.isPrePrepareMsgSet()) continue;
+      if (!seqNumData.isPrePrepareMsgSet()) continue;
 
       // such properties should be verified by the code the loads the persistent data
-      ConcordAssertEQ(e.getPrePrepareMsg()->seqNumber(), s);
+      ConcordAssertEQ(seqNumData.getPrePrepareMsg()->seqNumber(), s);
 
       SeqNumInfo &seqNumInfo = mainLog->get(s);
 
       // add prePrepareMsg
 
       if (isPrimaryOfView)
-        seqNumInfo.addSelfMsg(e.getPrePrepareMsg(), true);
+        seqNumInfo.addSelfMsg(seqNumData.getPrePrepareMsg(), true);
       else
-        seqNumInfo.addMsg(e.getPrePrepareMsg(), true);
+        seqNumInfo.addMsg(seqNumData.getPrePrepareMsg(), true);
 
-      ConcordAssert(e.getPrePrepareMsg()->equals(*seqNumInfo.getPrePrepareMsg()));
+      ConcordAssert(seqNumData.getPrePrepareMsg()->equals(*seqNumInfo.getPrePrepareMsg()));
 
-      const CommitPath pathInPrePrepare = e.getPrePrepareMsg()->firstPath();
+      const CommitPath pathInPrePrepare = seqNumData.getPrePrepareMsg()->firstPath();
 
       // TODO(GG): check this when we load the data from disk
-      ConcordAssertOR(pathInPrePrepare != CommitPath::SLOW, e.getSlowStarted());
+      ConcordAssertOR(pathInPrePrepare != CommitPath::SLOW, seqNumData.getSlowStarted());
 
       if (pathInPrePrepare != CommitPath::SLOW) {
         // add PartialCommitProofMsg
 
         PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
-        ConcordAssert(e.getPrePrepareMsg()->equals(*pp));
+        ConcordAssert(seqNumData.getPrePrepareMsg()->equals(*pp));
         Digest &ppDigest = pp->digestOfRequests();
         const SeqNum seqNum = pp->seqNumber();
 
@@ -4189,7 +4189,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         seqNumInfo.addFastPathSelfPartialCommitMsgAndDigest(p, tmpDigest);
       }
 
-      if (e.getSlowStarted()) {
+      if (seqNumData.getSlowStarted()) {
         startSlowPath(seqNumInfo);
 
         // add PreparePartialMsg
@@ -4203,16 +4203,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         ConcordAssert(seqNumInfo.addSelfMsg(p, true));
       }
 
-      if (e.isPrepareFullMsgSet()) {
+      if (seqNumData.isPrepareFullMsgSet()) {
         try {
-          ConcordAssert(seqNumInfo.addMsg(e.getPrepareFullMsg(), true));
-        } catch (const std::exception &e) {
-          LOG_FATAL(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
+          ConcordAssert(seqNumInfo.addMsg(seqNumData.getPrepareFullMsg(), true));
+        } catch (const std::exception &ex) {
+          LOG_FATAL(GL, "Failed to add sn " << s << " to main log, reason: " << ex.what());
           throw;
         }
 
         Digest digest;
-        e.getPrePrepareMsg()->digestOfRequests().digestOfDigest(digest);
+        seqNumData.getPrePrepareMsg()->digestOfRequests().digestOfDigest(digest);
 
         CommitPartialMsg *c = CommitPartialMsg::create(getCurrentView(),
                                                        s,
@@ -4223,23 +4223,23 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         ConcordAssert(seqNumInfo.addSelfCommitPartialMsgAndDigest(c, digest, true));
       }
 
-      if (e.isCommitFullMsgSet()) {
+      if (seqNumData.isCommitFullMsgSet()) {
         try {
-          ConcordAssert(seqNumInfo.addMsg(e.getCommitFullMsg(), true));
-        } catch (const std::exception &e) {
-          LOG_FATAL(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
+          ConcordAssert(seqNumInfo.addMsg(seqNumData.getCommitFullMsg(), true));
+        } catch (const std::exception &ex) {
+          LOG_FATAL(GL, "Failed to add sn [" << s << "] to main log, reason: " << ex.what());
           throw;
         }
 
-        ConcordAssert(e.getCommitFullMsg()->equals(*seqNumInfo.getValidCommitFullMsg()));
+        ConcordAssert(seqNumData.getCommitFullMsg()->equals(*seqNumInfo.getValidCommitFullMsg()));
       }
 
-      if (e.isFullCommitProofMsgSet()) {
-        ConcordAssert(seqNumInfo.addFastPathFullCommitMsg(e.getFullCommitProofMsg(), true /*directAdd*/));
-        ConcordAssert(e.getFullCommitProofMsg()->equals(*seqNumInfo.getFastPathFullCommitProofMsg()));
+      if (seqNumData.isFullCommitProofMsgSet()) {
+        ConcordAssert(seqNumInfo.addFastPathFullCommitMsg(seqNumData.getFullCommitProofMsg(), true /*directAdd*/));
+        ConcordAssert(seqNumData.getFullCommitProofMsg()->equals(*seqNumInfo.getFastPathFullCommitProofMsg()));
       }
 
-      if (e.getForceCompleted()) seqNumInfo.forceComplete();
+      if (seqNumData.getForceCompleted()) seqNumInfo.forceComplete();
     }
   }
 
@@ -4248,31 +4248,31 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   for (SeqNum s = ld.lastStableSeqNum; s <= ld.lastStableSeqNum + kWorkWindowSize; s = s + checkpointWindowSize) {
     size_t i = (s - ld.lastStableSeqNum) / checkpointWindowSize;
     ConcordAssertLT(i, (sizeof(ld.checkWinArr) / sizeof(ld.checkWinArr[0])));
-    const CheckData &e = ld.checkWinArr[i];
+    const CheckData &checkData = ld.checkWinArr[i];
 
     ConcordAssert(checkpointsLog->insideActiveWindow(s));
     ConcordAssert(s == 0 ||                                                         // no checkpoints yet
                   s > ld.lastStableSeqNum ||                                        // not stable
-                  e.isCheckpointMsgSet() ||                                         // if stable need to be set
+                  checkData.isCheckpointMsgSet() ||                                 // if stable need to be set
                   ld.lastStableSeqNum == ld.lastExecutedSeqNum - kWorkWindowSize);  // after ST last executed may be on
     // the upper working window boundary
 
-    if (!e.isCheckpointMsgSet()) continue;
+    if (!checkData.isCheckpointMsgSet()) continue;
 
     auto &checkInfo = checkpointsLog->get(s);
 
-    ConcordAssertEQ(e.getCheckpointMsg()->seqNumber(), s);
-    ConcordAssertEQ(e.getCheckpointMsg()->senderId(), config_.getreplicaId());
-    ConcordAssertOR((s != ld.lastStableSeqNum), e.getCheckpointMsg()->isStableState());
+    ConcordAssertEQ(checkData.getCheckpointMsg()->seqNumber(), s);
+    ConcordAssertEQ(checkData.getCheckpointMsg()->senderId(), config_.getreplicaId());
+    ConcordAssertOR((s != ld.lastStableSeqNum), checkData.getCheckpointMsg()->isStableState());
 
     if (s != ld.lastStableSeqNum) {  // We have already added all msgs for our last stable Checkpoint
-      checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
-      ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+      checkInfo.addCheckpointMsg(checkData.getCheckpointMsg(), config_.getreplicaId());
+      ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*checkData.getCheckpointMsg()));
     } else {
-      delete e.getCheckpointMsg();
+      delete checkData.getCheckpointMsg();
     }
 
-    if (e.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();
+    if (checkData.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();
   }
 
   if (ld.isExecuting) {

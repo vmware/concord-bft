@@ -21,7 +21,6 @@
 namespace concord::secretsmanager {
 using std::vector;
 using std::string;
-using std::unique_ptr;
 using concord::crypto::openssl::OPENSSL_SUCCESS;
 using concord::crypto::openssl::UniqueCipherContext;
 
@@ -31,11 +30,11 @@ vector<uint8_t> AES_CBC::encrypt(const string& input) {
       return {};
     }
 
-    unique_ptr<unsigned char[]> ciphertext(new unsigned char[input.size() + AES_BLOCK_SIZE]);
-    unique_ptr<unsigned char[]> plaintext(new unsigned char[input.size() + 1]);
+    auto ciphertext = std::make_unique<unsigned char[]>(input.size() + AES_BLOCK_SIZE);
+    auto plaintext = std::make_unique<unsigned char[]>(input.size() + 1);
 
     for (size_t i{0UL}; i < input.size(); ++i) {
-      plaintext.get()[i] = (unsigned char)input[i];
+      plaintext.get()[i] = static_cast<unsigned char>(input[i]);
     }
 
     UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
@@ -52,7 +51,7 @@ vector<uint8_t> AES_CBC::encrypt(const string& input) {
 
     const int encryptedMsgLen = c_len + f_len;
     vector<uint8_t> cipher(encryptedMsgLen);
-    memcpy(&cipher[0], ciphertext.get(), encryptedMsgLen);
+    memcpy(cipher.data(), ciphertext.get(), encryptedMsgLen);
     return cipher;
   }
   return {};
@@ -67,7 +66,7 @@ string AES_CBC::decrypt(const vector<uint8_t>& cipher) {
     const int cipherLength = cipher.capacity();
     int c_len{0}, f_len{0};
 
-    unique_ptr<unsigned char[]> plaintext(new unsigned char[cipherLength]);
+    auto plaintext = std::make_unique<unsigned char[]>(cipherLength);
     UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
     ConcordAssert(nullptr != ctx);
 
@@ -83,7 +82,7 @@ string AES_CBC::decrypt(const vector<uint8_t>& cipher) {
     plaintext.get()[plainMsgLen] = 0;
 
     vector<uint8_t> plaintxt(plainMsgLen);
-    memcpy(&plaintxt[0], plaintext.get(), plainMsgLen);
+    memcpy(plaintxt.data(), plaintext.get(), plainMsgLen);
     return string(plaintxt.begin(), plaintxt.end());
   }
   return {};

@@ -51,8 +51,7 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   auto bodySize = getBodySize();
   bodySize += b()->sizeOfAllComplaints;
-  DigestGenerator digestGenerator;
-  digestGenerator.compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
+  DigestGenerator().compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
 uint32_t ViewChangeMsg::getBodySize() const {

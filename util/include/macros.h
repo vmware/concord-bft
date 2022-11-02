@@ -179,5 +179,3 @@
 #define KVARGS3(_1, _2, _3) (#_1, _1, #_2, _2, #_3, _3)
 #define KVARGS2(_1, _2) (#_1, _1, #_2, _2)
 #define KVARGS1(_1) (#_1, _1)
-
-#define UNUSED(expr) (void)(expr)

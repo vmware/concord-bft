@@ -131,16 +131,16 @@ bool verifyCertificate(const X509& cert_to_verify,
   string subject(SIZE, 0);
   X509_NAME_oneline(X509_get_subject_name(&cert_to_verify), subject.data(), SIZE);
 
-  int peerIdPrefixLength = 3;
+  int peer_id_prefix_len = 3;
   std::regex r("OU=\\d*", std::regex_constants::icase);
   std::smatch sm;
   regex_search(subject, sm, r);
-  if (sm.length() <= peerIdPrefixLength) {
+  if (sm.length() <= peer_id_prefix_len) {
     LOG_ERROR(OPENSSL_LOG, "OU not found or empty: " << subject);
     return false;
   }
 
-  auto remPeer = sm.str().substr(peerIdPrefixLength, sm.str().length() - peerIdPrefixLength);
+  auto remPeer = sm.str().substr(peer_id_prefix_len, sm.str().length() - peer_id_prefix_len);
   if (0 == remPeer.length()) {
     LOG_ERROR(OPENSSL_LOG, "OU empty " << subject);
     return false;
@@ -177,14 +177,14 @@ bool verifyCertificate(const X509& cert_to_verify,
     return false;
   }
 
-  UniqueX509 localCert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
-  if (nullptr == localCert) {
+  UniqueX509 local_cert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
+  if (nullptr == local_cert) {
     LOG_ERROR(OPENSSL_LOG, "Cannot parse certificate, path: " << local_cert_path.string());
     return false;
   }
 
   // this is actual comparison, compares hash of 2 certs
-  return (X509_cmp(&cert_to_verify, localCert.get()) == 0);
+  return (X509_cmp(&cert_to_verify, local_cert.get()) == 0);
 }
 
 std::string getSubjectFieldByName(const std::string& cert_path, const std::string& attribute_name) {
