@@ -20,7 +20,7 @@ using namespace vmware::concord::utt::admin::api::v1;
 Admin::Connection Admin::newConnection() {
   std::string grpcServerAddr = "127.0.0.1:49000";
 
-  std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
+  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... ";
 
   auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
 
@@ -39,6 +39,8 @@ Admin::Connection Admin::newConnection() {
 }
 
 bool Admin::deployApp(Channel& chan) {
+  std::cout << "Deploying a new privacy application...\n";
+
   // Generate a privacy config for a N=4 replica system tolerating F=1 failures
   utt::client::ConfigInputParams params;
   params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
@@ -53,18 +55,17 @@ bool Admin::deployApp(Channel& chan) {
   AdminResponse resp;
   chan->Read(&resp);
   if (!resp.has_deploy()) throw std::runtime_error("Expected deploy response from admin service!");
-  std::cout << "response case: " << resp.resp_case() << '\n';
   const auto& deployResp = resp.deploy();
-  std::cout << "has_privacy_contract_addr:" << deployResp.has_privacy_contract_addr() << '\n';
-  std::cout << "has_token_contract_addr:" << deployResp.has_token_contract_addr() << '\n';
 
   // Note that keeping the config around in memory is just a temp solution and should not happen in real system
   if (deployResp.has_err()) throw std::runtime_error("Failed to deploy privacy app: " + resp.err());
 
-  std::cout << "\nDeployed privacy application\n";
-  std::cout << "-----------------------------------\n";
+  std::cout << "\nSuccessfully deployed privacy application\n";
+  std::cout << "---------------------------------------------------\n";
   std::cout << "Privacy contract: " << deployResp.privacy_contract_addr() << '\n';
   std::cout << "Token contract: " << deployResp.token_contract_addr() << '\n';
+
+  std::cout << "\nYou are now ready to configure wallets.\n";
 
   return true;
 }

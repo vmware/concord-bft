@@ -19,8 +19,7 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout
-      << "deploy                    -- generates a privacy app config and deploys the privacy and token contracts.\n";
+  std::cout << "deploy -- generates a privacy config and deploys the privacy and token contracts.\n";
   // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
   // std::cout
   //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
@@ -45,12 +44,13 @@ struct CLIApp {
   }
 
   ~CLIApp() {
-    std::cout << "Closing admin streaming channel...\n";
+    std::cout << "Closing admin streaming channel... ";
     chan->WritesDone();
     auto status = chan->Finish();
-    std::cout << "gRPC error code: " << status.error_code() << '\n';
-    std::cout << "gRPC error msg: " << status.error_message() << '\n';
-    std::cout << "gRPC error details: " << status.error_details() << '\n';
+    std::cout << " Done.\n";
+    // std::cout << "gRPC error code: " << status.error_code() << '\n';
+    // std::cout << "gRPC error msg: " << status.error_message() << '\n';
+    // std::cout << "gRPC error details: " << status.error_details() << '\n';
   }
 
   void deploy() {
@@ -82,12 +82,13 @@ struct CLIApp {
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
-  std::cout << "Sample Privacy Admin CLI Application.\n";
 
   try {
     utt::client::Initialize();
 
     CLIApp app;
+
+    std::cout << "\nSample Privacy Admin CLI Application.\n";
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";

@@ -26,7 +26,7 @@ Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, c
 Wallet::Connection Wallet::newConnection() {
   std::string grpcServerAddr = "127.0.0.1:49001";
 
-  std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
+  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... ";
 
   auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
 
@@ -45,8 +45,9 @@ Wallet::Connection Wallet::newConnection() {
 }
 
 void Wallet::showInfo(Channel& chan) {
+  std::cout << '\n';
   syncState(chan);
-  std::cout << "\n--------- " << userId_ << " ---------\n";
+  std::cout << "--------- " << userId_ << " ---------\n";
   std::cout << "Public balance: " << publicBalance_ << '\n';
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
@@ -66,12 +67,13 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& cha
   // Note that keeping the config around in memory is just a temp solution and should not happen in real system
   if (configureResp.has_err()) throw std::runtime_error("Failed to configure: " + resp.err());
 
-  std::cout << "\nConfigured privacy application\n";
-  std::cout << "-----------------------------------\n";
+  std::cout << "\nSuccessfully configured privacy application\n";
+  std::cout << "---------------------------------------------------\n";
   std::cout << "Privacy contract: " << configureResp.privacy_contract_addr() << '\n';
   std::cout << "Token contract: " << configureResp.token_contract_addr() << '\n';
-  std::cout << "Full config size: " << configureResp.config().size() << '\n';
-  std::cout << "Public config size: " << configureResp.public_config().size() << '\n';
+
+  if (configureResp.config().empty()) throw std::runtime_error("The full config is empty!");
+  if (configureResp.public_config().empty()) throw std::runtime_error("The public config is empty!");
 
   utt::Configuration config(configureResp.config().begin(), configureResp.config().end());
   utt::PublicConfig publicConfig(configureResp.public_config().begin(), configureResp.public_config().end());
@@ -86,6 +88,7 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& cha
 
 void Wallet::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
   user_->createPrivacyBudgetLocal(config, amount);
+  std::cout << "Successfully created budget with value " << amount << '\n';
 }
 
 bool Wallet::isRegistered() const { return registered_; }
@@ -112,16 +115,16 @@ void Wallet::registerUser(Channel& chan) {
     std::cout << "Failed to register user: " << regUserResp.err() << '\n';
   } else {
     utt::RegistrationSig sig = std::vector<uint8_t>(regUserResp.signature().begin(), regUserResp.signature().end());
-    std::cout << "Got sig for registration with size: " << sig.size() << '\n';
+    if (sig.empty()) throw std::runtime_error("Registration signature is empty!");
 
     utt::S2 s2 = std::vector<uint64_t>(regUserResp.s2().begin(), regUserResp.s2().end());
-    std::cout << "Got S2 for registration: [";
-    for (const auto& val : s2) std::cout << val << ' ';
-    std::cout << "]\n";
+    if (s2.empty()) throw std::runtime_error("Registration param s2 is empty!");
 
     user_->updateRegistration(user_->getPK(), sig, s2);
 
     registered_ = true;
+
+    std::cout << "Successfully registered user.\n";
   }
 }
 
@@ -191,7 +194,7 @@ void Wallet::transfer(Channel& chan, uint64_t amount, const std::string& recipie
     return;
   }
 
-  std::cout << "Started processing " << amount << " anonymous transfer to " << recipient << "...\n";
+  std::cout << "Processing an anonymous transfer of " << amount << " to " << recipient << "...\n";
 
   // Process the transfer until we get the final transaction
   // On each iteration we also sync up to the tx number of our request
@@ -220,6 +223,8 @@ void Wallet::transfer(Channel& chan, uint64_t amount, const std::string& recipie
 
     if (result.isFinal_) break;  // Done
   }
+
+  std::cout << "Anonymous transfer done.\n";
 }
 
 void Wallet::burn(Channel& chan, uint64_t amount) {
@@ -228,7 +233,7 @@ void Wallet::burn(Channel& chan, uint64_t amount) {
     return;
   }
 
-  std::cout << "Started processing " << amount << " burn...\n";
+  std::cout << "Processing a burn operation for " << amount << "...\n";
 
   // Process the transfer until we get the final transaction
   // On each iteration we also sync up to the tx number of our request
@@ -246,7 +251,7 @@ void Wallet::burn(Channel& chan, uint64_t amount) {
       WalletResponse resp;
       chan->Read(&resp);
       if (!resp.has_burn()) throw std::runtime_error("Expected burn response from wallet service!");
-      const auto& burnResp = resp.transfer();
+      const auto& burnResp = resp.burn();
 
       if (burnResp.has_err()) {
         std::cout << "Failed to do burn:" << resp.err() << '\n';
@@ -281,10 +286,12 @@ void Wallet::burn(Channel& chan, uint64_t amount) {
       // Continue with the next transaction in the burn process
     }
   }
+
+  std::cout << "Burn operation done.\n";
 }
 
 void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
-  std::cout << "Synchronizing state...\n";
+  std::cout << "Synchronizing state... ";
 
   // Update public balance
   {
@@ -307,8 +314,6 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
 
   // Sync to latest state
   if (lastKnownTxNum == 0) {
-    std::cout << "Last known tx number is zero (or not provided) - fetching last added tx number...\n";
-
     WalletRequest req;
     req.mutable_get_last_added_tx_number();
     chan->Write(req);
@@ -322,7 +327,6 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
     if (getLastAddedTxNumResp.has_err()) {
       std::cout << "Failed to get last added tx number:" << resp.err() << '\n';
     } else {
-      std::cout << "Got last added tx number:" << getLastAddedTxNumResp.tx_number() << '\n';
       lastKnownTxNum = getLastAddedTxNumResp.tx_number();
     }
   }
@@ -376,6 +380,8 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
         throw std::runtime_error("Unexpected tx type!");
     }
   }
+
+  std::cout << "Ok. (Last known tx number: " << lastKnownTxNum << ")\n";
 }
 
 void Wallet::debugOutput() const { user_->debugOutput(); }

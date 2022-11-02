@@ -80,12 +80,13 @@ struct CLIApp {
   }
 
   ~CLIApp() {
-    std::cout << "Closing wallet streaming channel...\n";
+    std::cout << "Closing wallet streaming channel... ";
     chan->WritesDone();
     auto status = chan->Finish();
-    std::cout << "gRPC error code: " << status.error_code() << '\n';
-    std::cout << "gRPC error msg: " << status.error_message() << '\n';
-    std::cout << "gRPC error details: " << status.error_details() << '\n';
+    std::cout << " Done.\n";
+    // std::cout << "gRPC error code: " << status.error_code() << '\n';
+    // std::cout << "gRPC error msg: " << status.error_message() << '\n';
+    // std::cout << "gRPC error details: " << status.error_details() << '\n';
   }
 
   void configure() {
@@ -182,7 +183,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  std::cout << "Sample Privacy Wallet CLI Application.\n";
+  std::cout << "\nSample Privacy Wallet CLI Application.\n";
   std::cout << "UserId: " << app.userId << '\n';
 
   try {

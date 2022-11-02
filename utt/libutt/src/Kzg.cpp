@@ -109,7 +109,7 @@ Params::Params(size_t q) : q(q) {
   int prevPct = -1;
   size_t c = 0;
 
-  loginfo << "Generating random q-SDH params, with q = " << q << endl;
+  logdbg << "Generating random q-SDH params, with q = " << q << endl;
   for (size_t i = 0; i <= q; i++) {
     g1si[i] = si * g1;
     g2si[i] = si * g2;
