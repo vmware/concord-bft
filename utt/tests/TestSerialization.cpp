@@ -215,25 +215,9 @@ int main(int argc, char* argv[]) {
   // Test Transaction de/serialization
   std::vector<uint8_t> serialized_tx = libutt::api::serialize<libutt::api::operations::Transaction>(tx);
   auto deserialized_tx = libutt::api::deserialize<libutt::api::operations::Transaction>(serialized_tx);
-  for (size_t i = 0; i < tx.getInputCoins().size(); i++) {
-    const auto& orig_coin = tx.getInputCoins().at(i);
-    const auto& des_coin = deserialized_tx.getInputCoins().at(i);
-    assertTrue(orig_coin.getNullifier() == des_coin.getNullifier());
-    assertTrue(orig_coin.hasSig() == des_coin.hasSig());
-    assertTrue(orig_coin.getType() == des_coin.getType());
-    assertTrue(orig_coin.getVal() == des_coin.getVal());
-    assertTrue(orig_coin.getSN() == des_coin.getSN());
-    assertTrue(orig_coin.getExpDateAsCurvePoint() == des_coin.getExpDateAsCurvePoint());
-  }
+  assertTrue(tx.hasBudgetCoin() == deserialized_tx.hasBudgetCoin());
+  assertTrue(tx.getBudgetExpirationDate() == deserialized_tx.getBudgetExpirationDate());
   assertTrue(tx.getNullifiers() == deserialized_tx.getNullifiers());
-  auto orig_bcoin = tx.getBudgetCoin();
-  auto deserialize_bcoin = deserialized_tx.getBudgetCoin();
-  assertTrue(orig_bcoin->getNullifier() == deserialize_bcoin->getNullifier());
-  assertTrue(orig_bcoin->hasSig() == deserialize_bcoin->hasSig());
-  assertTrue(orig_bcoin->getType() == deserialize_bcoin->getType());
-  assertTrue(orig_bcoin->getVal() == deserialize_bcoin->getVal());
-  assertTrue(orig_bcoin->getSN() == deserialize_bcoin->getSN());
-  assertTrue(orig_bcoin->getExpDateAsCurvePoint() == deserialize_bcoin->getExpDateAsCurvePoint());
 
   return 0;
 }
