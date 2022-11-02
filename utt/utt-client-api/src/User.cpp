@@ -347,7 +347,7 @@ void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
   auto mint = libutt::api::deserialize<libutt::api::operations::Mint>(tx.data_);
 
   if (mint.getRecipentID() != pImpl_->client_->getPid()) {
-    loginfo << "Mint transaction is for different user - ignoring." << endl;
+    logdbg << "Mint transaction is for different user - ignoring." << endl;
   } else {
     auto claimedCoins =
         pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
@@ -372,7 +372,7 @@ void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
 
   if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
-    loginfo << "Burn transaction is for different user - ignoring." << endl;
+    logdbg << "Burn transaction is for different user - ignoring." << endl;
   } else {
     auto nullifier = burn.getNullifier();
     if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
@@ -398,7 +398,7 @@ utt::Transaction User::mint(uint64_t amount) const {
   std::stringstream ss;
   ss << Fr::random_element();
   auto randomHash = ss.str();
-  loginfo << "Creating a mint tx with hash: " << randomHash << endl;
+  logdbg << "Creating a mint tx with hash: " << randomHash << endl;
 
   auto mint = libutt::api::operations::Mint(randomHash, amount, pImpl_->client_->getPid());
 
@@ -415,7 +415,7 @@ void User::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t a
 
   const auto& pid = pImpl_->client_->getPid();
 
-  loginfo << "Creating " << amount << " privacy budget locally for '" << pid << "'\n";
+  logdbg << "Creating " << amount << " privacy budget locally for '" << pid << "'\n";
 
   auto uttConfig = libutt::api::deserialize<libutt::api::Configuration>(config);
 
