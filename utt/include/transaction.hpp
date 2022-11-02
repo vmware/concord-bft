@@ -71,25 +71,14 @@ class Transaction {
   std::vector<std::string> getNullifiers() const;
 
   /**
-   * @brief Get the transaction's input coins
-   *
-   * @return const std::vector<Coin>&
-   */
-  const std::vector<Coin>& getInputCoins() const;
-
-  /**
-   * @brief Get the transaction's budget coin
-   *
-   * @return std::optional<Coin>
-   */
-  std::optional<Coin> getBudgetCoin() const;
-
-  /**
    * @brief Get the number of output coins in the transaction
    *
    * @return uint32_t
    */
   uint32_t getNumOfOutputCoins() const;
+
+  bool hasBudgetCoin() const;
+  uint64_t getBudgetExpirationDate() const;
 
  private:
   friend class libutt::api::CoinsSigner;
@@ -97,7 +86,5 @@ class Transaction {
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
   std::shared_ptr<libutt::Tx> tx_;
-  std::vector<Coin> input_coins_;
-  std::optional<Coin> budget_coin_;
 };
 }  // namespace libutt::api::operations

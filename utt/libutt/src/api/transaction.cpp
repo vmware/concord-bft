@@ -9,15 +9,10 @@
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx) {
   out << *(tx.tx_) << std::endl;
-  libutt::serializeVector(out, tx.input_coins_);
-  out << tx.budget_coin_;
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx) {
   in >> *(tx.tx_);
-  libff::consume_OUTPUT_NEWLINE(in);
-  libutt::deserializeVector(in, tx.input_coins_);
-  in >> tx.budget_coin_;
   return in;
 }
 namespace libutt::api::operations {
@@ -27,8 +22,6 @@ Transaction::Transaction(const UTTParams& d,
                          const std::optional<Coin>& bc,
                          const std::vector<std::tuple<std::string, uint64_t>>& recipients,
                          const IEncryptor& encryptor) {
-  input_coins_ = coins;
-  budget_coin_ = bc;
   Fr fr_pidhash;
   fr_pidhash.from_words(cid.getPidHash());
   Fr prf;
@@ -74,13 +67,15 @@ Transaction::Transaction(const Transaction& other) {
 Transaction& Transaction::operator=(const Transaction& other) {
   if (this == &other) return *this;
   *tx_ = *(other.tx_);
-  input_coins_ = other.input_coins_;
-  budget_coin_ = other.budget_coin_;
   return *this;
 }
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
-const std::vector<Coin>& Transaction::getInputCoins() const { return input_coins_; }
-std::optional<Coin> Transaction::getBudgetCoin() const { return budget_coin_; }
 
 uint32_t Transaction::getNumOfOutputCoins() const { return (uint32_t)tx_->outs.size(); }
+
+bool Transaction::hasBudgetCoin() const { return tx_->ins.back().coin_type == libutt::Coin::BudgetType(); }
+uint64_t Transaction::getBudgetExpirationDate() const {
+  if (!hasBudgetCoin()) return 0;
+  return tx_->ins.back().exp_date.as_ulong();
+}
 }  // namespace libutt::api::operations
