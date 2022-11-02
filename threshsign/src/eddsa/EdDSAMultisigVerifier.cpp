@@ -47,8 +47,7 @@ size_t EdDSASignatureAccumulator::getFullSignedData(char *outThreshSig, int thre
   ConcordAssertGE(static_cast<uint64_t>(threshSigLen),
                   static_cast<unsigned long>(signatures_.size()) * sizeof(SingleEdDSASignature));
   size_t offset = 0;
-  for (auto &[id, sig] : signatures_) {
-    UNUSED(id);
+  for ([[maybe_unused]] const auto &[id, sig] : signatures_) {
     std::memcpy(outThreshSig + offset, &sig, sizeof(SingleEdDSASignature));
     offset += sizeof(SingleEdDSASignature);
   }

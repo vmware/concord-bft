@@ -16,7 +16,7 @@
 #include "burn.hpp"
 #include "transaction.hpp"
 #include "budget.hpp"
-#undef UNUSED
+
 #include "../../../utt/libutt/src/api/include/params.impl.hpp"
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
