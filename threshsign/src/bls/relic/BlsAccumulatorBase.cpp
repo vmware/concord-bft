@@ -56,14 +56,7 @@ void BlsAccumulatorBase::onExpectedDigestSet() {
   assertNotNull(expectedDigest);
   assertStrictlyPositive(expectedDigestLen);
 
-/*In mac, generation of conc_genconfig binary throws a compilation issue when using static_cast, to prevent the
- * compilation issuse it has been moved to reinterpret_cast
- */
-#ifdef BUILD_CONFIG_GEN_TOOL_FOR_MAC
-  g1_map(hash, reinterpret_cast<const uint8_t*>(expectedDigest.get()), expectedDigestLen);
-#else
   g1_map(hash, static_cast<const uint8_t*>(expectedDigest.get()), expectedDigestLen);
-#endif
 }
 
 bool BlsAccumulatorBase::verifyShare(ShareID id, const G1T& sigShare) {

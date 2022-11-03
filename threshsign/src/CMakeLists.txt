@@ -9,6 +9,9 @@ set(common_source_files
 
 add_library(threshsign STATIC ${common_source_files})
 target_include_directories(threshsign PUBLIC ../include)
+if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+    target_include_directories(threshsign PUBLIC /usr/local/ssl/include ${CMAKE_CURRENT_SOURCE_DIR}/../../util/include/ /usr/local/include/)
+endif()
 target_link_libraries(threshsign PUBLIC Threads::Threads)
 
 message(STATUS "Using OpenSSL EdDSA threshold signatures")

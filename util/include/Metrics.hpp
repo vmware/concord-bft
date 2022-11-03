@@ -21,6 +21,7 @@
 #include <memory>
 #include <list>
 #include <variant>
+#include <unordered_map>
 #include "Statistics.hpp"
 #include "Logger.hpp"
 

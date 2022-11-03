@@ -23,10 +23,6 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
   assertNotNull(msg);
   assertStrictlyPositive(len);
 
-/* mac clang v12 does support share_ptr reset functionality for []  type, since the below code is not hit while building
- * conc_gencofig tool for mac, hence commenting the below code
- */
-#ifndef BUILD_CONFIG_GEN_TOOL_FOR_MAC
   if (!hasExpectedDigest()) {
     expectedDigest.reset(new unsigned char[static_cast<size_t>(len)]);
     memcpy(reinterpret_cast<void*>(expectedDigest.get()),
@@ -60,7 +56,6 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
       throw std::runtime_error("Cannot reset expected digest to a different one");
     }
   }
-#endif
 }
 
 template <class VerificationKey, class NumType, typename SigShareParserFunc>
