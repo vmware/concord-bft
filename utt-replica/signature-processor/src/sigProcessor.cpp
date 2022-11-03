@@ -191,14 +191,14 @@ void SigProcessor::publishCompleteSignature(const SigJobEntry& job_entry) {
   auto requestSeqNum =
       std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
   std::vector<uint8_t> appClientReq = job_entry.client_app_data_generator_cb_(sig_id, msg.serialize());
-  auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
-                                                   bftEngine::MsgFlag::INTERNAL_FLAG,
-                                                   requestSeqNum,
-                                                   (uint32_t)appClientReq.size(),
-                                                   (const char*)appClientReq.data(),
-                                                   60000,
-                                                   "new-utt-sig-" + std::to_string(sig_id));
-  msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::move(cmsg));
+  auto crm = std::make_unique<bftEngine::impl::ClientRequestMsg>(repId_,
+                                                                 bftEngine::MsgFlag::INTERNAL_FLAG,
+                                                                 requestSeqNum,
+                                                                 (uint32_t)appClientReq.size(),
+                                                                 (const char*)appClientReq.data(),
+                                                                 60000,
+                                                                 "new-utt-sig-" + std::to_string(sig_id));
+  msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::move(crm));
 }
 // Called by the validating thread
 void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
