@@ -310,7 +310,7 @@ class test_utt_instance : public ::testing::Test {
         std::memcpy(cs_buffer.data(), msg->requestBuf() + sizeof(uint64_t), cs_buffer.size());
         utt::SigProcessor::CompleteSignatureMsg cs_msg(cs_buffer);
         ASSERT_TRUE(cs_msg.validate());
-        auto fsig = cs_msg.getFullSig();
+        auto& fsig = cs_msg.getFullSig();
         {
           std::unique_lock lk(sigs_lock);
           for (size_t j = 0; j < n; j++) {
