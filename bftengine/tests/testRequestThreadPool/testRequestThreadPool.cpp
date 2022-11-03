@@ -85,7 +85,7 @@ TEST(testRequestThreadPool, sameTP) {
   std::vector<std::future<void>> tasks;
 
   try {
-    auto pool = concord::util::ThreadPool{};
+    auto pool = concord::util::ThreadPool{""};
     for (uint32_t i = 0; i < 10000; i++) {
       tasks.push_back(pool.async([&thread_pool_addr]() {
         std::vector<size_t> thread_pool_addr_tp;

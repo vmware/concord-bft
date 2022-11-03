@@ -254,9 +254,9 @@ class KeyValueBlockchain {
   VersionedRawBlock last_raw_block_;
 
   // currently we are operating with single thread
-  util::ThreadPool thread_pool_{1};
+  util::ThreadPool thread_pool_{"categorization::KeyValueBlockchain::thread_pool", 1};
   // For concurrent deletion of the categories inside a block.
-  util::ThreadPool prunning_thread_pool_{2};
+  util::ThreadPool prunning_thread_pool_{"categorization::KeyValueBlockchain::prunning_thread_pool_,", 2};
 
   // metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

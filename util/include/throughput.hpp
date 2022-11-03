@@ -42,7 +42,7 @@ class DurationTracker {
  public:
   // create a tracker with a given name. start it immediately if do_start is true.
   DurationTracker(std::string&& name = "", bool do_start = false)
-      : total_duration_{}, start_time_{}, running_{do_start}, name_(name) {
+      : total_duration_{}, start_time_{}, running_{do_start}, name_(std::move(name)) {
     static size_t obj_counter{};
     if (do_start) {
       start_time_ = std::chrono::steady_clock::now();

@@ -884,7 +884,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
-  if (!isCurrentPrimary()) return;
+  if (!isCurrentPrimary()) {
+    delete pp;
+    return;
+  }
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
   if (getReplicaConfig().timeServiceEnabled) {
     pp->setTime(time_service_manager_->getClockTimePoint());
@@ -4349,12 +4352,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
+      internalThreadPool("ReplicaImp::internalThreadPool"),
       MAIN_THREAD_ID{std::this_thread::get_id()},
+      postExecThread_{"ReplicaImp::postExecThread"},
       replyBuffer{static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)))},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
-
       pm_{pm},
       sm_{sm ? sm : std::make_shared<concord::secretsmanager::SecretsManagerPlain>()},
       metric_view_{metrics_.RegisterGauge("view", 0)},
@@ -4539,11 +4543,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   controller = new ControllerWithSimpleHistory(
       config_.getcVal(), config_.getfVal(), config_.getreplicaId(), getCurrentView(), primaryLastUsedSeqNum);
 
-  if (retransmissionsLogicEnabled)
+  if (retransmissionsLogicEnabled) {
     retransmissionsManager =
-        new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
-  else
-    retransmissionsManager = nullptr;
+        std::make_unique<RetransmissionsManager>(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
+  }
 
   ticks_gen_ = concord::cron::TicksGenerator::create(internalBFTClient_,
                                                      *clientsManager,
@@ -4609,13 +4612,19 @@ ReplicaImp::~ReplicaImp() {
 }
 
 void ReplicaImp::stop() {
-  if (retransmissionsLogicEnabled) timers_.cancel(retranTimer_);
+  LOG_DEBUG(GL, "ReplicaImp::stop started");
+  if (retransmissionsLogicEnabled) {
+    timers_.cancel(retranTimer_);
+  }
   timers_.cancel(slowPathTimer_);
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
   timers_.cancel(clientRequestsRetransmissionTimer_);
-  if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
+  if (viewChangeProtocolEnabled) {
+    timers_.cancel(viewChangeTimer_);
+  }
   ReplicaForStateTransfer::stop();
+  LOG_DEBUG(GL, "ReplicaImp::stop done");
 }
 
 void ReplicaImp::addTimers() {

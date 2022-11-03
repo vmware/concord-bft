@@ -476,7 +476,8 @@ Replica::Replica(ICommunication *comm,
       aggregator_(aggregator),
       pm_{pm},
       secretsManager_{secretsManager},
-      blocks_io_workers_pool((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
+      blocks_io_workers_pool("Replica::blocks_io_workers_pool",
+                             (replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
                                                                             : std::thread::hardware_concurrency()),
       AdaptivePruningManager_{
           concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(

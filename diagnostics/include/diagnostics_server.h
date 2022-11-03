@@ -158,6 +158,7 @@ class Server {
   }
 
   void stop() {
+    LOG_INFO(logger, std::boolalpha << KVLOG(shutdown_));
     if (!shutdown_) {
       LOG_INFO(logger, "Shutting down diagnostics server main thread.");
       shutdown_.store(true);

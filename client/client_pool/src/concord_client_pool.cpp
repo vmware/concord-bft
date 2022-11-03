@@ -256,7 +256,8 @@ std::unique_ptr<ConcordClientPool> ConcordClientPool::create(config_pool::Concor
 ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &config,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
                                      bool delay_behavior)
-    : metricsComponent_{concordMetrics::Component("ClientPool", std::make_shared<concordMetrics::Aggregator>())},
+    : jobs_thread_pool_{"ConcordClientPool::jobs_thread_pool"},
+      metricsComponent_{concordMetrics::Component("ClientPool", std::make_shared<concordMetrics::Aggregator>())},
       ClientPoolMetrics_{metricsComponent_.RegisterCounter("requests_counter"),
                          metricsComponent_.RegisterCounter("executed_requests_counter"),
                          metricsComponent_.RegisterCounter("rejected_counter"),
@@ -286,7 +287,8 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
 
 ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &config,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator)
-    : metricsComponent_{concordMetrics::Component("ClientPool", std::make_shared<concordMetrics::Aggregator>())},
+    : jobs_thread_pool_{"ConcordClientPool::jobs_thread_pool"},
+      metricsComponent_{concordMetrics::Component("ClientPool", std::make_shared<concordMetrics::Aggregator>())},
       ClientPoolMetrics_{metricsComponent_.RegisterCounter("requests_counter"),
                          metricsComponent_.RegisterCounter("executed_requests_counter"),
                          metricsComponent_.RegisterCounter("rejected_counter"),

@@ -287,9 +287,7 @@ void ReadOnlyReplica::registerStatusHandlers() {
         bj.endNested();
         bj.endJson();
 
-        char *cstr = new char[bj.getJson().length() + 1];
-        std::strcpy(cstr, bj.getJson().c_str());
-        return cstr;
+        return bj.getJson();
       });
   concord::diagnostics::RegistrarSingleton::getInstance().status.registerHandler(h);
 }
