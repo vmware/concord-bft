@@ -46,6 +46,7 @@ class SigProcessor {
     explicit CompleteSignatureMsg() = default;
     CompleteSignatureMsg(const std::vector<uint8_t>& buffer);
     bool validate() const;
+    const std::map<uint32_t, std::vector<uint8_t>>& getPartialSigs() const;
     const std::vector<uint8_t>& getFullSig() const;
     /*
       The serialized output is in the following format:
