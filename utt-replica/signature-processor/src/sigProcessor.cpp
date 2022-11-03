@@ -238,7 +238,9 @@ bool SigProcessor::CompleteSignatureMsg::validate() const {
 }
 SigProcessor::CompleteSignatureMsg::CompleteSignatureMsg(const std::vector<uint8_t>& buffer) { deserialize(buffer); }
 const std::vector<uint8_t>& SigProcessor::CompleteSignatureMsg::getFullSig() const { return full_sig; }
-
+const std::map<uint32_t, std::vector<uint8_t>>& SigProcessor::CompleteSignatureMsg::getPartialSigs() const {
+  return sigs;
+}
 std::vector<uint8_t> SigProcessor::CompleteSignatureMsg::serialize() const {
   uint64_t loc{0};
   uint64_t fsig_size = full_sig.size();
