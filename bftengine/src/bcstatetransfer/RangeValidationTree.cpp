@@ -486,6 +486,7 @@ bool RangeValidationTree::validate() const noexcept {
 #ifdef ENABLE_ALL_METRICS
     metrics_.rvt_validation_failures_++;
 #endif
+    return false;
   }
   return true;
 }
