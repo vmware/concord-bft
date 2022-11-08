@@ -53,7 +53,8 @@ class Budget {
          const types::CurvePoint& snHash,
          const types::CurvePoint& pidHash,
          uint64_t val,
-         uint64_t exp_date);
+         uint64_t exp_date,
+         bool finalize = true);
   Budget() {}
 
   /**

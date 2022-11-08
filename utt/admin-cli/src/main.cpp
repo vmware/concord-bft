@@ -63,19 +63,17 @@ struct CLIApp {
   }
 
   void createBudgetCmd(const std::vector<std::string>& cmdTokens) {
-    (void)cmdTokens;
-    //[TODO-UTT] Create by sending a request to the system
-    // if (cmdTokens.size() != 2) {
-    //   std::cout << "Usage: create-budget <user-id>\n";
-    //   return;
-    // }
-    // auto admin = getAdmin(cmdTokens[1]);
-    // if (!admin) {
-    //   std::cout << "No admin for '" << cmdTokens[1] << "'\n";
-    //   return;
-    // }
-
-    // admin->createPrivacyBudgetLocal(config, 10000);
+    if (cmdTokens.size() != 3) {
+      std::cout << "Usage: create-budget <user-id> <amount>\n";
+      return;
+    }
+    const auto& user = cmdTokens[1];
+    int amount = std::atoi(cmdTokens[2].c_str());
+    if (amount <= 0) {
+      std::cout << "Expected a positive mint amount!\n";
+      return;
+    }
+    Admin::createPrivacyBudget(chan, user, (uint64_t)amount);
   }
 };
 

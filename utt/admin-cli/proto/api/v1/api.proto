@@ -23,12 +23,12 @@ message DeployPrivacyAppResponse {
 
 message CreatePrivacyBudgetRequest {
     optional string user_id = 1;
+    optional uint64 expiration_date = 2;
+    optional uint64 value = 3;
 }
 
 message CreatePrivacyBudgetResponse {
-    optional string err = 1;
-    optional bytes budget = 2;
-    optional bytes signature = 3;
+    optional string status = 1;
 }
 
 message AdminRequest {

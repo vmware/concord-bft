@@ -195,10 +195,10 @@ TEST_F(ibe_based_test_system, test_budget_creation_by_replicas) {
                       .to_words();  // Assume each replica can compute the same sn using some common execution state
     for (size_t i = 0; i < banks.size(); i++) {
       // Each replica creates its own version of the budget coin and sign it. We expect to have deterministic coin here
-      auto budget = Budget(d, snHash, c.getPidHash(), 1000, 123456789);
+      auto budget = Budget(d, snHash, c.getPidHash(), 1000, 123456789, false);
       rsigs.push_back(banks[i]->sign(budget).front());
     }
-    auto budget = Budget(d, snHash, c.getPidHash(), 1000, 123456789);
+    auto budget = Budget(d, snHash, c.getPidHash(), 1000, 123456789, false);
     auto sbs = getSubset((uint32_t)n, (uint32_t)thresh);
     std::map<uint32_t, std::vector<uint8_t>> sigs;
     for (auto i : sbs) {

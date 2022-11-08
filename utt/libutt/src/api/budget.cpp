@@ -33,13 +33,14 @@ Budget::Budget(const UTTParams& d,
                const types::CurvePoint& snHash,
                const types::CurvePoint& pidHash,
                uint64_t val,
-               uint64_t exp_date) {
+               uint64_t exp_date,
+               bool finalize) {
   Fr fr_val;
   fr_val.set_ulong(val);
   Fr fr_expdate;
   fr_expdate.set_ulong(exp_date);
   coin_ = libutt::api::Coin(
-      d, snHash, fr_val.to_words(), pidHash, libutt::api::Coin::Type::Budget, fr_expdate.to_words(), false);
+      d, snHash, fr_val.to_words(), pidHash, libutt::api::Coin::Type::Budget, fr_expdate.to_words(), finalize);
 }
 libutt::api::Coin& Budget::getCoin() { return coin_; }
 const libutt::api::Coin& Budget::getCoin() const { return coin_; }

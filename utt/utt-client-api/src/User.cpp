@@ -102,6 +102,7 @@ struct User::Impl {
   uint64_t lastExecutedTxNum_ = 0;
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
+  std::set<std::string> budgetNullifiers_;
 };
 
 utt::Transaction User::Impl::createTx_Burn(const libutt::api::Coin& coin) {
@@ -328,11 +329,18 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
   // Expect a single budget token to be claimed by the user
   if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
   if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid initial budget coin!");
+  auto nullifer = claimedCoins[0].getNullifier();
+  // std::cout << "Budget nullifer is, hash " << std::hash<std::string>{}(nullifer) << " raw " << nullifer << "\n";
+  if (pImpl_->budgetNullifiers_.count(claimedCoins[0].getNullifier()) == 1) {
+    // TODO debug log
+    return;
+  }
 
   // [TODO-UTT] Requires atomic, durable write through IUserStorage
   pImpl_->budgetCoin_ = claimedCoins[0];
 
   logdbg_user << "claimed budget token " << dbgPrintCoins({*pImpl_->budgetCoin_}) << endl;
+  pImpl_->budgetNullifiers_.insert(claimedCoins[0].getNullifier());
 }
 
 uint64_t User::getBalance() const {

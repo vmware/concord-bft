@@ -290,8 +290,28 @@ void Wallet::burn(Channel& chan, uint64_t amount) {
   std::cout << "Burn operation done.\n";
 }
 
+// What if we perform transaction with not enough budget but we have new budget waiting.
+void Wallet::updateBudget(Channel& chan) {
+  if (user_->getPrivacyBudget() > 0) return;
+  WalletRequest req;
+  req.mutable_get_privacy_budget()->set_user_id(userId_);
+  chan->Write(req);
+
+  WalletResponse resp;
+  chan->Read(&resp);
+  const auto& getBudget = resp.get_privacy_budget();
+  if (getBudget.has_err()) {
+    std::cout << "budget is empty, please contact administrator\n";
+    return;
+  }
+
+  utt::PrivacyBudget budget = std::vector<uint8_t>(getBudget.budget().begin(), getBudget.budget().end());
+  utt::RegistrationSig sig = std::vector<uint8_t>(getBudget.signature().begin(), getBudget.signature().end());
+  user_->updatePrivacyBudget(budget, sig);
+}
+
 void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
-  std::cout << "Synchronizing state... ";
+  std::cout << "Synchronizing state...\n";
 
   // Update public balance
   {
@@ -311,6 +331,8 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
       publicBalance_ = getPubBalanceResp.public_balance();
     }
   }
+
+  updateBudget(chan);
 
   // Sync to latest state
   if (lastKnownTxNum == 0) {
