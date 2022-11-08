@@ -68,6 +68,7 @@ class Integer {
     return num;
   }
   void setNegative() { BN_set_negative(num_, 1); }
+  bool isNegative() { return BN_is_negative(num_); }
 
   Integer operator+(const Integer& i) {
     BIGNUM* res = BN_new();
@@ -130,7 +131,10 @@ class Integer {
     return res;
   }
   size_t size() const { return BN_num_bytes(num_); }
-  std::string toHexString() const { return BN_bn2hex(num_); }
+  std::string toHexString(bool add_prefix = false) const {
+    if (add_prefix) return std::string("0x") + BN_bn2hex(num_);
+    return BN_bn2hex(num_);
+  }
   std::string toDecString() const { return BN_bn2dec(num_); }
 
  private:
@@ -141,4 +145,5 @@ inline std::ostream& operator<<(std::ostream& os, const Integer& i) {
   os << i.toHexString();
   return os;
 }
+
 }  // namespace concord::crypto::openssl
