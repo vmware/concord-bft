@@ -38,5 +38,5 @@ class Admin {
   /// @brief Request the creation of a privacy budget. The amount of the budget is predetermined by the deployed app.
   /// This operation could be performed entirely by an administrator, but we add it in the admin
   /// for demo purposes.
-  static void createPrivacyBudget(Channel& chan);
+  static void createPrivacyBudget(Channel& chan, const std::string& user, uint64_t value);
 };
