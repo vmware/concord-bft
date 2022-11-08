@@ -46,15 +46,28 @@ using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 #define logInfoVal(x)
 #endif
 
+//////////////////////////////// NodeVal  ///////////////////////////////////
+NodeVal_t NodeVal::kNodeValueModulo_{};
+
+inline std::ostream& operator<<(std::ostream& os, const NodeVal& b) {
+  os << b.toDecAndHexString();
+  return os;
+}
+
 //////////////////////////////// NodeInfo  ///////////////////////////////////
 uint64_t NodeInfo::id(uint8_t level, uint64_t rvb_index) {
   IdData data(level, rvb_index);
   return data.id;
 }
 
+inline std::ostream& operator<<(std::ostream& os, const NodeInfo& b) {
+  os << b.toString();
+  return os;
+}
+
 std::string NodeInfo::toString() const noexcept {
   std::ostringstream os;
-  os << " [" << level() << "," << rvb_index() << "]";
+  os << "[" << level() << "," << rvb_index() << "]";
   return os.str();
 }
 
@@ -118,12 +131,14 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
   static_assert(std::is_same<decltype(RVTNode::child_ids_), std::deque<uint64_t>>::value);
 }
 
-#ifdef __RVT_DO_DEBUG
+#ifdef RANGE_VALIDATION_TREE_DO_DEBUG
 void RVBNode::logInfoVal(const std::string& prefix) {
+  static int counter{};
   ostringstream oss;
-  oss << prefix << info_.toString() << " (" << info_.id() << ") " << current_value_.toString();
+  oss << prefix << "(#" << counter << ") " << info_ << " (" << info_.id() << ") " << current_value_;
   // Keep for debug, do not remove please!
   DEBUG_PRINT(GL, oss.str());
+  ++counter;
 }
 #endif
 
@@ -132,7 +147,7 @@ RVBNode::RVBNode(uint64_t rvb_index, const char* data, size_t data_size)
     : info_(kDefaultRVBLeafLevel, rvb_index),
       current_value_(computeNodeInitialValue(info_, data, data_size), NodeVal::kDigestContextOutputSize) {
   ConcordAssertEQ(info_.level(), kDefaultRVBLeafLevel);
-  logInfoVal("construct: ");  // leave for debugging
+  logInfoVal("construct1: ");  // leave for debugging
 }
 
 // level 1 and up
@@ -142,13 +157,13 @@ RVBNode::RVBNode(uint8_t level, uint64_t rvb_index)
           computeNodeInitialValue(info_, NodeVal::initialValueZeroData.data(), NodeVal::kDigestContextOutputSize),
           NodeVal::kDigestContextOutputSize) {
   ConcordAssertGE(level, kDefaultRVTLeafLevel);
-  logInfoVal("construct: ");  // leave for debugging
+  logInfoVal("construct2: ");  // leave for debugging
 }
 
 // serialized in memory nodes
 RVBNode::RVBNode(uint64_t node_id, NodeVal&& val) : info_(node_id), current_value_(std::move(val)) {
   ConcordAssertGE(info_.level(), kDefaultRVTLeafLevel);
-  logInfoVal("construct: ");  // leave for debugging
+  logInfoVal("construct3: ");  // leave for debugging
 }
 
 // Level 1 RVT Node ctor
@@ -181,23 +196,23 @@ RVTNode::RVTNode(SerializedRVTNode& node, NodeVal&& val)
 void RVTNode::addValue(const NodeVal& nvalue) {
   // Keep for debug, do not remove please!
   logInfoVal("Before add:");
-  DEBUG_PRINT(GL, "Adding " << nvalue.toString());
+  DEBUG_PRINT(GL, "Adding " << nvalue);
 
   this->current_value_ += nvalue;
 
   // Keep for debug, do not remove please!
-  logInfoVal("After:");
+  logInfoVal("After add:");
 }
 
-void RVTNode::substractValue(const NodeVal& nvalue) {
+void RVTNode::subtractValue(const NodeVal& nvalue) {
   // Keep for debug, do not remove please!
   logInfoVal("Before sub:");
-  DEBUG_PRINT(GL, "Substracting " << nvalue.toString());
+  DEBUG_PRINT(GL, "Subtracting " << nvalue);
 
-  this->current_value_ -= nvalue;
+  current_value_ -= nvalue;
 
   // leave for debugging
-  logInfoVal("After:");
+  logInfoVal("After sub:");
 }
 
 std::ostringstream RVTNode::serialize() const {
@@ -278,13 +293,19 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       metrics_component_{
           concordMetrics::Component("range_validation_tree", std::make_shared<concordMetrics::Aggregator>())} {
 #endif
-  LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size_, value_size));
-  NodeVal::getModulo(value_size_);
+  NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
+  ConcordAssert(NodeVal::kNodeValueModulo_ != NodeVal_t(static_cast<signed long>(0)));
   RVTMetadata::staticAssert();
   SerializedRVTNode::staticAssert();
   RangeValidationTree::RVT_K = RVT_K;
+  LOG_INFO(logger_,
+           "RVT created: RVT_K=" << RangeValidationTree::RVT_K
+                                 << " kNodeValueModulo_(hex)=" << NodeVal::kNodeValueModulo_.toHexString(true)
+                                 << " kNodeValueModulo_(dec)=" << NodeVal::kNodeValueModulo_
+                                 << " fetch_range_size_=" << fetch_range_size_ << " value_size_=" << value_size_);
 }
 
+// TODO - create a cache table on ctor for quick results
 uint64_t RangeValidationTree::pow_uint(uint64_t base, uint64_t exp) noexcept {
   ConcordAssertOR(base != 0, exp != 0);  // both zero are undefined
   uint64_t res{base};
@@ -415,10 +436,11 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
   auto iter = id_to_node_.begin();
   ConcordAssert(iter->second != nullptr);
   std::set<uint64_t> validated_ids;
+  int i{};  // leave for debug
 
   do {
     NodeVal sum_of_childs{};
-
+    ++i;
     if (iter == id_to_node_.end()) {
       break;
     }
@@ -443,16 +465,15 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
     // A correct value for a node is such that:
     // ((current value - initial value) % mod) == ((sum of current values of all childs) % mod)
 
-    NodeVal added_to_current{};
-    added_to_current += current_node->current_value_;
+    NodeVal added_to_current{current_node->current_value_};
     added_to_current -= current_node->initial_value_;
+
     if (added_to_current != sum_of_childs) {
       LOG_ERROR(logger_,
-                "Value validation failed: info=" << current_node->info_.toString()
-                                                 << " ,curent value=" << current_node->current_value_.toString()
-                                                 << " ,initial value=" << current_node->initial_value_.toString()
-                                                 << " ,sum of childs=" << sum_of_childs.toString()
-                                                 << " ,added_to_current=" << added_to_current.toString());
+                "Value validation failed (#"
+                    << i << "): info=" << current_node->info_ << " ,curent value=" << current_node->current_value_
+                    << " ,initial value=" << current_node->initial_value_ << " ,sum of childs=" << sum_of_childs
+                    << " ,added_to_current=" << added_to_current);
       // 1st error found - exit
       return false;
     }
@@ -515,18 +536,17 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
   q.push(root_);
   while (q.size()) {
     auto& node = q.front();
-    oss << node->info_.toString() << " ";
+    oss << node->info_ << " ";
 
     oss << ", level=" << node->info_.level() << ", rvb_index=" << node->info_.rvb_index()
-        << ", insertion_counter_=" << node->insertion_counter_ << ", current_value_=" << node->current_value_.toString()
-        << ", min_cid=" << NodeInfo(node->minChildId()).toString()
-        << ", max_cid=" << NodeInfo(node->maxChildId()).toString();
+        << ", insertion_counter_=" << node->insertion_counter_ << ", current_value_=" << node->current_value_
+        << ", min_cid=" << NodeInfo(node->minChildId()) << ", max_cid=" << NodeInfo(node->maxChildId());
 
     // Keep for debugging
     // ConcordAssert(node->hasChilds());
     // oss << " child_ids:";
     // for (const auto& cid : node->child_ids_) {
-    //   oss << NodeInfo(cid).toString();
+    //   oss << NodeInfo(cid);
     // }
     oss << "|";
     if (node->info_.level() == 1) {
@@ -653,7 +673,7 @@ void RangeValidationTree::addRVBNode(const shared_ptr<RVBNode>& rvb_node) {
     updateOpenRvtNodeArrays(ArrUpdateType::ADD_NODE_TO_RIGHT, parent_node);
     ConcordAssert(id_to_node_.insert({parent_node->info_.id(), parent_node}).second == true);
     // Keep for debug
-    DEBUG_PRINT(logger_, "Added node" << parent_node->info_.toString() << " id " << parent_node->info_.id());
+    DEBUG_PRINT(logger_, "Added node" << parent_node->info_ << " id " << parent_node->info_.id());
     if (!root_) {  // TODO - is this needed???
       setNewRoot(parent_node);
     }
@@ -734,7 +754,7 @@ void RangeValidationTree::addInternalNode(const RVTNodePtr& node_to_add) {
         val_to_add += parent_node->initial_value_;
         ConcordAssert(id_to_node_.insert({parent_node->info_.id(), parent_node}).second == true);
         // Keep for debug
-        DEBUG_PRINT(logger_, "Added node" << parent_node->info_.toString() << " id " << parent_node->info_.id());
+        DEBUG_PRINT(logger_, "Added node" << parent_node->info_ << " id " << parent_node->info_.id());
         updateOpenRvtNodeArrays(ArrUpdateType::ADD_NODE_TO_RIGHT, parent_node);
         current_node->parent_id_ = parent_node->info_.id();
       }
@@ -779,7 +799,7 @@ void RangeValidationTree::addInternalNode(const RVTNodePtr& node_to_add) {
     new_root->addValue(root_->current_value_);
     ConcordAssert(id_to_node_.insert({new_root->info_.id(), new_root}).second == true);
     // Keep for debug
-    DEBUG_PRINT(logger_, "Added node" << new_root->info_.toString() << " id " << new_root->info_.id());
+    DEBUG_PRINT(logger_, "Added node" << new_root->info_ << " id " << new_root->info_.id());
     setNewRoot(new_root);
     ConcordAssert(new_root->numChildren() <= RVT_K);
 
@@ -827,12 +847,12 @@ void RangeValidationTree::removeAndUpdateInternalNodes(const RVTNodePtr& rvt_nod
         addValueToInternalNodes(parent_node, val_negative);
       }
     }
-    cur_node->substractValue(value);
+    cur_node->subtractValue(value);
     cur_node = parent_node;
   }
 
   ConcordAssertEQ(cur_node, root_);
-  root_->substractValue(value);
+  root_->subtractValue(value);
 
   if (root_->hasNoChilds()) {
     setNewRoot(nullptr);
@@ -873,7 +893,7 @@ void RangeValidationTree::setNewRoot(const RVTNodePtr& new_root) {
   }
   root_ = new_root;
   root_->parent_id_ = 0;
-  DEBUG_PRINT(logger_, "Set new root" << root_->info_.toString() << " id " << root_->info_.id());
+  DEBUG_PRINT(logger_, "Set new root" << root_->info_ << " id " << root_->info_.id());
   updateOpenRvtNodeArrays(ArrUpdateType::ADD_NODE_TO_RIGHT, new_root);
 }
 
@@ -1042,7 +1062,7 @@ std::ostringstream RangeValidationTree::getSerializedRvbData() const {
 #ifdef ENABLE_ALL_METRICS
   metrics_.serialized_rvt_size_.Get().Set(os.str().size());
 #endif
-  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_.toString());
+  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_);
   return os;
 }
 
@@ -1135,7 +1155,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   metrics_.rvt_max_rvb_id_.Get().Set(getMaxRvbId());
   metrics_.serialized_rvt_size_.Get().Set(is.str().size());
 #endif
-  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_.toString());
+  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_);
   return true;
 }
 
@@ -1232,7 +1252,7 @@ std::string RangeValidationTree::getDirectParentValueStr(RVBId rvb_id) const {
     LOG_WARN(logger_, KVLOG(parent_node_id, rvb_index, rvb_id));
     return val;
   }
-  val = itr->second->current_value_.toString();
+  val = itr->second->current_value_.toHexString();
   LOG_TRACE(logger_, KVLOG(rvb_id, parent_node_id, val));
   return val;
 }

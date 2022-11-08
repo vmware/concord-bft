@@ -124,8 +124,8 @@ class RangeValidationTree {
   // Returns true if tree is empty.
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
 
-  // Returns current state of the tree. In practice: a hexadecimal format string represting the root current value.
-  const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toString() : ""; }
+  // Returns current state of the tree. In practice: a hexadecimal format string representing the root current value.
+  const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toHexString() : ""; }
 
   // Clear the tree
   void clear() noexcept;
@@ -153,49 +153,53 @@ class RangeValidationTree {
  public:
   struct NodeVal {
     NodeVal(const char* vptr, size_t size)
-        : val_{NodeVal_t(reinterpret_cast<unsigned const char*>(vptr), size) % getModulo()} {}
+        : val_{NodeVal_t(reinterpret_cast<unsigned const char*>(vptr), size) % kNodeValueModulo_} {}
     NodeVal(const std::shared_ptr<char[]>&& v, size_t size) : NodeVal(v.get(), size) {}
     NodeVal(const std::string& v) : NodeVal(v.data(), v.size()) {}
     NodeVal(const NodeVal& v) : val_(v.val_) {}
     NodeVal(NodeVal&& v) : val_(std::move(v.val_)) {}
     NodeVal(long n) : val_{n} {}
     NodeVal() : val_{0L} {}
-    NodeVal(const NodeVal_t& v) : val_{v % getModulo()} {}
+    NodeVal(const NodeVal_t& v) : val_{v % kNodeValueModulo_} {}
 
-    NodeVal operator+(const NodeVal& v) { return NodeVal((val_ + v.val_) % getModulo()); }
-    NodeVal operator-(const NodeVal& v) { return NodeVal((val_ - v.val_) % getModulo()); }
-    NodeVal operator*(const NodeVal& v) { return NodeVal((val_ * v.val_) % getModulo()); }
-    NodeVal operator/(const NodeVal& v) { return NodeVal((val_ / v.val_) % getModulo()); }
+    NodeVal operator+(const NodeVal& v) { return NodeVal((val_ + v.val_) % kNodeValueModulo_); }
+    NodeVal operator-(const NodeVal& v) { return NodeVal((val_ - v.val_) % kNodeValueModulo_); }
+    NodeVal operator*(const NodeVal& v) { return NodeVal((val_ * v.val_) % kNodeValueModulo_); }
+    NodeVal operator/(const NodeVal& v) { return NodeVal((val_ / v.val_) % kNodeValueModulo_); }
     NodeVal operator%(const NodeVal& v) { return NodeVal(val_ % v.val_); }
     NodeVal& operator+=(const NodeVal& v) {
-      val_ = (val_ + v.val_) % getModulo();
+      val_ = (val_ + v.val_) % kNodeValueModulo_;
       return *this;
     }
+    // The result might be negative!
     NodeVal& operator-=(const NodeVal& v) {
-      val_ = (val_ - v.val_) % getModulo();
+      val_ = (kNodeValueModulo_ + val_ - v.val_) % kNodeValueModulo_;
+      toPositive();
       return *this;
     }
     bool operator!=(const NodeVal& v) const { return (val_ != v.val_); }
     bool operator==(const NodeVal& v) const { return (val_ == v.val_); }
 
     void setNegative() { val_.setNegative(); }
+    bool isNegative() { return val_.isNegative(); }
 
-    std::string toString() const noexcept { return val_.toHexString(); }
-    std::string toHexString() const noexcept { return val_.toHexString(); }
+    std::string toDecString() const noexcept { return val_.toDecString(); }
+    // add_prefix should be true to add a '0x' prefix
+    std::string toHexString(bool add_prefix = false) const noexcept { return val_.toHexString(add_prefix); }
+    std::string toDecAndHexString() const noexcept { return toDecString() + " (" + toHexString(true) + ")"; }
 
-    static NodeVal_t getModulo(size_t val_size = 0) {
-      static NodeVal_t kNodeValueModulo = calcModulo(val_size);
-      return kNodeValueModulo;
-    }
+    static NodeVal_t calcModulo(size_t val_size) { return NodeVal_t(1L) << (val_size * 8ULL); }
 
+    // TODO - this parameter should be none static to support multiple RVTs in the future
+    static NodeVal_t kNodeValueModulo_;
     static constexpr size_t kDigestContextOutputSize = DIGEST_SIZE;
     static constexpr std::array<char, kDigestContextOutputSize> initialValueZeroData{};
 
    private:
-    static NodeVal_t calcModulo(size_t val_size) {
-      NodeVal_t v(1L);
-      NodeVal_t res = v << (val_size * 8ULL);
-      return res;
+    void toPositive() {
+      while (val_.isNegative()) {
+        val_ += kNodeValueModulo_;
+      }
     }
 
     NodeVal_t val_;
@@ -320,7 +324,7 @@ class RangeValidationTree {
     static RVTNodePtr createFromSerialized(std::istringstream& is);
 
     void addValue(const NodeVal& nvalue);
-    void substractValue(const NodeVal& nvalue);
+    void subtractValue(const NodeVal& nvalue);
     std::ostringstream serialize() const;
 
     uint64_t parent_id_;
