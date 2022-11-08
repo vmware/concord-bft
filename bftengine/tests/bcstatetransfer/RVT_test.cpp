@@ -143,10 +143,18 @@ void BcStTestDelegator::removeLeftNode(const RVBId start_id, const RVBId end_id)
 
 class RVTTest : public ::testing::Test {
  public:
-  void SetUp() override { NodeVal::getModulo(rvt_config_.hash_size_); }
-  void TearDown() override {}
-  void init(const RVTConfig& config);
-  RVTConfig getRandomConfig() const;
+  void init(const RVTConfig& config) {
+    rvt_delegator_ = std::make_unique<BcStTestDelegator>(config, logger_);  // RVT creation must come 1st
+    data_generator_ = std::make_unique<DataGenerator>(config.hash_size_);
+  }
+
+  RVTConfig getRandomConfig() const {
+    auto RVT_K = DataGenerator::randomNum(3, 2048);
+    auto fetch_range_size = DataGenerator::randomNum(3, 10);
+    auto hash_size = DataGenerator::randomNum(1, 64, 8);
+    LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size, hash_size));
+    return RVTConfig(RVT_K, fetch_range_size, hash_size);
+  }
 
   std::unique_ptr<BcStTestDelegator> rvt_delegator_;
   std::unique_ptr<DataGenerator> data_generator_;
@@ -154,17 +162,40 @@ class RVTTest : public ::testing::Test {
   logging::Logger logger_{logging::getLogger("concord.bft.st.rvb")};
 };
 
-void RVTTest::init(const RVTConfig& config) {
-  data_generator_ = std::make_unique<DataGenerator>(config.hash_size_);
-  rvt_delegator_ = std::make_unique<BcStTestDelegator>(config, logger_);
-}
+// Test NodeVal operators +,-,*,/,%,+=,-=,!=,== and setNegative
+TEST_F(RVTTest, NodeValBasicOperators) {
+  init(getRandomConfig());
+  long i{rand() % 100000}, j{rand() % 100000};
+  NodeVal a{i}, b{j}, c{};
+  srand(time(NULL));
 
-RVTConfig RVTTest::getRandomConfig() const {
-  auto RVT_K = DataGenerator::randomNum(3, 2048);
-  auto fetch_range_size = DataGenerator::randomNum(3, 10);
-  auto hash_size = DataGenerator::randomNum(1, 64, 8);
-  LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size, hash_size));
-  return RVTConfig(RVT_K, fetch_range_size, hash_size);
+  // +
+  ASSERT_EQ(NodeVal(i + j), a + b);
+  // -
+  ASSERT_EQ(NodeVal(i - j), a - b);
+  // *
+  ASSERT_EQ(NodeVal(i * j), a * b);
+  // /
+  ASSERT_EQ(NodeVal(i / j), a / b);
+  // %
+  ASSERT_EQ(NodeVal(i % j), a % b);
+  // +=
+  c += a;
+  c += b;
+  ASSERT_EQ(c, a + b);
+  // -= and ==
+  c -= a;
+  c -= b;
+  ASSERT_TRUE(c == 0);
+  // != and ==
+  ASSERT_TRUE(NodeVal(1) == NodeVal(1));
+  ASSERT_FALSE(NodeVal(2) != NodeVal(2));
+  ASSERT_TRUE(NodeVal(3) != NodeVal(4));
+  ASSERT_FALSE(NodeVal(4) != NodeVal(4));
+  // setNegative
+  NodeVal d{c * NodeVal(-1)};
+  c.setNegative();
+  ASSERT_EQ(d, c);
 }
 
 // Validate add, sub ops on Integer data type
