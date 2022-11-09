@@ -46,8 +46,6 @@ std::istream& operator>>(std::istream& in, libutt::Tx& tx) {
   libutt::deserializeVector(in, tx.outs);
 
   in >> tx.budget_pi;
-  // If the budget policy is true, so the only reason not to have budget, is if the transaction is a split coins
-  // transaction.
   return in;
 }
 
