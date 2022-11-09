@@ -70,26 +70,18 @@ bool Admin::deployApp(Channel& chan) {
   return true;
 }
 
-void Admin::createPrivacyBudget(Channel& chan) {
-  (void)chan;
-  // [TODO-UTT] Create budget is done locally, should be done by the system
-  // grpc::ClientContext ctx;
+void Admin::createPrivacyBudget(Channel& chan, const std::string& user, uint64_t value) {
+  AdminRequest req;
+  auto& budgerReq = *req.mutable_create_budget();
+  budgerReq.set_user_id(user);
+  budgerReq.set_expiration_date(1919241632);
+  budgerReq.set_value(value);
+  chan->Write(req);
 
-  // CreatePrivacyBudgetRequest req;
-  // req.set_user_id(userId_);
+  std::cout << "Budget request for user: " << user << " value: " << value << " was sent to the privacy app\n";
 
-  // CreatePrivacyBudgetResponse resp;
-  // conn->createPrivacyBudget(&ctx, req, &resp);
-
-  // if (resp.has_err()) {
-  //   std::cout << "Failed to create privacy budget:" << resp.err() << '\n';
-  // } else {
-  //   utt::PrivacyBudget budget = std::vector<uint8_t>(resp.budget().begin(), resp.budget().end());
-  //   utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().end());
-
-  //   std::cout << "Got budget " << budget.size() << " bytes.\n";
-  //   std::cout << "Got budget sig " << sig.size() << " bytes.\n";
-
-  //   user_->updatePrivacyBudget(budget, sig);
-  // }
+  AdminResponse resp;
+  chan->Read(&resp);
+  if (!resp.has_create_budget()) throw std::runtime_error("Expected create_budget response from admin service!");
+  std::cout << "response: " << resp.create_budget().status() << '\n';
 }

@@ -76,6 +76,7 @@ class Wallet {
   /// @brief Sync up to the last known tx number. If the last known tx number is zero (or not provided) the
   /// last signed transaction number will be fetched from the system
   void syncState(Channel& chan, uint64_t lastKnownTxNum = 0);
+  void updateBudget(Channel& chan);
 
   struct DummyUserStorage : public utt::client::IUserStorage {};
 

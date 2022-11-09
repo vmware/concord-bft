@@ -45,11 +45,11 @@ message RegisterUserResponse {
     repeated uint64 s2 = 3; // Second part of the user's nullifier key 
 }
 
-message CreatePrivacyBudgetRequest {
+message GetPrivacyBudgetRequest {
     optional string user_id = 1;
 }
 
-message CreatePrivacyBudgetResponse {
+message GetPrivacyBudgetResponse {
     optional string err = 1;
     optional bytes budget = 2;
     optional bytes signature = 3;
@@ -138,6 +138,8 @@ message WalletRequest {
         GetPublicBalanceRequest get_public_balance = 6;
         GetLastAddedTxNumberRequest get_last_added_tx_number = 7;
         GetSignedTransactionRequest get_signed_tx = 8;
+
+        GetPrivacyBudgetRequest get_privacy_budget = 9;
     }
 }
 
@@ -155,5 +157,7 @@ message WalletResponse {
         GetPublicBalanceResponse get_public_balance = 7;
         GetLastAddedTxNumberResponse get_last_added_tx_number = 8;
         GetSignedTransactionResponse get_signed_tx = 9;
+
+        GetPrivacyBudgetResponse get_privacy_budget = 10;
     }
 }
