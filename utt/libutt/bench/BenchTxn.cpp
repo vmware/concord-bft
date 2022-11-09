@@ -119,7 +119,7 @@ class BenchTxn {
       tqv.endLap();
 
       tv.startLap();
-      if (!tx.validate(p, bpk, rpk)) {
+      if (!tx.validate(p, bpk, rpk, true)) {
         testAssertFail("TXN should have verified");
       }
       tv.endLap();

@@ -96,7 +96,8 @@ BurnOp::BurnOp(const Params& p,
                 recip,
                 std::move(bpk),
                 rpk.vk,
-                libutt::IBEEncryptor(rpk.mpk));
+                libutt::IBEEncryptor(rpk.mpk),
+                false);
 
   assertTrue(internalTx.outs.size() == 1);
 
@@ -181,7 +182,7 @@ size_t BurnOp::getSize() const {
 bool BurnOp::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) const {
   InternalDataOfBurnOp* d = (InternalDataOfBurnOp*)this->p;
   if (d == nullptr) return false;
-  if (!d->tx.validate(p, bpk, rpk)) return false;
+  if (!d->tx.validate(p, bpk, rpk, false)) return false;
   if (d->tx.outs.size() != 1) return false;
 
   Fr hashPid = AddrSK::pidHash(d->pid);

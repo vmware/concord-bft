@@ -19,7 +19,6 @@
 
 std::ostream& operator<<(std::ostream& out, const libutt::Tx& tx) {
   out << tx.budgetPolicy << endl;
-  out << tx.is_budgeted << endl;
   out << tx.isSplitOwnCoins << endl;
   out << tx.rcm;
   out << tx.regsig;
@@ -35,8 +34,7 @@ std::ostream& operator<<(std::ostream& out, const libutt::Tx& tx) {
 std::istream& operator>>(std::istream& in, libutt::Tx& tx) {
   in >> tx.budgetPolicy;
   libff::consume_OUTPUT_NEWLINE(in);
-  in >> tx.is_budgeted;
-  libff::consume_OUTPUT_NEWLINE(in);
+
   in >> tx.isSplitOwnCoins;
   libff::consume_OUTPUT_NEWLINE(in);
   in >> tx.rcm;
@@ -46,6 +44,10 @@ std::istream& operator>>(std::istream& in, libutt::Tx& tx) {
   libutt::deserializeVector(in, tx.outs);
 
   in >> tx.budget_pi;
+
+  for (auto& txin : tx.ins) {
+    tx.is_budgeted = tx.is_budgeted || (txin.coin_type == libutt::Coin::BudgetType());
+  }
   return in;
 }
 
@@ -86,7 +88,6 @@ Tx::Tx(const Params& p,
        const RandSigPK& rpk,
        const IEncryptor& encryptor,
        bool budget_policy) {
-  budgetPolicy = budget_policy;
 #ifndef NDEBUG
   (void)bpk;
 #endif
@@ -99,10 +100,7 @@ Tx::Tx(const Params& p,
 
   isSplitOwnCoins = true;       // true when this TXN simply splits the sender's coins
   is_budgeted = b.has_value();  // true when this TXN is budgeted
-  if (!budgetPolicy && is_budgeted) {
-    logerror << "budget policy is false, but a budget coin was given" << endl;
-    throw std::runtime_error("budget policy is false, but a budget coin was given");
-  }
+
   size_t totalIn = Coin::totalValue(coins);  // total in value
   size_t totalOut = 0;                       // total out value
   size_t paidOut = 0;                        // total amount paid out to someone else
@@ -141,7 +139,16 @@ Tx::Tx(const Params& p,
       forMeOutputs.insert(j);
     }
   }
+  budgetPolicy = isSplitOwnCoins ? false : budget_policy;
+  if (!budgetPolicy && is_budgeted) {
+    logerror << "budget policy is disabled, but a budget coin was given" << endl;
+    throw std::runtime_error("budget policy is false, but a budget coin was given");
+  }
 
+  if (budgetPolicy && !is_budgeted) {
+    logerror << "budget policy is enabled, but the budget is missing" << endl;
+    throw std::runtime_error("budget policy is enabled, but the budget coin is missing");
+  }
   // are you spending more than you have?
   if (totalIn != totalOut) {
     logerror << "Total-in is " << totalIn << " but total-out is " << totalOut << endl;
@@ -384,17 +391,19 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
     return false;
   }
 
-  if (budget_policy) {
-    if (!budgetPolicy) {
-      logerror << "budget policy is enforced but the transaction's budget policy is false" << endl;
-      return false;
-    }
-  }
-
   if (budget_policy && !isSplitOwnCoins && !is_budgeted) {
     logerror << "budget policy is enforced and budget is needed, but the transaction doesn't have a budget coin"
              << endl;
     return false;
+  }
+  if (!budget_policy && !isSplitOwnCoins && is_budgeted) {
+    logerror << "budget policy is disabled and budget is not needed, but the transaction does have a budget coin"
+             << endl;
+    return false;
+  }
+
+  if ((budget_policy && !budgetPolicy) || (!budget_policy && budgetPolicy)) {
+    logerror << "mismatch between transaction's budget policy and the configuration budget policy" << endl;
   }
 
   assertTrue(!is_budgeted || budget_pi.has_value());

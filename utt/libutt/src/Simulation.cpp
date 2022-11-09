@@ -51,7 +51,7 @@ Tx sendValidTxOnNetwork(const Context& ctx, const Tx& inTx) {
   testAssertEqual(inTx, outTx);
   testAssertEqual(oldHash, newHash);
 
-  if (!outTx.validate(ctx.p_, ctx.bpk_, ctx.rpk_)) {
+  if (!outTx.validate(ctx.p_, ctx.bpk_, ctx.rpk_, true)) {
     testAssertFail("TXN should have verified");
   }
 

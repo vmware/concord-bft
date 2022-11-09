@@ -33,7 +33,7 @@ class Admin {
   /// [TODO-UTT] Should be performed by an admin app
   /// @brief Deploy a privacy application
   /// @return The public configuration of the deployed application
-  static bool deployApp(Channel& chan, bool budget_policy = true);
+  static bool deployApp(Channel& chan, bool budget_policy);
 
   /// @brief Request the creation of a privacy budget. The amount of the budget is predetermined by the deployed app.
   /// This operation could be performed entirely by an administrator, but we add it in the admin

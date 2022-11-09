@@ -97,7 +97,7 @@ class Tx {
 
   bool quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const;
 
-  bool validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy = true) const;
+  bool validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const;
 
   /**
    * Returns the nullifiers of all coins spent by this TXN, including the budget coin's.

@@ -238,7 +238,7 @@ TEST_F(ibe_based_test_system_minted, test_invalid_burn) {
 }
 
 TEST_F(ibe_based_test_system, test_serialization_configuration) {
-  auto config = libutt::api::Configuration((uint16_t)n, (uint16_t)thresh);
+  auto config = libutt::api::Configuration((uint16_t)n, (uint16_t)thresh, true);
   ASSERT_TRUE(config.isValid());
   auto serialized_config = libutt::api::serialize<libutt::api::Configuration>(config);
   auto deserialized_config = libutt::api::deserialize<libutt::api::Configuration>(serialized_config);
@@ -566,24 +566,38 @@ TEST_F(ibe_based_test_system_minted, test_transaction_without_budget) {
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
+    // We let the client to cheat and create a non-budgeted transaction
+    d.budget_policy = false;
     Transaction tx(d,
                    issuer,
                    {coins[issuer.getPid()].front()},
                    std::nullopt,
                    {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
-                   *(encryptors_.at((i + 1) % clients.size())),
-                   true);
-    for (auto& b : banks) {
-      ASSERT_FALSE(b->validate(d, tx));
-    }
+                   *(encryptors_.at((i + 1) % clients.size())));
 
     ASSERT_ANY_THROW(Transaction(d,
                                  issuer,
                                  {coins[issuer.getPid()].front()},
                                  {bcoins[issuer.getPid()].front()},
                                  {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
-                                 *(encryptors_.at((i + 1) % clients.size())),
-                                 false));
+                                 *(encryptors_.at((i + 1) % clients.size()))));
+
+    d.budget_policy = true;
+    for (auto& b : banks) {
+      ASSERT_FALSE(b->validate(d, tx));
+    }
+
+    Transaction tx2(d,
+                    issuer,
+                    {coins[issuer.getPid()].front()},
+                    {bcoins[issuer.getPid()].front()},
+                    {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
+                    *(encryptors_.at((i + 1) % clients.size())));
+
+    d.budget_policy = false;
+    for (auto& b : banks) {
+      ASSERT_FALSE(b->validate(d, tx2));
+    }
   }
 }
 
@@ -600,8 +614,7 @@ TEST_F(ibe_based_test_system_minted_budget_policy_disabled, test_transaction) {
                    {coins[issuer.getPid()].front()},
                    std::nullopt,
                    {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
-                   *(encryptors_.at((i + 1) % clients.size())),
-                   false);
+                   *(encryptors_.at((i + 1) % clients.size())));
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     std::map<size_t, std::vector<types::Signature>> shares;
     std::vector<uint16_t> shares_signers;

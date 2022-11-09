@@ -57,8 +57,7 @@ class Transaction {
               const std::vector<Coin>& input_coins,
               const std::optional<Coin>& budget_coin,
               const std::vector<std::tuple<std::string, uint64_t>>& recipients,
-              const IEncryptor& encryptor,
-              bool budget_policy = true);
+              const IEncryptor& encryptor);
   Transaction();
   Transaction(const Transaction&);
   Transaction(Transaction&&) = default;

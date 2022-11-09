@@ -21,8 +21,7 @@ Transaction::Transaction(const UTTParams& d,
                          const std::vector<Coin>& coins,
                          const std::optional<Coin>& bc,
                          const std::vector<std::tuple<std::string, uint64_t>>& recipients,
-                         const IEncryptor& encryptor,
-                         bool budget_policy) {
+                         const IEncryptor& encryptor) {
   Fr fr_pidhash;
   fr_pidhash.from_words(cid.getPidHash());
   Fr prf;
@@ -59,7 +58,7 @@ Transaction::Transaction(const UTTParams& d,
                            std::nullopt,
                            rpk.vk,
                            encryptor,
-                           budget_policy));
+                           d.getBudgetPolicy()));
 }
 Transaction::Transaction() { tx_.reset(new libutt::Tx()); }
 Transaction::Transaction(const Transaction& other) {
