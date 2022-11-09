@@ -38,13 +38,14 @@ Admin::Connection Admin::newConnection() {
   return AdminService::NewStub(chan);
 }
 
-bool Admin::deployApp(Channel& chan) {
+bool Admin::deployApp(Channel& chan, bool budget_policy) {
   std::cout << "Deploying a new privacy application...\n";
 
   // Generate a privacy config for a N=4 replica system tolerating F=1 failures
   utt::client::ConfigInputParams params;
   params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
   params.threshold = 2;                                                              // F + 1
+  params.useBudget = budget_policy;
   auto config = utt::client::generateConfig(params);
   if (config.empty()) throw std::runtime_error("Failed to generate a privacy app configuration!");
 

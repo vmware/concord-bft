@@ -6,11 +6,14 @@
 #include <utt/Params.h>
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
+  out << params.getBudgetPolicy() << endl;
   out << params.getParams();
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
   params.params.reset(new libutt::Params());
+  in >> params.budget_policy;
+  libff::consume_OUTPUT_NEWLINE(in);
   in >> *(params.params);
   return in;
 }
@@ -73,6 +76,7 @@ UTTParams& UTTParams::operator=(const UTTParams& other) {
   if (this == &other) return *this;
   params.reset(new libutt::Params());
   *params = *(other.params);
+  budget_policy = other.budget_policy;
   return *this;
 }
 }  // namespace libutt::api

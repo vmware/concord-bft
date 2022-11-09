@@ -65,7 +65,7 @@ struct Configuration::Impl {
 
 Configuration::Configuration() : pImpl_{new Impl{}} {}
 
-Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
+Configuration::Configuration(uint16_t n, uint16_t t, bool budget_policy) : Configuration() {
   if (n == 0 || t == 0 || t > n) throw std::runtime_error("Invalid number of validators and/or threshold");
 
   pImpl_->n_ = n;
@@ -80,13 +80,13 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   // Pass in the commitment keys to UTTParams
   // This struct matches the expected data structure by UTTParams::create since the method hides the actual type by
   // using a void*
-  struct CommitmentKeys {
+  struct GPInitData {
     libutt::CommKey cck;
     libutt::CommKey rck;
-    bool budget_policy = true;
+    bool budget_policy;
   };
-  CommitmentKeys commitmentKeys{dkg.getCK(), rsk.ck_reg};
-  pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&commitmentKeys));
+  GPInitData GPInitData{dkg.getCK(), rsk.ck_reg, budget_policy};
+  pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&GPInitData));
 
   // For some reason we need to go back and set the IBE parameters although we might not be using IBE.
   rsk.setIBEParams(pImpl_->publicConfig_.pImpl_->params_.getParams().ibe);
