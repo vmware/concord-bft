@@ -6,11 +6,14 @@
 #include <utt/Params.h>
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
+  out << params.getBudgetPolicy() << endl;
   out << params.getParams();
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
   params.params.reset(new libutt::Params());
+  in >> params.budget_policy;
+  libff::consume_OUTPUT_NEWLINE(in);
   in >> *(params.params);
   return in;
 }
@@ -24,6 +27,7 @@ using Fr = typename libff::default_ec_pp::Fp_type;
 struct GpInitData {
   libutt::CommKey cck;
   libutt::CommKey rck;
+  bool budget_policy;
 };
 void UTTParams::initLibs(const UTTParams::BaseLibsInitData& init_data) {
   // Apparently, libff logs some extra info when computing pairings
@@ -61,16 +65,18 @@ UTTParams UTTParams::create(void* initData) {
     GpInitData* init_data = (GpInitData*)initData;
     *(gp.params) = libutt::Params::random(init_data->cck);
     gp.params->ck_reg = init_data->rck;
+    gp.budget_policy = init_data->budget_policy;
   }
   return gp;
 }
 const libutt::Params& UTTParams::getParams() const { return *params; }
-
+bool UTTParams::getBudgetPolicy() const { return budget_policy; }
 UTTParams::UTTParams(const UTTParams& other) { *this = other; }
 UTTParams& UTTParams::operator=(const UTTParams& other) {
   if (this == &other) return *this;
   params.reset(new libutt::Params());
   *params = *(other.params);
+  budget_policy = other.budget_policy;
   return *this;
 }
 }  // namespace libutt::api

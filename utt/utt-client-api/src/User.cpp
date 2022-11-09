@@ -175,7 +175,8 @@ utt::Transaction User::Impl::createTx_1to1(const libutt::api::Coin& coin,
          << " and recipients: " << dbgPrintRecipients(recip) << endl;
 
   auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, budgetCoin_, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(
+      params_, *client_, {coin}, params_.getBudgetPolicy() ? budgetCoin_ : std::nullopt, recip, encryptor);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -196,7 +197,8 @@ utt::Transaction User::Impl::createTx_1to2(const libutt::api::Coin& coin,
          << " and recipients: " << dbgPrintRecipients(recip) << endl;
 
   auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, budgetCoin_, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(
+      params_, *client_, {coin}, params_.getBudgetPolicy() ? budgetCoin_ : std::nullopt, recip, encryptor);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -215,7 +217,8 @@ utt::Transaction User::Impl::createTx_2to1(const std::vector<libutt::api::Coin>&
          << " and recipients: " << dbgPrintRecipients(recip) << endl;
 
   auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, budgetCoin_, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(
+      params_, *client_, coins, params_.getBudgetPolicy() ? budgetCoin_ : std::nullopt, recip, encryptor);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -236,7 +239,8 @@ utt::Transaction User::Impl::createTx_2to2(const std::vector<libutt::api::Coin>&
          << " and recipients: " << dbgPrintRecipients(recip) << endl;
 
   auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, budgetCoin_, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(
+      params_, *client_, coins, params_.getBudgetPolicy() ? budgetCoin_ : std::nullopt, recip, encryptor);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -575,9 +579,10 @@ TransferResult User::transfer(const std::string& userId, const std::string& dest
 
   const uint64_t balance = getBalance();
   if (balance < amount) throw std::runtime_error("User has insufficient balance!");
-  const size_t budget = getPrivacyBudget();
-  if (budget < amount) throw std::runtime_error("User has insufficient privacy budget!");
-
+  if (pImpl_->params_.getBudgetPolicy()) {
+    const size_t budget = getPrivacyBudget();
+    if (budget < amount) throw std::runtime_error("User has insufficient privacy budget!");
+  }
   auto pickedCoins = PickCoinsPreferExactMatch(pImpl_->coins_, amount);
   if (pickedCoins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
 

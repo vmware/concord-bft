@@ -127,11 +127,11 @@ void testBudgeted2to2Txn(size_t thresh, size_t n, size_t numCycles, bool isBudge
 
       if (isQuickPay) {
         // check transaction validates
-        if (!tx.quickPayValidate(p, bpk, rpk)) {
+        if (!tx.quickPayValidate(p, bpk, rpk, true)) {
           testAssertFail("TXN should have QuickPay-verified");
         }
       } else {
-        if (!tx.validate(p, bpk, rpk)) {
+        if (!tx.validate(p, bpk, rpk, true)) {
           testAssertFail("TXN should have verified");
         }
       }

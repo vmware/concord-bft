@@ -62,7 +62,7 @@ class Configuration {
   /// @brief Constructs a UTT instance configuration
   /// @param n The number of validators for multiparty signature computation
   /// @param t The number of validator shares required to reconstruct a signature
-  Configuration(uint16_t n, uint16_t t);
+  Configuration(uint16_t n, uint16_t t, bool budget_policy);
   ~Configuration();
 
   Configuration(Configuration&& o);

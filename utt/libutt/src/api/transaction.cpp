@@ -57,7 +57,8 @@ Transaction::Transaction(const UTTParams& d,
                            fr_recipients,
                            std::nullopt,
                            rpk.vk,
-                           encryptor));
+                           encryptor,
+                           d.getBudgetPolicy()));
 }
 Transaction::Transaction() { tx_.reset(new libutt::Tx()); }
 Transaction::Transaction(const Transaction& other) {

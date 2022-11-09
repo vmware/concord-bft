@@ -265,10 +265,7 @@ struct ServerMock {
   }
 };
 
-int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
-
+void testCaseWithBudgetEnforced() {
   // Note that this test assumes the client and server-side parts of the code work under the same initialization of
   // libutt.
   utt::client::Initialize();
@@ -421,6 +418,151 @@ int main(int argc, char* argv[]) {
   for (size_t i = 0; i < C; ++i) {
     assertTrue(users[i]->getBalance() == 0);
   }
+}
 
+void testCaseWithoutBudgetEnforced() {
+  // Note that this test assumes the client and server-side parts of the code work under the same initialization of
+  // libutt.
+  utt::client::Initialize();
+
+  utt::client::ConfigInputParams cfgInputParams;
+
+  // Create a UTT system tolerating F faulty validators
+  const uint16_t F = 1;
+  cfgInputParams.validatorPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
+  cfgInputParams.threshold = F + 1;
+  cfgInputParams.useBudget = false;
+  // Create a new UTT instance config
+  auto config = utt::client::generateConfig(cfgInputParams);
+
+  // Create a valid server-side mock based on the config
+  auto serverMock = ServerMock::createFromConfig(config);
+
+  // Create new users by using the public config
+  utt::client::TestUserPKInfrastructure pki;
+  auto testUserIds = pki.getUserIds();
+  const size_t C = testUserIds.size();
+  loginfo << "Test users: " << C << '\n';
+  assertTrue(C >= 3);  // At least 3 test users expected
+
+  std::vector<std::unique_ptr<utt::client::User>> users;
+
+  auto syncUsersWithServer = [&]() {
+    loginfo << "Synchronizing users with server" << endl;
+    for (size_t i = 0; i < C; ++i) {
+      for (uint64_t txNum = users[i]->getLastExecutedTxNum() + 1; txNum <= serverMock.getLastExecutedTxNum(); ++txNum) {
+        const auto& executedTx = serverMock.getExecutedTx(txNum);
+        switch (executedTx.tx_.type_) {
+          case utt::Transaction::Type::Mint: {
+            assertTrue(executedTx.sigs_.size() == 1);
+            users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
+          } break;
+          case utt::Transaction::Type::Burn: {
+            assertTrue(executedTx.sigs_.empty());
+            users[i]->updateBurnTx(txNum, executedTx.tx_);
+          } break;
+          case utt::Transaction::Type::Transfer: {
+            assertFalse(executedTx.sigs_.empty());
+            users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
+          } break;
+          default:
+            assertFail("Unknown tx type!");
+        }
+      }
+    }
+  };
+
+  // Create new users by using the public config
+  utt::client::IUserStorage storage;
+  auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
+  std::vector<uint64_t> initialBalance;
+
+  for (size_t i = 0; i < C; ++i) {
+    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, storage));
+    initialBalance.emplace_back((i + 1) * 100);
+  }
+
+  // Register users
+  loginfo << "Registering users" << endl;
+  for (size_t i = 0; i < C; ++i) {
+    auto resp = serverMock.registerUser(users[i]->getUserId(), users[i]->getRegistrationInput());
+    assertFalse(resp.s2.empty());
+    assertFalse(resp.sig.empty());
+
+    // Note: the user's pk is usually recorded by the system and returned as part of the registration
+    users[i]->updateRegistration(users[i]->getPK(), resp.sig, resp.s2);
+  }
+
+  // Mint test
+  {
+    loginfo << "Minting tokens" << endl;
+    for (size_t i = 0; i < C; ++i) {
+      auto tx = users[i]->mint(initialBalance[i]);
+      auto txNum = serverMock.mint(users[i]->getUserId(), initialBalance[i], tx);
+      assertTrue(txNum == serverMock.getLastExecutedTxNum());
+    }
+
+    syncUsersWithServer();
+
+    for (size_t i = 0; i < C; ++i) {
+      assertTrue(users[i]->getBalance() == initialBalance[i]);
+    }
+  }
+
+  // Each user sends to the next one (wrapping around to the first) some amount
+  {
+    const uint64_t amount = 50;
+    for (size_t i = 0; i < C; ++i) {
+      size_t nextUserIdx = (i + 1) % C;
+      std::string nextUserId = "user-" + std::to_string(nextUserIdx + 1);
+      loginfo << "Sending " << amount << " from " << users[i]->getUserId() << " to " << nextUserId << endl;
+      assertTrue(amount <= users[i]->getBalance());
+      auto result = users[i]->transfer(nextUserId, pki.getPublicKey(nextUserId), amount);
+      assertTrue(result.isFinal_);
+      auto txNum = serverMock.transfer(result.requiredTx_);
+      assertTrue(txNum == serverMock.getLastExecutedTxNum());
+    }
+    syncUsersWithServer();
+
+    for (size_t i = 0; i < C; ++i) {
+      assertTrue(users[i]->getBalance() ==
+                 initialBalance[i]);  // Unchanged - each user sent X and received X from another user
+    }
+  }
+
+  // All users burn their private funds
+  loginfo << "Burning user's tokens" << endl;
+  for (size_t i = 0; i < C; ++i) {
+    const uint64_t balance = users[i]->getBalance();
+    assertTrue(balance > 0);
+
+    while (true) {
+      auto result = users[i]->burn(balance);
+      if (result.requiredTx_.type_ == utt::Transaction::Type::Burn) {
+        assertTrue(result.isFinal_);
+        auto txNum = serverMock.burn(result.requiredTx_);
+        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        syncUsersWithServer();
+        break;  // We can stop processing after burning the coin
+      } else if (result.requiredTx_.type_ == utt::Transaction::Type::Transfer) {
+        assertFalse(result.isFinal_);
+        // We need to process a self transaction (split/merge)
+        auto txNum = serverMock.transfer(result.requiredTx_);
+        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        syncUsersWithServer();
+      }
+    }
+  }
+
+  for (size_t i = 0; i < C; ++i) {
+    assertTrue(users[i]->getBalance() == 0);
+  }
+}
+
+int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
+  testCaseWithBudgetEnforced();
+  testCaseWithoutBudgetEnforced();
   return 0;
 }

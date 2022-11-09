@@ -111,13 +111,14 @@ class test_utt_instance : public ::testing::Test {
   struct GpData {
     libutt::CommKey cck;
     libutt::CommKey rck;
+    bool budget_policy = true;
   };
-  void setUp(bool ibe, bool register_clients) {
+  void setUp(bool ibe, bool register_clients, bool budget_policy) {
     UTTParams::BaseLibsInitData base_libs_init_data;
     UTTParams::initLibs(base_libs_init_data);
     auto dkg = RandSigDKG(thresh, n, Params::NumMessages);
     rsk = RegAuthSK::generateKeyAndShares(thresh, n);
-    GpData gp_data{dkg.getCK(), rsk.ck_reg};
+    GpData gp_data{dkg.getCK(), rsk.ck_reg, budget_policy};
     d = UTTParams::create((void*)(&gp_data));
     rsk.setIBEParams(d.getParams().ibe);
     rvk = rsk.toPK();

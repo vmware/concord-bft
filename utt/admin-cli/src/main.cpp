@@ -19,12 +19,16 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy -- generates a privacy config and deploys the privacy and token contracts.\n";
-  // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
-  // std::cout
-  //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
-  //     system.\n";
-  std::cout << '\n';
+  std::cout << "deploy [budget-policy-enabled/budget-policy-disabled] -- generates a privacy config and deploys the "
+               "privacy and token contracts\n."
+               "budget-policy-disabled means that budget coin's presence won't be enforced in the system\n"
+               "if no input was given, the default is budget-policy-enabled"
+      // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
+      // std::cout
+      //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
+      //     system.\n";
+      std::cout
+            << '\n';
 }
 
 struct CLIApp {
@@ -53,13 +57,13 @@ struct CLIApp {
     // std::cout << "gRPC error details: " << status.error_details() << '\n';
   }
 
-  void deploy() {
+  void deploy(bool budget_policy) {
     if (deployed) {
       std::cout << "The privacy app is already deployed.\n";
       return;
     }
 
-    deployed = Admin::deployApp(chan);
+    deployed = Admin::deployApp(chan, budget_policy);
   }
 
   void createBudgetCmd(const std::vector<std::string>& cmdTokens) {
@@ -90,8 +94,11 @@ int main(int argc, char* argv[]) {
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
-      std::string cmd;
-      std::getline(std::cin, cmd);
+      std::vector<std::string> cmdTokens;
+      std::string token;
+      std::stringstream ss(cmd);
+      while (std::getline(ss, token, ' ')) cmdTokens.emplace_back(token);
+      if (cmdTokens.empty()) continue;
 
       if (std::cin.eof()) {
         std::cout << "Quitting...\n";
@@ -100,23 +107,19 @@ int main(int argc, char* argv[]) {
 
       if (cmd == "h") {
         printHelp();
-      } else if (cmd == "deploy") {
-        app.deploy();
+      } else if (cmdTokens[0] == "deploy") {
+        if (cmdTokens.size() == 1) {
+          app.deploy(true);
+          continue;
+        }
+        bool budget_policy = cmdTokens[1] == "budget-policy-enabled";
+        app.deploy(budget_policy);
       } else if (!app.deployed) {
         std::cout << "You must first deploy the privacy application. Use the 'deploy' command.\n";
+      } else if (cmdTokens[0] == "create-budget") {
+        app.createBudgetCmd(cmdTokens);
       } else {
-        // Tokenize params
-        std::vector<std::string> cmdTokens;
-        std::string token;
-        std::stringstream ss(cmd);
-        while (std::getline(ss, token, ' ')) cmdTokens.emplace_back(token);
-        if (cmdTokens.empty()) continue;
-
-        if (cmdTokens[0] == "create-budget") {
-          app.createBudgetCmd(cmdTokens);
-        } else {
-          std::cout << "Unknown command '" << cmd << "'\n";
-        }
+        std::cout << "Unknown command '" << cmd << "'\n";
       }
     }
   } catch (const std::runtime_error& e) {

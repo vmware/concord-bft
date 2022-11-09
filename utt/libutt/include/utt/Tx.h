@@ -31,7 +31,8 @@ class Tx {
  public:
   bool isSplitOwnCoins;  // true when splitting your own coins; in this case, no budget coins are given as input, to
                          // save TXN creation & validation time
-
+  bool budgetPolicy;
+  bool is_budgeted = false;
   Comm rcm;        // commitment to sending user's registration
   RandSig regsig;  // signature on the registration commitment 'rcm'
 
@@ -54,8 +55,9 @@ class Tx {
      const std::vector<Coin>& c,
      std::optional<Coin> b,  // optional budget coin
      const std::vector<std::tuple<std::string, Fr>>& recip,
-     const RandSigPK& bpk,   // only used for debugging
-     const RegAuthPK& rpk);  // only to encrypt for the recipients
+     const RandSigPK& bpk,  // only used for debugging
+     const RegAuthPK& rpk,
+     bool budget_policy = true);  // only to encrypt for the recipients
 
   Tx(const Params& p,
      const Fr pidHash,
@@ -68,7 +70,8 @@ class Tx {
      const std::vector<std::tuple<std::string, Fr>>& recip,
      std::optional<RandSigPK> bpk,  // only used for debugging
      const RandSigPK& rpk,
-     const IEncryptor& encryptor);  // only to encrypt for the recipients
+     const IEncryptor& encryptor,
+     bool budget_policy = true);  // only to encrypt for the recipients
 
  public:
   size_t getSize() const {
@@ -92,9 +95,9 @@ class Tx {
    */
   G1 deriveRandSigBase(size_t txoIdx) const;
 
-  bool quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) const;
+  bool quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const;
 
-  bool validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) const;
+  bool validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const;
 
   /**
    * Returns the nullifiers of all coins spent by this TXN, including the budget coin's.

@@ -59,7 +59,7 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   const uint16_t n = (uint16_t)inputParams.validatorPublicKeys.size();
   const uint16_t t = inputParams.threshold;
 
-  auto config = libutt::api::Configuration(n, t);
+  auto config = libutt::api::Configuration(n, t, inputParams.useBudget);
 
   // [TODO-UTT] Use the validator's public keys to encrypt the configuration secrets for each validator
 

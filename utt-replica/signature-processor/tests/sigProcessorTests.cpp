@@ -130,6 +130,7 @@ class TestReceiver : public bft::communication::IReceiver {
 struct GpData {
   libutt::CommKey cck;
   libutt::CommKey rck;
+  bool budget_policy = true;
 };
 
 std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
