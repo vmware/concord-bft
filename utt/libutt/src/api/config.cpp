@@ -83,6 +83,7 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   struct CommitmentKeys {
     libutt::CommKey cck;
     libutt::CommKey rck;
+    bool budget_policy = true;
   };
   CommitmentKeys commitmentKeys{dkg.getCK(), rsk.ck_reg};
   pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&commitmentKeys));

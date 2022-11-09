@@ -113,7 +113,7 @@ class BenchTxn {
       // Step 2: Measure TXN validation
       //
       tqv.startLap();
-      if (!tx.quickPayValidate(p, bpk, rpk)) {
+      if (!tx.quickPayValidate(p, bpk, rpk, true)) {
         testAssertFail("TXN should have QuickPay-verified");
       }
       tqv.endLap();

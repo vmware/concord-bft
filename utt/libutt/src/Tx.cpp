@@ -18,6 +18,8 @@
 #include <xutils/NotImplementedException.h>  // WARNING: Include this last (see header file for details; thanks, C++)
 
 std::ostream& operator<<(std::ostream& out, const libutt::Tx& tx) {
+  out << tx.budgetPolicy << endl;
+  out << tx.is_budgeted << endl;
   out << tx.isSplitOwnCoins << endl;
   out << tx.rcm;
   out << tx.regsig;
@@ -31,6 +33,10 @@ std::ostream& operator<<(std::ostream& out, const libutt::Tx& tx) {
 }
 
 std::istream& operator>>(std::istream& in, libutt::Tx& tx) {
+  in >> tx.budgetPolicy;
+  libff::consume_OUTPUT_NEWLINE(in);
+  in >> tx.is_budgeted;
+  libff::consume_OUTPUT_NEWLINE(in);
   in >> tx.isSplitOwnCoins;
   libff::consume_OUTPUT_NEWLINE(in);
   in >> tx.rcm;
@@ -40,7 +46,8 @@ std::istream& operator>>(std::istream& in, libutt::Tx& tx) {
   libutt::deserializeVector(in, tx.outs);
 
   in >> tx.budget_pi;
-
+  // If the budget policy is true, so the only reason not to have budget, is if the transaction is a split coins
+  // transaction.
   return in;
 }
 
@@ -52,9 +59,21 @@ Tx::Tx(const Params& p,
        std::optional<Coin> b,  // optional budget coin
        const std::vector<std::tuple<std::string, Fr>>& recip,
        const RandSigPK& bpk,  // only used for debugging
-       const RegAuthPK& rpk)  // only to encrypt for the recipients
-    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, std::move(b), recip, bpk, rpk.vk, IBEEncryptor(rpk.mpk)} {
-}
+       const RegAuthPK& rpk,
+       bool budget_policy)  // only to encrypt for the recipients
+    : Tx{p,
+         ask.pid_hash,
+         ask.pid,
+         ask.rcm,
+         ask.rs,
+         ask.s,
+         c,
+         std::move(b),
+         recip,
+         bpk,
+         rpk.vk,
+         IBEEncryptor(rpk.mpk),
+         budget_policy} {}
 
 Tx::Tx(const Params& p,
        const Fr pidHash,
@@ -67,7 +86,9 @@ Tx::Tx(const Params& p,
        const std::vector<std::tuple<std::string, Fr>>& recip,
        std::optional<RandSigPK> bpk,  // only used for debugging
        const RandSigPK& rpk,
-       const IEncryptor& encryptor) {
+       const IEncryptor& encryptor,
+       bool budget_policy) {
+  budgetPolicy = budget_policy;
 #ifndef NDEBUG
   (void)bpk;
 #endif
@@ -78,9 +99,12 @@ Tx::Tx(const Params& p,
 
   Fr pid_hash_sender = pidHash;  // the (single) sender's PID hash
 
-  isSplitOwnCoins = true;           // true when this TXN simply splits the sender's coins
-  bool isBudgeted = b.has_value();  // true when this TXN is budgeted
-
+  isSplitOwnCoins = true;       // true when this TXN simply splits the sender's coins
+  is_budgeted = b.has_value();  // true when this TXN is budgeted
+  if (!budgetPolicy && is_budgeted) {
+    logerror << "budget policy is false, but a budget coin was given" << endl;
+    throw std::runtime_error("budget policy is false, but a budget coin was given");
+  }
   size_t totalIn = Coin::totalValue(coins);  // total in value
   size_t totalOut = 0;                       // total out value
   size_t paidOut = 0;                        // total amount paid out to someone else
@@ -126,7 +150,7 @@ Tx::Tx(const Params& p,
     throw std::runtime_error("Input and output normal coins must have same total");
   }
 
-  if (isBudgeted) {
+  if (is_budgeted) {
     // if splitting your own coins, you don't need budgets
     if (isSplitOwnCoins) {
       throw std::runtime_error("You need not provide a budget coin when splitting your own coins");
@@ -189,7 +213,7 @@ Tx::Tx(const Params& p,
   // logtrace << "z_sum: " << z_sum << endl;
 
   // create input for budget coin too, if any
-  if (isBudgeted) {
+  if (is_budgeted) {
     ins.emplace_back(*b);
   }
 
@@ -234,7 +258,7 @@ Tx::Tx(const Params& p,
      *  - compute range proof for vcm_1
      *  - compute ctxt
      */
-    bool icmPok = !(isBudgeted && pid_recip == pid);
+    bool icmPok = !(is_budgeted && pid_recip == pid);
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
                       p.getRangeProofParams(),
@@ -256,7 +280,7 @@ Tx::Tx(const Params& p,
   /**
    * Step 4: Take care of budget proof, if budgeted TXN.
    */
-  if (isBudgeted) {
+  if (is_budgeted) {
     // For the budget preservation, we have to check that:
     // budget_in - \sum_{j \in output coins for another} val_out(j) = budget_out
     Fr z_budget_recip = b->z;  // the randomness of the input budget coin's 'vcm_1'
@@ -315,7 +339,7 @@ Tx::Tx(const Params& p,
     ins[i].pi = SplitProof(p, pidHash, prf, coins.at(i), a, rcm, outsHash);
   }
 
-  if (isBudgeted) {
+  if (is_budgeted) {
     // logdbg << "Split proof for budget coin" << endl;
     ins.back().pi = SplitProof(p, pidHash, prf, *b, a, rcm, outsHash);
   }
@@ -324,7 +348,7 @@ Tx::Tx(const Params& p,
   assertEqual(outs.size(), recip.size() + (b.has_value() ? 1 : 0));
 }
 
-bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) const {
+bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const {
   /**
    * TODO(Perf): Do we even need to check coinsig?
    * TODO(Perf): Do we even need to check regsig?
@@ -334,7 +358,6 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
   /**
    * Step 1: Sanity check
    */
-  bool isBudgeted = !isSplitOwnCoins;
   bool foundBudgetOutCoin = false, foundBudgetInCoin = false;
 
   for (auto& txout : outs) {
@@ -347,17 +370,36 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
     // TODO: check coin expiration here
   }
 
-  if (isBudgeted != foundBudgetOutCoin) {
+  // whether a budget policy is true or not, a split coins transaction should not have an input budget coin
+  if (isSplitOwnCoins && foundBudgetInCoin) {
+    logerror << "spliting your own coins doesn't require a budget" << endl;
+    return false;
+  }
+
+  if (is_budgeted != foundBudgetOutCoin) {
     logerror << "TX claimed to be budgeted but did not have an output budget coin" << endl;
     return false;
   }
 
-  if (isBudgeted != foundBudgetOutCoin) {
+  if (is_budgeted != foundBudgetOutCoin) {
     logerror << "TX claimed to be budgeted but did not have an output budget coin" << endl;
     return false;
   }
 
-  assertTrue(!isBudgeted || budget_pi.has_value());
+  if (budget_policy) {
+    if (!budgetPolicy) {
+      logerror << "budget policy is enforced but the transaction's budget policy is false" << endl;
+      return false;
+    }
+  }
+
+  if (budget_policy && !isSplitOwnCoins && !is_budgeted) {
+    logerror << "budget policy is enforced and budget is needed, but the transaction doesn't have a budget coin"
+             << endl;
+    return false;
+  }
+
+  assertTrue(!is_budgeted || budget_pi.has_value());
 
   /**
    * Step 2: Check registration authority's sig on registration commitment
@@ -374,7 +416,7 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
   for (size_t i = 0; i < ins.size(); i++) {
     // check this is a normal coin (except for the last one if budgeted, which is allowed not to be normal)
     if (ins[i].coin_type != Coin::NormalType()) {
-      if (!isBudgeted || i != ins.size() - 1) {
+      if (!is_budgeted || i != ins.size() - 1) {
         logerror << "Expected input #" << i << " to be a normal coin" << endl;
         return false;
       }
@@ -401,17 +443,14 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
   return true;
 }
 
-bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) const {
-  if (!quickPayValidate(p, bpk, rpk)) return false;
-
-  bool isBudgeted = !isSplitOwnCoins;
-
+bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk, bool budget_policy) const {
+  if (!quickPayValidate(p, bpk, rpk, budget_policy)) return false;
   /**
    * Step 4: Check value preservation of normal coins.
    *  - check the sum of in and out 'normal' coin value commitments is the same
    */
-  size_t numNormalIn = ins.size() - (isBudgeted ? 1 : 0);
-  size_t numNormalOut = outs.size() - (isBudgeted ? 1 : 0);
+  size_t numNormalIn = ins.size() - (is_budgeted ? 1 : 0);
+  size_t numNormalOut = outs.size() - (is_budgeted ? 1 : 0);
 
   G1 incomms = G1::zero(), outcomms = G1::zero();
   for (size_t i = 0; i < numNormalIn; i++) {
@@ -434,7 +473,7 @@ bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) c
   for (size_t j = 0; j < outs.size(); j++) {
     // check this is a normal coin (except for the last one if budget, which is allowed not to be normal)
     if (outs[j].coin_type != Coin::NormalType()) {
-      if (!isBudgeted || j != outs.size() - 1) {
+      if (!is_budgeted || j != outs.size() - 1) {
         logerror << "Expected output #" << j << " to be a normal coin" << endl;
         return false;
       }
@@ -447,7 +486,7 @@ bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) c
 
     // check recipient's identity commitment is indeed well-formed: e.g. it is not g_1^pid g_2^v g^t for v != 0
     logtrace << "Checking output #" << j << "'s ZKPoK" << endl;
-    if (isBudgeted && budget_pi->forMeTxos.count(j) == 1) {
+    if (is_budgeted && budget_pi->forMeTxos.count(j) == 1) {
       // for budgeted TXNs, the budget proof already proves knowledge of sender-owned outputs, so this is unnecessary
       assertFalse(outs[j].icm_pok.has_value());
     } else {
@@ -465,7 +504,7 @@ bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) c
     }
 
     // check range proofs on out comms (in comms are good by invariant)
-    // if(isBudgeted && j == outs.size() - 1) {
+    // if(is_budgeted && j == outs.size() - 1) {
     //    assertFalse(outs[j].range_pi.has_value());
     //} else {
     assertTrue(outs[j].range_pi.has_value());
@@ -481,7 +520,7 @@ bool Tx::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rpk) c
    *  - check pid of input budget coin matches pid of output budget coin and of normal change coins
    *  - value preservation of budget
    */
-  if (isBudgeted) {
+  if (is_budgeted) {
     const auto& bout = outs.back();
     if (bout.coin_type != Coin::BudgetType()) {
       logerror << "Expected last output coin to be a budget coin" << endl;

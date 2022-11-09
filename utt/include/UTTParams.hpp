@@ -56,10 +56,13 @@ class UTTParams {
   UTTParams(UTTParams&&) = default;
   UTTParams& operator=(UTTParams&&) = default;
 
+  bool getBudgetPolicy() const;
+
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::UTTParams& params);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::UTTParams& params);
   friend bool ::operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
   std::unique_ptr<libutt::Params> params;
+  bool budget_policy = true;
 };
 }  // namespace libutt::api

@@ -83,7 +83,7 @@ bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operation
 }
 template <>
 bool CoinsSigner::validate<operations::Transaction>(const UTTParams& p, const operations::Transaction& tx) const {
-  return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_));
+  return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_), p.getBudgetPolicy());
 }
 
 template <>
