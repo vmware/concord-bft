@@ -19,13 +19,16 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy <on/off> -- generates a privacy config and deploys the privacy and token contracts. budget "
-               "policy is true if budget should be enforced in the system\n";
-  // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
-  // std::cout
-  //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
-  //     system.\n";
-  std::cout << '\n';
+  std::cout << "deploy [budget-policy-enabled/budget-policy-disabled] -- generates a privacy config and deploys the "
+               "privacy and token contracts\n."
+               "budget-policy-disabled means that budget coin's presence won't be enforced in the system\n"
+               "if no input was given, the default is budget-policy-enabled"
+      // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
+      // std::cout
+      //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
+      //     system.\n";
+      std::cout
+            << '\n';
 }
 
 struct CLIApp {
@@ -111,7 +114,7 @@ int main(int argc, char* argv[]) {
           app.deploy(true);
           continue;
         }
-        bool budget_policy = cmdTokens[1] == "on";
+        bool budget_policy = cmdTokens[1] == "budget-policy-enabled";
         app.deploy(budget_policy);
       } else if (!app.deployed) {
         std::cout << "You must first deploy the privacy application. Use the 'deploy' command.\n";
