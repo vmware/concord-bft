@@ -30,7 +30,6 @@ class Admin {
 
   static Connection newConnection();
 
-  /// [TODO-UTT] Should be performed by an admin app
   /// @brief Deploy a privacy application
   /// @return The public configuration of the deployed application
   static bool deployApp(Channel& chan);

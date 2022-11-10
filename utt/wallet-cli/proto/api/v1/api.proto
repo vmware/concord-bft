@@ -26,11 +26,6 @@ message ConfigureResponse {
     optional string privacy_contract_addr = 2;
     optional string token_contract_addr = 3;
     optional bytes public_config = 4;
-    
-    // [TODO-UTT] Remove the whole configuration. We need only the public config and not the full config.
-    // The full config is only needed to create budget tokens locally, but budget tokens should be
-    // create by a request from an admin to the system.
-    optional bytes config = 5; 
 }
 
 message RegisterUserRequest {

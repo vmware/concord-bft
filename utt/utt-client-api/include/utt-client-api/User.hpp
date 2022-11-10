@@ -46,9 +46,6 @@ class User {
   User();  // Default empty user object
   ~User();
 
-  /// @brief Creates a privacy budget locally - used only for testing.
-  void createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount);
-
   /// @brief Creates an input registration commitment. Multiple calls generate the same object.
   /// @return The user's registration input object
   UserRegistrationInput getRegistrationInput() const;

@@ -20,10 +20,7 @@
 void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << "deploy -- generates a privacy config and deploys the privacy and token contracts.\n";
-  // [TODO-UTT] Admin creates a user's budget by supplying a user-id and amount from the CLI
-  // std::cout
-  //     << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the
-  //     system.\n";
+  std::cout << "create-budget <user-id> <amount> -- requests creation of a privacy budget for a user.\n";
   std::cout << '\n';
 }
 

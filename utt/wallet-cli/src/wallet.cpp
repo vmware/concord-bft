@@ -54,7 +54,7 @@ void Wallet::showInfo(Channel& chan) {
   std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
-std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& chan) {
+utt::PublicConfig Wallet::getPublicConfig(Channel& chan) {
   WalletRequest req;
   req.mutable_configure();
   chan->Write(req);
@@ -72,23 +72,11 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::getConfigs(Channel& cha
   std::cout << "Privacy contract: " << configureResp.privacy_contract_addr() << '\n';
   std::cout << "Token contract: " << configureResp.token_contract_addr() << '\n';
 
-  if (configureResp.config().empty()) throw std::runtime_error("The full config is empty!");
   if (configureResp.public_config().empty()) throw std::runtime_error("The public config is empty!");
 
-  utt::Configuration config(configureResp.config().begin(), configureResp.config().end());
   utt::PublicConfig publicConfig(configureResp.public_config().begin(), configureResp.public_config().end());
 
-  auto otherPublicConfig = utt::client::getPublicConfig(config);
-  if (publicConfig != otherPublicConfig) {
-    throw std::runtime_error("The public config doesn't correspond to the one in the full config!");
-  }
-
-  return std::pair<utt::Configuration, utt::PublicConfig>{std::move(config), std::move(publicConfig)};
-}
-
-void Wallet::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
-  user_->createPrivacyBudgetLocal(config, amount);
-  std::cout << "Successfully created budget with value " << amount << '\n';
+  return publicConfig;
 }
 
 bool Wallet::isRegistered() const { return registered_; }
@@ -126,30 +114,6 @@ void Wallet::registerUser(Channel& chan) {
 
     std::cout << "Successfully registered user.\n";
   }
-}
-
-void Wallet::createPrivacyBudget(Channel& chan) {
-  (void)chan;
-  // [TODO-UTT] Create budget is done locally, should be done by the system
-  // grpc::ClientContext ctx;
-
-  // CreatePrivacyBudgetRequest req;
-  // req.set_user_id(userId_);
-
-  // CreatePrivacyBudgetResponse resp;
-  // conn->createPrivacyBudget(&ctx, req, &resp);
-
-  // if (resp.has_err()) {
-  //   std::cout << "Failed to create privacy budget:" << resp.err() << '\n';
-  // } else {
-  //   utt::PrivacyBudget budget = std::vector<uint8_t>(resp.budget().begin(), resp.budget().end());
-  //   utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().end());
-
-  //   std::cout << "Got budget " << budget.size() << " bytes.\n";
-  //   std::cout << "Got budget sig " << sig.size() << " bytes.\n";
-
-  //   user_->updatePrivacyBudget(budget, sig);
-  // }
 }
 
 void Wallet::mint(Channel& chan, uint64_t amount) {

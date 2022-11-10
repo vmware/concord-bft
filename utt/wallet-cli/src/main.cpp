@@ -54,8 +54,6 @@ void printHelp() {
   std::cout << "config                    -- configures wallets with the privacy application.\n";
   std::cout << "show                      -- prints information about the user managed by this wallet\n";
   std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
-  std::cout << "create-budget                   -- requests creation of a privacy budget, the amount is decided by the "
-               "system.\n";
   std::cout << "mint <amount>             -- mint the requested amount of public funds.\n";
   std::cout << "transfer <amount> <to-user-id> -- transfers the specified amount between users.\n";
   std::cout << "burn <amount>             -- burns the specified amount of private funds to public funds.\n";
@@ -95,10 +93,9 @@ struct CLIApp {
       return;
     }
 
-    auto configs = Wallet::getConfigs(chan);
-    config = configs.first;
+    auto publicConfig = Wallet::getPublicConfig(chan);
 
-    wallet = std::make_unique<Wallet>(userId, pki, configs.second);
+    wallet = std::make_unique<Wallet>(userId, pki, publicConfig);
   }
 
   void registerUserCmd() {
@@ -108,11 +105,6 @@ struct CLIApp {
     } else {
       std::cout << "Wallet is already registered.\n";
     }
-  }
-
-  void createBudgetCmd() {
-    wallet->createPrivacyBudgetLocal(config, 10000);
-    wallet->showInfo(chan);
   }
 
   void showCmd() { wallet->showInfo(chan); }
@@ -217,8 +209,6 @@ int main(int argc, char* argv[]) {
           app.registerUserCmd();
         } else if (!app.wallet->isRegistered()) {
           std::cout << "You must first register the user. Use the 'register' command.\n";
-        } else if (cmdTokens[0] == "create-budget") {
-          app.createBudgetCmd();
         } else if (cmdTokens[0] == "show") {
           app.showCmd();
         } else if (cmdTokens[0] == "mint") {

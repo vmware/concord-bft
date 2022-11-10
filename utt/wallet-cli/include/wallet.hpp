@@ -31,19 +31,10 @@ class Wallet {
   static Connection newConnection();
 
   /// @brief Get the configuration for a privacy application
-  /// @return The full and public configurations of the deployed application
-  /// [TODO-UTT] We only need the public config but the full config is returned
-  /// because we needed for createPrivacyBudgetLocal which should also be removed
-  /// in favor of a system-created budget tokens by the admin
-  static std::pair<utt::Configuration, utt::PublicConfig> getConfigs(Channel& chan);
+  /// @return The public configuration of the deployed application
+  static utt::PublicConfig getPublicConfig(Channel& chan);
 
   bool isRegistered() const;
-
-  /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
-  /// @brief Create a privacy budget locally for the user. This function is only for testing.
-  /// @param config A Privacy app configuration
-  /// @param amount The amount of privacy budget to create
-  void createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount);
 
   Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
 
@@ -51,11 +42,6 @@ class Wallet {
 
   /// @brief Request registration of the current user
   void registerUser(Channel& chan);
-
-  /// @brief Request the creation of a privacy budget. The amount of the budget is predetermined by the deployed app.
-  /// This operation could be performed entirely by an administrator, but we add it in the wallet
-  /// for demo purposes.
-  void createPrivacyBudget(Channel& chan);
 
   /// @brief Requests the minting of public funds to private funds.
   /// @param amount the amount of public funds
