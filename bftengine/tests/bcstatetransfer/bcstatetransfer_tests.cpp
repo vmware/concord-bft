@@ -1076,7 +1076,7 @@ FakeSources::FakeSources(const Config& targetConfig,
 void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescriptors) {
   // We expect a source not fetching. Sending a reject message is not yet supported
   ASSERT_FALSE(datastore_->getIsFetchingState());
-  vector<CheckpointSummaryMsg*> checkpointSummaryReplies;
+  vector<CheckpointSummaryMsg::unique_ptr_type> checkpointSummaryReplies;
 
   if (generateBlocksAndDescriptors) {
     // Generate all the blocks until maxBlockId of the last checkpoint - set into appState_
@@ -1097,7 +1097,7 @@ void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescri
   for (uint64_t i = testState_.maxRepliedCheckpointNum; i >= testState_.minRepliedCheckpointNum; i--) {
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
-    CheckpointSummaryMsg* reply(CheckpointSummaryMsg::alloc(desc.rvbData.size()));
+    auto reply(CheckpointSummaryMsg::alloc(desc.rvbData.size()));
     ASSERT_TRUE(reply);
     reply->checkpointNum = desc.checkpointNum;
     reply->maxBlockId = desc.maxBlockId;
@@ -1105,23 +1105,21 @@ void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescri
     reply->digestOfResPagesDescriptor = desc.digestOfResPagesDescriptor;
     reply->requestMsgSeqNum = firstAskForCheckpointSummariesMsg->msgSeqNum;
     std::copy(desc.rvbData.begin(), desc.rvbData.end(), reply->data);
-    checkpointSummaryReplies.push_back(reply);
+    checkpointSummaryReplies.push_back(std::move(reply));
   }
 
   // send replies from all replicas (shuffle the requests to get a random reply order)
   auto rng = std::default_random_engine{};
   std::shuffle(std::begin(testedReplicaIf_.sent_messages_), std::end(testedReplicaIf_.sent_messages_), rng);
-  for (const auto reply : checkpointSummaryReplies) {
+  for (const auto& reply : checkpointSummaryReplies) {
     for (auto& request : testedReplicaIf_.sent_messages_) {
-      CheckpointSummaryMsg* uniqueReply = CheckpointSummaryMsg::alloc(reply);
+      auto uniqueReply = CheckpointSummaryMsg::alloc(reply);
       ASSERT_TRUE(uniqueReply);
       char* msgBytes{nullptr};
-      ASSERT_NFF(
-          TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(uniqueReply), uniqueReply->size(), &msgBytes));
+      ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(
+          reinterpret_cast<char*>(uniqueReply.get()), uniqueReply->size(), &msgBytes));
       stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), uniqueReply->size(), request.to_);
-      CheckpointSummaryMsg::free(uniqueReply);
     }
-    CheckpointSummaryMsg::free(reply);
   }
   ASSERT_EQ(clearSentMessagesByMessageType(MsgType::AskForCheckpointSummaries), targetConfig_.numReplicas - 1);
 }
@@ -1151,7 +1149,7 @@ void FakeSources::replyFetchBlocksMsg() {
   while (true) {
     size_t rvbGroupDigestsActualSize{0};
     auto blk = appState_.peekBlock(nextBlockId);
-    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize + rvbGroupDigestsExpectedSize);
+    auto itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize + rvbGroupDigestsExpectedSize);
     ASSERT_TRUE(itemDataMsg);
     bool lastInBatch = ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch) ||
                        ((nextBlockId - 1) < fetchBlocksMsg->minBlockId);
@@ -1172,10 +1170,9 @@ void FakeSources::replyFetchBlocksMsg() {
     itemDataMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
     memcpy(itemDataMsg->data + rvbGroupDigestsActualSize, blk.get(), blk->totalBlockSize);
     char* msgBytes{nullptr};
-    ASSERT_NFF(
-        TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(itemDataMsg), itemDataMsg->size(), &msgBytes));
+    ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(
+        reinterpret_cast<char*>(itemDataMsg.get()), itemDataMsg->size(), &msgBytes));
     stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), itemDataMsg->size(), msg.to_);
-    ItemDataMsg::free(itemDataMsg);
     if (lastInBatch) {
       break;
     }
@@ -1250,7 +1247,7 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
     ASSERT_GT(chunkSize, 0);
 
     char* pRawChunk = rawVBlock_.get() + (nextChunk - 1) * targetConfig_.maxChunkSize;
-    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(chunkSize);
+    auto itemDataMsg = ItemDataMsg::alloc(chunkSize);
     ASSERT_TRUE(itemDataMsg);
 
     itemDataMsg->requestMsgSeqNum = fetchResPagesMsg->msgSeqNum;
@@ -1263,10 +1260,9 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
     memcpy(itemDataMsg->data, pRawChunk, chunkSize);
 
     char* msgBytes{nullptr};
-    ASSERT_NFF(
-        TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(itemDataMsg), itemDataMsg->size(), &msgBytes));
+    ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(
+        reinterpret_cast<char*>(itemDataMsg.get()), itemDataMsg->size(), &msgBytes));
     stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), itemDataMsg->size(), msg.to_);
-    ItemDataMsg::free(itemDataMsg);
     numOfSentChunks++;
 
     // if we've already sent enough chunks

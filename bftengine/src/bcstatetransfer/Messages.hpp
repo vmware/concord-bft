@@ -41,34 +41,42 @@ class MsgType {
 
 struct BCStateTranBaseMsg {
   uint16_t type;
+  virtual ~BCStateTranBaseMsg() = default;
 };
 
 struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
-  AskForCheckpointSummariesMsg() {
-    memset(this, 0, sizeof(AskForCheckpointSummariesMsg));
-    type = MsgType::AskForCheckpointSummaries;
-  }
+  AskForCheckpointSummariesMsg() { type = MsgType::AskForCheckpointSummaries; }
 
-  uint64_t msgSeqNum;
-  uint64_t minRelevantCheckpointNum;
+  uint64_t msgSeqNum = 0;
+  uint64_t minRelevantCheckpointNum = 0;
 };
 
 struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   CheckpointSummaryMsg() = delete;
 
-  static CheckpointSummaryMsg* alloc(size_t rvbDataSize) {
+  struct CustomDeleter {
+    void operator()(CheckpointSummaryMsg* m) { std::free(const_cast<char*>(reinterpret_cast<const char*>(m))); }
+  };
+
+  using unique_ptr_type = std::unique_ptr<CheckpointSummaryMsg, CheckpointSummaryMsg::CustomDeleter>;
+  static CheckpointSummaryMsg::unique_ptr_type alloc(size_t rvbDataSize) {
     size_t totalByteSize = sizeof(CheckpointSummaryMsg) + rvbDataSize - 1;
-    CheckpointSummaryMsg* msg{static_cast<CheckpointSummaryMsg*>(std::malloc(totalByteSize))};
-    if (!msg) {
+    CheckpointSummaryMsg* allocatedMem{static_cast<CheckpointSummaryMsg*>(std::malloc(totalByteSize))};
+    if (!allocatedMem) {
       throw std::bad_alloc();
     }
-    memset(msg, 0, totalByteSize);
+    std::unique_ptr<CheckpointSummaryMsg, CheckpointSummaryMsg::CustomDeleter> msg(
+        allocatedMem, CheckpointSummaryMsg::CustomDeleter());
     msg->type = MsgType::CheckpointsSummary;
     msg->rvbDataSize = rvbDataSize;
+    msg->checkpointNum = 0;
+    msg->maxBlockId = 0;
+    msg->requestMsgSeqNum = 0;
+    memset(msg->data, 0, rvbDataSize);
     return msg;
   }
 
-  static CheckpointSummaryMsg* alloc(const CheckpointSummaryMsg* rMsg) {
+  static CheckpointSummaryMsg::unique_ptr_type alloc(const CheckpointSummaryMsg::unique_ptr_type& rMsg) {
     auto msg = alloc(rMsg->rvbDataSize);
     msg->checkpointNum = rMsg->checkpointNum;
     msg->maxBlockId = rMsg->maxBlockId;
@@ -79,10 +87,6 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     return msg;
   }
 
-  static void free(const CheckpointSummaryMsg* msg) {
-    std::free(const_cast<char*>(reinterpret_cast<const char*>(msg)));
-  }
-
   static void free(void* context, const CheckpointSummaryMsg* msg) {
     IReplicaForStateTransfer* rep = reinterpret_cast<IReplicaForStateTransfer*>(context);
     rep->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(msg)));
@@ -91,14 +95,14 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   size_t size() const { return sizeof(CheckpointSummaryMsg) + rvbDataSize - 1; }
   size_t sizeofRvbData() const { return rvbDataSize; }
 
-  uint64_t checkpointNum;
-  uint64_t maxBlockId;
+  uint64_t checkpointNum = 0;
+  uint64_t maxBlockId = 0;
   Digest digestOfMaxBlockId;
   Digest digestOfResPagesDescriptor;
-  uint64_t requestMsgSeqNum;
+  uint64_t requestMsgSeqNum = 0;
 
  private:
-  uint32_t rvbDataSize;
+  uint32_t rvbDataSize = 0;
 
  public:
   char data[1];
@@ -136,7 +140,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 87),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 95),
                   "Should newly added field be compared below?");
     bool cmp1 =
         ((a->maxBlockId == b->maxBlockId) && (a->checkpointNum == b->checkpointNum) &&
@@ -154,7 +158,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 87),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 95),
                   "Should newly added field be compared below?");
     if ((a->maxBlockId != b->maxBlockId) || (a->checkpointNum != b->checkpointNum) ||
         (a->digestOfMaxBlockId != b->digestOfMaxBlockId) ||
@@ -168,29 +172,23 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 };
 
 struct FetchBlocksMsg : public BCStateTranBaseMsg {
-  FetchBlocksMsg() {
-    memset(this, 0, sizeof(FetchBlocksMsg));
-    type = MsgType::FetchBlocks;
-  }
+  FetchBlocksMsg() { type = MsgType::FetchBlocks; }
 
-  uint64_t msgSeqNum;
-  uint64_t minBlockId;
-  uint64_t maxBlockId;
-  uint64_t maxBlockIdInCycle;
-  uint64_t rvbGroupId;
-  uint16_t lastKnownChunkInLastRequiredBlock;
+  uint64_t msgSeqNum = 0;
+  uint64_t minBlockId = 0;
+  uint64_t maxBlockId = 0;
+  uint64_t maxBlockIdInCycle = 0;
+  uint64_t rvbGroupId = 0;
+  uint16_t lastKnownChunkInLastRequiredBlock = 0;
 };
 
 struct FetchResPagesMsg : public BCStateTranBaseMsg {
-  FetchResPagesMsg() {
-    memset(this, 0, sizeof(FetchResPagesMsg));
-    type = MsgType::FetchResPages;
-  }
+  FetchResPagesMsg() { type = MsgType::FetchResPages; }
 
-  uint64_t msgSeqNum;
-  uint64_t lastCheckpointKnownToRequester;
-  uint64_t requiredCheckpointNum;
-  uint16_t lastKnownChunk;
+  uint64_t msgSeqNum = 0;
+  uint64_t lastCheckpointKnownToRequester = 0;
+  uint64_t requiredCheckpointNum = 0;
+  uint16_t lastKnownChunk = 0;
 };
 
 struct RejectFetchingMsg : public BCStateTranBaseMsg {
@@ -212,14 +210,13 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
   };
   RejectFetchingMsg() = delete;
   RejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum) {
-    memset(this, 0, sizeof(RejectFetchingMsg));
     type = MsgType::RejectFetching;
     rejectionCode = rejCode;
     requestMsgSeqNum = reqMsgSeqNum;
   }
 
-  uint64_t requestMsgSeqNum;
-  uint16_t rejectionCode;
+  uint64_t requestMsgSeqNum = 0;
+  uint16_t rejectionCode = 0;
 
   static inline std::map<uint16_t, const char*> reasonMessages = {
       {Reason::RES_PAGE_NOT_FOUND, "Reserved page not found"},
@@ -232,29 +229,39 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
 };
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
-  static ItemDataMsg* alloc(uint32_t dataSize) {
+  struct CustomDeleter {
+    void operator()(ItemDataMsg* m) { std::free(const_cast<char*>(reinterpret_cast<const char*>(m))); }
+  };
+
+  using unique_ptr_type = std::unique_ptr<ItemDataMsg, ItemDataMsg::CustomDeleter>;
+  static ItemDataMsg::unique_ptr_type alloc(uint32_t dataSize) {
     size_t msgSize = sizeof(ItemDataMsg) - 1 + dataSize;
-    ItemDataMsg* msg = static_cast<ItemDataMsg*>(std::malloc(msgSize));
-    if (!msg) {
+    ItemDataMsg* allocatedMem = static_cast<ItemDataMsg*>(std::malloc(msgSize));
+    if (!allocatedMem) {
       throw std::bad_alloc();
     }
-    memset(msg, 0, msgSize);
+    std::unique_ptr<ItemDataMsg, ItemDataMsg::CustomDeleter> msg(allocatedMem, ItemDataMsg::CustomDeleter());
     msg->type = MsgType::ItemData;
     msg->dataSize = dataSize;
+    msg->requestMsgSeqNum = 0;
+    msg->blockNumber = 0;
+    msg->totalNumberOfChunksInBlock = 0;
+    msg->chunkNumber = 0;
+    msg->lastInBatch = 0;
+    msg->rvbDigestsSize = 0;
+    memset(msg->data, 0, dataSize);
     return msg;
   }
 
-  static void free(ItemDataMsg* msg) { std::free(msg); }
-
-  uint64_t requestMsgSeqNum;
-  uint64_t blockNumber;
-  uint16_t totalNumberOfChunksInBlock;
-  uint16_t chunkNumber;
-  uint32_t dataSize;
-  uint8_t lastInBatch;
-  uint32_t rvbDigestsSize;  // if non-zero, size in bytes  which is dedicated to RVB
-                            // digests from the total of dataSize (rvbDigestsSize < dataSize)
-  char data[1];             // MSB[raw block of size dataSize-rvbDigestsSize|RVB DIGESTS of size rvbDigestsSize]LSB
+  uint64_t requestMsgSeqNum = 0;
+  uint64_t blockNumber = 0;
+  uint16_t totalNumberOfChunksInBlock = 0;
+  uint16_t chunkNumber = 0;
+  uint32_t dataSize = 0;
+  uint8_t lastInBatch = 0;
+  uint32_t rvbDigestsSize = 0;  // if non-zero, size in bytes  which is dedicated to RVB
+                                // digests from the total of dataSize (rvbDigestsSize < dataSize)
+  char data[1];                 // MSB[raw block of size dataSize-rvbDigestsSize|RVB DIGESTS of size rvbDigestsSize]LSB
 
   uint32_t size() const { return sizeof(ItemDataMsg) - 1 + dataSize; }
 };
