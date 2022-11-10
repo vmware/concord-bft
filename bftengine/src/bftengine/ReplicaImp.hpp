@@ -447,7 +447,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void registerMsgHandlers();
 
   template <typename T>
-  void messageHandler(MessageBase* msg);
+  void messageHandler(std::unique_ptr<MessageBase> msg);
 
   template <typename T>
   void validatedMessageHandler(CarrierMesssage* msg);
@@ -472,7 +472,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::string getReplicaState() const;
   std::string getReplicaLastStableSeqNum() const;
   template <typename T>
-  void onMessage(T* msg);
+  void onMessage(std::unique_ptr<T> msg);
 
   void onInternalMsg(InternalMessage&& msg);
   void onInternalMsg(GetStatus& msg) const;
@@ -508,10 +508,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
-  void validatePrePrepareMsg(PrePrepareMsg*& ppm);
+  void validatePrePrepareMsg(std::unique_ptr<PrePrepareMsg> ppm);
 
   template <typename MSG>
-  void asyncValidateMessage(MSG* msg);
+  void asyncValidateMessage(std::unique_ptr<MSG>);
 
   void removeDuplicatedRequestsFromRequestsQueue();
 
