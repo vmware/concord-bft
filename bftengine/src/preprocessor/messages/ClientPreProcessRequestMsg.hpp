@@ -37,6 +37,7 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
 };
 
 typedef std::unique_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgUniquePtr;
+typedef std::shared_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgSharedPtr;
 
 }  // namespace preprocessor
 

@@ -57,17 +57,15 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   }
 
   template <typename T>
-  void messageHandler(MessageBase* msg) {
-    T* trueTypeObj = new T(msg);
-    delete msg;
-    if (validateMessage(trueTypeObj))
-      onMessage<T>(static_cast<T*>(trueTypeObj));
-    else
-      delete trueTypeObj;
+  void messageHandler(std::unique_ptr<MessageBase> msg) {
+    std::unique_ptr<T> trueTypeObj = make_unique<T>(msg.release());
+    if (validateMessage(trueTypeObj)) {
+      onMessage<T>(trueTypeObj);
+    }
   }
 
   template <class T>
-  void onMessage(T*);
+  void onMessage(std::unique_ptr<T>);
 
  protected:
   std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;

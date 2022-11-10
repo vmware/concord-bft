@@ -42,17 +42,15 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   template <typename T>
-  void messageHandler(MessageBase* msg) {
-    T* trueTypeObj = new T(msg);
-    delete msg;
-    if (validateMessage(trueTypeObj))
-      onMessage<T>(trueTypeObj);
-    else
-      delete trueTypeObj;
+  void messageHandler(std::unique_ptr<MessageBase> msg) {
+    std::unique_ptr<T> trueTypeObj = make_unique<T>(msg.release());
+    if (validateMessage(trueTypeObj.get())) {
+      onMessage<T>(move(trueTypeObj));
+    }
   }
 
   template <class T>
-  void onMessage(T*);
+  void onMessage(std::unique_ptr<T>);
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
   void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
@@ -72,8 +70,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
 
  private:
   // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function
-  // is that regular and read-only replcias expose differen metrics and the status handlers are not interchangable. The
-  // read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // is that regular and read-only replicas expose different metrics and the status handlers are not interchangeable.
+  // The read-only replica also hasn't got an implementation for InternalMessages which are used by the
   // ReplicaStatusHandler.
   void registerStatusHandlers();
 };

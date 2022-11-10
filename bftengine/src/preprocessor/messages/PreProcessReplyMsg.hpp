@@ -112,6 +112,7 @@ class PreProcessReplyMsg : public MessageBase {
   inline static preprocessor::PreProcessorRecorder* preProcessorHistograms_ = nullptr;
 };
 
+typedef std::unique_ptr<PreProcessReplyMsg> PreProcessReplyMsgUniquePtr;
 typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;
 
 }  // namespace preprocessor
