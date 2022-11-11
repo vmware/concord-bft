@@ -140,10 +140,14 @@ class ThinReplicaImpl {
       return status;
     }
 
+    ThinReplicaServerMetrics metrics("data", getClientId(context));
+    metrics.setAggregator(aggregator_);
+
     kvbc::BlockId start = 1;
     // E.L saw race condition where subscribe to live updates got a block that
     // wasn't added yet
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
+    metrics.num_storage_reads++;
 
     if (end == 0) {
       std::string msg{"No blocks available"};
@@ -152,8 +156,6 @@ class ThinReplicaImpl {
     }
 
     LOG_DEBUG(logger_, "ReadState start " << start << " end " << end);
-    ThinReplicaServerMetrics metrics("data", getClientId(context));
-    metrics.setAggregator(aggregator_);
 
     try {
       readFromKvbAndSendData(logger_, context, stream, start, end, kvb_filter, metrics);
@@ -175,9 +177,13 @@ class ThinReplicaImpl {
       return status;
     }
 
+    ThinReplicaServerMetrics metrics("hash", getClientId(context));
+    metrics.setAggregator(aggregator_);
+
     std::stringstream msg;
-    if (isRequestOutOfRange(request, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
-    if (isUpdatePruned(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
+    if (isRequestOutOfRange(request, kvb_filter, metrics))
+      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isUpdatePruned(request, msg, kvb_filter, metrics)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
 
     LOG_DEBUG(logger_, "ReadStateHash");
 
@@ -195,6 +201,8 @@ class ThinReplicaImpl {
       std::string kvb_hash;
       try {
         kvb_hash = kvb_filter->readBlockRangeHash(block_id_start, block_id_end);
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
+        metrics.updateAggregator();
       } catch (std::exception& error) {
         LOG_ERROR(logger_, error.what());
         std::stringstream msg;
@@ -221,6 +229,8 @@ class ThinReplicaImpl {
     std::string kvb_eg_hash;
     try {
       kvb_eg_hash = kvb_filter->readEventGroupRangeHash(event_group_id_start);
+      metrics.num_storage_reads += kvb_filter->num_storage_reads;
+      metrics.updateAggregator();
     } catch (std::exception& error) {
       LOG_ERROR(logger_, error.what());
       std::stringstream msg;
@@ -260,9 +270,15 @@ class ThinReplicaImpl {
       return kvb_status;
     }
 
+    // TRS metrics
+    ThinReplicaServerMetrics metrics(stream_type, getClientId(context));
+    metrics.setAggregator(aggregator_);
+    update_aggregator_counter = 0;
+
     std::stringstream msg;
-    if (isRequestOutOfRange(request, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
-    if (isUpdatePruned(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
+    if (isRequestOutOfRange(request, kvb_filter, metrics))
+      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isUpdatePruned(request, msg, kvb_filter, metrics)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
 
     auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context), kvb_filter);
     if (!subscribe_status.ok()) {
@@ -284,10 +300,6 @@ class ThinReplicaImpl {
       return subscribe_status;
     }
 
-    // TRS metrics
-    ThinReplicaServerMetrics metrics(stream_type, getClientId(context));
-    metrics.setAggregator(aggregator_);
-    update_aggregator_counter = 0;
     metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
 #define CLEANUP_SUBSCRIPTION()                                               \
@@ -296,6 +308,7 @@ class ThinReplicaImpl {
     live_updates->removeAllUpdates();                                        \
     live_updates->removeAllEventGroupUpdates();                              \
     metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size()); \
+    metrics.num_storage_reads += kvb_filter->num_storage_reads;              \
     metrics.updateAggregator();                                              \
   }
 
@@ -350,6 +363,7 @@ class ThinReplicaImpl {
     } else {
       ConcordAssert(request->has_events());
       auto last_block_id = (config_->rostorage)->getLastBlockId();
+      metrics.num_storage_reads++;
       if (request->events().block_id() == last_block_id + 1) {
         // `last_block_id + 1` is an acceptable requested block ID (not flagged with OUT_OF_RANGE exception),
         // even though it can not have been written to storage at the time of the request.
@@ -443,6 +457,7 @@ class ThinReplicaImpl {
             sendHash(stream, update.block_id, kvb_filter->hashUpdate(filtered_update));
           }
           metrics.last_sent_block_id.Get().Set(update.block_id);
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
           if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
             metrics.updateAggregator();
             update_aggregator_counter = 0;
@@ -544,6 +559,7 @@ class ThinReplicaImpl {
         kvb_filter->setLastEgIdsRead(next_ext_eg_id, sub_eg_update.event_group_id);
 
         metrics.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
         if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
           metrics.updateAggregator();
           update_aggregator_counter = 0;
@@ -573,7 +589,7 @@ class ThinReplicaImpl {
   }
 
   template <typename RequestT>
-  bool isRequestOutOfRange(RequestT* request, KvbAppFilterPtr kvb_filter) {
+  bool isRequestOutOfRange(RequestT* request, KvbAppFilterPtr kvb_filter, ThinReplicaServerMetrics& metrics) {
     // A request is considered out of range iff the requested update ID is greater than
     // `last_known_update_id + 1`, i.e.; TRS allows an application to subscribe to
     // `last_known_update_id + 1` without throwing an error, with the expectation that
@@ -581,6 +597,7 @@ class ThinReplicaImpl {
     if (request->has_events()) {
       // Determine latest block available
       auto last_block_id = (config_->rostorage)->getLastBlockId();
+      metrics.num_storage_reads++;
       if (request->events().block_id() > last_block_id + 1) {
         return true;
       }
@@ -595,10 +612,14 @@ class ThinReplicaImpl {
   }
 
   template <typename RequestT>
-  bool isUpdatePruned(RequestT* request, std::stringstream& msg, KvbAppFilterPtr kvb_filter) {
+  bool isUpdatePruned(RequestT* request,
+                      std::stringstream& msg,
+                      KvbAppFilterPtr kvb_filter,
+                      ThinReplicaServerMetrics& metrics) {
     if (request->has_events()) {
       // Determine oldest block available (pruning)
       auto first_block_id = (config_->rostorage)->getGenesisBlockId();
+      metrics.num_storage_reads++;
       if (request->events().block_id() < first_block_id) {
         msg << "Block ID " << request->events().block_id() << " has been pruned."
             << " First block_id is " << first_block_id;
@@ -751,6 +772,9 @@ class ThinReplicaImpl {
         while (!queue.empty()) {
           queue.pop(kvb_update);
         }
+        // update metrics before throwing the error
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
+        metrics.updateAggregator();
         throw StreamCancelled("Kvb data stream cancelled");
       }
       while (queue.pop(kvb_update)) {
@@ -761,6 +785,7 @@ class ThinReplicaImpl {
           LOG_DEBUG(logger_, "Sending updates (history, data)" << KVLOG(client_id, block_id, num_events));
           sendData(stream, kvb_update);
           metrics.last_sent_block_id.Get().Set(block_id);
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
           if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
             metrics.updateAggregator();
             update_aggregator_counter = 0;
@@ -773,6 +798,9 @@ class ThinReplicaImpl {
           while (!queue.empty()) {
             queue.pop(kvb_update);
           }
+          // update metrics before throwing the error
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
+          metrics.updateAggregator();
           throw;
         }
       }
@@ -911,6 +939,7 @@ class ThinReplicaImpl {
                    std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
                    ThinReplicaServerMetrics& metrics) {
     kvbc::BlockId first_block_id = (config_->rostorage)->getGenesisBlockId();
+    metrics.num_storage_reads++;
     if (start < first_block_id) {
       std::stringstream msg;
       msg << "Requested block ID: " << start << " has been pruned, the current oldest block ID is: " << first_block_id;
@@ -918,6 +947,7 @@ class ThinReplicaImpl {
       throw UpdatePruned(msg.str());
     }
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
+    metrics.num_storage_reads++;
     ConcordAssertLE(start, end);
 
     // Let's not wait for a live update yet due to there might be lots of

@@ -366,6 +366,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClientProxies_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
+      threadPool_("PreProcessor::threadPool"),
       memoryPool_(maxExternalMsgSize_, timers),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
@@ -439,13 +440,20 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 }
 
 PreProcessor::~PreProcessor() {
+  LOG_TRACE(logger(), "~PreProcessor start");
   msgLoopDone_ = true;
   msgLoopSignal_.notify_all();
   cancelTimers();
   threadPool_.stop();
-  if (msgLoopThread_.joinable()) msgLoopThread_.join();
-  if (!memoryPoolEnabled_)
-    for (const auto &result : preProcessResultBuffers_) delete[] result->buffer;
+  if (msgLoopThread_.joinable()) {
+    msgLoopThread_.join();
+  }
+  if (!memoryPoolEnabled_) {
+    for (const auto &result : preProcessResultBuffers_) {
+      delete[] result->buffer;
+    }
+  }
+  LOG_TRACE(logger(), "~PreProcessor done");
 }
 
 void PreProcessor::addTimers() {

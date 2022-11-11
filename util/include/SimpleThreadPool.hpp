@@ -33,7 +33,9 @@ class SimpleThreadPool {
     ~Job(){};  // should not be deleted directly - use  release()
   };
 
-  SimpleThreadPool() : stopped_(true) {}
+  SimpleThreadPool(std::string&& name);
+  SimpleThreadPool() = delete;
+  ~SimpleThreadPool();
 
   /**
    * starts the thread pool with desired number of threads
@@ -71,6 +73,7 @@ class SimpleThreadPool {
  protected:
   std::queue<SimpleThreadPool::Job*> job_queue_;
   std::mutex queue_lock_;
+  std::string name_;
   std::condition_variable queue_cond_;
   bool stopped_;
   int num_of_free_threads_ = 0;

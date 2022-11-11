@@ -163,7 +163,7 @@ void getGrpcConnections(bool full_fake, vector<shared_ptr<GrpcConnection>>& grpc
 TEST(replica_stream_snapshot_client_test, test_destructor_always_successful) {
   vector<shared_ptr<GrpcConnection>> grpc_connections;
   getGrpcConnections(true, grpc_connections, 7);
-  ThreadPool thread_pool{10};
+  ThreadPool thread_pool{"", 10};
   auto read_snapshot = [&grpc_connections]() {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
     auto rss = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
@@ -208,7 +208,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
     // responsible for shutting down the server for this call to ever return.
     (servers[i])->Wait();
   };
-  ThreadPool server_thread_pool{7};
+  ThreadPool server_thread_pool{"", 7};
   vector<std::future<void>> server_results;
   for (size_t i = 0; i < 7; ++i) {
     server_results.push_back(server_thread_pool.async(run_server, i));
@@ -222,7 +222,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
 
   vector<shared_ptr<GrpcConnection>> grpc_connections;
   getGrpcConnections(false, grpc_connections, 7);
-  ThreadPool thread_pool{10};
+  ThreadPool thread_pool{"", 10};
   auto read_snapshot = [&grpc_connections](size_t len) {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
     auto rss = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
@@ -232,7 +232,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = len;
     rss->readSnapshotStream(rss_request, remote_queue);
-    ThreadPool read_thread_pool{1};
+    ThreadPool read_thread_pool{"", 1};
     read_thread_pool.async(
         [&remote_queue](size_t l) {
           size_t num_received = 0;

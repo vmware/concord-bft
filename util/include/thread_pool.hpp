@@ -16,7 +16,8 @@
 
 #pragma once
 
-#include <assertUtils.hpp>
+#include "assertUtils.hpp"
+#include "Logger.hpp"
 
 #include <condition_variable>
 #include <future>
@@ -29,11 +30,20 @@
 
 namespace concord::util {
 
+static logging::Logger logger{logging::getLogger("concord.util.thread-pool")};
+
 // A thread pool that supports any callable object with any return type. Returns std::future objects to users.
 class ThreadPool {
  public:
+  ThreadPool() = delete;
+
   // Starts the thread pool with thread_count > 0 threads.
-  ThreadPool(unsigned int thread_count) noexcept {
+  ThreadPool(std::string&& name, unsigned int thread_count) noexcept : name_(std::move(name)) {
+    const std::lock_guard<std::mutex> lock(task_queue_.mutex);
+    static int thread_pool_counter_{1};
+    name_ += "_" + std::to_string(thread_pool_counter_);
+    ++thread_pool_counter_;
+    LOG_DEBUG(logger, "ThreadPool: create:" << KVLOG(name_, thread_count));
     ConcordAssert(thread_count > 0);
     for (auto i = 0u; i < thread_count; ++i) {
       threads_.emplace_back([this]() { loop(); });
@@ -41,11 +51,13 @@ class ThreadPool {
   }
 
   // Starts the thread pool with the maximum number of concurrent threads supported by the implementation.
-  ThreadPool() noexcept
-      : ThreadPool{std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1} {}
+  ThreadPool(std::string&& name) noexcept
+      : ThreadPool{std::move(name), std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1} {
+  }
 
   // Stops the thread pool. Waits for the currently executing tasks only (will not exhaust the queues).
   ~ThreadPool() noexcept {
+    LOG_DEBUG(logger, "ThreadPool: destroy started:" << KVLOG(name_));
     {
       auto lock = std::lock_guard{task_queue_.mutex};
       task_queue_.stop = true;
@@ -54,6 +66,7 @@ class ThreadPool {
     for (auto& t : threads_) {
       t.join();
     }
+    LOG_DEBUG(logger, "ThreadPool: destroy done:" << KVLOG(name_));
   }
 
  public:
@@ -97,7 +110,7 @@ class ThreadPool {
       try {
         task();
       } catch (const std::exception& e) {
-        LOG_ERROR(logging::getLogger("concord.util.thread-pool"), e.what());
+        LOG_ERROR(logger, e.what());
       }
     }
   }
@@ -119,6 +132,7 @@ class ThreadPool {
 
   // A task queue that is shared between pool threads.
   TaskQueue task_queue_;
+  std::string name_;
 
   // A list of threads.
   std::vector<std::thread> threads_;

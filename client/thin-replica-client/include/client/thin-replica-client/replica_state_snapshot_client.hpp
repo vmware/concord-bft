@@ -58,7 +58,7 @@ class ReplicaStateSnapshotClient {
   ReplicaStateSnapshotClient(std::unique_ptr<ReplicaStateSnapshotClientConfig> config)
       : logger_(logging::getLogger("concord.client.replica_stream_snapshot")),
         config_(std::move(config)),
-        threadpool_(config_->concurrency_level),
+        threadpool_("ReplicaStateSnapshotClient::threadpool", config_->concurrency_level),
         count_of_concurrent_request_{0} {}
   void readSnapshotStream(const SnapshotRequest& request,
                           std::shared_ptr<concord::client::concordclient::SnapshotQueue> remote_queue);
