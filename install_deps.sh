@@ -357,7 +357,7 @@ install_json_lib(){
 
 install_httplib() {
     cd ${HOME}
-    git clone -b v0.9.7 --depth 1 https://github.com/yhirose/cpp-httplib && \
+    git clone -b v0.11.2 --depth 1 https://github.com/yhirose/cpp-httplib && \
         cd cpp-httplib && \
         mkdir build && \
         cd build && \
