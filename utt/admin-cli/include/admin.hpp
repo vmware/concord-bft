@@ -17,7 +17,7 @@
 #include <memory>
 
 #include <grpcpp/grpcpp.h>
-#include "api.grpc.pb.h"  // Generated from utt/admin/proto/api
+#include "admin-api.grpc.pb.h"  // Generated from utt/admin/proto/api
 
 #include <utt-client-api/ClientApi.hpp>
 

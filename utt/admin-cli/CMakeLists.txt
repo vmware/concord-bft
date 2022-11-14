@@ -12,3 +12,10 @@ target_include_directories(privacy-admin-cli PUBLIC include/ ../utt-client-api/i
 target_link_libraries(privacy-admin-cli PUBLIC
   privacy-admin-api-proto utt_client_api
 )
+
+add_library(privacy-admin-lib STATIC src/admin.cpp)
+target_include_directories(privacy-admin-lib PUBLIC include/ ../utt-client-api/include ../utt-common-api/include)
+
+target_link_libraries(privacy-admin-lib PUBLIC
+  privacy-admin-api-proto utt_client_api
+)

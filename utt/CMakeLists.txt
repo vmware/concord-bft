@@ -195,6 +195,9 @@ endif()
 if(BUILD_PRIVACY_ADMIN_CLI)
     add_subdirectory(admin-cli) 
 endif()
+if(BUILD_WALLET_CLI AND BUILD_PRIVACY_ADMIN_CLI)
+    add_subdirectory(e2e)
+endif()
 
 # [TODO-UTT] This improved api for libutt could go into its own subproject 
 set(newutt_src 

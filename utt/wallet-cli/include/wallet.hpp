@@ -15,9 +15,10 @@
 
 #include <string>
 #include <memory>
+#include <tuple>
 
 #include <grpcpp/grpcpp.h>
-#include "api.grpc.pb.h"  // Generated from utt/wallet/proto/api
+#include "wallet-api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 #include <utt-client-api/ClientApi.hpp>
 
@@ -39,6 +40,8 @@ class Wallet {
   Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
 
   void showInfo(Channel& chan);
+
+  std::tuple<uint64_t, uint64_t> getPublicAndPrivateBalance(Channel& chan);
 
   /// @brief Request registration of the current user
   void registerUser(Channel& chan);

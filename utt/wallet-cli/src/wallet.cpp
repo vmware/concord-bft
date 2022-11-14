@@ -54,6 +54,11 @@ void Wallet::showInfo(Channel& chan) {
   std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
+std::tuple<uint64_t, uint64_t> Wallet::getPublicAndPrivateBalance(Channel& chan) {
+  syncState(chan);
+  return std::make_tuple(publicBalance_, user_->getBalance());
+}
+
 utt::PublicConfig Wallet::getPublicConfig(Channel& chan) {
   WalletRequest req;
   req.mutable_configure();
