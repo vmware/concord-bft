@@ -51,7 +51,8 @@ class Commitment {
    * @param withG2 Indicates if we want to have the commitment in the G2 group. In the regular case this should be
    * always true
    */
-  Commitment(const UTTParams& p, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
+  Commitment(
+      const UTTParams& p, Type t, const std::vector<types::CurvePoint>& messages, bool withG2, uint64_t nonce = 0);
   Commitment(const Commitment& comm);
   Commitment();
   Commitment& operator=(const Commitment&);

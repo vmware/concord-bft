@@ -6,6 +6,7 @@ namespace libutt::api {
 struct Commitment::Impl {
   enum Type { REGISTRATION = 0, COIN };
   libutt::Comm comm_;
+  uint64_t nonce = 0;
   static const libutt::CommKey& getCommitmentKey(const libutt::Params& d, Type t) {
     switch (t) {
       case Type::REGISTRATION:

@@ -10,11 +10,15 @@ libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api
 }
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::Commitment& comm) {
-  out << comm.pImpl_->comm_;
+  out << comm.pImpl_->comm_ << endl;
+  out << comm.pImpl_->nonce << endl;
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::Commitment& comm) {
   in >> comm.pImpl_->comm_;
+  libff::consume_OUTPUT_NEWLINE(in);
+  in >> comm.pImpl_->nonce;
+  libff::consume_OUTPUT_NEWLINE(in);
   return in;
 }
 
@@ -25,12 +29,14 @@ bool operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitm
 }
 namespace libutt::api {
 
-Commitment::Commitment(const UTTParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
+Commitment::Commitment(
+    const UTTParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2, uint64_t nonce) {
   std::vector<Fr> fr_messages(messages.size());
   for (size_t i = 0; i < messages.size(); i++) {
     fr_messages[i].from_words(messages.at(i));
   }
   pImpl_ = new Commitment::Impl();
+  pImpl_->nonce = nonce;
   pImpl_->comm_ =
       libutt::Comm::create(Impl::getCommitmentKey(d.pImpl_->p, (Commitment::Impl::Type)t), fr_messages, withG2);
 }

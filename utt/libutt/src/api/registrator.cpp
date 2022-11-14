@@ -47,7 +47,9 @@ std::pair<types::CurvePoint, types::Signature> Registrator::signRCM(const types:
   fr_pid.from_words(pid_hash);
   Fr fr_s2;
   fr_s2.from_words(s2);
-  auto h1 = hashToHex(pid_hash);
+  auto hash_base = pid_hash;
+  hash_base.push_back(rcm1.pImpl_->nonce);
+  auto h1 = hashToHex(hash_base);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
   auto res = pImpl_->rsk_.sk.shareSign({(fr_pid * H), (fr_s2 * H) + rcm1.pImpl_->comm_}, H);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
@@ -62,7 +64,9 @@ bool Registrator::validatePartialRCMSig(uint16_t id,
   fr_pid.from_words(pid_hash);
   Fr fr_s2;
   fr_s2.from_words(s2);
-  auto h1 = hashToHex(pid_hash);
+  auto hash_base = pid_hash;
+  hash_base.push_back(rcm1.pImpl_->nonce);
+  auto h1 = hashToHex(hash_base);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
   libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
   return rsig.verify({(fr_pid * H), (fr_s2 * H) + rcm1.pImpl_->comm_}, pImpl_->validation_keys_.at(id).vk);

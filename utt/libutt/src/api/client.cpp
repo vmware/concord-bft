@@ -13,6 +13,7 @@
 #include <utt/DataUtils.hpp>
 #include <vector>
 #include <sstream>
+#include <random>
 namespace libutt::api {
 Client::Client(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& rsaSk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty())
@@ -68,9 +69,17 @@ Client& Client::operator=(Client&& other) {
   pImpl_->decryptor_ = std::move(other.pImpl_->decryptor_);
   return *this;
 }
-Commitment Client::generateInputRCM() {
+Commitment Client::generateInputRCM(uint64_t nonce) {
   Commitment comm;
-  auto h1 = hashToHex(getPidHash());
+  if (nonce == 0) {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis;
+    comm.pImpl_->nonce = dis(gen);
+  }
+  auto hash_base = getPidHash();
+  hash_base.push_back(comm.pImpl_->nonce);
+  auto h1 = hashToHex(hash_base);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
   comm.pImpl_->comm_ = (pImpl_->ask_.s * H);
   return comm;

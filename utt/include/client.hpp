@@ -69,7 +69,7 @@ class Client {
    *
    * @return Commitment
    */
-  Commitment generateInputRCM();
+  Commitment generateInputRCM(uint64_t nonce = 0);
 
   /**
    * @brief The full PRF key is composed by a client secret (s1) and an unpredictable s2 (choose by the bank). This
