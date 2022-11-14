@@ -8,12 +8,7 @@
 #include "config.hpp"
 #include "serialization.hpp"
 
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/BurnOp.h>
 #include <utt/DataUtils.hpp>
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
 #include <memory>
 #include <vector>
 #include <cstdlib>

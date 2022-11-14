@@ -1,18 +1,18 @@
 #include "transaction.hpp"
-#include <utt/Tx.h>
+#include "include/coin.impl.hpp"
+#include "include/commitment.impl.hpp"
+#include "include/transaction.impl.hpp"
+#include "include/client.impl.hpp"
+#include "include/params.impl.hpp"
 #include <utt/Serialization.h>
-#include <utt/RandSig.h>
-#include <utt/RegAuth.h>
-#include <utt/Coin.h>
-#include <utt/Address.h>
 #include <utt/DataUtils.hpp>
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx) {
-  out << *(tx.tx_) << std::endl;
+  out << tx.pImpl_->tx_ << std::endl;
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx) {
-  in >> *(tx.tx_);
+  in >> tx.pImpl_->tx_;
   return in;
 }
 namespace libutt::api::operations {
@@ -32,10 +32,10 @@ Transaction::Transaction(const UTTParams& d,
   std::vector<libutt::Coin> input_coins(coins.size());
   for (size_t i = 0; i < coins.size(); i++) {
     const auto& c = coins[i];
-    input_coins[i] = *(c.coin_);
+    input_coins[i] = c.pImpl_->c;
   }
   std::optional<libutt::Coin> budget_coin = std::nullopt;
-  if (bc.has_value()) budget_coin.emplace(*(bc->coin_));
+  if (bc.has_value()) budget_coin.emplace(bc->pImpl_->c);
   std::vector<std::tuple<std::string, Fr>> fr_recipients(recipients.size());
   for (size_t i = 0; i < recipients.size(); i++) {
     // initiate the Fr types with the values given in the recipients vector (becasue the interanl Tx object gets
@@ -45,37 +45,47 @@ Transaction::Transaction(const UTTParams& d,
     id = r_str;
     fr.set_ulong(r_id);
   }
-  auto& rpk = *(cid.rpk_);
-  tx_.reset(new libutt::Tx(d.getParams(),
+  pImpl_ = new Transaction::Impl();
+  pImpl_->tx_ = libutt::Tx(d.pImpl_->p,
                            fr_pidhash,
                            cid.getPid(),
-                           *(rcm.first.comm_),
+                           rcm.first.pImpl_->comm_,
                            rcm_sig,
                            prf,
                            input_coins,
                            budget_coin,
                            fr_recipients,
                            std::nullopt,
-                           rpk.vk,
-                           encryptor));
+                           cid.pImpl_->rpk_.vk,
+                           encryptor);
 }
-Transaction::Transaction() { tx_.reset(new libutt::Tx()); }
+Transaction::Transaction() { pImpl_ = new Transaction::Impl(); }
 Transaction::Transaction(const Transaction& other) {
-  tx_.reset(new libutt::Tx());
+  pImpl_ = new Transaction::Impl();
   *this = other;
 }
 Transaction& Transaction::operator=(const Transaction& other) {
   if (this == &other) return *this;
-  *tx_ = *(other.tx_);
+  pImpl_->tx_ = other.pImpl_->tx_;
   return *this;
 }
-std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
+Transaction::~Transaction() { delete pImpl_; }
 
-uint32_t Transaction::getNumOfOutputCoins() const { return (uint32_t)tx_->outs.size(); }
+Transaction::Transaction(Transaction&& other) {
+  pImpl_ = new Transaction::Impl();
+  *this = std::move(other);
+}
+Transaction& Transaction::operator=(Transaction&& other) {
+  pImpl_->tx_ = std::move(other.pImpl_->tx_);
+  return *this;
+}
+std::vector<std::string> Transaction::getNullifiers() const { return pImpl_->tx_.getNullifiers(); }
 
-bool Transaction::hasBudgetCoin() const { return tx_->ins.back().coin_type == libutt::Coin::BudgetType(); }
+uint32_t Transaction::getNumOfOutputCoins() const { return (uint32_t)pImpl_->tx_.outs.size(); }
+
+bool Transaction::hasBudgetCoin() const { return pImpl_->tx_.ins.back().coin_type == libutt::Coin::BudgetType(); }
 uint64_t Transaction::getBudgetExpirationDate() const {
   if (!hasBudgetCoin()) return 0;
-  return tx_->ins.back().exp_date.as_ulong();
+  return pImpl_->tx_.ins.back().exp_date.as_ulong();
 }
 }  // namespace libutt::api::operations

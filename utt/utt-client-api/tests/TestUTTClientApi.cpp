@@ -21,9 +21,6 @@
 #include <utt/RegAuth.h>
 #include <utt/RandSig.h>
 #include <utt/Utils.h>
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/BurnOp.h>
 
 // libutt new interface
 #include <registrator.hpp>

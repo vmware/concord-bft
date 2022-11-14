@@ -18,13 +18,7 @@
 #include "types.hpp"
 #include <memory>
 #include <unordered_map>
-namespace libutt {
-class AddrSK;
-class RandSigPK;
-class RegAuthPK;
-class IEncryptor;
-class IDecryptor;
-}  // namespace libutt
+
 namespace libutt::api {
 class Coin;
 namespace operations {
@@ -63,7 +57,12 @@ class Client {
          const std::string& bank_public_key,
          const std::string& registration_public_key,
          const std::string& rsa_secret_key);
-
+  Client();
+  ~Client();
+  Client(const Client&);
+  Client& operator=(const Client&);
+  Client(Client&&);
+  Client& operator=(Client&&);
   /**
    * @brief Generates the input (partial) RCM (also marked as rcm1). This method is to be used in the first
    * registration step
@@ -155,10 +154,8 @@ class Client {
  private:
   friend class operations::Burn;
   friend class operations::Transaction;
-  std::unique_ptr<libutt::AddrSK> ask_;
-  std::unique_ptr<libutt::RandSigPK> bpk_;
-  std::unique_ptr<libutt::RegAuthPK> rpk_;
-  std::shared_ptr<libutt::IDecryptor> decryptor_;
+  struct Impl;
+  Impl* pImpl_;
   Commitment rcm_;
   types::Signature rcm_sig_;
   bool complete_s = false;

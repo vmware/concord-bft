@@ -17,20 +17,13 @@
 #include "budget.hpp"
 #include "Logger.hpp"
 #undef UNUSED
+#include "../../../utt/libutt/src/api/include/params.impl.hpp"
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>
-#include <utt/Params.h>
 #include <utt/IBE.h>
 #include <utt/Serialization.h>
-#include <utt/Address.h>
-#include <utt/Comm.h>
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
-#include <utt/Tx.h>
-
+#include <utt/DataUtils.hpp>
 #include <chrono>
 #include <map>
 #include <queue>
@@ -139,7 +132,7 @@ std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t 
   auto rc = RegAuthSK::generateKeyAndShares(thresh, n);
   GpData gp_data{dkg.getCK(), rc.ck_reg};
   UTTParams d = UTTParams::create((void*)(&gp_data));
-  rc.setIBEParams(d.getParams().ibe);
+  rc.setIBEParams(d.getImpl()->p.ibe);
   return {d, dkg, rc};
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {

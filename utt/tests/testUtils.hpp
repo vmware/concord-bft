@@ -5,15 +5,13 @@
 #include "registrator.hpp"
 #include "common.hpp"
 #include "coin.hpp"
+
+#include "../libutt/src/api/include/params.impl.hpp"
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>
-#include <utt/Params.h>
 #include <utt/IBE.h>
 #include <utt/Serialization.h>
-#include <utt/Address.h>
-#include <utt/Comm.h>
-#include <utt/Coin.h>
 
 #include <vector>
 #include <memory>
@@ -119,7 +117,7 @@ class test_utt_instance : public ::testing::Test {
     rsk = RegAuthSK::generateKeyAndShares(thresh, n);
     GpData gp_data{dkg.getCK(), rsk.ck_reg};
     d = UTTParams::create((void*)(&gp_data));
-    rsk.setIBEParams(d.getParams().ibe);
+    rsk.setIBEParams(d.getImpl()->p.ibe);
     rvk = rsk.toPK();
     bvk = dkg.getPK();
 

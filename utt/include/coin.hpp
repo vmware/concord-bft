@@ -21,7 +21,6 @@
 #include <iostream>
 
 namespace libutt {
-class Coin;
 namespace api {
 class Coin;
 }
@@ -86,9 +85,9 @@ class Coin {
   Coin();
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
-  Coin(Coin&& c) = default;
-  Coin& operator=(Coin&& c) = default;
-
+  Coin(Coin&& c);
+  Coin& operator=(Coin&& c);
+  ~Coin();
   /**
    * @brief Get the coin's Nullifier as a string
    *
@@ -179,7 +178,8 @@ class Coin {
   friend class operations::Budget;
   friend std::ostream& ::operator<<(std::ostream&, const libutt::api::Coin&);
   friend std::istream& ::operator>>(std::istream&, libutt::api::Coin&);
-  std::unique_ptr<libutt::Coin> coin_;
+  struct Impl;
+  Impl* pImpl_;
   bool has_sig_{false};
 
   Type type_;

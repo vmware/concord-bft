@@ -1,9 +1,8 @@
 #include "common.hpp"
+#include "include/commitment.impl.hpp"
+#include "include/params.impl.hpp"
 #include <utt/RandSig.h>
-#include <utt/Comm.h>
 #include <utt/Serialization.h>
-#include <utt/Params.h>
-
 #include <math.h>
 #include <ctime>
 #include <chrono>
@@ -41,7 +40,7 @@ types::Signature Utils::unblindSignature(const UTTParams& p,
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   std::vector<Fr> fr_randomness(randomness.size());
   for (size_t i = 0; i < randomness.size(); i++) fr_randomness[i].from_words(randomness[i]);
-  libutt::CommKey ck = Commitment::getCommitmentKey(p, t);
+  libutt::CommKey ck = Commitment::Impl::getCommitmentKey(p.pImpl_->p, (Commitment::Impl::Type)t);
   std::vector<G1> g = ck.g;  // g_1, g_2, \dots, g_\ell, g
   g.pop_back();              // g_1, g_2, \dots, g_\ell
 

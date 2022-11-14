@@ -29,7 +29,6 @@ std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Trans
 std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
 
 namespace libutt {
-class Tx;
 class IEncryptor;
 }  // namespace libutt
 
@@ -60,9 +59,11 @@ class Transaction {
               const IEncryptor& encryptor);
   Transaction();
   Transaction(const Transaction&);
-  Transaction(Transaction&&) = default;
   Transaction& operator=(const Transaction&);
-  Transaction& operator=(Transaction&&) = default;
+  ~Transaction();
+
+  Transaction(Transaction&&);
+  Transaction& operator=(Transaction&&);
   /**
    * @brief Get the transaction's nullifiers
    *
@@ -85,6 +86,7 @@ class Transaction {
   friend class libutt::api::Client;
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
-  std::shared_ptr<libutt::Tx> tx_;
+  struct Impl;
+  Impl* pImpl_;
 };
 }  // namespace libutt::api::operations

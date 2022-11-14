@@ -1,7 +1,6 @@
 #include "budget.hpp"
 #include "common.hpp"
-#include <utt/Params.h>
-#include <utt/Coin.h>
+#include "include/coin.impl.hpp"
 #include <utt/PolyCrypto.h>
 #include <utt/Serialization.h>
 
@@ -45,6 +44,6 @@ Budget::Budget(const UTTParams& d,
 libutt::api::Coin& Budget::getCoin() { return coin_; }
 const libutt::api::Coin& Budget::getCoin() const { return coin_; }
 std::string Budget::getHashHex() const {
-  return hashToHex(("Budget|" + libutt::serialize<libutt::Coin>((*coin_.coin_))));
+  return hashToHex("Budget|" + libutt::serialize<libutt::Coin>(coin_.pImpl_->c));
 }
 }  // namespace libutt::api::operations

@@ -14,13 +14,6 @@
 #include "utt-client-api/User.hpp"
 
 // libutt
-#include <utt/Params.h>
-#include <utt/RegAuth.h>
-#include <utt/RandSig.h>
-#include <utt/Address.h>
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/BurnOp.h>
 #include <utt/DataUtils.hpp>
 
 // libutt new interface

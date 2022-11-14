@@ -1,23 +1,23 @@
 #include <sstream>
 
 #include "UTTParams.hpp"
+#include "include/params.impl.hpp"
 #include <utt/RangeProof.h>
 #include <utt/NtlLib.h>
-#include <utt/Params.h>
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
-  out << params.getParams();
+  out << params.pImpl_->p;
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
-  params.params.reset(new libutt::Params());
-  in >> *(params.params);
+  params.pImpl_ = new libutt::api::UTTParams::Impl();
+  in >> params.pImpl_->p;
   return in;
 }
 bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2) {
-  if (!params1.params && !params2.params) return true;
-  if (!params1.params || !params2.params) return false;
-  return *(params1.params) == *(params2.params);
+  if (!params1.pImpl_ && !params2.pImpl_) return true;
+  if (!params1.pImpl_ || !params2.pImpl_) return false;
+  return params1.pImpl_->p == params2.pImpl_->p;
 }
 namespace libutt::api {
 using Fr = typename libff::default_ec_pp::Fp_type;
@@ -56,21 +56,30 @@ void UTTParams::initLibs(const UTTParams::BaseLibsInitData& init_data) {
 
 UTTParams UTTParams::create(void* initData) {
   UTTParams gp;
-  gp.params.reset(new libutt::Params());
+  gp.pImpl_ = new UTTParams::Impl();
   if (initData) {
     GpInitData* init_data = (GpInitData*)initData;
-    *(gp.params) = libutt::Params::random(init_data->cck);
-    gp.params->ck_reg = init_data->rck;
+    gp.pImpl_->p = libutt::Params::random(init_data->cck);
+    gp.pImpl_->p.ck_reg = init_data->rck;
   }
   return gp;
 }
-const libutt::Params& UTTParams::getParams() const { return *params; }
 
 UTTParams::UTTParams(const UTTParams& other) { *this = other; }
 UTTParams& UTTParams::operator=(const UTTParams& other) {
   if (this == &other) return *this;
-  params.reset(new libutt::Params());
-  *params = *(other.params);
+  pImpl_ = new UTTParams::Impl();
+  pImpl_->p = other.pImpl_->p;
   return *this;
 }
+
+UTTParams::~UTTParams() { delete pImpl_; }
+UTTParams::UTTParams(UTTParams&& other) { *this = std::move(other); }
+UTTParams& UTTParams::operator=(UTTParams&& other) {
+  pImpl_ = new UTTParams::Impl();
+  pImpl_->p = std::move(other.pImpl_->p);
+  return *this;
+}
+
+UTTParams::Impl* UTTParams::getImpl() { return pImpl_; }
 }  // namespace libutt::api

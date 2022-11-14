@@ -12,14 +12,12 @@
 // file.
 
 #include "config.hpp"
-
-#include <utt/Params.h>
+#include "UTTParams.hpp"
+#include "include/params.impl.hpp"
 #include <utt/RandSigDKG.h>
 #include <utt/RandSig.h>
 #include <utt/RegAuth.h>
 #include <utt/Serialization.h>
-
-#include <UTTParams.hpp>
 
 namespace libutt::api {
 
@@ -88,7 +86,7 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&commitmentKeys));
 
   // For some reason we need to go back and set the IBE parameters although we might not be using IBE.
-  rsk.setIBEParams(pImpl_->publicConfig_.pImpl_->params_.getParams().ibe);
+  rsk.setIBEParams(pImpl_->publicConfig_.pImpl_->params_.pImpl_->p.ibe);
 
   // Public verification keys
   pImpl_->publicConfig_.pImpl_->commitVerificationKey_ = dkg.sk.toPK();
