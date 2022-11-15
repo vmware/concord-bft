@@ -120,6 +120,17 @@ message GetPublicBalanceResponse {
     optional uint64 public_balance = 2;
 }
 
+message PublicTransferRequest {
+    optional string user_id = 1;
+    optional string recipient = 2;
+    optional uint64 value = 3;
+}
+
+message PublicTransferResponse {
+    optional string err = 1;
+}
+
+
 message WalletRequest {
     oneof req {
         // init
@@ -135,6 +146,8 @@ message WalletRequest {
         GetSignedTransactionRequest get_signed_tx = 8;
 
         GetPrivacyBudgetRequest get_privacy_budget = 9;
+
+        PublicTransferRequest public_transfer = 10;
     }
 }
 
@@ -154,5 +167,7 @@ message WalletResponse {
         GetSignedTransactionResponse get_signed_tx = 9;
 
         GetPrivacyBudgetResponse get_privacy_budget = 10;
+
+        PublicTransferResponse public_transfer = 11;
     }
 }

@@ -196,6 +196,35 @@ void Wallet::transfer(Channel& chan, uint64_t amount, const std::string& recipie
   std::cout << "Anonymous transfer done.\n";
 }
 
+void Wallet::publicTransfer(Channel& chan, uint64_t amount, const std::string& recipient) {
+  updatePublicBalance(chan);
+  if (publicBalance_ < amount) {
+    std::cout << "Insufficient public balance!\n";
+    return;
+  }
+  std::cout << "Processing public transfer of " << amount << " to " << recipient << "...\n";
+
+  WalletRequest req;
+  auto& publicTrnasfer = *req.mutable_public_transfer();
+  publicTrnasfer.set_user_id(userId_);
+  publicTrnasfer.set_recipient(recipient);
+  publicTrnasfer.set_value(amount);
+  chan->Write(req);
+
+  WalletResponse resp;
+  chan->Read(&resp);
+
+  if (!resp.has_public_transfer()) throw std::runtime_error("Expected public_transfer response from wallet service!");
+  const auto& publicTransferResp = resp.public_transfer();
+
+  if (publicTransferResp.has_err()) {
+    std::cout << publicTransferResp.err() << "\n";
+    return;
+  }
+
+  std::cout << "Public transfer done.\n";
+}
+
 void Wallet::burn(Channel& chan, uint64_t amount) {
   if (user_->getBalance() < amount) {
     std::cout << "Insufficient private balance!\n";
@@ -279,27 +308,28 @@ void Wallet::updateBudget(Channel& chan) {
   user_->updatePrivacyBudget(budget, sig);
 }
 
+void Wallet::updatePublicBalance(Channel& chan) {
+  WalletRequest req;
+  req.mutable_get_public_balance()->set_user_id(userId_);
+  chan->Write(req);
+
+  WalletResponse resp;
+  chan->Read(&resp);
+  if (!resp.has_get_public_balance())
+    throw std::runtime_error("Expected get public balance response from wallet service!");
+  const auto& getPubBalanceResp = resp.get_public_balance();
+
+  if (getPubBalanceResp.has_err()) {
+    std::cout << "Failed to get public balance:" << resp.err() << '\n';
+  } else {
+    publicBalance_ = getPubBalanceResp.public_balance();
+  }
+}
+
 void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
   std::cout << "Synchronizing state...\n";
 
-  // Update public balance
-  {
-    WalletRequest req;
-    req.mutable_get_public_balance()->set_user_id(userId_);
-    chan->Write(req);
-
-    WalletResponse resp;
-    chan->Read(&resp);
-    if (!resp.has_get_public_balance())
-      throw std::runtime_error("Expected get public balance response from wallet service!");
-    const auto& getPubBalanceResp = resp.get_public_balance();
-
-    if (getPubBalanceResp.has_err()) {
-      std::cout << "Failed to get public balance:" << resp.err() << '\n';
-    } else {
-      publicBalance_ = getPubBalanceResp.public_balance();
-    }
-  }
+  updatePublicBalance(chan);
 
   updateBudget(chan);
 

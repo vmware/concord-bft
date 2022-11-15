@@ -56,6 +56,8 @@ void printHelp() {
   std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
   std::cout << "mint <amount>             -- mint the requested amount of public funds.\n";
   std::cout << "transfer <amount> <to-user-id> -- transfers the specified amount between users.\n";
+  std::cout
+      << "public-transfer <amount> <to-user-id> -- transfers the specified amount of public funds between users.\n";
   std::cout << "burn <amount>             -- burns the specified amount of private funds to public funds.\n";
   std::cout << '\n';
 }
@@ -137,6 +139,20 @@ struct CLIApp {
     wallet->showInfo(chan);
   }
 
+  void publicTransferCmd(const std::vector<std::string>& cmdTokens) {
+    if (cmdTokens.size() != 3) {
+      std::cout << "Usage: transfer <amount> <recipient>\n";
+      return;
+    }
+    int amount = std::atoi(cmdTokens[1].c_str());
+    if (amount <= 0) {
+      std::cout << "Expected a positive transfer amount!\n";
+      return;
+    }
+    wallet->publicTransfer(chan, (uint64_t)amount, cmdTokens[2]);
+    wallet->showInfo(chan);
+  }
+
   void burnCmd(const std::vector<std::string>& cmdTokens) {
     if (cmdTokens.size() != 2) {
       std::cout << "Usage: burn <amount>\n";
@@ -215,6 +231,8 @@ int main(int argc, char* argv[]) {
           app.mintCmd(cmdTokens);
         } else if (cmdTokens[0] == "transfer") {
           app.transferCmd(cmdTokens);
+        } else if (cmdTokens[0] == "public-transfer") {
+          app.publicTransferCmd(cmdTokens);
         } else if (cmdTokens[0] == "burn") {
           app.burnCmd(cmdTokens);
         } else if (cmdTokens[0] == "debug") {

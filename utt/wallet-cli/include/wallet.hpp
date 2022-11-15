@@ -55,6 +55,11 @@ class Wallet {
   /// @param recipient The user id of the recipient
   void transfer(Channel& chan, uint64_t amount, const std::string& recipient);
 
+  /// @brief  Transfer public (ERC20) funds from wallet to address.
+  /// @param amount The amount of public funds to transfer
+  /// @param recipient The user id of the recipient
+  void publicTransfer(Channel& chan, uint64_t amount, const std::string& recipient);
+
   /// @brief Burns the desired amount of private funds and converts them to public funds.
   /// @param amount The amount of private funds to burn.
   void burn(Channel& chan, uint64_t amount);
@@ -66,6 +71,9 @@ class Wallet {
   /// last signed transaction number will be fetched from the system
   void syncState(Channel& chan, uint64_t lastKnownTxNum = 0);
   void updateBudget(Channel& chan);
+
+  /// @brief Updates the ERC20 balance of the wallet.
+  void updatePublicBalance(Channel& chan);
 
   struct DummyUserStorage : public utt::client::IUserStorage {};
 
