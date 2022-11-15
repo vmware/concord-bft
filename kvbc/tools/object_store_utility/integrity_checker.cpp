@@ -75,14 +75,15 @@ std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() co
   LOG_INFO(logger_, "Last block: " << lastBlock);
   auto it = dynamic_cast<s3::Client*>(s3_dbset_.metadataDBClient.get())
                 ->getIterator<s3::Client::SortByModifiedDescIterator>();
-  auto kvData = it->seekAtLeast(Sliver::copy(checkpoints_prefix_.data(), checkpoints_prefix_.length()));
+  auto [key, val] = it->seekAtLeast(Sliver::copy(checkpoints_prefix_.data(), checkpoints_prefix_.length()));
+  UNUSED(val);
   if (it->isEnd()) throw std::runtime_error("no checkpoints information in S3 storage");
 
-  std::string suff = kvData.first.toString().substr(checkpoints_prefix_.length());
+  std::string suff = key.toString().substr(checkpoints_prefix_.length());
   BlockId block = util::to<BlockId>(suff.substr(0, suff.find_last_of('/')));
-  LOG_INFO(logger_, "Latest checkpoint descriptor: " << kvData.first.toString() << " for " << KVLOG(block));
+  LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for " << KVLOG(block));
   delete it;
-  auto desc = getCheckpointDescriptor(kvData.first);
+  auto desc = getCheckpointDescriptor(key);
   Digest digest(desc.checkpointMsgs[0]->stateDigest().content());
   return std::make_pair(block, digest);
 }
@@ -215,15 +216,17 @@ void IntegrityChecker::validateRange(const BlockId& until_block) const {
 void IntegrityChecker::validateKey(const std::string& key) const {
   // Retrieve the latest block number for specified key
   Sliver sKey = Sliver::copy(key.data(), key.length());
-  auto kvData = s3_dbset_.dbAdapter->getValue(sKey, 0);
-  auto containing_block_id = util::to<BlockId>(kvData.first.data());
+  auto [containing_block, _] = s3_dbset_.dbAdapter->getValue(sKey, 0);
+  UNUSED(_);
+  auto containing_block_id = util::to<BlockId>(containing_block.data());
   LOG_INFO(logger_, KVLOG(containing_block_id));
 
   auto [block_id, digest] = getCheckpointDescriptor(containing_block_id);
   for (auto block = block_id; block >= containing_block_id; --block) digest = checkBlock(block, digest);
 
   // retrieve block and get value
-  auto kvBlockData = getBlock(containing_block_id);
+  auto [block_digest, raw_block] = getBlock(containing_block_id);
+  UNUSED(block_digest);
   std::optional<concord::kvbc::categorization::CategoryInput> category_input;
   std::visit(
       [&category_input](auto&& l_raw_block) {
@@ -235,7 +238,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
           category_input.emplace(l_raw_block.data.updates);
         }
       },
-      std::move(kvBlockData.second));
+      std::move(raw_block));
 
   if (category_input) {
     for (auto& [category, value] : category_input->kv) {
