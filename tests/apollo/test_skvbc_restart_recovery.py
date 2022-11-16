@@ -583,7 +583,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             # Advance the system 5 Checkpoints.
             skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
             await skvbc.fill_and_wait_for_checkpoint(
-                initial_nodes=bft_network.all_replicas(without={replica_to_restart}),
+                initial_nodes=[next_primary],
                 num_of_checkpoints_to_add=5,
                 verify_checkpoint_persistency=False,
                 assert_state_transfer_not_started=False
