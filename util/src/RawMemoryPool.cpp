@@ -85,12 +85,13 @@ char* RawMemoryPool::allocateChunk() {
     chunk = new char[chunkSize_];
     increaseNumOfAllocatedChunks();
   }
-  if (chunk)
+  if (chunk) {
     LOG_DEBUG(logger(),
               "A chunk has been allocated" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_, (void*)chunk));
-  else
+  } else {
     LOG_WARN(logger(),
              "The pool size has reached the maximum, wait for a chunk to become available" << KVLOG(maxChunksNum_));
+  }
   return chunk;
 }
 

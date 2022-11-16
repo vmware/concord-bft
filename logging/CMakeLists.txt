@@ -20,6 +20,7 @@ else(USE_LOG4CPP)
 	target_sources(logging PRIVATE src/Logging.cpp)
 endif(USE_LOG4CPP)
 
-
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY LINK_LIBRARIES logging)
-set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES logging) 
+if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+    set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES logging)
+endif()

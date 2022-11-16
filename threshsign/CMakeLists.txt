@@ -9,7 +9,11 @@ find_package(Threads REQUIRED)
 
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
-string(APPEND CXX_FLAGS " -Werror")
+
+if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+    string(APPEND CXX_FLAGS " -Werror")
+endif()
+
 if(USE_LOG4CPP)
 	#log4cplus needs pthread
 	string(APPEND CXX_FLAGS " -pthread")
