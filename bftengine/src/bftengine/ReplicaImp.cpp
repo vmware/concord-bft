@@ -1056,8 +1056,7 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
 
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message) {
-  auto *msg = message.release();
-  if (isSeqNumToStopAt(msg->seqNumber())) {
+  if (isSeqNumToStopAt(message->seqNumber())) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -1065,7 +1064,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message
   }
 
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
-    if (!validatePreProcessedResults(msg, getCurrentView())) {
+    if (!validatePreProcessedResults(message.get(), getCurrentView())) {
       // trigger view change
       LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
@@ -1074,16 +1073,12 @@ void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message
   }
 
   metric_received_pre_prepares_++;
-  const SeqNum msgSeqNum = msg->seqNumber();
-
+  const SeqNum msgSeqNum = message->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
-  LOG_INFO(CNSUS, "Received PrePrepareMsg" << KVLOG(msg->senderId(), msgSeqNum, msg->size()));
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "handle_bft_preprepare");
-  span.setTag("rid", config_.getreplicaId());
-  span.setTag("seq_num", msgSeqNum);
+  LOG_INFO(CNSUS, "Received PrePrepareMsg" << KVLOG(message->senderId(), msgSeqNum, message->size()));
 
+  auto *msg = message.release();
   if (!currentViewIsActive() && viewsManager->waitingForMsgs() && msgSeqNum > lastStableSeqNum) {
     ConcordAssert(!msg->isNull());  // we should never send (and never accept) null PrePrepare message
 
@@ -1092,13 +1087,12 @@ void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message
       tryToEnterView();
     } else {
       LOG_INFO(CNSUS, "PrePrepare discarded.");
+      delete msg;
     }
-
-    return;  // TODO(GG): memory deallocation is confusing .....
+    return;
   }
 
   bool msgAdded = false;
-
   if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
     sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
@@ -1300,9 +1294,6 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(std::unique_ptr<StartSlowCommitMs
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(CNSUS, "Received StartSlowCommitMsg " << KVLOG(msgSeqNum, msg->senderId()));
 
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_start_slow_commit_msg");
-  (void)span;
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, currentPrimary(), msgSeqNum);
 
@@ -1325,7 +1316,6 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(std::unique_ptr<StartSlowCommitMs
         sendPreparePartial(seqNumInfo);
     }
   }
-
   delete msg;
 }
 
@@ -1458,24 +1448,16 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(std::unique_ptr<PartialCommitP
   ConcordAssert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
   LOG_INFO(CNSUS, "Received PartialCommitProofMsg. " << KVLOG(msgSender, msgSeqNum, msg->size()));
-
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_partial_commit_proof_msg");
-  (void)span;
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
-
     if (msgSeqNum > lastExecutedSeqNum + activeExecutions_) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-
       if (seqNumInfo.addFastPathPartialCommitMsg(msg)) {
         return;
       }
     }
   }
-
   delete msg;
-  return;
 }
 
 template <>
@@ -1487,12 +1469,9 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(std::unique_ptr<FullCommitProofMs
       [&s = getIncomingMsgsStorage()](char *msg, size_t &size) { s.pushExternalMsgRaw(msg, size); });
 
   metric_received_full_commit_proofs_++;
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_full_commit_proof_msg");
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
-
   LOG_INFO(CNSUS, "Received FullCommitProofMsg message. " << KVLOG(msg->senderId(), msgSeqNum, msg->size()));
 
   if (relevantMsgForActiveView(msg)) {
@@ -1510,9 +1489,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(std::unique_ptr<FullCommitProofMs
       return;  // We've added the msg -- don't delete!
     }
   }
-
   delete msg;
-  return;
 }
 
 /**
@@ -1749,11 +1726,6 @@ void ReplicaImp::onMessage<PreparePartialMsg>(std::unique_ptr<PreparePartialMsg>
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
 
   bool msgAdded = false;
-
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_prepare_partial_msg");
-  (void)span;
-
   if (relevantMsgForActiveView(msg)) {
     ConcordAssert(isCurrentPrimary());
 
@@ -1802,10 +1774,6 @@ void ReplicaImp::onMessage<CommitPartialMsg>(std::unique_ptr<CommitPartialMsg> m
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
 
   bool msgAdded = false;
-
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_commit_partial_msg");
-  (void)span;
   if (relevantMsgForActiveView(msg)) {
     ConcordAssert(isCurrentPrimary());
 
@@ -1843,11 +1811,8 @@ void ReplicaImp::onMessage<PrepareFullMsg>(std::unique_ptr<PrepareFullMsg> messa
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_preprare_full_msg");
-  (void)span;
+  bool msgAdded = false;
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1886,11 +1851,8 @@ void ReplicaImp::onMessage<CommitFullMsg>(std::unique_ptr<CommitFullMsg> message
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
-  bool msgAdded = false;
 
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_commit_full_msg");
-  (void)span;
+  bool msgAdded = false;
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -2227,9 +2189,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
-
   updateCommitMetrics(cPath);
-
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
@@ -2292,9 +2252,7 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
-
   updateCommitMetrics(cPath);
-
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
@@ -2329,10 +2287,6 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
                                                               reservedPagesDigest,
                                                               rvbDataDigest));
   LOG_INFO(GL, KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_checkpoint_msg");
-  (void)span;
-
   if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize) &&
       (msgEpochNum >= getSelfEpochNumber())) {
     ConcordAssert(mainLog->insideActiveWindow(msgSeqNum));
@@ -2664,9 +2618,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(std::unique_ptr<ReplicaStatusMsg> m
   // connection/disconnection.
 
   auto *msg = message.release();
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handling_status_report");
-  (void)span;
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgLastStable = msg->getLastStableSeqNum();
   const ViewNum msgViewNum = msg->getViewNumber();
@@ -4730,9 +4681,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
 
   auto span = concordUtils::startChildSpan("bft_execute_read_only_request", parent_span);
   ClientReplyMsg reply(currentPrimary(), request->requestSeqNum(), config_.getreplicaId());
-
   uint16_t clientId = request->clientProxyId();
-
   int status = 0;
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
