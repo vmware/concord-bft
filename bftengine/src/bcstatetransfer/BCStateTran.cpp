@@ -1029,7 +1029,7 @@ void BCStateTran::finalizeCycle() {
   DataStoreTransaction::Guard g(psd_->beginTransaction());
   LOG_TRACE(logger_, "Finalizing cycle");
 
-  const DataStore::CheckpointDesc &cp = targetCheckpointDesc_;
+  uint64_t checkpointNum{targetCheckpointDesc_.checkpointNum};
   metrics_.on_transferring_complete_++;
   cycleEndSummary();
   stReset(g.txn());
@@ -1039,10 +1039,10 @@ void BCStateTran::finalizeCycle() {
   // TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
   // on_fetching_state_change_cb_registry_ should be removed
   auto size = on_fetching_state_change_cb_registry_.size();
-  LOG_INFO(logger_,
-           "Starting to invoke all registered calls (on_fetching_state_change_cb_registry_):" << KVLOG(
-               size, cp.checkpointNum));
-  on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
+  LOG_INFO(
+      logger_,
+      "Starting to invoke all registered calls (on_fetching_state_change_cb_registry_):" << KVLOG(size, checkpointNum));
+  on_fetching_state_change_cb_registry_.invokeAll(checkpointNum);
   LOG_INFO(logger_, "Done invoking all registered calls (on_fetching_state_change_cb_registry_)");
 }
 
