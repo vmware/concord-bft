@@ -77,7 +77,6 @@ using concordMetrics::StatusHandle;
 
 class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
-  std::atomic_bool isCollectingState_;
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
 
@@ -374,7 +373,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // InternalReplicaApi
   bool isCollectingState() const override {
     LOG_TRACE(GL, "Thread ID: " << std::this_thread::get_id());
-    return isCollectingState_;
+    return stateTransfer->isCollectingState();
   }
   void startCollectingState(std::string&& reason = "");
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
@@ -389,12 +388,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->isClientRequestInProcess(clientId, reqSeqNum);
-  }
-  inline void setCollectingState(bool newState) {
-    LOG_INFO(GL,
-             std::boolalpha << "Setting CollectingState to" << KVLOG(newState)
-                            << " Thread ID: " << std::this_thread::get_id());
-    isCollectingState_ = newState;
   }
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
