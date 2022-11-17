@@ -1068,6 +1068,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    delete msg;
     return;
   }
 
@@ -1076,6 +1077,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       // trigger view change
       LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+      delete msg;
       return;
     }
   }
@@ -1100,7 +1102,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     } else {
       LOG_INFO(CNSUS, "PrePrepare discarded.");
     }
-
     return;  // TODO(GG): memory deallocation is confusing .....
   }
 
