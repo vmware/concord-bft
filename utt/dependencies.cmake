@@ -24,7 +24,7 @@ ExternalProject_Add(libsodium
 ExternalProject_Add(ntl
                     PREFIX ntl
                     URL "https://libntl.org/ntl-11.5.1.tar.gz"
-                    CONFIGURE_COMMAND cd src && ./configure PREFIX=${THIRDPARTY_INSTALL_DIR}
+                    CONFIGURE_COMMAND cd src && ./configure NTL_THREADS=off PREFIX=${THIRDPARTY_INSTALL_DIR}
                     BUILD_IN_SOURCE 1
                     LOG_DOWNLOAD 1
                     LOG_BUILD 1
