@@ -135,8 +135,11 @@ void DbCheckpointManager::init() {
 
   monitorThread_ = std::thread([this]() {
     while (maxNumOfCheckpoints_ && !stopped_) {
+      std::unique_lock<std::mutex> lk(shutdownLock_);
       checkAndRemove();
-      std::this_thread::sleep_for(std::chrono::seconds{ReplicaConfig::instance().dbCheckpointMonitorIntervalSeconds});
+      shutdownCond_.wait_for(lk,
+                             std::chrono::seconds{ReplicaConfig::instance().dbCheckpointMonitorIntervalSeconds},
+                             [this] { return stopped_ == true; });
     }
   });
 }
