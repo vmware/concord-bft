@@ -103,7 +103,7 @@ class BCStateTran : public IStateTransfer {
                                   outRVBDataDigest);
   }
   void startCollectingState() override { startCollectingStateHandler_(); }
-  bool isCollectingState() const override { return psd_->getIsFetchingState(); }
+  bool isCollectingState() const override { return externalCollectingState_; }
   void onTimer() override { onTimerHandler_(); };
 
   // Handle ST incoming messages
@@ -469,6 +469,10 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
+  // startCollectingStateExternal() is invoked by the API call startCollectingState().
+  // startCollectingStateInternal is invoked by internal logic (ST main thread).
+  // both functions invoke startCollectingStateImpl() to start the actual St cycle.
+  void startCollectingStateExternal();
   // enter a new cycle internally
   void startCollectingStateInternal();
 
@@ -765,6 +769,13 @@ class BCStateTran : public IStateTransfer {
   DurationTracker<std::chrono::milliseconds> gettingMissingResPagesDT_;
 
   FetchingState lastFetchingState_;
+
+  // For speed, we choose to make the API call isCollectingState() non-blocked, and it doesn't pass through handoff
+  // queue. This flag represents ST basic state to the outside: is it currently collecting/not collecting. It is set in
+  // slightly different time points to ensure thread safety towards external modules and threads.
+  std::atomic_bool externalCollectingState_{false};
+  // This function is thread safe, execued only by ST processing main thread
+  void setExternalCollectingState(bool newVal);
 
   void onFetchingStateChange(FetchingState newFetchingState);
 
