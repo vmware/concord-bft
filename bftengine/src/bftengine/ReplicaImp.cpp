@@ -3374,7 +3374,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     if (ps_) {
       ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
     }
-    setIsCollectingState(false);
+    setCollectingState(false);
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
@@ -3441,7 +3441,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     tryToEnterView();
   }
 
-  setIsCollectingState(false);
+  setCollectingState(false);
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
@@ -4348,7 +4348,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<PersistentStorage> ps,
                        const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
-      isCollectingState_{stateTransfer->isCollectingState()},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
@@ -4462,6 +4461,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr) && (sigManager != nullptr)));
 
+  // Assigning and not initializing isCollectingState_ in order to get a unitifed log print (with thread ID)
+  setCollectingState(stateTransfer->isCollectingState())
   LOG_INFO(GL, "Initialising Replica" << KVLOG(firstTime));
 
   onViewNumCallbacks_.add(viewChangeCallBack);
@@ -5318,7 +5319,7 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
 }
 
 void ReplicaImp::startCollectingState(std::string &&reason) {
-  setIsCollectingState(true);
+  setCollectingState(true);
   LOG_INFO(GL, "Start Collecting State" << KVLOG(reason));
   time_in_state_transfer_.start();
   clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout

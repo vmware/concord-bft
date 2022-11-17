@@ -390,7 +390,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->isClientRequestInProcess(clientId, reqSeqNum);
   }
-  inline void setIsCollectingState(bool newState) {
+  inline void setCollectingState(bool newState) {
     LOG_INFO(GL,
              std::boolalpha << "Setting CollectingState to" << KVLOG(newState)
                             << " Thread ID: " << std::this_thread::get_id());
