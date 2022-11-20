@@ -534,9 +534,12 @@ bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
                                              NodeIdType senderId,
                                              const std::string &batchCid) const {
   if (myReplica_.isCollectingState()) {
-    LOG_INFO(logger(),
-             "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId));
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId));
     return false;
   }
   if (isReadOnly) {
@@ -858,9 +861,12 @@ bool PreProcessor::checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
                                                    const string &batchCid,
                                                    uint16_t reqOffsetInBatch) {
   if (myReplica_.isCollectingState()) {
-    LOG_INFO(logger(),
-             "Ignore PreProcessRequestMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore PreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
     return false;
   }
 
@@ -1116,9 +1122,12 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
 bool PreProcessor::checkPreProcessReplyPrerequisites(
     SeqNum reqSeqNum, const string &reqCid, NodeIdType senderId, const string &batchCid, uint16_t offsetInBatch) {
   if (myReplica_.isCollectingState()) {
-    LOG_INFO(logger(),
-             "Ignore PreProcessReplyMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, offsetInBatch));
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore PreProcessReplyMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, offsetInBatch));
     return false;
   }
 
