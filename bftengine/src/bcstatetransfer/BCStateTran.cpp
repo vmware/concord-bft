@@ -393,6 +393,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
       if (isActiveDestination(fs)) {
         LOG_INFO(logger_, "State Transfer cycle continues");
+        setExternalCollectingState(true);
         startCollectingStats();
         if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
           setAllReplicasAsPreferred();
@@ -413,6 +414,8 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
             totalBlocksLeftToCollectInCycle_ = maxBlockIdToCollectInCycle_ - minBlockIdToCollectInCycle_ + 1;
           }
         }
+      } else {
+        setExternalCollectingState(false);
       }
       loadMetrics();
     } else {
@@ -421,6 +424,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
         DataStoreTransaction::Guard g(psd_->beginTransaction());
         stReset(g.txn(), true, true, true);
       }
+      setExternalCollectingState(false);
       ConcordAssertGE(maxNumOfRequiredStoredCheckpoints, 2);
       ConcordAssertLE(maxNumOfRequiredStoredCheckpoints, kMaxNumOfStoredCheckpoints);
       ConcordAssertGE(numberOfRequiredReservedPages, 2);
@@ -484,6 +488,7 @@ void BCStateTran::stopRunningImpl() {
     DataStoreTransaction::Guard g(psd_->beginTransaction());
     stReset(g.txn(), true, false, false);
   }
+  setExternalCollectingState(false);
   replicaForStateTransfer_ = nullptr;
   LOG_TRACE(logger_, "Done stopRunningImpl");
 }
@@ -917,12 +922,26 @@ void BCStateTran::startCollectingStateInternal() {
   startCollectingStateImpl();
 }
 
-void BCStateTran::startCollectingStateImpl() {
+void BCStateTran::setExternalCollectingState(bool newVal) {
+  if (newVal == externalCollectingState_) {
+    LOG_WARN(logger_, "Trying to set into an already existing state:" << KVLOG(newVal, externalCollectingState_));
+    return;
+  }
+  externalCollectingState_ = newVal;
+  LOG_INFO(logger_, std::boolalpha << KVLOG(externalCollectingState_));
+}
+
+void BCStateTran::startCollectingStateExternal() {
   ConcordAssert(running_);
-  if (psd_->getIsFetchingState()) {
+  if (isCollectingState()) {
     LOG_WARN(logger_, "Already in State Transfer, ignore call...");
     return;
   }
+  setExternalCollectingState(true);
+  startCollectingStateImpl();
+}
+
+void BCStateTran::startCollectingStateImpl() {
   ++cycleCounter_;
   auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
   LOG_INFO(logger_, "State Transfer cycle started:" << KVLOG(cycleCounter_, internalCycleCounter));
@@ -1026,23 +1045,30 @@ void BCStateTran::onTimerImpl() {
 }
 
 void BCStateTran::finalizeCycle() {
-  DataStoreTransaction::Guard g(psd_->beginTransaction());
-  LOG_TRACE(logger_, "Finalizing cycle");
+  uint64_t checkpointNum{targetCheckpointDesc_.checkpointNum};
+  {
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    LOG_TRACE(logger_, "Finalizing cycle");
 
-  const DataStore::CheckpointDesc &cp = targetCheckpointDesc_;
-  metrics_.on_transferring_complete_++;
-  cycleEndSummary();
-  stReset(g.txn());
-  g.txn()->setIsFetchingState(false);
-  ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+    metrics_.on_transferring_complete_++;
+    cycleEndSummary();
+    stReset(g.txn());
+    g.txn()->setIsFetchingState(false);
+    ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+  }  // guard destroyed, ST marked as completed also in dataStore
 
-  // TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
+  // Mark ST final completion to "outside world" - After this call any incoming messages are not dropped.
+  setExternalCollectingState(false);
+
+  // Now after external state have changed, invoke the 2nd group of registered callbacks
+  // TODO - This next line should be converted to an internal message. There is no need for a callback here. ST is done.
+  // worst case we will have some few incoming messages dropped, until key-exchange is done.
   // on_fetching_state_change_cb_registry_ should be removed
   auto size = on_fetching_state_change_cb_registry_.size();
-  LOG_INFO(logger_,
-           "Starting to invoke all registered calls (on_fetching_state_change_cb_registry_):" << KVLOG(
-               size, cp.checkpointNum));
-  on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
+  LOG_INFO(
+      logger_,
+      "Starting to invoke all registered calls (on_fetching_state_change_cb_registry_):" << KVLOG(size, checkpointNum));
+  on_fetching_state_change_cb_registry_.invokeAll(checkpointNum);
   LOG_INFO(logger_, "Done invoking all registered calls (on_fetching_state_change_cb_registry_)");
 }
 

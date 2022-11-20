@@ -297,6 +297,7 @@ test-range: ## Run all tests in the range [START,END], inclusive: `make test-ran
 .PHONY: test-single-suite
 test-single-suite: SHELL:=/bin/bash
 test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Example: `make test-single-suite TEST_NAME=timers_tests BREAK_ON_FAILURE=TRUE NUM_REPEATS=3`
+	@if [ -z ${TEST_NAME} ]; then echo "Error: please set the TEST_NAME environment variable!"; exit 1; fi
 	num_failures=0; \
 	for (( i=1; i<=${NUM_REPEATS__}; i++ )); do \
 		echo "=== Starting iteration $${i}/${NUM_REPEATS__}"; \
@@ -313,8 +314,8 @@ test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test 
 
 .PHONY: test-single-apollo-case
 test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
-	@if [ -z ${TEST_FILE_NAME} ]; then echo "Error: TEST_FILE_NAME is mandatory"; exit 1; fi
-	@if [ -z ${TEST_CASE_NAME} ]; then echo "Error: TEST_CASE_NAME is mandatory"; exit 1; fi
+	@if [ -z ${TEST_FILE_NAME} ]; then echo "Error: please set the TEST_FILE_NAME environment variable!"; exit 1; fi
+	@if [ -z ${TEST_CASE_NAME} ]; then echo "Error: please set the TEST_CASE_NAME environment variable!"; exit 1; fi
 	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
@@ -325,8 +326,8 @@ test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apo
 		"python3 scripts/apollo_list_tests.py \
 		${CONCORD_BFT_TARGET_SOURCE_PATH}/tests/apollo/ f | grep ${TEST_FILE_NAME} | grep -w ${TEST_CASE_NAME}"))
 	@if [ -z "${PREFIX}" ] || [ -z "${POSTFIX}" ]; then \
-		echo "Error: Failed to start test, check if TEST_FILE_NAME=${TEST_FILE_NAME}" \
-			"or TEST_CASE_NAME=${TEST_CASE_NAME} exist."; exit 1;\
+		echo "Error: Failed to start test, please check if TEST_FILE_NAME=${TEST_FILE_NAME}" \
+			"or TEST_CASE_NAME=${TEST_CASE_NAME} environment variables exist!"; exit 1;\
 	fi
 	@docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c "cd tests/apollo/; \
@@ -334,8 +335,8 @@ test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apo
 
 .PHONY: test-single-gtest-case
 test-single-gtest-case: ## Run a single GoogleTest test case: `make test-single-gtest-case TEST_NAME=<test suite name> TEST_CASE_FILTER=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Call `make lists-tests` to get test suite name. The test case STRING is a filter used with --gtest_filter=*<STRING>*. Example: `make test-single-gtest-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=10 TEST_NAME=bcstatetransfer_tests TEST_CASE_FILTER=srcHandleAskForCheckpointSummariesMsg`
-	@if [ -z ${TEST_NAME} ]; then echo "Error: TEST_NAME is mandatory"; exit 1; fi
-	@if [ -z ${TEST_CASE_FILTER} ]; then echo "Error: TEST_CASE_FILTER is mandatory"; exit 1; fi
+	@if [ -z ${TEST_NAME} ]; then echo "Error: please set the TEST_NAME environment variable!"; exit 1; fi
+	@if [ -z ${TEST_CASE_FILTER} ]; then echo "Error: please set the TEST_CASE_FILTER environment variable!"; exit 1; fi
 	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
 			${CONCORD_BFT_CONTAINER_SHELL} -c "cd ${CONCORD_BFT_BUILD_DIR} && find . -iname ${TEST_NAME}"))
 	@if [ '${BREAK_ON_FAILURE__}' = 'TRUE' ]; then break_on_failure_opt="--gtest_throw_on_failure"; fi; \

@@ -2013,7 +2013,7 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
                                    testState_.maxRequiredBlockId));
 }
 
-// This test checks that replica enters a new internal cycle when reserved pages reuqest is rejected.
+// This test checks that replica enters a new internal cycle when reserved pages request is rejected.
 TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesRejection) {
   ASSERT_NFF(initialize());
 
@@ -2038,7 +2038,7 @@ TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesRejection) {
 
 // This test makes sure that current primary is not modified during GettingCheckpointSummaries
 // Its doing so by checking the value of currentPrimary in source selector.
-// It sends 2 cycles of preprepare messages that in any other St state whould have triggerred a new primary awarness.
+// It sends 2 cycles of pre prepare messages that in any other ST state would have triggered a new primary awareness.
 // Since they are sent during GettingCheckpointSummaries, they are being  ignored.
 TEST_F(BcStTest, dstTestprimaryAwarnessduringAskForCheckpointSummariesMsg) {
   ASSERT_NFF(initialize());
