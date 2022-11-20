@@ -3374,7 +3374,6 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     if (ps_) {
       ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
     }
-    setIsCollectingState(false);
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
@@ -3440,8 +3439,6 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
     tryToEnterView();
   }
-
-  setIsCollectingState(false);
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
@@ -4348,7 +4345,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<PersistentStorage> ps,
                        const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
-      isCollectingState_{stateTransfer->isCollectingState()},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
@@ -4480,6 +4476,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
         KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
         LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
+    } else {
+      LOG_WARN(GL, "State Transfer is still collecting! Initial key exchange cannot yet be initiated!");
     }
   });
   registerMsgHandlers();
@@ -5318,7 +5316,6 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
 }
 
 void ReplicaImp::startCollectingState(std::string &&reason) {
-  setIsCollectingState(true);
   LOG_INFO(GL, "Start Collecting State" << KVLOG(reason));
   time_in_state_transfer_.start();
   clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
