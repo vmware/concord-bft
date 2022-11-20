@@ -181,6 +181,11 @@ class Replica : public IReplica,
   }
 
   virtual ~Replica();
+  std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return m_replicaPtr->getMsgsCommunicator(); }
+  std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const {
+    return m_replicaPtr->getMsgHandlersRegistrator();
+  }
+  concordUtil::Timers *getTimers() { return m_replicaPtr->getTimers(); }
 
  protected:
   RawBlock getBlockInternal(BlockId blockId) const;

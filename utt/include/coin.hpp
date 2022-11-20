@@ -21,7 +21,6 @@
 #include <iostream>
 
 namespace libutt {
-class Coin;
 namespace api {
 class Coin;
 }
@@ -81,13 +80,14 @@ class Coin {
        const types::CurvePoint& val,
        const types::CurvePoint& client_id_hash,
        Type t,
-       const types::CurvePoint& expiration_date);
+       const types::CurvePoint& expiration_date,
+       bool finalize = true);
   Coin();
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
-  Coin(Coin&& c) = default;
-  Coin& operator=(Coin&& c) = default;
-
+  Coin(Coin&& c);
+  Coin& operator=(Coin&& c);
+  ~Coin();
   /**
    * @brief Get the coin's Nullifier as a string
    *
@@ -102,6 +102,7 @@ class Coin {
    * @param prf The secret client's PRF key
    */
   void createNullifier(const UTTParams& p, const types::CurvePoint& prf);
+  void finalize(const UTTParams& p, const types::CurvePoint& prf);
 
   /**
    * @brief Check if this coin has a signature associated with it
@@ -168,6 +169,8 @@ class Coin {
    */
   types::CurvePoint getExpDateAsCurvePoint() const;
 
+  uint64_t getExpDate() const;
+
  private:
   friend class Client;
   friend class operations::Burn;
@@ -175,7 +178,8 @@ class Coin {
   friend class operations::Budget;
   friend std::ostream& ::operator<<(std::ostream&, const libutt::api::Coin&);
   friend std::istream& ::operator>>(std::istream&, libutt::api::Coin&);
-  std::unique_ptr<libutt::Coin> coin_;
+  struct Impl;
+  Impl* pImpl_;
   bool has_sig_{false};
 
   Type type_;

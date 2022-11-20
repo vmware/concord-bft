@@ -1,0 +1,173 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// UTT Wallet's api
+
+syntax = "proto3";
+// [TODO-UTT] Condense this package identifier into fewer tokens?
+package vmware.concord.utt.wallet.api.v1; 
+
+// Privacy Wallet Service Interface
+service WalletService {
+    rpc walletChannel(stream WalletRequest) returns (stream WalletResponse);
+}
+
+enum TxType {
+    UNDEFINED = 0;
+    MINT = 1;
+    BURN = 2;
+    TRANSFER = 3;
+}
+
+message ConfigureRequest {
+}
+
+message ConfigureResponse {
+    optional string err = 1;
+    optional string privacy_contract_addr = 2;
+    optional string token_contract_addr = 3;
+    optional bytes public_config = 4;
+}
+
+message RegisterUserRequest {
+    optional string user_id = 1;    
+    optional string user_pk = 2;    // The user's public key
+    optional bytes input_rcm = 3;   // The user's input registration commitment
+}
+
+message RegisterUserResponse {
+    optional string err = 1;
+    optional bytes signature = 2;
+    repeated uint64 s2 = 3; // Second part of the user's nullifier key 
+}
+
+message GetPrivacyBudgetRequest {
+    optional string user_id = 1;
+}
+
+message GetPrivacyBudgetResponse {
+    optional string err = 1;
+    optional bytes budget = 2;
+    optional bytes signature = 3;
+}
+
+message TransferRequest {
+    optional bytes tx_data = 1;
+    optional uint32 num_outputs = 2;
+}
+
+message TransferResponse {
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
+}
+
+message MintRequest {
+    optional string user_id = 1;
+    optional uint64 value = 2;
+    optional bytes tx_data = 3;
+}
+
+message MintResponse {
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
+}
+
+message BurnRequest {
+    optional string user_id = 1;
+    optional uint64 value = 3;
+    optional bytes tx_data = 2;
+}
+
+message BurnResponse {
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
+}
+
+message GetLastAddedTxNumberRequest {
+}
+
+message GetLastAddedTxNumberResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+}
+
+message GetLastSignedTxNumberRequest {
+}
+
+message GetLastSignedTxNumberResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+}
+
+message GetSignedTransactionRequest {
+    optional uint64 tx_number = 1;
+}
+
+message GetSignedTransactionResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+    optional TxType tx_type = 3;
+    optional bytes tx_data = 4;
+    repeated bytes sigs = 5;
+    optional uint32 tx_data_size = 6;
+}
+
+message GetPublicBalanceRequest {
+    optional string user_id = 1;
+}
+
+message GetPublicBalanceResponse {
+    optional string err = 1;
+    optional uint64 public_balance = 2;
+}
+
+message PublicTransferRequest {
+    optional string user_id = 1;
+    optional string recipient = 2;
+    optional uint64 value = 3;
+}
+
+message PublicTransferResponse {
+    optional string err = 1;
+}
+
+
+message WalletRequest {
+    oneof req {
+        // init
+        ConfigureRequest configure = 1;
+        RegisterUserRequest register_user = 2;
+        // transact
+        TransferRequest transfer = 3;
+        MintRequest mint = 4;
+        BurnRequest burn = 5;
+        // sync
+        GetPublicBalanceRequest get_public_balance = 6;
+        GetLastAddedTxNumberRequest get_last_added_tx_number = 7;
+        GetSignedTransactionRequest get_signed_tx = 8;
+
+        GetPrivacyBudgetRequest get_privacy_budget = 9;
+
+        PublicTransferRequest public_transfer = 10;
+    }
+}
+
+message WalletResponse {
+    optional string err = 1;
+    oneof resp {
+        // init
+        ConfigureResponse configure = 2;
+        RegisterUserResponse register_user = 3;
+        // transact
+        TransferResponse transfer = 4;
+        MintResponse mint = 5;
+        BurnResponse burn = 6;
+        // sync
+        GetPublicBalanceResponse get_public_balance = 7;
+        GetLastAddedTxNumberResponse get_last_added_tx_number = 8;
+        GetSignedTransactionResponse get_signed_tx = 9;
+
+        GetPrivacyBudgetResponse get_privacy_budget = 10;
+
+        PublicTransferResponse public_transfer = 11;
+    }
+}

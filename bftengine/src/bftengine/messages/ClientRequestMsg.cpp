@@ -100,7 +100,8 @@ bool ClientRequestMsg::shouldValidateAsync() const {
   // manner, as that will lead to overhead. Similarly, key exchanges should happen rarely, and thus we should validate
   // as quick as possible, in sync.
   const auto* header = msgBody();
-  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0)) {
+  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0) ||
+      (header->flags & INTERNAL_FLAG) != 0) {
     return false;
   }
   return true;
@@ -119,7 +120,8 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   }
 
   PrincipalId clientId = header->idOfClientProxy;
-  if ((header->flags & RECONFIG_FLAG) == 0) ConcordAssert(this->senderId() != repInfo.myId());
+  if ((header->flags & RECONFIG_FLAG) == 0 && (header->flags & INTERNAL_FLAG) == 0)
+    ConcordAssert(this->senderId() != repInfo.myId());
 
   /// to do - should it be just the header?
   auto minMsgSize = sizeof(ClientRequestMsgHeader) + header->cidLength + spanContextSize() + header->reqSignatureLength;
@@ -135,9 +137,9 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   bool isIdOfExternalClient = repInfo.isIdOfExternalClient(clientId);
   bool doSigVerify = false;
   bool emptyReq = (header->requestLength == 0);
-  if ((header->flags & RECONFIG_FLAG) != 0 &&
+  if (((header->flags & RECONFIG_FLAG) != 0 || (header->flags & INTERNAL_FLAG) != 0) &&
       (repInfo.isIdOfReplica(clientId) || repInfo.isIdOfPeerRoReplica(clientId))) {
-    // Allow every reconfiguration message from replicas (it will be verified in the reconfiguration handler)
+    // Allow every reconfiguration/internal message from replicas (it will be verified in the reconfiguration handler)
     return;
   }
   if (!repInfo.isValidPrincipalId(clientId)) {

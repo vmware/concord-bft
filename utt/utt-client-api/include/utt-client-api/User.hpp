@@ -54,14 +54,12 @@ class User {
   /// @param pk The system sent public key for the registration (must be equal to the user's public key)
   /// @param rs A signature on the user's registration
   /// @param s2 A system generated part of the user's nullifier secret key
-  /// @return True if the registration is accepted by the user
-  bool updateRegistration(const std::string& pk, const utt::RegistrationSig& rs, const utt::S2& s2);
+  void updateRegistration(const std::string& pk, const utt::RegistrationSig& rs, const utt::S2& s2);
 
   /// @brief Updates the privacy budget of the user
   /// @param token The budget token object
   /// @param sig The budget token signature
-  /// @return True if the budget token is accepted
-  bool updatePrivacyBudget(const utt::PrivacyBudget& budget, const utt::PrivacyBudgetSig& sig);
+  void updatePrivacyBudget(const utt::PrivacyBudget& budget, const utt::PrivacyBudgetSig& sig);
 
   /**
    * @brief Get the total value of unspent UTT tokens
@@ -92,25 +90,28 @@ class User {
   /// @param txNum The transaction number
   /// @param tx A transfer transaction
   /// @param sigs The signatures on the transaction outputs
-  /// @return
-  bool updateTransferTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSigs& sigs);
+  void updateTransferTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSigs& sigs);
 
   /// @brief Update the user's state with the effects of a mint transaction
   /// @param txNum The transaction number
   /// @param tx A mint transaction
   /// @param sig The signature on the transaction output (we assume a mint tx has a single output)
-  /// @return
-  bool updateMintTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSig& sig);
+  void updateMintTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSig& sig);
 
   /// @brief Update the user's state with the effects of a burn transaction
   /// @param txNum The transaction number
   /// @param tx A burn transaction
-  /// @return
-  bool updateBurnTx(uint64_t txNum, const utt::Transaction& tx);
+  void updateBurnTx(uint64_t txNum, const utt::Transaction& tx);
 
   /// @brief The user records the tx as a no-op and skips it
   /// @param txNum
-  bool updateNoOp(uint64_t txNum);
+  void updateNoOp(uint64_t txNum);
+
+  /// @brief Creates a transaction to mint the requested amount
+  utt::Transaction mint(uint64_t amount) const;
+
+  /// @brief Creates a transaction to mint the requested budget amount
+  utt::Transaction mintPrivacyBudget(uint64_t amount) const;
 
   /// @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
   /// transaction is produced.
@@ -127,6 +128,8 @@ class User {
   /// @return Returns a result indicating the required transaction to execute in order
   /// to transfer the desired amount.
   TransferResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
+
+  void debugOutput() const;
 
  private:
   // Users can be created only by the top-level ClientApi functions

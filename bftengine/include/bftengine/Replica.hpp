@@ -28,7 +28,7 @@
 #include "PersistentStorage.hpp"
 #include "IRequestHandler.hpp"
 #include "InternalBFTClient.hpp"
-
+#include "Timers.hpp"
 namespace concord::cron {
 class TicksGenerator;
 }
@@ -38,7 +38,10 @@ class ISecretsManagerImpl;
 }
 
 namespace bftEngine {
-
+namespace impl {
+class MsgsCommunicator;
+class MsgHandlersRegistrator;
+}  // namespace impl
 // Possible values for 'flags' parameter
 enum MsgFlag : uint64_t {
   EMPTY_FLAGS = 0x0,
@@ -48,6 +51,7 @@ enum MsgFlag : uint64_t {
   KEY_EXCHANGE_FLAG = 0x8,  // TODO [TK] use reconfig_flag
   TICK_FLAG = 0x10,
   RECONFIG_FLAG = 0x20,
+  INTERNAL_FLAG = 0x40,
   PUBLISH_ON_CHAIN_OBJECT_FLAG = 0x80,
   CLIENTS_PUB_KEYS_FLAG = 0x100,
   DB_CHECKPOINT_FLAG = 0x200
@@ -135,6 +139,10 @@ class IReplica {
 
   // Returns the internal persistent storage object.
   virtual std::shared_ptr<impl::PersistentStorage> persistentStorage() const = 0;
+
+  virtual std::shared_ptr<impl::MsgsCommunicator> getMsgsCommunicator() const { return nullptr; }
+  virtual std::shared_ptr<impl::MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return nullptr; }
+  virtual concordUtil::Timers *getTimers() { return nullptr; }
 };
 
 }  // namespace bftEngine

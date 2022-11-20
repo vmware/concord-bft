@@ -1,20 +1,19 @@
 #include "burn.hpp"
-#include <utt/BurnOp.h>
-#include <utt/RandSig.h>
-#include <utt/Coin.h>
-#include <utt/Address.h>
-#include <utt/Params.h>
+#include "include/coin.impl.hpp"
+#include "include/burn.impl.hpp"
+#include "include/commitment.impl.hpp"
+#include "include/client.impl.hpp"
+#include "include/params.impl.hpp"
 #include <utt/Serialization.h>
-#include <utt/RegAuth.h>
 #include <ostream>
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Burn& burn) {
-  out << *(burn.burn_) << std::endl;
+  out << burn.pImpl_->burn_ << std::endl;
   out << burn.c_ << std::endl;
   return out;
 }
 std::istream& operator>>(std::istream& in, libutt::api::operations::Burn& burn) {
-  in >> *(burn.burn_);
+  in >> burn.pImpl_->burn_;
   libff::consume_OUTPUT_NEWLINE(in);
   in >> burn.c_;
   libff::consume_OUTPUT_NEWLINE(in);
@@ -29,20 +28,40 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   const auto rcm = cid.getRcm();
   const auto rcm_str_sig = std::string(rcm.second.begin(), rcm.second.end());
   const auto rcm_sig = libutt::deserialize<libutt::RandSig>(rcm_str_sig);
-  auto& rpk = *(cid.rpk_);
-  burn_.reset(new libutt::BurnOp(
-      d.getParams(), fr_pidhash, cid.getPid(), *(rcm.first.comm_), rcm_sig, prf, *(coin.coin_), *(cid.bpk_), rpk));
+  pImpl_ = new Burn::Impl();
+  pImpl_->burn_ = libutt::BurnOp(d.pImpl_->p,
+                                 fr_pidhash,
+                                 cid.getPid(),
+                                 rcm.first.pImpl_->comm_,
+                                 rcm_sig,
+                                 prf,
+                                 coin.pImpl_->c,
+                                 cid.pImpl_->bpk_,
+                                 cid.pImpl_->rpk_);
 }
-Burn::Burn() { burn_.reset(new libutt::BurnOp()); }
+Burn::Burn() { pImpl_ = new Burn::Impl(); }
 Burn::Burn(const Burn& other) {
-  burn_.reset(new libutt::BurnOp());
+  pImpl_ = new Burn::Impl();
   *this = other;
 }
 Burn& Burn::operator=(const Burn& other) {
   if (&other == this) return *this;
-  *(burn_) = *(other.burn_);
+  pImpl_->burn_ = other.pImpl_->burn_;
+  c_ = other.c_;
   return *this;
 }
-std::string Burn::getNullifier() const { return burn_->getNullifier(); }
+Burn::~Burn() { delete pImpl_; }
+Burn::Burn(Burn&& other) {
+  pImpl_ = new Burn::Impl();
+  *this = std::move(other);
+}
+Burn& Burn::operator=(Burn&& other) {
+  *pImpl_ = std::move(*other.pImpl_);
+  c_ = std::move(other.c_);
+  return *this;
+}
+
+std::string Burn::getNullifier() const { return pImpl_->burn_.getNullifier(); }
 const Coin& Burn::getCoin() const { return c_; }
+const std::string& Burn::getOwnerPid() const { return pImpl_->burn_.getOwnerPid(); }
 }  // namespace libutt::api::operations

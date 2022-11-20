@@ -17,20 +17,13 @@
 #include "budget.hpp"
 #include "Logger.hpp"
 #undef UNUSED
+#include "../../../utt/libutt/src/api/include/params.impl.hpp"
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>
-#include <utt/Params.h>
 #include <utt/IBE.h>
 #include <utt/Serialization.h>
-#include <utt/Address.h>
-#include <utt/Comm.h>
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
-#include <utt/Tx.h>
-
+#include <utt/DataUtils.hpp>
 #include <chrono>
 #include <map>
 #include <queue>
@@ -139,7 +132,7 @@ std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t 
   auto rc = RegAuthSK::generateKeyAndShares(thresh, n);
   GpData gp_data{dkg.getCK(), rc.ck_reg};
   UTTParams d = UTTParams::create((void*)(&gp_data));
-  rc.setIBEParams(d.getParams().ibe);
+  rc.setIBEParams(d.getImpl()->p.ibe);
   return {d, dkg, rc};
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
@@ -304,9 +297,13 @@ class test_utt_instance : public ::testing::Test {
       msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](bftEngine::impl::MessageBase* message) {
         ClientRequestMsg* msg = (ClientRequestMsg*)message;
         uint64_t job_id{0};
-        libutt::api::types::Signature fsig(msg->requestLength() - sizeof(uint64_t));
+
+        std::vector<uint8_t> cs_buffer(msg->requestLength() - sizeof(uint64_t));
         std::memcpy(&job_id, msg->requestBuf(), sizeof(uint64_t));
-        std::memcpy(fsig.data(), msg->requestBuf() + sizeof(uint64_t), fsig.size());
+        std::memcpy(cs_buffer.data(), msg->requestBuf() + sizeof(uint64_t), cs_buffer.size());
+        utt::SigProcessor::CompleteSignatureMsg cs_msg(cs_buffer);
+        ASSERT_TRUE(cs_msg.validate());
+        auto& fsig = cs_msg.getFullSig();
         {
           std::unique_lock lk(sigs_lock);
           for (size_t j = 0; j < n; j++) {
@@ -418,7 +415,6 @@ class utt_complete_system : public utt_system_include_budget {
   }
   std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
 };
-
 TEST_F(test_utt_instance, test_clients_registration) {
   registerClients(
       job_id,

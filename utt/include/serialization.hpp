@@ -10,7 +10,7 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
-
+#pragma once
 #include <iostream>
 #include <vector>
 #include <sstream>

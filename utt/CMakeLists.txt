@@ -41,6 +41,12 @@ option(
   OFF
 )
 
+option(
+  BUILD_PRIVACY_ADMIN_CLI
+  "Enable building of admin-cli"
+  OFF
+)
+
 #
 # Configure CCache if available
 #
@@ -185,6 +191,12 @@ add_subdirectory(libxassert)
 add_subdirectory(libxutils)
 if(BUILD_WALLET_CLI)
     add_subdirectory(wallet-cli) 
+endif()
+if(BUILD_PRIVACY_ADMIN_CLI)
+    add_subdirectory(admin-cli) 
+endif()
+if(BUILD_WALLET_CLI AND BUILD_PRIVACY_ADMIN_CLI)
+    add_subdirectory(e2e)
 endif()
 
 # [TODO-UTT] This improved api for libutt could go into its own subproject 

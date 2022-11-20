@@ -16,13 +16,21 @@
 #include <memory>
 namespace libutt::api {
 class UTTParams;
-}
+class Coin;
+class Utils;
+class Commitment;
+class CoinsSigner;
+class Configuration;
+
+namespace operations {
+class Transaction;
+class Burn;
+}  // namespace operations
+}  // namespace libutt::api
 std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params);
 std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params);
 bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
-namespace libutt {
-class Params;
-}
+
 namespace libutt::api {
 class UTTParams {
   /**
@@ -50,16 +58,28 @@ class UTTParams {
    *
    * @return const libutt::Params&
    */
-  const libutt::Params& getParams() const;
   UTTParams(const UTTParams& other);
   UTTParams& operator=(const UTTParams& other);
-  UTTParams(UTTParams&&) = default;
-  UTTParams& operator=(UTTParams&&) = default;
+  ~UTTParams();
+  UTTParams(UTTParams&&);
+  UTTParams& operator=(UTTParams&&);
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::UTTParams& params);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::UTTParams& params);
   friend bool ::operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
-  std::unique_ptr<libutt::Params> params;
+  friend class Coin;
+  friend class Utils;
+  friend class Commitment;
+  friend class CoinsSigner;
+  friend class Configuration;
+  friend class operations::Transaction;
+  friend class operations::Burn;
+  struct Impl;
+  Impl* pImpl_;
+
+ public:
+  // For testing only
+  Impl* getImpl();
 };
 }  // namespace libutt::api

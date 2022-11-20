@@ -20,9 +20,6 @@
 #include <vector>
 #include <map>
 
-namespace libutt {
-class CommKey;
-}
 namespace libutt::api {
 class Utils {
   /**

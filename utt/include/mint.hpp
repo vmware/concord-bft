@@ -23,9 +23,7 @@ class Mint;
 }
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Mint& mint);
 std::istream& operator>>(std::istream& in, libutt::api::operations::Mint& mint);
-namespace libutt {
-class MintOp;
-}
+
 namespace libutt::api {
 class CoinsSigner;
 class Client;
@@ -49,8 +47,9 @@ class Mint {
   Mint();
   Mint(const Mint& other);
   Mint& operator=(const Mint& other);
-  Mint(Mint&& other) = default;
-  Mint& operator=(Mint&& other) = default;
+  ~Mint();
+  Mint(Mint&& other);
+  Mint& operator=(Mint&& other);
   std::string getHash() const;
   uint64_t getVal() const;
   std::string getRecipentID() const;
@@ -60,6 +59,7 @@ class Mint {
   friend class libutt::api::Client;
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Mint& mint);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Mint& mint);
-  std::unique_ptr<libutt::MintOp> op_;
+  struct Impl;
+  Impl* pImpl_;
 };
 }  // namespace libutt::api::operations

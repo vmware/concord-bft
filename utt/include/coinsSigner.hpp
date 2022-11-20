@@ -18,12 +18,7 @@
 #include <memory>
 #include <vector>
 #include <map>
-namespace libutt {
-class RandSigShareSK;
-class RandSigSharePK;
-class RegAuthPK;
-class RandSigPK;
-}  // namespace libutt
+
 namespace libutt::api {
 class CoinsSigner {
   /**
@@ -45,6 +40,12 @@ class CoinsSigner {
               const std::string& bank_public_key,
               const std::map<uint16_t, std::string>& shares_verification_keys,
               const std::string& registration_public_key);
+  CoinsSigner();
+  ~CoinsSigner();
+  CoinsSigner(const CoinsSigner&);
+  CoinsSigner& operator=(const CoinsSigner&);
+  CoinsSigner(CoinsSigner&&);
+  CoinsSigner& operator=(CoinsSigner&&);
 
   /**
    * @brief Signing a UTT transaction
@@ -90,9 +91,7 @@ class CoinsSigner {
 
  private:
   uint16_t bid_;
-  std::unique_ptr<libutt::RandSigShareSK> bsk_;
-  std::unique_ptr<libutt::RandSigPK> bvk_;
-  std::unique_ptr<libutt::RegAuthPK> rvk_;
-  std::map<uint16_t, std::unique_ptr<libutt::RandSigSharePK>> shares_verification_keys_;
+  struct Impl;
+  Impl* pImpl_;
 };
 }  // namespace libutt::api

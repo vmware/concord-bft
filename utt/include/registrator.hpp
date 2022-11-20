@@ -18,12 +18,6 @@
 #include <memory>
 #include <vector>
 #include <map>
-namespace libutt {
-class RegAuthShareSK;
-class RegAuthPK;
-class RegAuthSK;
-class RegAuthSharePK;
-}  // namespace libutt
 namespace libutt::api {
 class Registrator {
   /**
@@ -43,7 +37,12 @@ class Registrator {
               const std::string& registartor_secret_key,
               const std::map<uint16_t, std::string>& validation_keys,
               const std::string& registration_public_key);
-
+  Registrator();
+  ~Registrator();
+  Registrator(const Registrator&);
+  Registrator& operator=(const Registrator&);
+  Registrator(Registrator&&);
+  Registrator& operator=(Registrator&&);
   /**
    * @brief Sign the user RCM (also marked as rcm1)
    *
@@ -89,8 +88,7 @@ class Registrator {
 
  private:
   std::uint16_t id_;
-  std::unique_ptr<RegAuthShareSK> rsk_;
-  std::unique_ptr<RegAuthPK> rpk_;
-  std::map<uint16_t, std::unique_ptr<RegAuthSharePK>> validation_keys_;
+  struct Impl;
+  Impl* pImpl_;
 };
 }  // namespace libutt::api
