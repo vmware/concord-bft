@@ -29,7 +29,6 @@ import inspect
 import time
 from pathlib import Path
 from typing import Coroutine, Sequence, Callable
-import re
 import trio
 
 from util.test_base import repeat_test
@@ -892,16 +891,19 @@ class BftTestNetwork:
             'PlainUdp': bft_client.UdpClient
         }
 
-        communication_phrase = communication_str + ".*,"
         log_data = ""
         with open(replica_test_log_path, 'r') as replica_log:
             time_elapsed = 0
-            while re.search(communication_phrase, log_data) is None and \
+            while communication_str not in log_data and \
                     time_elapsed < timeout_seconds and \
                     len(log_data) < max_read_bytes:
                 log_data += replica_log.read(chunk_bytes)
                 time.sleep(sleep_seconds)
                 time_elapsed += sleep_seconds
+
+            # make sure we have read the whole communication phrase
+            if "," not in log_data[log_data.find(communication_str) + len(communication_str):]:
+                log_data += replica_log.read(chunk_bytes)
 
         assert communication_str in log_data, \
             f"Communication str not in {max_read_bytes + chunk_bytes} first bytes of the log, " \
