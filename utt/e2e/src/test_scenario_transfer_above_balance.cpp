@@ -25,7 +25,7 @@ class E2eTestScenarioTransferAboveBalance : public E2eTestScenario {
     logdbg << "publicBalance2 before: " << publicBalance2Before << ", privateBalance2 before: " << privateBalance2Before
            << ", privacyBudget2 before: " << privacyBudget2Before << std::endl;
 
-    if (privateBalance1Before > privacyBudget1Before) return 2;
+    if (privateBalance1Before > privacyBudget1Before) return E2eTestResult::PREREQUISITES_NOT_MET;
     context.wallet1->transfer(context.chanWallet, privateBalance1Before + TRANSFER_OVERFLOW, "user-2");
 
     const uint64_t EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before;
@@ -42,7 +42,7 @@ class E2eTestScenarioTransferAboveBalance : public E2eTestScenario {
     if (publicBalance1After != EXPECTED_PUBLIC_BALANCE_1_AFTER or
         privateBalance1After != EXPECTED_PRIVATE_BALANCE_1_AFTER or
         privacyBudget1After != EXPECTED_PRIVACY_BUDGET_1_AFTER)
-      return 1;
+      return E2eTestResult::FAILED;
 
     std::tie(publicBalance2After, privateBalance2After, privacyBudget2After) =
         context.wallet2->getBalanceInfo(context.chanWallet);
@@ -51,9 +51,8 @@ class E2eTestScenarioTransferAboveBalance : public E2eTestScenario {
     if (publicBalance2After != EXPECTED_PUBLIC_BALANCE_2_AFTER or
         privateBalance2After != EXPECTED_PRIVATE_BALANCE_2_AFTER or
         privacyBudget2After != EXPECTED_PRIVACY_BUDGET_2_AFTER)
-      return 1;
+      return E2eTestResult::FAILED;
 
-    logdbg << "TEST PASSED\n";
-    return 0;
+    return E2eTestResult::PASSED;
   }
 };

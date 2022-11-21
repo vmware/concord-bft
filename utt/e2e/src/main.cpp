@@ -51,13 +51,21 @@ class E2eTestSuite {
 
   bool run() {
     bool failed = false;
+    unsigned int failedCount = 0, passedCount = 0;
     for (auto &test : testScenarios) {
       int result = test->execute();
-      if (0 != result) {
-        logdbg << "Test failed, status: " << result << ", test description: " << test->getDescription() << std::endl;
+      if (E2eTestResult::PASSED != result) {
+        std::cout << "Test\033[31m FAILED\033[0m, status: " << result
+                  << ", test description: " << test->getDescription() << std::endl;
         failed = true;
+        ++failedCount;
+      } else {
+        ++passedCount;
+        std::cout << "Test\033[32m PASSED\033[0m, test description: " << test->getDescription() << std::endl;
       }
     }
+    std::cout << "Privacy feature E2E tests completed, \033[32m PASSED \033[0m: " << passedCount
+              << ", \033[31m FAILED \033[0m: " << failedCount << std::endl;
     return failed;
   }
 

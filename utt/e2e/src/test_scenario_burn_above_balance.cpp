@@ -40,7 +40,7 @@ class E2eTestScenarioBurnAboveBalance : public E2eTestScenario {
            << std::endl;
     if (publicBalance1After != EXPECTED_PUBLIC_BALANCE_1_AFTER or
         privateBalance1After != EXPECTED_PRIVATE_BALANCE_1_AFTER)
-      return 1;
+      return E2eTestResult::FAILED;
 
     std::tie(publicBalance2After, privateBalance2After, std::ignore) =
         context.wallet2->getBalanceInfo(context.chanWallet);
@@ -48,9 +48,8 @@ class E2eTestScenarioBurnAboveBalance : public E2eTestScenario {
            << std::endl;
     if (publicBalance2After != EXPECTED_PUBLIC_BALANCE_2_AFTER or
         privateBalance2After != EXPECTED_PRIVATE_BALANCE_2_AFTER)
-      return 1;
+      return E2eTestResult::FAILED;
 
-    logdbg << "TEST PASSED\n";
-    return 0;
+    return E2eTestResult::PASSED;
   }
 };

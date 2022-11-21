@@ -2,6 +2,8 @@
 
 #include <string>
 
+enum E2eTestResult { PASSED = 0, FAILED = 1, PREREQUISITES_NOT_MET = 2 };
+
 struct E2eTestContext {
   std::unique_ptr<Wallet> wallet1, wallet2, wallet3;
   Admin::Channel chanAdmin;
