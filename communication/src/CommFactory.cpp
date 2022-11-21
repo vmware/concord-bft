@@ -26,7 +26,9 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
 
   switch (config.commType_) {
     case CommType::PlainUdp:
+#ifdef USE_COMM_UDP
       res = PlainUDPCommunication::create(dynamic_cast<const PlainUdpConfig &>(config));
+#endif
       break;
     case CommType::SimpleAuthUdp:
       break;
@@ -40,7 +42,6 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
     case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
       res = TlsTCPCommunication::create(dynamic_cast<const TlsTcpConfig &>(config));
-      break;
 #endif
       break;
     case CommType::TlsMultiplex:

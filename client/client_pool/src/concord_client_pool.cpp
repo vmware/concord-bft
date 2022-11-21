@@ -352,14 +352,9 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
       (config.active_clients_in_pool && (config.active_clients_in_pool < config.clients_per_participant_node))
           ? config.active_clients_in_pool - creNum
           : config.clients_per_participant_node - creNum;
-  auto f_val = config.f_val;
-  auto c_val = config.c_val;
-  auto max_buf_size = stol(config.concord_bft_communication_buffer_length);
-  const auto num_replicas = 3 * f_val + 2 * c_val + 1;
-  const auto required_num_of_replicas = 2 * f_val + 1;
   LOG_INFO(logger_,
-           "Creating pool" << KVLOG(c_val,
-                                    f_val,
+           "Creating pool" << KVLOG(config.c_val,
+                                    config.f_val,
                                     config.clients_per_participant_node,
                                     config.comm_to_use,
                                     config.concord_bft_communication_buffer_length,
@@ -380,6 +375,10 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   }
   batch_timer_ =
       std::make_unique<Timer_t>(timeout, [this](ClientPtr client) -> void { OnBatchingTimeout(std::move(client)); });
+#ifdef USE_COMM_TLS_TCP
+  auto max_buf_size = stol(config.concord_bft_communication_buffer_length);
+  const auto num_replicas = 3 * config.f_val + 2 * config.c_val + 1;
+  const auto required_num_of_replicas = 2 * config.f_val + 1;
 
   TlsMultiplexConfig *tlsMultiplexConfig = nullptr;
   if (config.enable_multiplex_channel) {
@@ -412,6 +411,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   setUpClientParams(clientParams, config);
   external_client::ConcordClient::setStatics(
       required_num_of_replicas, num_replicas, max_buf_size, batch_size_, config, clientParams, tlsMultiplexConfig);
+#endif
   for (int i = 0; i < num_clients; i++) {
     clients_.push_back(std::make_shared<external_client::ConcordClient>(i, aggregator));
     ClientPoolMetrics_.clients_gauge++;

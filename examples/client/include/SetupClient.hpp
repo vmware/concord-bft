@@ -16,9 +16,9 @@
 #include "communication/CommFactory.hpp"
 #include "tests/config/test_comm_config.hpp"
 #include "bftclient/bft_client.h"
-#include "secrets_manager_impl.h"
-#include "secrets_manager_plain.h"
-#include "secrets_manager_enc.h"
+#include "secrets/secrets_manager_impl.h"
+#include "secrets/secrets_manager_plain.h"
+#include "secrets/secrets_manager_enc.h"
 
 namespace concord::osexample {
 

@@ -36,7 +36,7 @@
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
 #include "PerformanceManager.hpp"
-#include "secrets_manager_impl.h"
+#include "secrets/secrets_manager_impl.h"
 #include "SigManager.hpp"
 #include "TimeServiceManager.hpp"
 #include "FakeClock.hpp"

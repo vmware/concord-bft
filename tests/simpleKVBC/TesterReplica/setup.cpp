@@ -32,8 +32,8 @@
 #include "config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
-#include "secrets_manager_plain.h"
-
+#include "secrets/secrets_manager_plain.h"
+#include "secrets/secrets_manager_enc.h"
 #include <boost/algorithm/string.hpp>
 #include <util/filesystem.hpp>
 #include "strategy/StrategyUtils.hpp"
@@ -43,7 +43,6 @@
 #include "strategy/DelayStateTransferMsgStrategy.hpp"
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
-#include "secrets_manager_enc.h"
 #include "blockchain_misc.hpp"
 
 #ifdef USE_S3_OBJECT_STORE

@@ -16,9 +16,9 @@
 #include <sstream>
 
 #include "assertUtils.hpp"
-#include "secret_retriever.hpp"
-#include "secrets_manager_enc.h"
-#include "secrets_manager_plain.h"
+#include "secrets/secret_retriever.hpp"
+#include "secrets/secrets_manager_enc.h"
+#include "secrets/secrets_manager_plain.h"
 #include "client/clientservice/client_service.hpp"
 #include "crypto/openssl/certificates.hpp"
 

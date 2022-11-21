@@ -24,7 +24,7 @@
 #include "config/test_parameters.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
-#include "secrets_manager_impl.h"
+#include "secrets/secrets_manager_impl.h"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"

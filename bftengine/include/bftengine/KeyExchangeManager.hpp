@@ -16,7 +16,7 @@
 #include "IKeyExchanger.hpp"
 #include "Timers.hpp"
 #include "Metrics.hpp"
-#include "secrets_manager_impl.h"
+#include "secrets/secrets_manager_impl.h"
 #include "SysConsts.hpp"
 #include "crypto/crypto.hpp"
 #include <future>

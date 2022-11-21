@@ -17,7 +17,7 @@
 #include "replica_state_sync_imp.hpp"
 #include "block_metadata.hpp"
 #include "SimpleBCStateTransfer.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "bftengine/ControlStateManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"

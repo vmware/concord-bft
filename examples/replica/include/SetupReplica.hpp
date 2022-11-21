@@ -25,7 +25,7 @@
 #include "MetricsServer.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
-#include "secrets_manager_impl.h"
+#include "secrets/secrets_manager_impl.h"
 
 namespace concord::osexample {
 

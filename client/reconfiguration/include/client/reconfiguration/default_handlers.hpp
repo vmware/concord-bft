@@ -12,7 +12,7 @@
 #pragma once
 
 #include "cre_interfaces.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 
 #include <vector>
 

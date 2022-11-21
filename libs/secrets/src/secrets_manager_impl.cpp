@@ -13,7 +13,7 @@
 //
 // This convenience header combines different block implementations.
 
-#include "secrets_manager_impl.h"
+#include "secrets/secrets_manager_impl.h"
 
 #include <string>
 #include <fstream>

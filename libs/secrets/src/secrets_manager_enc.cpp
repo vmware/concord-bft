@@ -13,7 +13,7 @@
 //
 // This convenience header combines different block implementations.
 
-#include "secrets_manager_enc.h"
+#include "secrets/secrets_manager_enc.h"
 
 #include "aes.h"
 #include "base64.h"

@@ -21,8 +21,6 @@ add_library(thin_replica_client_lib STATIC
   "src/grpc_connection.cpp"
   "src/trc_hash.cpp")
 target_include_directories(thin_replica_client_lib PUBLIC include)
-target_include_directories(thin_replica_client_lib PRIVATE
-  "${secretsmanager_SOURCE_DIR}/include")
 target_link_libraries(thin_replica_client_lib
   opentracing
   util

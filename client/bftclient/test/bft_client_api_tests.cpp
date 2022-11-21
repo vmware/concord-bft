@@ -26,7 +26,7 @@
 #include "msg_receiver.h"
 #include "crypto/factory.hpp"
 #include "Logger.hpp"
-#include "ReplicaConfig.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 using namespace std;
 using namespace bft::client;

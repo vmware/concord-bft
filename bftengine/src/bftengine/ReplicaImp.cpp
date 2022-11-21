@@ -58,7 +58,7 @@
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "bftengine/EpochManager.hpp"
 #include "RequestThreadPool.hpp"
 #include "DbCheckpointManager.hpp"

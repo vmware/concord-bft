@@ -14,7 +14,7 @@
 #pragma once
 
 #include <string>
-#include "../include/secret_data.h"
+#include "secret_data.h"
 
 namespace concord::secretsmanager::secretretriever {
 

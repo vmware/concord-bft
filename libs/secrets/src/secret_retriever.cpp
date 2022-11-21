@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "secret_retriever.hpp"
+#include "secrets/secret_retriever.hpp"
 #include <exception>
 #include <fstream>
 #include <iomanip>
