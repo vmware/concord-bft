@@ -1,6 +1,10 @@
 #include "admin.hpp"
 #include "wallet.hpp"
 #include "test_base_scenario.cpp"
+#include "test_scenario_burn_above_balance.cpp"
+#include "test_scenario_transfer_above_budget.cpp"
+#include "test_scenario_transfer_above_balance.cpp"
+#include "test_scenario_mint_above_balance.cpp"
 #include <iostream>
 #include <unistd.h>
 #include <xutils/Log.h>
@@ -33,7 +37,16 @@ class E2eTestSuite {
     configureWallet(context.wallet2, "user-2");
     configureWallet(context.wallet3, "user-3");
 
-    testScenarios.push_back(std::make_unique<E2eTestBaseScenario>(context));
+    testScenarios.push_back(
+        std::make_unique<E2eTestBaseScenario>(context, "Mint transfer and burn should result in balance change"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioBurnAboveBalance>(
+        context, "Burn above private balance should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBudget>(
+        context, "Transfer above privacy budget should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBalance>(
+        context, "Transfer above private balance should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioMintAboveBalance>(
+        context, "Mint above public balance should not change balance"));
   }
 
   bool run() {
@@ -41,7 +54,7 @@ class E2eTestSuite {
     for (auto &test : testScenarios) {
       int result = test->execute();
       if (0 != result) {
-        logdbg << "Test failed, status: " << result << std::endl;
+        logdbg << "Test failed, status: " << result << ", test description: " << test->getDescription() << std::endl;
         failed = true;
       }
     }
