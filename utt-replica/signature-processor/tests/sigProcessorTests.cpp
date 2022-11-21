@@ -315,7 +315,6 @@ class test_utt_instance : public ::testing::Test {
         }
         sig_processors[i]->onReceivingNewValidFullSig(job_id);
         cv.notify_all();
-        delete msg;
       });
       msc->startCommunication(i);
       msc->startMsgsProcessing(i);

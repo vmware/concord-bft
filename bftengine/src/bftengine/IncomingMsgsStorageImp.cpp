@@ -172,7 +172,6 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
         timers_.evaluate();
       }
 
-      MessageBase* message = nullptr;
       MsgHandlerCallback msgHandlerCallback = nullptr;
       switch (msg.tag) {
         case IncomingMsg::INVALID:
@@ -181,17 +180,13 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
         case IncomingMsg::EXTERNAL: {
           MsgCode::Type type = static_cast<MsgCode::Type>(msg.external->type());
           LOG_TRACE(MSGS, type);
-          // TODO: (AJS) Don't turn this back into a raw pointer.
-          // Pass the smart pointer through the message handlers so they take ownership.
-          message = msg.external.release();
-          msgHandlerCallback = msgHandlers_->getCallback(message->type());
+          msgHandlerCallback = msgHandlers_->getCallback(msg.external->type());
           if (msgHandlerCallback) {
-            msgHandlerCallback(message);
+            msgHandlerCallback(std::move(msg.external));
           } else {
-            LOG_WARN(
-                GL,
-                "Received unknown external Message: " << KVLOG(message->type(), message->senderId(), message->size()));
-            delete message;
+            LOG_WARN(GL,
+                     "Received unknown external message"
+                         << KVLOG(msg.external->type(), msg.external->senderId(), msg.external->size()));
           }
         } break;
         case IncomingMsg::INTERNAL:

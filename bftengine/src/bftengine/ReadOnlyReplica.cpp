@@ -111,14 +111,13 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
 }
 
 template <>
-void ReadOnlyReplica::onMessage<StateTransferMsg>(StateTransferMsg *msg) {
-  ReplicaForStateTransfer::onMessage(msg);
+void ReadOnlyReplica::onMessage<StateTransferMsg>(unique_ptr<StateTransferMsg> msg) {
+  ReplicaForStateTransfer::onMessage(move(msg));
 }
 
 template <>
-void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
+void ReadOnlyReplica::onMessage<CheckpointMsg>(unique_ptr<CheckpointMsg> msg) {
   if (isCollectingState()) {
-    delete msg;
     return;
   }
   ro_metrics_.received_checkpoint_msg_++;
@@ -142,15 +141,16 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   // not relevant
   if (!msg->isStableState() || msg->seqNumber() <= lastExecutedSeqNum ||
       msg->epochNumber() < replicasLastKnownEpochVal) {
-    delete msg;
     return;
   }
   // no self certificate
   static std::map<SeqNum, CheckpointInfo<false>> checkpointsInfo;
-  checkpointsInfo[msg->seqNumber()].addCheckpointMsg(msg, msg->idOfGeneratedReplica());
+  const auto msgSeqNum = msg->seqNumber();
+  const auto idOfGeneratedReplica = msg->idOfGeneratedReplica();
+  checkpointsInfo[msgSeqNum].addCheckpointMsg(msg.release(), idOfGeneratedReplica);
   // if enough - invoke state transfer
-  if (checkpointsInfo[msg->seqNumber()].isCheckpointCertificateComplete()) {
-    persistCheckpointDescriptor(msg->seqNumber(), checkpointsInfo[msg->seqNumber()]);
+  if (checkpointsInfo[msgSeqNum].isCheckpointCertificateComplete()) {
+    persistCheckpointDescriptor(msgSeqNum, checkpointsInfo[msgSeqNum]);
     checkpointsInfo.clear();
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
@@ -187,20 +187,20 @@ void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const Ch
 }
 
 template <>
-void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  const NodeIdType senderId = m->senderId();
-  const NodeIdType clientId = m->clientProxyId();
-  const bool reconfig_flag = (m->flags() & MsgFlag::RECONFIG_FLAG) != 0;
-  const ReqId reqSeqNum = m->requestSeqNum();
-  const uint64_t flags = m->flags();
+void ReadOnlyReplica::onMessage<ClientRequestMsg>(unique_ptr<ClientRequestMsg> msg) {
+  const NodeIdType senderId = msg->senderId();
+  const NodeIdType clientId = msg->clientProxyId();
+  const bool reconfig_flag = (msg->flags() & MsgFlag::RECONFIG_FLAG) != 0;
+  const ReqId reqSeqNum = msg->requestSeqNum();
+  const uint64_t flags = msg->flags();
 
-  SCOPED_MDC_CID(m->getCid());
+  SCOPED_MDC_CID(msg->getCid());
   LOG_DEBUG(CNSUS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
-  const auto &span_context = m->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
+  const auto &span_context = msg->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
   span.setTag("rid", config_.getreplicaId());
-  span.setTag("cid", m->getCid());
+  span.setTag("cid", msg->getCid());
   span.setTag("seq_num", reqSeqNum);
 
   // A read only replica can handle only reconfiguration requests. Those requests are signed by the operator and
@@ -209,12 +209,9 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (reconfig_flag) {
     LOG_INFO(GL, "ro replica has received a reconfiguration request");
-    executeReadOnlyRequest(span, m);
-    delete m;
+    executeReadOnlyRequest(span, *(msg.get()));
     return;
   }
-
-  delete m;
 }
 
 void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, const ClientRequestMsg &request) {
@@ -222,7 +219,6 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   // Read only replica does not know who is the primary, so it always return 0. It is the client responsibility to treat
   // the replies accordingly.
   ClientReplyMsg reply(0, request.requestSeqNum(), config_.getreplicaId());
-
   const uint16_t clientId = request.clientProxyId();
 
   int executionResult = 0;
@@ -239,7 +235,6 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               request.requestSeqNum(),
                                                                               request.requestIndexInBatch(),
                                                                               request.result()});
-
   // DD: Do we need to take care of Time Service here?
   bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
   IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();

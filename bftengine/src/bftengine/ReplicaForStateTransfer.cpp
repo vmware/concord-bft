@@ -116,12 +116,11 @@ void ReplicaForStateTransfer::stop() {
 }
 
 template <>
-void ReplicaForStateTransfer::onMessage(StateTransferMsg *m) {
+void ReplicaForStateTransfer::onMessage(std::unique_ptr<StateTransferMsg> msg) {
   metric_received_state_transfers_++;
-  size_t h = sizeof(MessageBase::Header);
-  stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
-  m->releaseOwnership();
-  delete m;
+  const size_t h = sizeof(MessageBase::Header);
+  stateTransfer->handleStateTransferMessage(msg->body() + h, msg->size() - h, msg->senderId());
+  msg->releaseOwnership();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -61,6 +61,6 @@ inline size_t sizeOfHeader<ClientBatchRequestMsgHeader>() {
   return sizeof(ClientBatchRequestMsgHeader);
 }
 
-typedef std::unique_ptr<ClientBatchRequestMsg> ClientBatchRequestMsgUniquePtr;
+using ClientBatchRequestMsgUniquePtr = std::unique_ptr<ClientBatchRequestMsg>;
 
 }  // namespace bftEngine::impl

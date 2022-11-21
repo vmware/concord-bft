@@ -67,6 +67,7 @@ class PreProcessBatchReplyMsg : public MessageBase {
   PreProcessReplyMsgsList preProcessReplyMsgsList_;
 };
 
+using PreProcessBatchReplyMsgUniquePtr = std::unique_ptr<PreProcessBatchReplyMsg>;
 using PreProcessBatchReplyMsgSharedPtr = std::shared_ptr<PreProcessBatchReplyMsg>;
 
 }  // namespace preprocessor

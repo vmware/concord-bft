@@ -26,20 +26,17 @@ void MsgReceiver::onNewMessage(NodeNum sourceNode,
                                size_t messageLength,
                                NodeNum endpointNum) {
   if (messageLength > ReplicaConfig::instance().getmaxExternalMessageSize()) {
-    LOG_WARN(GL, "Msg exceeds allowed max msg size, size " << messageLength << " source " << sourceNode);
+    LOG_WARN(GL, "Msg exceeds allowed max msg size" << KVLOG(messageLength, sourceNode));
     return;
   }
   if (messageLength < sizeof(MessageBase::Header)) {
-    LOG_WARN(GL, "Msg length is smaller than expected msg header, size " << messageLength << " source " << sourceNode);
+    LOG_WARN(GL, "Msg length is smaller than expected msg header" << KVLOG(messageLength, sourceNode));
     return;
   }
 
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
   memcpy(msgBody, message, messageLength);
-
-  auto node = sourceNode;
-
-  std::unique_ptr<MessageBase> pMsg(new MessageBase(node, msgBody, messageLength, true));
+  auto pMsg = std::make_unique<MessageBase>(sourceNode, msgBody, messageLength, true);
 
   incomingMsgsStorage_->pushExternalMsg(std::move(pMsg));
 }

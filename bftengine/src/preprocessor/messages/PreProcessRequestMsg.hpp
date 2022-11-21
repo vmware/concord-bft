@@ -105,6 +105,7 @@ class PreProcessRequestMsg : public MessageBase {
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 
-typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
+using PreProcessRequestMsgUniquePtr = std::unique_ptr<PreProcessRequestMsg>;
+using PreProcessRequestMsgSharedPtr = std::shared_ptr<PreProcessRequestMsg>;
 
 }  // namespace preprocessor

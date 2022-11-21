@@ -61,12 +61,12 @@ void BCStateTran::bindInterfaceHandlers() {
 
   startCollectingStateHandler_ = (config_.runInSeparateThread) ?
     static_cast<decltype(startCollectingStateHandler_)>([this]() {
-      DEBUG_PRINT(logger_, "Before startCollectingStateImpl");
+      DEBUG_PRINT(logger_, "Before startCollectingStateExternal");
       MARK_START_TIME;
-      incomingEventsQ_->push(std::bind(&BCStateTran::startCollectingStateImpl, this));
+      incomingEventsQ_->push(std::bind(&BCStateTran::startCollectingStateExternal, this));
       CALC_DURATION;
-      DEBUG_PRINT(logger_, "After startCollectingStateImpl" << KVLOG(jobDuration)); }) :
-    std::bind(&BCStateTran::startCollectingStateImpl, this);
+      DEBUG_PRINT(logger_, "After startCollectingStateExternal" << KVLOG(jobDuration)); }) :
+    std::bind(&BCStateTran::startCollectingStateExternal, this);
 
   initHandler_ = (config_.runInSeparateThread) ?
     static_cast<decltype(initHandler_)>([this](uint64_t maxNumOfRequiredStoredCheckpoints,

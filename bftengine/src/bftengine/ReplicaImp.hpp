@@ -77,7 +77,6 @@ using concordMetrics::StatusHandle;
 
 class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
-  std::atomic_bool isCollectingState_;
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
 
@@ -374,7 +373,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // InternalReplicaApi
   bool isCollectingState() const override {
     LOG_TRACE(GL, "Thread ID: " << std::this_thread::get_id());
-    return isCollectingState_;
+    return stateTransfer->isCollectingState();
   }
   void startCollectingState(std::string&& reason = "");
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
@@ -389,12 +388,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->isClientRequestInProcess(clientId, reqSeqNum);
-  }
-  inline void setIsCollectingState(bool newState) {
-    LOG_INFO(GL,
-             std::boolalpha << "Setting CollectingState to" << KVLOG(newState)
-                            << " Thread ID: " << std::this_thread::get_id());
-    isCollectingState_ = newState;
   }
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
@@ -454,7 +447,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void registerMsgHandlers();
 
   template <typename T>
-  void messageHandler(MessageBase* msg);
+  void messageHandler(std::unique_ptr<MessageBase> msg);
 
   template <typename T>
   void validatedMessageHandler(CarrierMesssage* msg);
@@ -479,7 +472,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::string getReplicaState() const;
   std::string getReplicaLastStableSeqNum() const;
   template <typename T>
-  void onMessage(T* msg);
+  void onMessage(std::unique_ptr<T> msg);
 
   void onInternalMsg(InternalMessage&& msg);
   void onInternalMsg(GetStatus& msg) const;
@@ -515,10 +508,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
-  void validatePrePrepareMsg(PrePrepareMsg*& ppm);
+  void validatePrePrepareMsg(std::unique_ptr<PrePrepareMsg> ppm);
 
   template <typename MSG>
-  void asyncValidateMessage(MSG* msg);
+  void asyncValidateMessage(std::unique_ptr<MSG>);
 
   void removeDuplicatedRequestsFromRequestsQueue();
 
