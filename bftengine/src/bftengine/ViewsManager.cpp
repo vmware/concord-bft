@@ -995,7 +995,6 @@ bool ViewsManager::addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastS
   ConcordAssert(!p->isNull());
 
   const SeqNum s = p->seqNumber();
-
   bool hasRelevantRestriction =
       (minRestrictionOfPendingView != 0) && (s >= minRestrictionOfPendingView) && (s <= maxRestrictionOfPendingView);
 
@@ -1004,17 +1003,12 @@ bool ViewsManager::addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastS
     ConcordAssert(idx < kWorkWindowSize);
 
     ViewChangeSafetyLogic::Restriction& r = restrictionsOfPendingView[idx];
-
     // if we need this message
     if (prePrepareMsgsOfRestrictions[idx] == nullptr && !r.isNull && r.digest == p->digestOfRequests()) {
       prePrepareMsgsOfRestrictions[idx] = p;
-
       return true;
     }
   }
-
-  delete p;  // p is not needed
-
   return false;
 }
 

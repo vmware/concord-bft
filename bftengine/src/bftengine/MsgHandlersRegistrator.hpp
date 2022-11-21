@@ -20,13 +20,16 @@
 namespace bftEngine::impl {
 
 template <typename T>
-using CallbackTypeWithPtrArg = std::function<void(T*)>;
+using CallbackTypeWithArg = std::function<void(T)>;
+
+template <typename T>
+using CallbackTypeWithRawPtrArg = std::function<void(T*)>;
 
 template <typename T>
 using CallbackTypeWithRefArg = std::function<void(T&&)>;
 
-using MsgHandlerCallback = CallbackTypeWithPtrArg<MessageBase>;
-using ValidatedMsgHandlerCallback = CallbackTypeWithPtrArg<CarrierMesssage>;
+using MsgHandlerCallback = CallbackTypeWithArg<std::unique_ptr<MessageBase>>;
+using ValidatedMsgHandlerCallback = CallbackTypeWithRawPtrArg<CarrierMesssage>;
 using InternalMsgHandlerCallback = CallbackTypeWithRefArg<InternalMessage>;
 
 // MsgHandlersRegistrator class contains message handling callback functions.

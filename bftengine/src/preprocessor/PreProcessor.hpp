@@ -152,8 +152,8 @@ class PreProcessor {
  protected:
   bool checkPreProcessRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr &requestMsg);
   bool checkPreProcessReplyMsgCorrectness(const PreProcessReplyMsgSharedPtr &replyMsg);
-  bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
-  bool checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr &batchReply);
+  bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgUniquePtr &batchReq);
+  bool checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgUniquePtr &batchReply);
 
  private:
   friend class AsyncPreProcessJob;
@@ -162,10 +162,10 @@ class PreProcessor {
   uint16_t numOfRequiredReplies();
 
   template <typename T>
-  void messageHandler(MessageBase *msg);
+  void messageHandler(std::unique_ptr<MessageBase> msg);
 
   template <typename T>
-  void onMessage(T *msg);
+  void onMessage(std::unique_ptr<T> msg);
 
   bool registerRequestOnPrimaryReplica(const std::string &batchCid,
                                        uint32_t batchSize,

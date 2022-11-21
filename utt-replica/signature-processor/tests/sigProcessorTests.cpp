@@ -294,8 +294,8 @@ class test_utt_instance : public ::testing::Test {
       sig_processors[i] = std::make_shared<utt::SigProcessor>(
           i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
       auto sp = sig_processors[i];
-      msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](bftEngine::impl::MessageBase* message) {
-        ClientRequestMsg* msg = (ClientRequestMsg*)message;
+      msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](std::unique_ptr<bftEngine::impl::MessageBase> message) {
+        auto msg = std::make_unique<ClientRequestMsg>(message.release());
         uint64_t job_id{0};
 
         std::vector<uint8_t> cs_buffer(msg->requestLength() - sizeof(uint64_t));
@@ -316,7 +316,6 @@ class test_utt_instance : public ::testing::Test {
         }
         sp->onReceivingNewValidFullSig(job_id);
         cv.notify_all();
-        delete msg;
       });
       msc->startCommunication(i);
       msc->startMsgsProcessing(i);
