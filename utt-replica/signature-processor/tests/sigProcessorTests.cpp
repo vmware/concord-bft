@@ -293,8 +293,7 @@ class test_utt_instance : public ::testing::Test {
       message_comms[i] = msc;
       sig_processors[i] = std::make_shared<utt::SigProcessor>(
           i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
-      auto sp = sig_processors[i];
-      msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](bftEngine::impl::MessageBase* message) {
+      msr->registerMsgHandler(MsgCode::ClientRequest, [&, i](bftEngine::impl::MessageBase* message) {
         ClientRequestMsg* msg = (ClientRequestMsg*)message;
         uint64_t job_id{0};
 
@@ -314,7 +313,7 @@ class test_utt_instance : public ::testing::Test {
             }
           }
         }
-        sp->onReceivingNewValidFullSig(job_id);
+        sig_processors[i]->onReceivingNewValidFullSig(job_id);
         cv.notify_all();
         delete msg;
       });
@@ -328,6 +327,8 @@ class test_utt_instance : public ::testing::Test {
       message_comms[i]->stopMsgsProcessing();
       message_comms[i]->stopCommunication();
     }
+    sig_processors.clear();
+    message_comms.clear();
   }
   bool wait_cond(uint64_t sigId, uint16_t source) {
     if (full_signatures.find(source) == full_signatures.end()) return false;
