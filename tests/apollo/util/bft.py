@@ -882,6 +882,10 @@ class BftTestNetwork:
                 time.sleep(sleep_seconds)
                 time_elapsed += sleep_seconds
 
+            # make sure we have read the whole communication phrase
+            if "," not in log_data[log_data.find(communication_str) + len(communication_str):]:
+                log_data += replica_log.read(chunk_bytes)
+
         assert communication_str in log_data, \
             f"Communication str not in {max_read_bytes + chunk_bytes} first bytes of the log, " \
             f"time elapsed: {time_elapsed}, read bytes: {len(log_data)}"
