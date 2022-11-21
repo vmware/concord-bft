@@ -11,19 +11,19 @@
 
 #pragma once
 
-#include "crypto/openssl/hash.hpp"
+#include "crypto/crypto.hpp"
 #include "SharedTypes.hpp"
 
 namespace preprocessor {
 
 class PreProcessResultHashCreator {
  public:
-  static concord::crypto::openssl::SHA3_256::Digest create(const char* preProcessResultData,
-                                                           uint32_t preProcessResultLen,
-                                                           bftEngine::OperationResult preProcessResult,
-                                                           uint16_t clientId,
-                                                           ReqId reqSeqNum) {
-    auto dataDigest = concord::crypto::openssl::SHA3_256();
+  static concord::crypto::SHA3_256::Digest create(const char* preProcessResultData,
+                                                  uint32_t preProcessResultLen,
+                                                  bftEngine::OperationResult preProcessResult,
+                                                  uint16_t clientId,
+                                                  ReqId reqSeqNum) {
+    auto dataDigest = concord::crypto::SHA3_256();
     dataDigest.init();
     if (preProcessResult == bftEngine::OperationResult::SUCCESS)
       dataDigest.update(preProcessResultData, preProcessResultLen);

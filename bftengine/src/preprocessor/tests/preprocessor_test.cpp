@@ -501,8 +501,7 @@ TEST(requestPreprocessingState_test, changePrimaryBlockId) {
   memcpy(buf + bufLen - sizeof(uint64_t), reinterpret_cast<char*>(&primaryBlockId), sizeof(uint64_t));
   reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
 
-  concord::crypto::openssl::SHA3_256::Digest replicasHash =
-      *((concord::crypto::openssl::SHA3_256::Digest*)reply->resultsHash());
+  concord::crypto::SHA3_256::Digest replicasHash = *((concord::crypto::SHA3_256::Digest*)reply->resultsHash());
   ConcordAssertNE(replicasHash, reqState.getResultHash());
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
   ConcordAssertEQ(replicasHash, reqState.getResultHash());

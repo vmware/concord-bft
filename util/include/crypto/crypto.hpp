@@ -17,7 +17,12 @@
 #include <string>
 #include <cstddef>
 
+#include "crypto/openssl/hash.hpp"
+
 namespace concord::crypto {
+
+using SHA3_256 = openssl::EVPHash<EVP_sha3_256, 32>;
+using SHA2_256 = openssl::EVPHash<EVP_sha256, 32>;
 
 enum SignatureAlgorithm : uint32_t { Uninitialized = 0, BLS = 1, EdDSA = 2, RSA = 3 };
 
