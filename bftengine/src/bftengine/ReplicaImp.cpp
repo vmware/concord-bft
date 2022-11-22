@@ -1665,8 +1665,8 @@ std::string ReplicaImp::getReplicaLastStableSeqNum() const {
 
 std::string ReplicaImp::getReplicaSeqNums() const {
   nlohmann::json j;
-  j["sequenceNumbers"]["lastStableSeqNum"] = lastStableSeqNum;
-  j["sequenceNumbers"]["lastExecutedSeqNum"] = getLastExecutedSeqNum();
+  j["sequenceNumbers"]["lastStableSeqNum"] = std::to_string(lastStableSeqNum);
+  j["sequenceNumbers"]["lastExecutedSeqNum"] = std::to_string(getLastExecutedSeqNum());
   return j.dump();
 }
 
