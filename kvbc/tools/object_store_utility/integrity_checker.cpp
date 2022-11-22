@@ -81,7 +81,7 @@ std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() co
 
   std::string suff = key.toString().substr(checkpoints_prefix_.length());
   BlockId block = util::to<BlockId>(suff.substr(0, suff.find_last_of('/')));
-  LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for block: " << block);
+  LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for " << KVLOG(block));
   delete it;
   auto desc = getCheckpointDescriptor(key);
   Digest digest(desc.checkpointMsgs[0]->stateDigest().content());
@@ -219,7 +219,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   auto [containing_block, _] = s3_dbset_.dbAdapter->getValue(sKey, 0);
   UNUSED(_);
   auto containing_block_id = util::to<BlockId>(containing_block.data());
-  LOG_INFO(logger_, "containing_block_id: " << containing_block_id);
+  LOG_INFO(logger_, KVLOG(containing_block_id));
 
   auto [block_id, digest] = getCheckpointDescriptor(containing_block_id);
   for (auto block = block_id; block >= containing_block_id; --block) digest = checkBlock(block, digest);

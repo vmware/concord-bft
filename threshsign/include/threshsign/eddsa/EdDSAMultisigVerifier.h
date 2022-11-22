@@ -17,8 +17,6 @@
 
 class EdDSAMultisigVerifier;
 
-bool isSignatureValid(const SingleEdDSASignature &signature);
-
 class EdDSASignatureAccumulator : public IThresholdAccumulator {
  public:
   EdDSASignatureAccumulator(bool verification, const EdDSAMultisigVerifier &verifier);

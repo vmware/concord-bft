@@ -20,7 +20,6 @@ int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
   if (singleSignature.id == 0 || singleSignature.id > verifier_.maxShareID()) {
     LOG_ERROR(EDDSA_MULTISIG_LOG, "Invalid signer id" << KVLOG(singleSignature.id, verifier_.maxShareID()));
     return static_cast<int>(signatures_.size());
-    ;
   }
 
   if (hasShareVerificationEnabled()) {

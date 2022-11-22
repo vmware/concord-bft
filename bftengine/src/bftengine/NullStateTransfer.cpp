@@ -63,8 +63,7 @@ void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
   LOG_WARN(GL, "State digest is only based on sequence number (because state transfer module has not been loaded)");
 
   Digest d;
-  DigestGenerator digestGenerator;
-  digestGenerator.compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
+  DigestGenerator().compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
 
   memset(outStateDigest, 0, sizeOfDigestBuffer);
   memset(outResPagesDigest, 0, sizeOfDigestBuffer);

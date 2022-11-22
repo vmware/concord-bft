@@ -212,10 +212,7 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
   return factory->newSigner(signerID_, privateKeys_.front().c_str());
 }
 
-void Cryptosystem::validatePublicKey(const std::string& key) const {
-  UNUSED(key);
-  return;
-}
+void Cryptosystem::validatePublicKey([[maybe_unused]] const std::string& key) const {}
 
 void Cryptosystem::validateVerificationKey(const std::string& key) const {
   constexpr const size_t expectedKeyLength = concord::crypto::Ed25519PublicKeyByteSize * 2;
@@ -229,8 +226,7 @@ void Cryptosystem::validatePrivateKey(const std::string& key) const {
   isValidKey(keyType, key, expectedKeyLength);
 }
 
-bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const std::string& subtype) {
-  UNUSED(subtype);
+bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, [[maybe_unused]] const std::string& subtype) {
   if (type == MULTISIG_EDDSA_SCHEME) {
     return true;
   }
