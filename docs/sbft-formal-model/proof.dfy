@@ -36,7 +36,7 @@ module Proof {
   }
 
   // Here's a predicate that will be very useful in constructing invariant conjuncts.
-  predicate RecordedPrePreparesRecvdCameFromNetwork(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPrePreparesRecvdCameFromNetwork(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx, seqID | 
               && IsHonestReplica(c, replicaIdx)
@@ -62,14 +62,14 @@ module Proof {
                     && msg.payload.seqID == seqID)) // The key we stored matches what is in the msg
   }
 
-  predicate RecordedPreparesInAllHostsRecvdCameFromNetwork(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPreparesInAllHostsRecvdCameFromNetwork(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall observer | 
             && IsHonestReplica(c, observer)
                 :: RecordedPreparesRecvdCameFromNetwork(c, v, observer))
   }
 
-  predicate EveryCommitMsgIsSupportedByAQuorumOfPrepares(c:Constants, v:Variables) {
+  predicate {:opaque} EveryCommitMsgIsSupportedByAQuorumOfPrepares(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall commitMsg | && commitMsg in v.network.sentMsgs 
                            && commitMsg.payload.Commit? 
@@ -82,7 +82,7 @@ module Proof {
   // with a Prepare message only for it. The lock on Prepare is meant to highlight the fact that
   // even though a replica can send multiple times a Prepare message for a given Sequence ID for
   // a given View, this message will not change unless a View Change happens.
-  predicate HonestReplicasLockOnPrepareForGivenView(c: Constants, v:Variables)
+  predicate {:opaque} HonestReplicasLockOnPrepareForGivenView(c: Constants, v:Variables)
   {
     && (forall msg1, msg2 {:trigger msg1.payload.Prepare?, msg2.payload.Prepare?} | 
         && msg1 in v.network.sentMsgs 
@@ -125,7 +125,7 @@ module Proof {
         :: msg1.payload.operationWrapper == msg2.payload.operationWrapper)
   }
 
-  predicate RecordedPreparesHaveValidSenderID(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPreparesHaveValidSenderID(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx, seqID, sender |
           && IsHonestReplica(c, replicaIdx)
@@ -137,7 +137,7 @@ module Proof {
         )
   }
 
-  predicate RecordedPreparesClientOpsMatchPrePrepare(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPreparesClientOpsMatchPrePrepare(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx, seqID, sender |
           && IsHonestReplica(c, replicaIdx)
@@ -182,7 +182,7 @@ module Proof {
                                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper))
   }
 
-  predicate EverySentIntraViewMsgIsInWorkingWindowOrBefore(c:Constants, v:Variables) {
+  predicate {:opaque} EverySentIntraViewMsgIsInWorkingWindowOrBefore(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall msg | && msg in v.network.sentMsgs
                            && msg.payload.IsIntraViewMsg()
@@ -192,7 +192,7 @@ module Proof {
              && msg.payload.seqID < replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
   }
 
-  predicate EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c:Constants, v:Variables) {
+  predicate {:opaque} EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall msg | && msg in v.network.sentMsgs
                            && msg.payload.IsIntraViewMsg()
@@ -232,7 +232,7 @@ module Proof {
              && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
 
-  predicate RecordedPreparesMatchHostView(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPreparesMatchHostView(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall observer, seqID, sender | 
                            && IsHonestReplica(c, observer)
@@ -260,7 +260,7 @@ module Proof {
                         == prepare.payload.operationWrapper)
   }
 
-  predicate RecordedCheckpointsRecvdCameFromNetwork(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedCheckpointsRecvdCameFromNetwork(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx, checkpointMsg | 
               && IsHonestReplica(c, replicaIdx)
@@ -283,7 +283,7 @@ module Proof {
   //                                       :: prePrepare1 == prePrepare2)
   // }
 
-  predicate AllReplicasLiteInv (c: Constants, v:Variables) {
+  predicate {:opaque} AllReplicasLiteInv (c: Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsHonestReplica(replicaIdx)
                             :: Replica.LiteInv(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
@@ -496,13 +496,54 @@ module Proof {
     ensures EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v')
     ensures CommitMsgsFromHonestSendersAgree(c, v')
   {
-    ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
-    reveal_RecordedCommitsClientOpsMatchPrePrepare();
-    reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
-    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
-    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-    reveal_HonestReplicasLockOnCommitForGivenView();
-    ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
+    assert RecordedCommitsClientOpsMatchPrePrepare(c, v') by {
+      reveal_RecordedCommitsClientOpsMatchPrePrepare();
+      if c.clusterConfig.IsHonestReplica(step.id) {
+        // var h_c := c.hosts[step.id].replicaConstants;
+        var h_v := v.hosts[step.id].replicaVariables;
+        h_v.workingWindow.reveal_Shift();
+        // var h_v' := v'.hosts[step.id].replicaVariables;
+        // var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+        // if h_step.RecvCommitStep? {
+        //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+        // } else if h_step.PerformStateTransferStep? {
+        //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+        // } else if h_step.AdvanceWorkingWindowStep? {
+        //   h_v.workingWindow.reveal_Shift();
+        //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+        // } else {
+        //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+        // }
+      }
+      // else {
+      //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+      // }
+    }
+    assert EveryCommitIsSupportedByPreviouslySentPrepares(c, v') by {
+      assume false;
+    }
+    assert EveryPrepareClientOpMatchesRecordedPrePrepare(c, v') by {
+      assume false;
+    }
+    assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v') by {
+      assume false;
+    }
+    assert HonestReplicasLockOnCommitForGivenView(c, v') by {
+      assume false;
+    }
+    assert EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v') by {
+      assume false;
+    }
+    assert CommitMsgsFromHonestSendersAgree(c, v') by {
+      assume false;
+    }
+    // ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
+    // reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    // reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
+    // reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    // reveal_HonestReplicasLockOnCommitForGivenView();
+    // ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
   }
 
   lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)

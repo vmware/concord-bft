@@ -100,7 +100,7 @@ module Replica {
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
-    function Shift<T>(c:Constants, m:map<SequenceID,T>, lastStableCheckpoint:SequenceID, empty:T) : map<SequenceID,T> 
+    function {:opaque} Shift<T>(c:Constants, m:map<SequenceID,T>, lastStableCheckpoint:SequenceID, empty:T) : map<SequenceID,T> 
       requires c.WF()
     {
       map seqID | seqID in c.getActiveSequenceIDs(lastStableCheckpoint) :: if seqID in m then m[seqID] else empty
