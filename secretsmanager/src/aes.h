@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include <string_view>
 
 #include "crypto/crypto.hpp"
 #include "key_params.h"
@@ -28,7 +29,7 @@ class AES_CBC {
   AES_CBC(const KeyParams& params,
           concord::crypto::SignatureAlgorithm algo = concord::crypto::SignatureAlgorithm::EdDSA)
       : params_{params}, algo_{algo} {}
-  std::vector<uint8_t> encrypt(const std::string& input);
+  std::vector<uint8_t> encrypt(std::string_view input);
   std::string decrypt(const std::vector<uint8_t>& cipher);
 
  private:

@@ -24,18 +24,16 @@ using std::string;
 using concord::crypto::openssl::OPENSSL_SUCCESS;
 using concord::crypto::openssl::UniqueCipherContext;
 
-vector<uint8_t> AES_CBC::encrypt(const string& input) {
+vector<uint8_t> AES_CBC::encrypt(std::string_view input) {
   if (algo_ == concord::crypto::SignatureAlgorithm::EdDSA) {
     if (input.empty()) {
       return {};
     }
 
     auto ciphertext = std::make_unique<unsigned char[]>(input.size() + AES_BLOCK_SIZE);
-    auto plaintext = std::make_unique<unsigned char[]>(input.size() + 1);
+    auto plaintext = std::make_unique<unsigned char[]>(input.size());
 
-    for (size_t i{0UL}; i < input.size(); ++i) {
-      plaintext.get()[i] = static_cast<unsigned char>(input[i]);
-    }
+    std::copy(input.begin(), input.end(), plaintext.get());
 
     UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
     ConcordAssert(nullptr != ctx);
