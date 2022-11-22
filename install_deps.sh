@@ -455,20 +455,27 @@ install_ccache(){
   mkdir -p /mnt/ccache/
 }
 
-# A heap memory usage profiler
+# A heap memory usage profiler - installs heaptrack,heaptrack_print and heaptrack_gui
 install_heaptrack(){
   HEAPTRACK_VER=1.4.0
-  cd /tmp/ && \
-  git clone https://github.com/KDE/heaptrack.git heaptrack && \
-    cd heaptrack && \
-    git checkout v${HEAPTRACK_VER} && \
-    mkdir build && cd build && \
-    apt install -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev gettext && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DHEAPTRACK_BUILD_GUI:BOOL=OFF .. && \
-    make -j$(nproc) && make install && \
-    cd "${HOME}" && \
-	  rm -rf /tmp/heaptrack && \
-	  apt purge -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev gettext
+  AQT_VER=5.10.0
+  apt install -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev libkchart-dev \
+      extra-cmake-modules mesa-common-dev libglu1-mesa-dev libboost-program-options-dev \
+      libkf5filemetadata-dev libkf5kio-dev libkf5threadweaver-dev libkf5itemmodels-dev gettext && \
+  pip3 install -U pip && \
+  pip3 install aqtinstall && \
+  aqt install-qt linux desktop ${AQT_VER} --outputdir /opt  && \
+  cd /tmp/ && git clone https://github.com/KDE/heaptrack.git heaptrack && \
+  cd heaptrack && git checkout v${HEAPTRACK_VER} && \
+  mkdir build && cd build && \
+  cmake -DCMAKE_BUILD_TYPE=Release -DHEAPTRACK_BUILD_GUI:BOOL=ON -DCMAKE_PREFIX_PATH=/opt/${AQT_VER}/gcc_64 .. && \
+	make -j$(nproc) && \
+  sudo make install && \
+	cd /tmp/ && rm -rf heaptrack && \
+	apt purge -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev libkchart-dev \
+      extra-cmake-modules mesa-common-dev libglu1-mesa-dev libboost-program-options-dev \
+      libkf5filemetadata-dev libkf5kio-dev libkf5threadweaver-dev libkf5itemmodels-dev gettext && \
+	pip3 uninstall aqtinstall -y
 }
 
 install_build_tools
