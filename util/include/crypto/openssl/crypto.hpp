@@ -40,6 +40,9 @@
 
 namespace concord::crypto::openssl {
 
+// unique_ptr custom deleter
+void _openssl_free(void* ptr);
+
 using UniqueContext = custom_deleter_unique_ptr<EVP_MD_CTX, EVP_MD_CTX_free>;
 using UniquePKEYContext = custom_deleter_unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
 using UniquePKEY = custom_deleter_unique_ptr<EVP_PKEY, EVP_PKEY_free>;
@@ -50,6 +53,7 @@ using UniqueBIGNUM = custom_deleter_unique_ptr<BIGNUM, BN_clear_free>;
 using UniqueBNCTX = custom_deleter_unique_ptr<BN_CTX, BN_CTX_free>;
 using UniqueECKEY = custom_deleter_unique_ptr<EC_KEY, EC_KEY_free>;
 using UniqueECPOINT = custom_deleter_unique_ptr<EC_POINT, EC_POINT_clear_free>;
+using UniqueOpenSSLString = custom_deleter_unique_ptr<char[], _openssl_free>;
 
 constexpr int OPENSSL_SUCCESS = 1;
 constexpr int OPENSSL_FAILURE = 0;
