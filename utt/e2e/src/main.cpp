@@ -1,10 +1,10 @@
 #include "admin.hpp"
 #include "wallet.hpp"
 #include "test_base_scenario.cpp"
-#include "test_scenario_burn_above_balance.cpp"
+#include "test_scenario_convertPrivateToPublic_above_balance.cpp"
 #include "test_scenario_transfer_above_budget.cpp"
 #include "test_scenario_transfer_above_balance.cpp"
-#include "test_scenario_mint_above_balance.cpp"
+#include "test_scenario_convertPublicToPrivate_above_balance.cpp"
 #include <iostream>
 #include <unistd.h>
 #include <xutils/Log.h>
