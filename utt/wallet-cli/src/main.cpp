@@ -52,8 +52,8 @@
 void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << "config                    -- configures wallets with the privacy application.\n";
-  std::cout << "show                      -- prints information about the user managed by this wallet\n";
-  std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
+  std::cout << "show                      -- prints information about the user managed by this wallet.\n";
+  std::cout << "register <user-id>        -- requests user registration required for spending coins.\n";
   std::cout << "convertPublicToPrivate <amount>             -- converts the specified amount of public funds to "
                "private funds.\n";
   std::cout << "transfer <amount> <to-user-id> -- transfers the specified amount between users.\n";
