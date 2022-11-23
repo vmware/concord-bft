@@ -54,11 +54,13 @@ void printHelp() {
   std::cout << "config                    -- configures wallets with the privacy application.\n";
   std::cout << "show                      -- prints information about the user managed by this wallet\n";
   std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
-  std::cout << "mint <amount>             -- mint the requested amount of public funds.\n";
+  std::cout << "convertPublicToPrivate <amount>             -- converts the specified amount of public funds to "
+               "private funds.\n";
   std::cout << "transfer <amount> <to-user-id> -- transfers the specified amount between users.\n";
   std::cout
       << "public-transfer <amount> <to-user-id> -- transfers the specified amount of public funds between users.\n";
-  std::cout << "burn <amount>             -- burns the specified amount of private funds to public funds.\n";
+  std::cout << "convertPrivateToPublic <amount>             -- converts the specified amount of private funds to "
+               "public funds.\n";
   std::cout << '\n';
 }
 
@@ -113,12 +115,12 @@ struct CLIApp {
 
   void mintCmd(const std::vector<std::string>& cmdTokens) {
     if (cmdTokens.size() != 2) {
-      std::cout << "Usage: mint <amount>\n";
+      std::cout << "Usage: convertPublicToPrivate <amount>\n";
       return;
     }
     int amount = std::atoi(cmdTokens[1].c_str());
     if (amount <= 0) {
-      std::cout << "Expected a positive mint amount!\n";
+      std::cout << "Expected a positive public funds amount!\n";
       return;
     }
     wallet->mint(chan, (uint64_t)amount);
@@ -155,12 +157,12 @@ struct CLIApp {
 
   void burnCmd(const std::vector<std::string>& cmdTokens) {
     if (cmdTokens.size() != 2) {
-      std::cout << "Usage: burn <amount>\n";
+      std::cout << "Usage: convertPrivateToPublic <amount>\n";
       return;
     }
     int amount = std::atoi(cmdTokens[1].c_str());
     if (amount <= 0) {
-      std::cout << "Expected a positive burn amount!\n";
+      std::cout << "Expected a positive private funds amount!\n";
       return;
     }
     wallet->burn(chan, (uint64_t)amount);
@@ -227,13 +229,13 @@ int main(int argc, char* argv[]) {
           std::cout << "You must first register the user. Use the 'register' command.\n";
         } else if (cmdTokens[0] == "show") {
           app.showCmd();
-        } else if (cmdTokens[0] == "mint") {
+        } else if (cmdTokens[0] == "convertPublicToPrivate") {
           app.mintCmd(cmdTokens);
         } else if (cmdTokens[0] == "transfer") {
           app.transferCmd(cmdTokens);
         } else if (cmdTokens[0] == "public-transfer") {
           app.publicTransferCmd(cmdTokens);
-        } else if (cmdTokens[0] == "burn") {
+        } else if (cmdTokens[0] == "convertPrivateToPublic") {
           app.burnCmd(cmdTokens);
         } else if (cmdTokens[0] == "debug") {
           app.debugCmd();
