@@ -39,13 +39,13 @@ class E2eTestSuite {
 
     testScenarios.push_back(
         std::make_unique<E2eTestBaseScenario>(context, "Mint transfer and burn should result in balance change"));
-    testScenarios.push_back(std::make_unique<E2eTestScenarioBurnAboveBalance>(
+    testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPrivateToPublicAboveBalance>(
         context, "Burn above private balance should not change balance"));
     testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBudget>(
         context, "Transfer above privacy budget should not change balance"));
     testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBalance>(
         context, "Transfer above private balance should not change balance"));
-    testScenarios.push_back(std::make_unique<E2eTestScenarioMintAboveBalance>(
+    testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPublicToPrivateAboveBalance>(
         context, "Mint above public balance should not change balance"));
   }
 

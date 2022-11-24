@@ -3,9 +3,9 @@
 
 using namespace libutt;
 
-class E2eTestScenarioBurnAboveBalance : public E2eTestScenario {
+class E2eTestScenarioConvertPrivateToPublicAboveBalance : public E2eTestScenario {
  public:
-  E2eTestScenarioBurnAboveBalance(E2eTestContext &context, std::string description)
+  E2eTestScenarioConvertPrivateToPublicAboveBalance(E2eTestContext &context, std::string description)
       : E2eTestScenario(context, description) {}
   int execute() override {
     const int MINTED_AMOUNT = 500;
