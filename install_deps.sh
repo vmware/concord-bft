@@ -476,6 +476,9 @@ install_heaptrack(){
       extra-cmake-modules mesa-common-dev libglu1-mesa-dev libboost-program-options-dev \
       libkf5filemetadata-dev libkf5kio-dev libkf5threadweaver-dev libkf5itemmodels-dev gettext && \
 	pip3 uninstall aqtinstall -y
+
+  echo "export LD_LIBRARY_PATH=/opt/5.10.0/gcc_64/lib/" >> ~/.bashrc
+  echo "export PATH=/opt/5.10.0/gcc_64/bin/:$PATH" >> ~/.bashrc
 }
 
 install_build_tools

@@ -1,6 +1,6 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.103  # temporary
+CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.104  # temporary
 CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 
 CONCORD_BFT_DOCKERFILE?=Dockerfile
@@ -131,7 +131,7 @@ ifeq (${CONCORD_BFT_CMAKE_CCACHE},TRUE)
 		--env CCACHE_DIR=/mnt/ccache/
 endif
 
-ifeq (${CONCORD_BFT_ENABLE_X1_APPS},TRUE)
+ifeq (${CONCORD_BFT_ENABLE_X11_APPS},TRUE)
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=\
 	-v /tmp/.X11-unix:/tmp/.X11-unix:rw \
 	-v ${HOME}/.Xauthority:/root/.Xauthority \
@@ -175,7 +175,7 @@ pull: ## Pull image from remote
 	docker pull ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
 
 .PHONY: login
-login: ## Login to the container. Note: if the container is already running, login into existing one. To support running X11 applications (e.g heaptrack_gui, for newly created containers only) - set CONCORD_BFT_ENABLE_X1_APPS=TRUE.
+login: ## Login to the container. Note: if the container is already running, login into existing one. To support running X11 applications (e.g heaptrack_gui, for newly created containers only) - set CONCORD_BFT_ENABLE_X11_APPS=TRUE.
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
 		docker run ${BASIC_RUN_PARAMS} \
 			${CONCORD_BFT_CONTAINER_SHELL};exit 0; \
