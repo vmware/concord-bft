@@ -5,22 +5,26 @@ using namespace libutt;
 
 class E2eTestBaseScenario : public E2eTestScenario {
  public:
-  E2eTestBaseScenario(E2eTestContext &context, std::string description) : E2eTestScenario(context, description) {}
-  int execute() override {
+  E2eTestBaseScenario(std::string description) : E2eTestScenario(description) {}
+  int execute(E2eTestContext &context) override {
     const int MINT_AMOUNT = 2000;
     const int TRANSFER_AMOUNT = 800;
     const int BURN_AMOUNT = 700;
 
-    uint64_t publicBalance1Before, privateBalance1Before, publicBalance2Before, privateBalance2Before;
-    uint64_t publicBalance1After, privateBalance1After, publicBalance2After, privateBalance2After;
+    E2eTestResult testResult = E2eTestResult::PASSED;
+    E2eTestExpectedUserBalances expectedBalances;
+
+    uint64_t publicBalance1Before = 0, privateBalance1Before = 0, publicBalance2Before = 0, privateBalance2Before = 0;
 
     std::tie(publicBalance1Before, privateBalance1Before, std::ignore) =
         context.wallet1->getBalanceInfo(context.chanWallet);
+
     logdbg << "publicBalance1 before: " << publicBalance1Before << ", privateBalance1 before: " << privateBalance1Before
            << std::endl;
 
     std::tie(publicBalance2Before, privateBalance2Before, std::ignore) =
         context.wallet2->getBalanceInfo(context.chanWallet);
+
     logdbg << "publicBalance2 before: " << publicBalance2Before << ", privateBalance2 before: " << privateBalance2Before
            << std::endl;
 
@@ -32,21 +36,15 @@ class E2eTestBaseScenario : public E2eTestScenario {
     uint64_t EXPECTED_PUBLIC_BALANCE_2_AFTER = publicBalance2Before;
     uint64_t EXPECTED_PRIVATE_BALANCE_2_AFTER = privateBalance2Before;
 
-    std::tie(publicBalance1After, privateBalance1After, std::ignore) =
-        context.wallet1->getBalanceInfo(context.chanWallet);
-    logdbg << "publicBalance1 after: " << publicBalance1After << ", privateBalance1 after: " << privateBalance1After
-           << std::endl;
-    if (publicBalance1After != EXPECTED_PUBLIC_BALANCE_1_AFTER or
-        privateBalance1After != EXPECTED_PRIVATE_BALANCE_1_AFTER)
-      return E2eTestResult::FAILED;
+    expectedBalances.expectedPublicBalance = std::make_optional(EXPECTED_PUBLIC_BALANCE_1_AFTER);
+    expectedBalances.expectedPrivateBalance = std::make_optional(EXPECTED_PRIVATE_BALANCE_1_AFTER);
+    expectedBalances.expectedPrivacyBudget = std::nullopt;
+    checkExpectedBalances(context.chanWallet, context.wallet1, expectedBalances, testResult);
 
-    std::tie(publicBalance2After, privateBalance2After, std::ignore) =
-        context.wallet2->getBalanceInfo(context.chanWallet);
-    logdbg << "publicBalance2 after: " << publicBalance2After << ", privateBalance2 after: " << privateBalance2After
-           << std::endl;
-    if (publicBalance2After != EXPECTED_PUBLIC_BALANCE_2_AFTER or
-        privateBalance2After != EXPECTED_PRIVATE_BALANCE_2_AFTER)
-      return E2eTestResult::FAILED;
+    expectedBalances.expectedPublicBalance = std::make_optional(EXPECTED_PUBLIC_BALANCE_2_AFTER);
+    expectedBalances.expectedPrivateBalance = std::make_optional(EXPECTED_PRIVATE_BALANCE_2_AFTER);
+    expectedBalances.expectedPrivacyBudget = std::nullopt;
+    checkExpectedBalances(context.chanWallet, context.wallet2, expectedBalances, testResult);
 
     context.wallet1->transfer(context.chanWallet, TRANSFER_AMOUNT, "user-2");
     context.wallet1->burn(context.chanWallet, BURN_AMOUNT);
@@ -56,22 +54,16 @@ class E2eTestBaseScenario : public E2eTestScenario {
     EXPECTED_PUBLIC_BALANCE_2_AFTER = publicBalance2Before;
     EXPECTED_PRIVATE_BALANCE_2_AFTER = privateBalance2Before + TRANSFER_AMOUNT;
 
-    std::tie(publicBalance1After, privateBalance1After, std::ignore) =
-        context.wallet1->getBalanceInfo(context.chanWallet);
-    logdbg << "publicBalance1 after: " << publicBalance1After << ", privateBalance1 after: " << privateBalance1After
-           << std::endl;
-    if (publicBalance1After != EXPECTED_PUBLIC_BALANCE_1_AFTER or
-        privateBalance1After != EXPECTED_PRIVATE_BALANCE_1_AFTER)
-      return E2eTestResult::FAILED;
+    expectedBalances.expectedPublicBalance = std::make_optional(EXPECTED_PUBLIC_BALANCE_1_AFTER);
+    expectedBalances.expectedPrivateBalance = std::make_optional(EXPECTED_PRIVATE_BALANCE_1_AFTER);
+    expectedBalances.expectedPrivacyBudget = std::nullopt;
+    checkExpectedBalances(context.chanWallet, context.wallet1, expectedBalances, testResult);
 
-    std::tie(publicBalance2After, privateBalance2After, std::ignore) =
-        context.wallet2->getBalanceInfo(context.chanWallet);
-    logdbg << "publicBalance2 after: " << publicBalance2After << ", privateBalance2 after: " << privateBalance2After
-           << std::endl;
-    if (publicBalance2After != EXPECTED_PUBLIC_BALANCE_2_AFTER or
-        privateBalance2After != EXPECTED_PRIVATE_BALANCE_2_AFTER)
-      return E2eTestResult::FAILED;
+    expectedBalances.expectedPublicBalance = std::make_optional(EXPECTED_PUBLIC_BALANCE_2_AFTER);
+    expectedBalances.expectedPrivateBalance = std::make_optional(EXPECTED_PRIVATE_BALANCE_2_AFTER);
+    expectedBalances.expectedPrivacyBudget = std::nullopt;
+    checkExpectedBalances(context.chanWallet, context.wallet2, expectedBalances, testResult);
 
-    return E2eTestResult::PASSED;
+    return testResult;
   }
 };

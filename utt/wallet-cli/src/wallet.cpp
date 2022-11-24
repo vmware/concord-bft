@@ -55,10 +55,11 @@ void Wallet::showInfo(Channel& chan) {
 }
 
 std::tuple<uint64_t, uint64_t, uint64_t> Wallet::getBalanceInfo(Channel& chan) {
-  // returns: (public balance, private balance, privacy budget)
   syncState(chan);
   return std::make_tuple(publicBalance_, user_->getBalance(), user_->getPrivacyBudget());
 }
+
+std::string Wallet::getUserId() { return userId_; }
 
 utt::PublicConfig Wallet::getPublicConfig(Channel& chan) {
   WalletRequest req;

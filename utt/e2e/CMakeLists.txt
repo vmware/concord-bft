@@ -1,5 +1,6 @@
 set(e2e-src
     src/main.cpp
+    src/test_scenario.cpp
 )
 
 add_executable(privacy-e2e ${e2e-src})
