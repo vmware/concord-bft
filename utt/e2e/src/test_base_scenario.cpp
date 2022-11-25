@@ -29,7 +29,6 @@ class E2eTestBaseScenario : public E2eTestScenario {
            << std::endl;
 
     context.wallet1->mint(context.chanWallet, MINT_AMOUNT);
-    Admin::createPrivacyBudget(context.chanAdmin, "user-1", 10000);
 
     uint64_t EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before - MINT_AMOUNT;
     uint64_t EXPECTED_PRIVATE_BALANCE_1_AFTER = privateBalance1Before + MINT_AMOUNT;

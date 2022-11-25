@@ -42,10 +42,10 @@ class E2eTestSuite {
         std::make_unique<E2eTestBaseScenario>("Mint transfer and burn should result in balance change"));
     testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPrivateToPublicAboveBalance>(
         "Burn above private balance should not change balance"));
-    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBudget>(
-        "Transfer above privacy budget should not change balance"));
     testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBalance>(
         "Transfer above private balance should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBudget>(
+        "Transfer above privacy budget should not change balance"));
     testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPublicToPrivateAboveBalance>(
         "Mint above public balance should not change balance"));
   }
@@ -53,6 +53,7 @@ class E2eTestSuite {
   bool run() {
     bool failed = false;
     unsigned int failedCount = 0, passedCount = 0;
+    Admin::createPrivacyBudget(context.chanAdmin, "user-1", 5000);
     for (auto &test : testScenarios) {
       assertWalletsPresent();
       int result = test->execute(context);
