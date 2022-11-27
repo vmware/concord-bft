@@ -12,7 +12,7 @@
 // file.
 
 #include "simpleKVBTestsBuilder.hpp"
-#include "boost/detail/endian.hpp"
+#include "endianness.hpp"
 #include "assertUtils.hpp"
 #include <chrono>
 #include <map>
@@ -140,15 +140,15 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     uint8_t* key_first_byte = reinterpret_cast<uint8_t*>(&key);
     uint8_t* key_last_byte = key_first_byte + sizeof(key);
 
-#ifdef BOOST_BIG_ENDIAN
+#ifdef CONCORD_BIG_ENDIAN
     copy(key_first_byte, key_last_byte, write_req.readset[i].data());
-#else  // BOOST_BIG_ENDIAN not defined
-#ifdef BOOST_LITTLE_ENDIAN
+#else  // CONCORD_BIG_ENDIAN not defined
+#ifdef CONCORD_LITTLE_ENDIAN
     reverse_copy(key_first_byte, key_last_byte, write_req.readset[i].data());
-#else   // BOOST_LITTLE_ENDIAN not defined
+#else   // CONCORD_LITTLE_ENDIAN not defined
     static_assert(false, "failed to determine the endianness being compiled for");
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
-#endif  // if BOOST_BIG_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_BIG_ENDIAN defined/else
   }
 
   std::set<uint64_t> usedKeys;
@@ -164,28 +164,28 @@ void TestsBuilder::createAndInsertRandomConditionalWrite() {
     write_req.writeset[i].first.resize(kMaxKVSizeToUse);
     uint8_t* key_first_byte = reinterpret_cast<uint8_t*>(&key);
     uint8_t* key_last_byte = key_first_byte + sizeof(key);
-#ifdef BOOST_BIG_ENDIAN
+#ifdef CONCORD_BIG_ENDIAN
     copy(key_first_byte, key_last_byte, write_req.writeset[i].first.data());
-#else  // BOOST_BIG_ENDIAN not defined
-#ifdef BOOST_LITTLE_ENDIAN
+#else  // CONCORD_BIG_ENDIAN not defined
+#ifdef CONCORD_LITTLE_ENDIAN
     reverse_copy(key_first_byte, key_last_byte, write_req.writeset[i].first.data());
-#else   // BOOST_LITTLE_ENDIAN not defined
+#else   // CONCORD_LITTLE_ENDIAN not defined
     static_assert(false, "failed to determine the endianness being compiled for");
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
-#endif  // if BOOST_BIG_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_BIG_ENDIAN defined/else
 
     write_req.writeset[i].second.resize(kMaxKVSizeToUse);
     uint8_t* value_first_byte = reinterpret_cast<uint8_t*>(&value);
     uint8_t* value_last_byte = value_first_byte + sizeof(value);
-#ifdef BOOST_BIG_ENDIAN
+#ifdef CONCORD_BIG_ENDIAN
     copy(value_first_byte, value_last_byte, write_req.writeset[i].second.data());
-#else  // BOOST_BIG_ENDIAN not defined
-#ifdef BOOST_LITTLE_ENDIAN
+#else  // CONCORD_BIG_ENDIAN not defined
+#ifdef CONCORD_LITTLE_ENDIAN
     reverse_copy(value_first_byte, value_last_byte, write_req.writeset[i].second.data());
-#else   // BOOST_LITTLE_ENDIAN not defined
+#else   // CONCORD_LITTLE_ENDIAN not defined
     static_assert(false, "failed to determine the endianness being compiled for");
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
-#endif  // if BOOST_BIG_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_BIG_ENDIAN defined/else
   }
 
   // Add request to m_requests
@@ -227,15 +227,15 @@ void TestsBuilder::createAndInsertRandomRead() {
     uint8_t* key_first_byte = reinterpret_cast<uint8_t*>(&key);
     uint8_t* key_last_byte = key_first_byte + sizeof(key);
 
-#ifdef BOOST_BIG_ENDIAN
+#ifdef CONCORD_BIG_ENDIAN
     copy(key_first_byte, key_last_byte, read_req.keys[i].data());
-#else  // BOOST_BIG_ENDIAN not defined
-#ifdef BOOST_LITTLE_ENDIAN
+#else  // CONCORD_BIG_ENDIAN not defined
+#ifdef CONCORD_LITTLE_ENDIAN
     reverse_copy(key_first_byte, key_last_byte, read_req.keys[i].data());
-#else   // BOOST_LITTLE_ENDIAN not defined
+#else   // CONCORD_LITTLE_ENDIAN not defined
     static_assert(false, "failed to determine the endianness being compiled for");
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
-#endif  // if BOOST_BIG_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_BIG_ENDIAN defined/else
   }
 
   // Add request to m_requests

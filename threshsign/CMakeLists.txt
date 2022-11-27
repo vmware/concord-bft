@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 project(threshsign VERSION 0.1.0.0 LANGUAGES CXX)
-
+find_package(Boost ${MIN_BOOST_VERSION})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -31,7 +31,7 @@ string(APPEND CXX_FLAGS_DEBUG " -D_FORTIFY_SOURCE=2")
 # WARNING: For the love of god, do not remove this flag or you will regret it. Instead,
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
-string(APPEND CXX_FLAGS " -Wconversion -Wsign-conversion")
+#string(APPEND CXX_FLAGS " -Wconversion -Wsign-conversion")
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     string(APPEND CXX_FLAGS " -ferror-limit=3")
@@ -49,7 +49,7 @@ enable_testing()
 # Targets
 function(add_threshsign_executable appName appSrc appDir)
     add_executable(${appName} ${appSrc})
-    target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src)
+    target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${Boost_INCLUDE_DIR})
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE threshsign)
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})

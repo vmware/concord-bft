@@ -11,7 +11,10 @@
 #include <iterator>
 #include <string>
 #include <type_traits>
+#include <boost/predef/other/endian.h>
 
+#define CONCORD_LITTLE_ENDIAN BOOST_ENDIAN_LITTLE_BYTE
+#define CONCORD_BIG_ENDIAN BOOST_ENDIAN_BIG_BYTE
 namespace concordUtils {
 
 template <typename T>

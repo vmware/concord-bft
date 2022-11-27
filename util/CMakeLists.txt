@@ -1,6 +1,7 @@
+
 # pthread dependency
 find_package(Threads REQUIRED)
-find_package(Boost ${MIN_BOOST_VERSION} REQUIRED)
+find_package(Boost ${MIN_BOOST_VERSION})
 set(util_source_files
     src/Metrics.cpp
     src/MetricsServer.cpp
@@ -19,24 +20,21 @@ set(util_source_files
 add_library(util STATIC ${util_source_files} src/crypto/factory.cpp)
 
 if(USE_OPENSSL)
-    if(NOT BUILD_THIRDPARTY)
         set(OPENSSL_USE_STATIC_LIBS TRUE)
-        find_package(OpenSSL REQUIRED)
+    find_package(OpenSSL REQUIRED)
         set(OPENSSL_USE_STATIC_LIBS FALSE)
-    endif()
     target_sources(util PRIVATE src/openssl/crypto.cpp)
     target_link_libraries(util PUBLIC OpenSSL::Crypto z)
     target_compile_definitions(util PUBLIC USE_OPENSSL)
 endif()
 
 target_link_libraries(util PUBLIC
-        Threads::Threads
-        Boost::headers)
+        Threads::Threads)
 if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_link_libraries(util PUBLIC stdc++fs)
 endif()
 
-target_include_directories(util PUBLIC include include/openssl)
+target_include_directories(util PUBLIC include include/openssl ${Boost_INCLUDE_DIR})
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(util PUBLIC ${OPENSSL_ROOT_DIR}/include)
 endif()

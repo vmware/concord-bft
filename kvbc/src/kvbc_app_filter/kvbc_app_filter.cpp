@@ -14,8 +14,7 @@
 // Filtered access to the KV Blockchain.
 
 #include "kvbc_app_filter/kvbc_app_filter.h"
-
-#include <boost/detail/endian.hpp>
+#include "endianness.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
 #include <cassert>
 #include <chrono>
@@ -195,19 +194,19 @@ string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
   string concatenated_entry_hashes;
   concatenated_entry_hashes.reserve(sizeof(BlockId) + 2 * updates.size() * kExpectedSHA256HashLengthInBytes);
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef CONCORD_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char *>(&(block_id)), sizeof(block_id));
-#else  // BOOST_LITTLE_ENDIAN not defined in this case
-#ifndef BOOST_BIG_ENDIAN
+#else  // CONCORD_LITTLE_ENDIAN not defined in this case
+#ifndef CONCORD_BIG_ENDIAN
   static_assert(false,
                 "Cannot determine endianness (needed for Thin Replica "
                 "mechanism hash function).");
-#endif  // BOOST_BIG_ENDIAN defined
+#endif  // CONCORD_BIG_ENDIAN defined
   const char *block_id_as_bytes = reinterpret_cast<cosnt char *>(&(block_id));
   for (size_t i = 1; i <= sizeof(block_id); ++i) {
     concatenated_entry_hashes.append((block_id_as_bytes + (sizeof(block_id) - i)), 1);
   }
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
 
   for (const auto &kvp_hashes : entry_hashes) {
     concatenated_entry_hashes.append(kvp_hashes.first);
@@ -238,19 +237,19 @@ string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &upd
   concatenated_entry_hashes.reserve(sizeof(EventGroupId) +
                                     event_group.events.size() * kExpectedSHA256HashLengthInBytes);
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef CONCORD_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char *>(&(event_group_id)), sizeof(event_group_id));
-#else  // BOOST_LITTLE_ENDIAN not defined in this case
-#ifndef BOOST_BIG_ENDIAN
+#else  // CONCORD_LITTLE_ENDIAN not defined in this case
+#ifndef CONCORD_BIG_ENDIAN
   static_assert(false,
                 "Cannot determine endianness (needed for Thin Replica "
                 "mechanism hash function).");
-#endif  // BOOST_BIG_ENDIAN defined
+#endif  // CONCORD_BIG_ENDIAN defined
   const char *event_group_id_as_bytes = reinterpret_cast<const char *>(&(event_group_id));
   for (size_t i = 1; i <= sizeof(event_group_id); ++i) {
     concatenated_entry_hashes.append((event_group_id_as_bytes + (sizeof(event_group_id) - i)), 1);
   }
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
 
   for (const auto &event_hash : entry_hashes) {
     concatenated_entry_hashes.append(event_hash);

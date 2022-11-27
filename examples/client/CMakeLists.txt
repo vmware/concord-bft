@@ -1,5 +1,7 @@
 project (test_client LANGUAGES CXX)
 
+find_package(yaml-cpp ${YAML_CPP_VERSION} REQUIRED)
+
 set(test_client_sources
     main.cpp
     src/SetupClient.cpp

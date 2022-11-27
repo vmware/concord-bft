@@ -2,6 +2,7 @@ project (bftengine LANGUAGES CXX)
 
 add_subdirectory(src/preprocessor)
 find_package(CMFC REQUIRED)
+find_package(Boost ${MIN_BOOST_VERSION})
 add_subdirectory("cmf")
 
 set(corebft_source_files
@@ -100,6 +101,7 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PUBLIC ${perf_include}/performance/include)
 target_include_directories(corebft PUBLIC tests/mocks)
+target_include_directories(corebft PUBLIC ${Boost_INCLUDE_DIR})
 target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
