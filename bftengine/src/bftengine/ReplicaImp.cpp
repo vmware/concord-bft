@@ -2321,7 +2321,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
   }
 
   bool askForStateTransfer = false;
-
+  std::string_view startStReason;
   if (msgIsStable && ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum + activeExecutions_) ||
                       msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
@@ -2371,6 +2371,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
         if (numRelevantAboveWindow >= config_.getfVal() + 1) {
           LOG_INFO(GL, "Number of stable checkpoints above window: " << numRelevantAboveWindow);
           askForStateTransfer = true;
+          startStReason = "Replica is out of consensus window";
 
           // For debug
           std::ostringstream oss;
@@ -2395,6 +2396,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
                          << numRelevant << " time since last execution: "
                          << (getMonotonicTime() - timeOfLastEcecution).count() << " ms");
             askForStateTransfer = true;
+            startStReason = "Too much time has passed since last execution";
           }
         }
       }
@@ -2405,7 +2407,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
     if (activeExecutions_ > 0)
       isStartCollectingState_ = true;
     else {
-      startCollectingState("On receiving checkpoint message");
+      startCollectingState(startStReason);
     }
   } else if (msgSenderId == msgGenReplicaId) {
     if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -5274,7 +5276,7 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   }
 }
 
-void ReplicaImp::startCollectingState(std::string &&reason) {
+void ReplicaImp::startCollectingState(std::string_view reason) {
   LOG_INFO(GL, "Start Collecting State" << KVLOG(reason));
   time_in_state_transfer_.start();
   clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
