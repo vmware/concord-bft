@@ -555,6 +555,7 @@ class FakeSources : public FakeReplicaBase {
   void replyFetchBlocksMsg();
   void replyResPagesMsg(bool& outDoneSending);
   void rejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum, uint16_t destReplicaId);
+  void syncBlocks(TestAppState& srcAppState, uint64_t fromBlockId, uint64_t toBlockId);
 
  protected:
   std::unique_ptr<char[]> rawVBlock_;
@@ -670,6 +671,7 @@ DataGenerator::DataGenerator(const Config& targetConfig, const TestConfig& testC
  */
 void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId, uint64_t toBlockId) {
   std::unique_ptr<char[]> buff = std::make_unique<char[]>(Block::getMaxTotalBlockSize());
+  ConcordAssertLE(fromBlockId, toBlockId);
   ConcordAssertGT(fromBlockId, appState.getGenesisBlockNum());
 
   auto maxBlockDataSize = Block::calcMaxDataSize();
@@ -1291,6 +1293,21 @@ void FakeSources::rejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum, uin
   ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(
       reinterpret_cast<char*>(&rejectFetchingMsg), sizeof(RejectFetchingMsg), &rejectFetchingMsgBuff));
   stDelegator_->handleStateTransferMessage(rejectFetchingMsgBuff, sizeof(RejectFetchingMsg), destReplicaId);
+}
+
+// Synchronize all blocks in the inclusive range [fromBlockId, toBlockId]. If blocks exist, they are overwritten.
+// This call can be used as a way to mimic normal consensus advance. All blocks in that range must exist in srcAppState
+void FakeSources::syncBlocks(TestAppState& srcAppState, uint64_t fromBlockId, uint64_t toBlockId) {
+  ConcordAssertLE(fromBlockId, toBlockId);
+  ConcordAssertGT(fromBlockId, srcAppState.getGenesisBlockNum());
+  ConcordAssertGT(fromBlockId, appState_.getGenesisBlockNum());
+
+  for (size_t i = fromBlockId; i <= toBlockId; ++i) {
+    ConcordAssert(srcAppState.hasBlock(i));
+    ConcordAssert(!appState_.hasBlock(i));
+    auto blk = srcAppState.peekBlock(i);
+    ASSERT_TRUE(appState_.putBlock(i, reinterpret_cast<const char*>(blk.get()), blk->totalBlockSize, false));
+  }
 }
 
 /////////////////////////////////////////////////////////
@@ -2098,6 +2115,35 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                                           RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED,
                                           RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE,
                                           RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND), );
+
+// Perform an ST cycle where nothing needed to be collected. This is very rare case, so we are not planning to optimize
+// it to completely avoid the cycle. It can happen when ST is triggered (for example) due to last execution time
+// exceeded, and network is not advancing.
+TEST_F(BcStTest, dstEmptyCycleWithReservdPagesOnly) {
+  // Set last reachable checkpoint as 7, start replica
+  testConfig_.lastReachedConsensusCheckpointNum = 7;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+
+  // generate blocks and checkpoint descriptors up to this point only
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_, datastore_, 7, 7, stDelegator_->getRvbManager()));
+
+  // Advance 3 more blocks inside window for all replicas
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, testState_.maxRequiredBlockId + 1, testState_.maxRequiredBlockId + 3));
+  ASSERT_NFF(
+      fakeSrcReplica_->syncBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId + 3));
+
+  // Start state transfer, replica is expected to send AskForCheckpointSummariesMsg with minimal relevant checkpoint 7.
+  // The special case here is that all replicas are already on checkpoint 7, and last reachable block crossed this
+  // checkpoint. Replica doesn't need to collect anything but will re-fetch again the reserved pages and complete the
+  // cycle as usual
+  ASSERT_NFF(dstStartCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  ASSERT_NFF(getReservedPagesStage());
+  // now validate completion
+  ASSERT_NFF(dstValidateCycleEnd());
+}
 
 /////////////////////////////////////////////////////////
 //

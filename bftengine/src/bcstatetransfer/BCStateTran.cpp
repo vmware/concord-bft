@@ -1555,12 +1555,15 @@ void BCStateTran::sendAskForCheckpointSummariesMsg() {
   SCOPED_MDC_SEQ_NUM(getScopedMdcStr(config_.myReplicaId, lastMsgSeqNum_));
 
   msg.msgSeqNum = lastMsgSeqNum_;
-  // Abruptly restarted fetcher replica might have last-stored-checkpoint same as what *stopped* network would have.
-  // In case fetcher asks for last-stored-checkpoint + 1, consensus network may reject such request thinking it doesn't
-  // have requested checkpoint.
+  // Fetcher can't assume that either replicas have a greater capacity than it does.
+  // If it would have asked for minRelevantCheckpointNum = psd_->getLastStoredCheckpoint()+1,
+  // It might get rejected since consensus never reached that checkpoint. Therefore, we perform in sub optimal manner
+  // for simplicity and fetch, and ask for a minimal older checkpoint.
   msg.minRelevantCheckpointNum = psd_->getLastStoredCheckpoint() ? psd_->getLastStoredCheckpoint() : 1;
 
-  LOG_INFO(logger_, KVLOG(lastMsgSeqNum_, msg.minRelevantCheckpointNum));
+  LOG_INFO(
+      logger_,
+      "Sending AskForCheckpointSummariesMsg to all replicas:" << KVLOG(lastMsgSeqNum_, msg.minRelevantCheckpointNum));
 
   sendToAllOtherReplicas(reinterpret_cast<char *>(&msg), sizeof(AskForCheckpointSummariesMsg));
 }
@@ -1860,7 +1863,22 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
       totalBlocksLeftToCollectInCycle_ = maxBlockIdToCollectInCycle_ - minBlockIdToCollectInCycle_ + 1;
     } else {
       // fetch reserved pages (vblock)
-      ConcordAssertEQ(newCheckpoint.maxBlockId, lastReachableBlockNum);
+      if (newCheckpoint.maxBlockId < lastReachableBlockNum) {
+        // In some rare cases, a replica might need to collect reserved pages, which it already has (this is done that
+        // way). for simplification). This is not an error, but should be highlighted with a warning due to the rarity.
+        //
+        // Example for such rare case:
+        // 1) State Transfer is triggered based on time criteria, that means too much time has passed since the last
+        //   execution (this can happen). For example, if network stands still. And
+        // 2) Some blocks are committed in the middle of the window from recent checkpoint. So lastReachableBlockNum is
+        // larger than last checkpoint maxBlockId.
+        //
+        // If the above happens, then there is no reason to transfer blocks, since replica is not out of window AND
+        // there is no reason to collect reserved pages, since replica is synched up to a checkpoint resolution. For
+        // simplicity of implementation we do start a cycle which will do only ReservedPages fetch (takes no more than 5
+        // sec).
+        LOG_WARN(logger_, "Re-fetching reserved pages:" << KVLOG(newCheckpoint.maxBlockId, lastReachableBlockNum));
+      }
       ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
       ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
     }

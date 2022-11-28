@@ -375,7 +375,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     LOG_TRACE(GL, "Thread ID: " << std::this_thread::get_id());
     return stateTransfer->isCollectingState();
   }
-  void startCollectingState(std::string&& reason = "");
+  void startCollectingState(std::string_view reason = "");
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
   bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
   const std::set<ReplicaId>& getIdsOfPeerReplicas() const override { return repsInfo->idsOfPeerReplicas(); }
