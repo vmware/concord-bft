@@ -1636,6 +1636,13 @@ std::string ReplicaImp::getReplicaLastStableSeqNum() const {
   return j.dump();
 }
 
+std::string ReplicaImp::getReplicaSequenceNumbers() const {
+  nlohmann::json j;
+  j["sequenceNumbers"]["lastStableSeqNum"] = std::to_string(lastStableSeqNum);
+  j["sequenceNumbers"]["lastExecutedSeqNum"] = std::to_string(getLastExecutedSeqNum());
+  return j.dump();
+}
+
 std::string ReplicaImp::getReplicaState() const {
   auto primary = getReplicasInfo().primaryOfView(getCurrentView());
   concordUtils::BuildJson bj;
@@ -1690,8 +1697,8 @@ std::string ReplicaImp::getReplicaState() const {
 }
 
 void ReplicaImp::onInternalMsg(GetStatus &status) const {
-  if (status.key == "replica") {  // TODO: change this key name (coordinate with deployment)
-    return status.output.set_value(getReplicaLastStableSeqNum());
+  if (status.key == "replica-sequence-numbers") {  // TODO: change this key name (coordinate with deployment)
+    return status.output.set_value(getReplicaSequenceNumbers());
   }
 
   if (status.key == "replica-state") {

@@ -274,7 +274,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
 
 void ReadOnlyReplica::registerStatusHandlers() {
   auto h = concord::diagnostics::StatusHandler(
-      "replica", "Last executed sequence number of the read-only replica", [this]() {
+      "replica-sequence-numbers", "Last executed sequence number of the read-only replica", [this]() {
         concordUtils::BuildJson bj;
 
         bj.startJson();
