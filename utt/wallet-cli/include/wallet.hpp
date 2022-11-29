@@ -41,7 +41,13 @@ class Wallet {
 
   void showInfo(Channel& chan);
 
-  std::tuple<uint64_t, uint64_t> getPublicAndPrivateBalance(Channel& chan);
+  /// @brief Get info about public and private balances and privacy budget
+  /// @return Tuple representing user balances: (public balance, private balance, privacy budget)
+  std::tuple<uint64_t, uint64_t, uint64_t> getBalanceInfo(Channel& chan);
+
+  /// @brief Get id of wallet user
+  /// @return User id
+  std::string getUserId();
 
   /// @brief Request registration of the current user
   void registerUser(Channel& chan);

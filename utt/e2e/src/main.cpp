@@ -1,6 +1,11 @@
 #include "admin.hpp"
 #include "wallet.hpp"
 #include "test_base_scenario.cpp"
+#include "test_scenario_convertPrivateToPublic_above_balance.cpp"
+#include "test_scenario_transfer_above_budget.cpp"
+#include "test_scenario_transfer_above_balance.cpp"
+#include "test_scenario_convertPublicToPrivate_above_balance.cpp"
+#include "assertUtils.hpp"
 #include <iostream>
 #include <unistd.h>
 #include <xutils/Log.h>
@@ -33,18 +38,37 @@ class E2eTestSuite {
     configureWallet(context.wallet2, "user-2");
     configureWallet(context.wallet3, "user-3");
 
-    testScenarios.push_back(std::make_unique<E2eTestBaseScenario>(context));
+    testScenarios.push_back(
+        std::make_unique<E2eTestBaseScenario>("Mint transfer and burn should result in balance change"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPrivateToPublicAboveBalance>(
+        "Burn above private balance should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBalance>(
+        "Transfer above private balance should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioTransferAboveBudget>(
+        "Transfer above privacy budget should not change balance"));
+    testScenarios.push_back(std::make_unique<E2eTestScenarioConvertPublicToPrivateAboveBalance>(
+        "Mint above public balance should not change balance"));
   }
 
   bool run() {
     bool failed = false;
+    unsigned int failedCount = 0, passedCount = 0;
+    Admin::createPrivacyBudget(context.chanAdmin, "user-1", 5000);
     for (auto &test : testScenarios) {
-      int result = test->execute();
-      if (0 != result) {
-        logdbg << "Test failed, status: " << result << std::endl;
+      assertWalletsPresent();
+      int result = test->execute(context);
+      if (E2eTestResult::PASSED != result) {
+        std::cout << "Test\033[31m FAILED\033[0m, status: " << result
+                  << ", test description: " << test->getDescription() << std::endl;
         failed = true;
+        ++failedCount;
+      } else {
+        ++passedCount;
+        std::cout << "Test\033[32m PASSED\033[0m, test description: " << test->getDescription() << std::endl;
       }
     }
+    std::cout << "Privacy feature E2E tests completed, \033[32m PASSED \033[0m: " << passedCount
+              << ", \033[31m FAILED \033[0m: " << failedCount << std::endl;
     return failed;
   }
 
@@ -65,6 +89,12 @@ class E2eTestSuite {
     if (!chanAdmin) throw std::runtime_error("Failed to create admin streaming channel!");
 
     return chanAdmin;
+  }
+
+  void assertWalletsPresent() {
+    ConcordAssert(nullptr != context.wallet1);
+    ConcordAssert(nullptr != context.wallet2);
+    ConcordAssert(nullptr != context.wallet3);
   }
 
   Wallet::Channel createWalletChannel(grpc::ClientContext &ctxWallet) {
