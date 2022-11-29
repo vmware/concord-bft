@@ -43,7 +43,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
 
   template <typename T>
   void messageHandler(std::unique_ptr<MessageBase> msg) {
-    auto trueTypeObj = std::make_unique<T>(msg.release());
+    auto trueTypeObj = std::make_unique<T>(msg.get());
+    msg.reset();
     if (validateMessage(trueTypeObj.get())) {
       onMessage<T>(std::move(trueTypeObj));
     }

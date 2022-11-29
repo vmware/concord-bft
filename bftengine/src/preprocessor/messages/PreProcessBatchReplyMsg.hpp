@@ -32,7 +32,6 @@ class PreProcessBatchReplyMsg : public MessageBase {
 
   std::string getCid() const;
   uint16_t clientId() const { return msgBody()->clientId; }
-  uint32_t numOfMessagesInBatch() const { return msgBody()->numOfMessagesInBatch; }
   ViewNum viewNum() const { return msgBody()->viewNum; }
   PreProcessReplyMsgsList& getPreProcessReplyMsgs();
   void validate(const ReplicasInfo&) const override;

@@ -88,7 +88,7 @@ SigProcessor::SigProcessor(uint16_t repId,
       timer_handler_timeout_{timer_handler_timeout} {
   msg_handlers->registerMsgHandler(
       bftEngine::impl::MsgCode::Reserved, [&](std::unique_ptr<bftEngine::impl::MessageBase> message) {
-        auto msg = std::make_unique<messages::PartialSigMsg>(message.release());
+        std::unique_ptr<messages::PartialSigMsg> msg(reinterpret_cast<messages::PartialSigMsg*>(message.release()));
         onReceivingNewPartialSig(msg->getsig_id(), msg->idOfGeneratedReplica(), msg->getPartialSig());
       });
   timeout_handler_ = timers_.add(std::chrono::milliseconds(timer_handler_timeout_),

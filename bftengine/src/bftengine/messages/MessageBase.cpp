@@ -82,18 +82,6 @@ bool MessageBase::reallocSize(uint32_t size) {
   }
 }
 
-MessageBase::MessageBase(NodeIdType sender) {
-  storageSize_ = 0;
-  msgBody_ = nullptr;
-  msgSize_ = 0;
-  owner_ = false;
-  sender_ = sender;
-
-#ifdef DEBUG_MEMORY_MSG
-  liveMessagesDebug.insert(this);
-#endif
-}
-
 MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) : MessageBase(sender, type, 0u, size) {}
 
 MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size) {

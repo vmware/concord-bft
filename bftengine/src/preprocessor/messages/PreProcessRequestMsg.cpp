@@ -94,7 +94,7 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_WARN(logger(), "Message sender is ivalid" << KVLOG(senderId(), repInfo.myId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId(), repInfo.myId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 

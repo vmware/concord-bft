@@ -131,7 +131,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath f
 // Sequence number provided in the PPM at the time of constructor call might change later
 // This will result into allotment of next available sequence number. As the sequence number
 // is a monotonically increasing series, the next available sequence number will be greater
-// then the sequence number allocated and with a probability of 1/(10^digits(seqNum)), the
+// than the sequence number allocated and with a probability of 1/(10^digits(seqNum)), the
 // next available seq number is having one more digit. As this probability is decreasing
 // exponentially for higher digits, the case of seq number with next digit is only taken care,
 // and a 0 is prefixed.
@@ -280,18 +280,6 @@ bool PrePrepareMsg::checkRequests() const {
 
   ConcordAssert(false);
   return false;
-}
-const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
-  auto it = RequestsIterator(this);
-  int req_num = 0;
-  while (!it.end() && req_num < index) {
-    it.gotoNext();
-    req_num++;
-  }
-  if (it.end()) return std::string();
-  char* requestBody = nullptr;
-  it.getCurrent(requestBody);
-  return ClientRequestMsg((ClientRequestMsgHeader*)requestBody).getCid();
 }
 
 const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {

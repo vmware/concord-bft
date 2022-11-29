@@ -116,7 +116,6 @@ class PrePrepareMsg : public MessageBase {
   // update view and first path
 
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
-  const std::string getClientCorrelationIdForMsg(int index) const;
   const std::string getBatchCorrelationIdAsString() const;
 
  protected:

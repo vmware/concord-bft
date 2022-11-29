@@ -28,8 +28,6 @@ class AskForCheckpointMsg : public MessageBase {
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(AskForCheckpointMsg)
 
-  AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
-
   void validate(const ReplicasInfo& repInfo) const override {
     ConcordAssert(type() == MsgCode::AskForCheckpoint);
     ConcordAssert(senderId() != repInfo.myId());
@@ -52,4 +50,5 @@ class AskForCheckpointMsg : public MessageBase {
 
   Header* b() const { return (Header*)msgBody_; }
 };
+
 }  // namespace bftEngine::impl
