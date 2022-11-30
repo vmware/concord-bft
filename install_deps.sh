@@ -77,6 +77,7 @@ install_third_party_libraries() {
         protobuf==3.15.8 \
         grpcio==1.37.1 \
         grpcio-tools==1.37.1 \
+        psutil==5.9.1 \
         cryptography==3.3.2
 }
 
@@ -88,16 +89,23 @@ install_cmake() {
     sh cmake-linux.sh -- --skip-license --prefix=/usr
 }
 
+# Cloning the whole boost reporistory, including submodules, takes a long time.
+# We install here both base libraries (which will be part of the image), and temporary libraries
+# (which will be removed manually when build is done)
+BOOST_BOOTSTRAP_TEMPORARY_LIBRARIES="system,iostreams,filesystem" # comma-seperated
 install_boost() {
+    BOOST_BOOTSTRAP_BASE_LIBRARIES="program_options,thread,locale" # comma-seperated
+    BOOST_CMAKE_BASE_LIBRARIES="asio;lockfree;bimap" # semi-colon seperated
     cd ${HOME}
     git clone --recurse-submodules --depth=1 --single-branch --branch=boost-1.80.0 https://github.com/boostorg/boost.git
-    cd boost
-    mkdir build
-    cd build
-    cmake -DBOOST_INCLUDE_LIBRARIES="program_options;thread;locale;asio;lockfree;bimap" ..
+    cd boost && mkdir build && cd build
+    cmake -DBOOST_INCLUDE_LIBRARIES=${BOOST_CMAKE_BASE_LIBRARIES} ..
     make install
-    cd ${HOME}
-    rm -rf boost
+    cd ${HOME}/boost
+    ./bootstrap.sh --with-libraries=${BOOST_BOOTSTRAP_BASE_LIBRARIES},${BOOST_BOOTSTRAP_TEMPORARY_LIBRARIES}
+    ./b2 install
+    cd ${HOME} && rm -rf boost/
+    # uninstall_boost_temporary_libraries will remove the temporary boost packages
 }
 
 install_yaml() {
@@ -143,7 +151,6 @@ install_log4cpp_lib() {
         rm -r log4cplus-2.0.4
 
 }
-
 
 install_googletest() {
     cd ${HOME}
@@ -224,6 +231,7 @@ install_rocksdb_lib() {
         rm -r rocksdb-6.8.1
 
 }
+
 install_rapidcheck() {
     cd ${HOME}
     git clone https://github.com/emil-e/rapidcheck.git && \
@@ -248,7 +256,6 @@ install_minio() {
     pip3 install minio
 
 }
-
 
 install_opentracing_lib() {
     cd ${HOME}
@@ -295,7 +302,6 @@ install_openssl() {
         make install && \
         echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
         rm -rf /usr/local/src/openssl-${OPENSSL_VER}
-
 }
 
 # gRPC
@@ -440,7 +446,6 @@ install_cppcheck(){
   rm -rf cppcheck-${CPPCHECK_VER}
 }
 
-
 install_ccache(){
   # ccache is used to accelerate C/C++ recompilation
   CCACHE_VER=4.6.1
@@ -455,6 +460,30 @@ install_ccache(){
     cd "${HOME}" && \
     rm -rf ccache-${CCACHE_VER} ccache-${CCACHE_VER}.tar.xz
   mkdir -p /mnt/ccache/
+}
+
+# A heap memory usage profiler - installs heaptrack and heaptrack_print
+# Currently HEAPTRACK_BUILD_GUI is OFF (heaptrack_gui is not installed inside container)
+install_heaptrack() {
+  HEAPTRACK_VER=1.4.0
+  apt install -y libunwind-dev
+  cd ${HOME} && git clone --single-branch --branch=v${HEAPTRACK_VER} https://github.com/KDE/heaptrack.git
+  mkdir heaptrack/build && cd heaptrack/build
+  cmake -DCMAKE_BUILD_TYPE=Release -DHEAPTRACK_BUILD_GUI:BOOL=OFF ..
+  make -j$(nproc) && make install
+  cd ${HOME} && sudo rm -rf heaptrack
+  apt purge -y  libunwind-dev
+}
+
+uninstall_boost_temporary_libraries() {
+  libs=($(echo ${BOOST_BOOTSTRAP_TEMPORARY_LIBRARIES} | tr "," " "))
+  for lib in "${libs[@]}"; do
+    echo "Removing installed library: ${lib}"
+    find /usr/local/lib/ -iname libboost_${lib}.so* -exec rm {} \;
+    rm -rf libboost_${lib}.a
+    rm -rf /usr/local/include/boost/${lib}
+    rm -rf /usr/local/include/boost/${lib}.hpp
+  done
 }
 
 install_build_tools
@@ -481,6 +510,8 @@ install_thrift_lib
 install_jaegertracing_cpp_lib
 install_cppcheck
 install_ccache
+install_heaptrack
+uninstall_boost_temporary_libraries # must be last
 
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v
