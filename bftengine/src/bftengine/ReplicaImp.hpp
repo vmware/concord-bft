@@ -338,8 +338,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
-             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             const std::function<void(bool)>& viewChangeCallBack);
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
 
   ReplicaImp(const LoadedReplicaData&,
              shared_ptr<IRequestsHandler>,
@@ -349,8 +348,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
-             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             const std::function<void(bool)>& viewChangeCallBack);
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
 
   virtual ~ReplicaImp();
 
@@ -447,8 +445,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
              shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             shared_ptr<PersistentStorage> ps,
-             const std::function<void(bool)>& viewChangeCallBack);
+             shared_ptr<PersistentStorage> ps);
 
   void registerMsgHandlers();
 

@@ -13,22 +13,13 @@
 
 #include "kvbc_adapter/categorization/blocks_deleter_adapter.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaResources.h"
-
-using concord::performance::ISystemResourceEntity;
 
 namespace concord::kvbc::adapter::categorization {
 
 BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> &kvbc,
                                            const std::optional<aux::AdapterAuxTypes> &aux_types)
     : kvbc_{kvbc.get()} {
-  if (aux_types.has_value()) {
-    replica_resources_.reset(&(aux_types->resource_entity_));
-  } else {
-    replica_resources_ = std::make_shared<ReplicaResourceEntity>();
-  }
   ConcordAssertNE(kvbc_, nullptr);
-  ConcordAssertEQ(!replica_resources_, false);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,8 +44,6 @@ BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until, bool delete_files
   const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
   const auto start = std::chrono::steady_clock::now();
   for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
-    ISystemResourceEntity::scopedDurMeasurment mes(*replica_resources_,
-                                                   ISystemResourceEntity::type::pruning_avg_time_micro);
     ConcordAssert(kvbc_->deleteBlock(i));
   }
   auto jobDuration =

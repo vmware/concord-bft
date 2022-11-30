@@ -39,7 +39,6 @@
 #include "diagnostics_server.h"
 #include "input.h"
 #include "pre_execution.h"
-#include "ReplicaResources.h"
 
 using namespace std;
 

@@ -22,7 +22,6 @@
 #include "rocksdb/native_client.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "storage/test/storage_test_common.h"
-#include "ReplicaResources.h"
 
 #include <cstdint>
 #include <memory>

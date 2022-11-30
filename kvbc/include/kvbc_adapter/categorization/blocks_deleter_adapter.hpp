@@ -42,7 +42,6 @@ class BlocksDeleterAdapter : public concord::kvbc::IBlocksDeleter {
 
  private:
   concord::kvbc::categorization::KeyValueBlockchain *kvbc_{nullptr};
-  std::shared_ptr<concord::performance::ISystemResourceEntity> replica_resources_;
 
   struct Recorders {
     static constexpr uint64_t MAX_VALUE_MICROSECONDS = 2ULL * 1000ULL * 1000ULL;  // 2 seconds

@@ -4018,8 +4018,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
-                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-                       const std::function<void(bool)> &viewChangeCallBack)
+                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
     : ReplicaImp(false,
                  ld.repConfig,
                  requestsHandler,
@@ -4032,8 +4031,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  timers,
                  pm,
                  sm,
-                 persistentStorage,
-                 viewChangeCallBack) {
+                 persistentStorage) {
   LOG_INFO(GL, "Initialising Replica with LoadedReplicaData");
   ConcordAssertNE(persistentStorage, nullptr);
 
@@ -4268,8 +4266,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
-                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-                       const std::function<void(bool)> &viewChangeCallBack)
+                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
     : ReplicaImp(true,
                  config,
                  requestsHandler,
@@ -4282,8 +4279,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                  timers,
                  pm,
                  sm,
-                 persistentStorage,
-                 viewChangeCallBack) {
+                 persistentStorage) {
   LOG_INFO(GL, "Initialising Replica with ReplicaConfig");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
@@ -4307,8 +4303,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
                        shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-                       shared_ptr<PersistentStorage> ps,
-                       const std::function<void(bool)> &viewChangeCallBack)
+                       shared_ptr<PersistentStorage> ps)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
@@ -4425,7 +4420,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   LOG_INFO(GL, "Initialising Replica" << KVLOG(firstTime));
 
-  onViewNumCallbacks_.add(viewChangeCallBack);
   onViewNumCallbacks_.add([&](bool) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
@@ -4528,7 +4522,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::instance(&id);
   DbCheckpointManager::instance(internalBFTClient_.get());
-  viewChangeCallBack(isCurrentPrimary());
 
   if (getReplicaConfig().dbCheckpointFeatureEnabled == true) {
     onSeqNumIsStableCallbacks_.add([this](SeqNum seqNum) {

@@ -30,8 +30,7 @@ SimpleTestReplica::SimpleTestReplica(ICommunication *commObject,
                                        comm,
                                        metaDataStorage,
                                        std::make_shared<concord::performance::PerformanceManager>(),
-                                       nullptr /*SecretsManagerEnc*/,
-                                       [](bool) {});  // call back
+                                       nullptr); /*SecretsManagerEnc*/
   replica->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
 }
 

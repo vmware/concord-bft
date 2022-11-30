@@ -129,6 +129,7 @@ void run_replica(int argc, char** argv) {
           {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
           {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
       setup->GetSecretManager());
+
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->stop();
@@ -157,7 +158,6 @@ void run_replica(int argc, char** argv) {
     replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
 
   std::unique_ptr<concord::diagnostics::Server> diagnostics_server(nullptr);
-
   if (replicaConfig.diagnosticsServerPort > 0) {
     // Start the diagnostics server
     diagnostics_server = std::make_unique<concord::diagnostics::Server>();
@@ -167,7 +167,6 @@ void run_replica(int argc, char** argv) {
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
-
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.

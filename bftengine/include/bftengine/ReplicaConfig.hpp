@@ -258,16 +258,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(useUnifiedCertificates, bool, true, "A flag to use unified Certificates");
 
-  CONFIG_PARAM(adaptivePruningIntervalDuration,
-               std::chrono::milliseconds,
-               std::chrono::milliseconds{20000},
-               "The polling frequency of pruning info in ms");
-
-  CONFIG_PARAM(adaptivePruningIntervalPeriod,
-               std::uint64_t,
-               20,
-               "Resetting the measurements and starting again after polling X times");
-
   CONFIG_PARAM(enableEventGroups, bool, false, "A flag to specify whether event groups are enabled or not.");
 
   CONFIG_PARAM(enablePreProcessorMemoryPool,
@@ -418,8 +408,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, postExecutionQueuesSize);
     serialize(outStream, stateIterationMultiGetBatchSize);
-    serialize(outStream, adaptivePruningIntervalDuration);
-    serialize(outStream, adaptivePruningIntervalPeriod);
     serialize(outStream, config_params_);
     serialize(outStream, enableMultiplexChannel);
     serialize(outStream, enableEventGroups);
@@ -520,8 +508,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, postExecutionQueuesSize);
     deserialize(inStream, stateIterationMultiGetBatchSize);
-    deserialize(inStream, adaptivePruningIntervalDuration);
-    deserialize(inStream, adaptivePruningIntervalPeriod);
     deserialize(inStream, config_params_);
     deserialize(inStream, enableMultiplexChannel);
     deserialize(inStream, enableEventGroups);
@@ -612,8 +598,6 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.maxNumberOfDbCheckpoints,
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
-              rc.adaptivePruningIntervalDuration.count(),
-              rc.adaptivePruningIntervalPeriod,
               rc.dbSnapshotIntervalSeconds.count());
   os << ",";
   const auto replicaMsgSignAlgo =

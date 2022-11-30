@@ -9,7 +9,6 @@ target_link_libraries(blockchain_view_test PUBLIC
             util
             kvbc
 )
-add_subdirectory(resources-manager)
 add_test(NAME kvbc_filter_test COMMAND kvbc_filter_test)
 add_executable(kvbc_filter_test
         kvbc_app_filter/kvbc_filter_test.cpp)
@@ -27,10 +26,6 @@ add_executable(order_test order_test.cpp )
 add_test(order_test order_test)
 target_link_libraries(order_test GTest::Main kvbc util)
 target_compile_options(order_test PUBLIC -Wno-sign-compare)
-
-add_executable(replica_resources_test replica_resources_test.cpp )
-add_test(replica_resources_test order_test)
-target_link_libraries(replica_resources_test GTest::Main kvbc util)
 
 add_executable(kvbc_dbadapter_test kvbc_dbadapter_test.cpp )
 add_test(kvbc_dbadapter_test kvbc_dbadapter_test)
@@ -324,16 +319,6 @@ if (BUILD_ROCKSDB_STORAGE)
             corebft
             kvbc
             stdc++fs)
-
-    add_executable(pruning_reserved_pages_client_test pruning_reserved_pages_client_test.cpp)
-    add_test(pruning_reserved_pages_client_test pruning_reserved_pages_client_test)
-    target_link_libraries(pruning_reserved_pages_client_test PUBLIC
-            GTest::Main
-            GTest::GTest
-            util
-            corebft
-            kvbc
-    )
 
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
     add_test(replica_state_sync_test_v4 replica_state_sync_test v4)

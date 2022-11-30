@@ -46,7 +46,6 @@ extern logging::Logger MSGS;
 extern logging::Logger CL_MNGR;
 extern logging::Logger TS_MNGR;
 extern logging::Logger STATE_SNAPSHOT;
-extern logging::Logger ADPTV_PRUNING;
 
 namespace logging {
 
