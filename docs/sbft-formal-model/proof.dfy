@@ -485,6 +485,61 @@ module Proof {
       }
   }
 
+  lemma Oded2B(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+    requires v.WF(c)
+    requires v'.WF(c)
+    requires Inv(c, v)
+    requires NextStep(c, v, v', step)
+    requires h_step.AdvanceWorkingWindowStep?
+    requires
+    var h_c := c.hosts[step.id].replicaConstants;
+    var h_v := v.hosts[step.id].replicaVariables;
+    var h_v' := v'.hosts[step.id].replicaVariables;
+    Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    var h_v := v.hosts[step.id].replicaVariables;
+    h_v.workingWindow.reveal_Shift();
+  }
+
+  lemma Oded2(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+    requires v.WF(c)
+    requires v'.WF(c)
+    requires Inv(c, v)
+    requires c.clusterConfig.IsHonestReplica(step.id)
+    requires (forall other | ValidHostId(other) && other != step.id :: v'.hosts[other] == v.hosts[other])
+    requires Network.Next(c.network, v.network, v'.network, step.msgOps, step.id)
+    requires h_step.AdvanceWorkingWindowStep?
+    requires
+    var h_c := c.hosts[step.id].replicaConstants;
+    var h_v := v.hosts[step.id].replicaVariables;
+    var h_v' := v'.hosts[step.id].replicaVariables;
+    Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    var h_v := v.hosts[step.id].replicaVariables;
+    h_v.workingWindow.reveal_Shift();
+  }
+
+  lemma Oded1(c: Constants, v:Variables, v':Variables, step:Step)
+    requires v.WF(c)
+    requires v'.WF(c)
+    requires Inv(c, v)
+    requires c.clusterConfig.IsHonestReplica(step.id)
+    requires (forall other | ValidHostId(other) && other != step.id :: v'.hosts[other] == v.hosts[other])
+    requires Network.Next(c.network, v.network, v'.network, step.msgOps, step.id)
+    requires
+    var h_c := c.hosts[step.id].replicaConstants;
+    var h_v := v.hosts[step.id].replicaVariables;
+    var h_v' := v'.hosts[step.id].replicaVariables;       
+    Replica.SendPrePrepare(h_c, h_v, h_v', step.msgOps)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+  }
+
   lemma CommitMsgStability(c: Constants, v:Variables, v':Variables, step:Step)
     requires Inv(c, v)
     requires NextStep(c, v, v', step)
@@ -515,9 +570,9 @@ module Proof {
         //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
         // }
       }
-      // else {
-      //   assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
-      // }
+      else {
+        assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+      }
     }
     assert EveryCommitIsSupportedByPreviouslySentPrepares(c, v') by {
       assume false;
