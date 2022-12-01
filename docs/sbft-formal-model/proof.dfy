@@ -43,7 +43,7 @@ module Proof {
               && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
               && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
               && seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
-              && replicaVariables.workingWindow.prePreparesRcvd[seqID].Some? 
+              && replicaVariables.workingWindow.prePreparesRcvd[seqID].Some?
                 :: v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value in v.network.sentMsgs)
   }
 
@@ -626,7 +626,7 @@ module Proof {
     && var h_v' := v'.hosts[step.id].replicaVariables;
     && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
     && h_step.SendPrePrepareStep?
-    && Replica.SendPrePrepare(h_c, h_v, h_v', step.msgOps)
+    && Replica.SendPrePrepare(h_c, h_v, h_v', step.msgOps, h_step.seqID)
   }
 
   lemma SendPrePrepareStepPreservesInv(c: Constants, v:Variables, v':Variables, 
@@ -1006,7 +1006,7 @@ module Proof {
       //QuorumOfPreparesInNetworkMonotonic(c, v, v', step, h_step); // not part of the proof yet
       
       match h_step
-        case SendPrePrepareStep() => {
+        case SendPrePrepareStep(seqID) => {
           SendPrePrepareStepPreservesInv(c, v, v', step, h_step);
         }
         case RecvPrePrepareStep() => {
