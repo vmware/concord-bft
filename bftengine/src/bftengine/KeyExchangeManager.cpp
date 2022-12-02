@@ -15,7 +15,7 @@
 #include "kvstream.h"
 #include "json_output.hpp"
 #include "SigManager.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "concord.cmf.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "concord.cmf.hpp"

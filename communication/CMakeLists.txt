@@ -1,47 +1,42 @@
 project (libbftcommunication LANGUAGES CXX)
 
-set(bftcommunication_src
-  src/CommFactory.cpp
-  src/PlainUDPCommunication.cpp
-)
+if(BUILD_COMM_TCP_PLAIN AND BUILD_COMM_TCP_TLS)
+    message(FATAL_ERROR "Both BUILD_COMM_TCP_PLAIN and BUILD_COMM_TCP_TLS are enabled, while only one can be chosen.")
+endif()
+
+add_library(bftcommunication src/CommFactory.cpp) 
 
 if(BUILD_COMM_TCP_PLAIN)
-    set(bftcommunication_src ${bftcommunication_src} src/PlainTcpCommunication.cpp)
-endif()
-if(BUILD_COMM_TCP_TLS)
-    set(bftcommunication_src ${bftcommunication_src}
-        src/TlsTCPCommunication.cpp
-        src/TlsMultiplexCommunication.cpp
-        src/TlsRunner.cpp
-        src/TlsConnectionManager.cpp
-        src/AsyncTlsConnection.cpp
-    )
-endif()
-
-add_library(bftcommunication ${bftcommunication_src})
-
-target_include_directories(bftcommunication PUBLIC ../bftengine/include/bftengine)
-target_include_directories(bftcommunication PUBLIC include)
-target_include_directories(bftcommunication PUBLIC ${util}/include)
-target_include_directories(bftcommunication PUBLIC ../secretsmanager/include)
-target_link_libraries(bftcommunication PUBLIC util)
-
-if(BUILD_COMM_TCP_TLS)
-    target_link_libraries(bftcommunication PUBLIC secretsmanager)
-endif()
-
-target_link_libraries(bftcommunication PRIVATE stdc++fs)
-if(BUILD_COMM_TCP_PLAIN)
-    target_compile_definitions(bftcommunication PUBLIC USE_COMM_PLAIN_TCP)
+    target_sources(bftcommunication PRIVATE src/PlainTcpCommunication.cpp)
+target_compile_definitions(bftcommunication PUBLIC USE_COMM_PLAIN_TCP)
 elseif(BUILD_COMM_TCP_TLS)
+    target_sources(bftcommunication PRIVATE src/TlsTCPCommunication.cpp
+                                            src/TlsMultiplexCommunication.cpp
+                                            src/TlsRunner.cpp
+                                            src/TlsConnectionManager.cpp
+                                            src/AsyncTlsConnection.cpp
+    )
+    target_compile_definitions(bftcommunication PUBLIC USE_COMM_TLS_TCP)
+    target_link_libraries(bftcommunication PUBLIC secretsmanager)
     if(NOT USE_OPENSSL)
         message(FATAL_ERROR "-DUSE_OPENSSL should be specified if building with -DBUILD_COMM_TCP_TLS")
     endif()
     find_package(OpenSSL REQUIRED)
-    target_link_libraries(bftcommunication        PUBLIC OpenSSL::SSL diagnostics)
-    target_compile_definitions(bftcommunication        PUBLIC USE_COMM_TLS_TCP)
-
+    target_link_libraries(bftcommunication PUBLIC OpenSSL::SSL diagnostics)
+    
+else()
+    # UDP module is not part of the CMake configuration, it will be used by default
+    # if neither of plain TCP or TLS will be chosen
+    target_sources(bftcommunication PRIVATE src/PlainUDPCommunication.cpp)
+    target_compile_definitions(bftcommunication PUBLIC USE_COMM_UDP)
 endif()
+
+target_link_libraries(bftcommunication PUBLIC util)
+
+target_include_directories(bftcommunication PUBLIC ../bftengine/include/bftengine)
+target_include_directories(bftcommunication PUBLIC include)
+target_include_directories(bftcommunication PUBLIC ${util}/include)
+
 
 install(DIRECTORY include/communication DESTINATION include)
 

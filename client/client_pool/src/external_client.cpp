@@ -235,21 +235,28 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
 }
 
 BaseCommConfig* ConcordClient::CreateCommConfig() const {
-  const auto& client_conf = pool_config_.participant_nodes.at(0).externalClients.at(client_id_);
   const auto commType =
       pool_config_.comm_to_use == "tls"
           ? TlsTcp
           : pool_config_.comm_to_use == "tcp" ? PlainTcp : pool_config_.comm_to_use == "udp" ? PlainUdp : SimpleAuthTcp;
+#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COM_TLS_TCP)
+  const auto& client_conf = pool_config_.participant_nodes.at(0).externalClients.at(client_id_);
   const auto listenPort = client_conf.client_port;
   const auto bufferLength = std::stoul(pool_config_.concord_bft_communication_buffer_length);
   const auto selfId = client_conf.principal_id;
-  if (commType == PlainTcp)
+#endif
+  if (commType == PlainTcp) {
+#ifdef USE_COMM_PLAIN_TCP
     return new PlainTcpConfig{"external_client",
                               listenPort,
                               static_cast<uint32_t>(bufferLength),
                               pool_config_.replicas,
                               static_cast<int32_t>(pool_config_.num_replicas - 1),
                               selfId};
+#endif
+    throw std::runtime_error("FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
+  }
+#ifdef USE_COM_TLS_TCP
   auto const secretData = pool_config_.encrypted_config_enabled
                               ? std::optional<concord::secretsmanager::SecretData>(pool_config_.secret_data)
                               : std::nullopt;
@@ -264,12 +271,17 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
                           pool_config_.use_unified_certificates,
                           nullptr,
                           secretData};
+#endif
+  throw std::runtime_error("FOR TLS COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_TLS_TCP\"");
 }
 
 SharedCommPtr ConcordClient::ToCommunication(const BaseCommConfig& comm_config) {
   if (comm_config.commType_ == TlsTcp) {
+#ifdef USE_COM_TLS_TCP
     return SharedCommPtr{CommFactory::create(comm_config)};
+#endif
   } else if (comm_config.commType_ == PlainUdp) {
+#ifdef USE_COMM_UDP
     const auto udp_config = PlainUdpConfig{comm_config.listenHost_,
                                            comm_config.listenPort_,
                                            comm_config.bufferLength_,
@@ -277,6 +289,7 @@ SharedCommPtr ConcordClient::ToCommunication(const BaseCommConfig& comm_config) 
                                            comm_config.selfId_,
                                            comm_config.statusCallback_};
     return SharedCommPtr{CommFactory::create(udp_config)};
+#endif
   }
   throw std::invalid_argument{"Unknown communication module type=" + std::to_string(comm_config.commType_)};
 }
@@ -314,8 +327,6 @@ std::tuple<BaseCommConfig*, SharedCommPtr> ConcordClient::CreateCommConfigAndCom
 }
 
 void ConcordClient::CreateClientConfig(BaseCommConfig* comm_config, ClientConfig& client_config) {
-  static constexpr char transaction_signing_plain_file_name[] = "transaction_signing_priv.pem";
-  static constexpr char transaction_signing_enc_file_name[] = "transaction_signing_priv.pem.enc";
   client_config.all_replicas = all_replicas_;
   client_config.c_val = pool_config_.c_val;
   client_config.f_val = pool_config_.f_val;
@@ -330,8 +341,11 @@ void ConcordClient::CreateClientConfig(BaseCommConfig* comm_config, ClientConfig
   if (!pool_config_.path_to_replicas_master_key.empty())
     client_config.replicas_master_key_folder_path = pool_config_.path_to_replicas_master_key;
   bool transaction_signing_enabled = pool_config_.transaction_signing_enabled;
-  auto tls_config = dynamic_cast<TlsTcpConfig*>(comm_config);
   if (transaction_signing_enabled) {
+#ifdef USE_COMM_TLS_TCP
+    static constexpr char transaction_signing_plain_file_name[] = "transaction_signing_priv.pem";
+    static constexpr char transaction_signing_enc_file_name[] = "transaction_signing_priv.pem.enc";
+    auto tls_config = dynamic_cast<TlsTcpConfig*>(comm_config);
     std::string priv_key_path = pool_config_.signing_key_path;
     const char* transaction_signing_file_name = transaction_signing_plain_file_name;
     if (tls_config->secretData_) {
@@ -340,6 +354,7 @@ void ConcordClient::CreateClientConfig(BaseCommConfig* comm_config, ClientConfig
     }
     client_config.transaction_signing_private_key_file_path =
         priv_key_path + std::string("/") + transaction_signing_file_name;
+#endif
   }
 }
 

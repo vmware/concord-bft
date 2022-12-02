@@ -23,7 +23,7 @@
 #include "client/concordclient/concord_client.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
-#include "secret_retriever.hpp"
+#include "secrets/secret_retriever.hpp"
 #include <jaegertracing/Tracer.h>
 
 using concord::client::clientservice::ClientService;

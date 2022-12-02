@@ -21,7 +21,7 @@
 
 #include "bftclient/base_types.h"
 #include "bftclient/quorums.h"
-#include "secret_data.h"
+#include "secrets/secret_data.h"
 
 using namespace std::chrono_literals;
 

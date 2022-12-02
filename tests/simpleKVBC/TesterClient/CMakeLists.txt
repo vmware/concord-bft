@@ -5,7 +5,6 @@ set(client_sources
     main.cpp
     basicRandomTestsRunner.cpp
     simpleKVBTestsBuilder.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 add_executable(skvbc_client ${client_sources})

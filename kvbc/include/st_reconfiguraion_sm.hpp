@@ -19,7 +19,7 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
 #include "block_metadata.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
 

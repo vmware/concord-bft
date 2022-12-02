@@ -24,8 +24,11 @@
 
 #include "communication/ICommunication.hpp"
 #include "communication/StatusInfo.h"
-#include "secret_data.h"
 #include "assertUtils.hpp"
+
+#ifdef USE_COMM_TLS_TCP
+#include "secrets/secret_data.h"
+#endif
 
 namespace bft::communication {
 typedef struct sockaddr_in Addr;
@@ -96,6 +99,7 @@ class BaseCommConfig {
   bool amIReplica_ = false;
 };
 
+#ifdef USE_COMM_UDP
 class PlainUdpConfig : public BaseCommConfig {
  public:
   PlainUdpConfig(const std::string &host,
@@ -106,7 +110,8 @@ class PlainUdpConfig : public BaseCommConfig {
                  UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
       : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, nodes, selfId, std::move(statusCallback)) {}
 };
-
+#endif
+#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
 class PlainTcpConfig : public BaseCommConfig {
  public:
   PlainTcpConfig(const std::string &host,
@@ -122,7 +127,8 @@ class PlainTcpConfig : public BaseCommConfig {
  public:
   int32_t maxServerId_;
 };
-
+#endif
+#ifdef USE_COMM_TLS_TCP
 class TlsTcpConfig : public PlainTcpConfig {
  public:
   // Set specific suite or list of suites, as described in OpenSSL
@@ -185,7 +191,8 @@ class TlsMultiplexConfig : public TlsTcpConfig {
  public:
   std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap_;
 };
-
+#endif
+#ifdef USE_COMM_UDP
 class PlainUDPCommunication : public ICommunication {
  public:
   static PlainUDPCommunication *create(const PlainUdpConfig &config);
@@ -208,7 +215,9 @@ class PlainUDPCommunication : public ICommunication {
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
 };
+#endif
 
+#ifdef USE_COMM_PLAIN_TCP
 class PlainTCPCommunication : public ICommunication {
  public:
   static PlainTCPCommunication *create(const PlainTcpConfig &config);
@@ -230,11 +239,12 @@ class PlainTCPCommunication : public ICommunication {
 
   explicit PlainTCPCommunication(const PlainTcpConfig &config);
 };
+#endif
 
+#ifdef USE_COMM_TLS_TCP
 namespace tls {
 class Runner;
 }
-
 class TlsTCPCommunication : public ICommunication {
  public:
   static TlsTCPCommunication *create(const TlsTcpConfig &config);
@@ -295,5 +305,5 @@ class TlsMultiplexCommunication : public TlsTCPCommunication {
   std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
   explicit TlsMultiplexCommunication(const TlsMultiplexConfig &config);
 };
-
+#endif
 }  // namespace bft::communication

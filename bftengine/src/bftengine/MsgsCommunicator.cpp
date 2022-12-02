@@ -68,8 +68,11 @@ uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
 }
 
 bool MsgsCommunicator::isUdp() {
+#ifdef USE_COMM_UDP
   if (dynamic_cast<PlainUDPCommunication*>(communication_) == nullptr) return false;
   return true;
+#endif
+  return false;
 }
 bool MsgsCommunicator::isReplicaConnected(uint16_t repId) {
   return communication_->getCurrentConnectionStatus(repId) == ConnectionStatus::Connected;

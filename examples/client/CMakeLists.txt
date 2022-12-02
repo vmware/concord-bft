@@ -8,7 +8,6 @@ set(test_client_sources
     src/MessageSender.cpp
     src/KVMessageGenerator.cpp
     src/KVMessageConsumer.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 add_executable(test_client ${test_client_sources})

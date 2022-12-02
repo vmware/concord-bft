@@ -1,7 +1,6 @@
 # simple client
 set(simpleTest_client_source_files
     src/client.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
     src/simple_test_client.cpp
 )
 find_package(GTest REQUIRED)
@@ -10,7 +9,7 @@ add_executable(simpleTest_client  ${simpleTest_client_source_files} )
 
 target_include_directories(simpleTest_client
                            PRIVATE
-			   include
+                           include
                            ${CMAKE_SOURCE_DIR}/util/include
                            ../config
                            ${concord_bft_tools_SOURCE_DIR}
@@ -23,7 +22,6 @@ set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
 # simple server
 set(simpleTest_replica_source_files
     src/replica.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
     src/simple_test_replica.cpp
     include/simple_test_replica_behavior.hpp
     src/simple_app_state.cpp
@@ -36,7 +34,7 @@ add_executable(simpleTest_server
 
 target_include_directories(simpleTest_server
                            PRIVATE
-			   include
+                           include
                            ../config
                            ../simpleTest
                            ${bftengine_SOURCE_DIR}/tests/simpleStorage
@@ -65,9 +63,9 @@ set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
 add_executable(persistency_test
         src/persistency_test.cpp
         src/simple_test_replica.cpp
-	src/simple_test_client.cpp
+        src/simple_test_client.cpp
         src/simple_app_state.cpp
-        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
+        )
 
 target_include_directories(persistency_test PUBLIC
 	include

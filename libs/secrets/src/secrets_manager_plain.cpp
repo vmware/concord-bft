@@ -13,7 +13,7 @@
 //
 // This convenience header combines different block implementations.
 
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include <string>
 
 namespace concord::secretsmanager {

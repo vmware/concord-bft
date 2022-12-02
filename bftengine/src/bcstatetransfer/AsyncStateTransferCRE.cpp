@@ -14,7 +14,7 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/SigManager.hpp"
 #include "bftengine/EpochManager.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "communication/ICommunication.hpp"

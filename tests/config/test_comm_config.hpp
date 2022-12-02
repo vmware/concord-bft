@@ -23,19 +23,21 @@ class TestCommConfig : public ITestCommConfig {
   explicit TestCommConfig(logging::Logger& logger) : ITestCommConfig(logger) {}
 
   void GetReplicaConfig(uint16_t replica_id, std::string keyFilePrefix, bftEngine::ReplicaConfig* out_config) override;
-
+#ifdef USE_COMM_UDP
   bft::communication::PlainUdpConfig GetUDPConfig(bool is_replica,
                                                   uint16_t node_id,
                                                   uint16_t& num_of_clients,
                                                   uint16_t& num_of_replicas,
                                                   const std::string& config_file_name) override;
-
+#endif
+#ifdef USE_COMM_PLAIN_TCP
   bft::communication::PlainTcpConfig GetTCPConfig(bool is_replica,
                                                   uint16_t node_id,
                                                   uint16_t& num_of_clients,
                                                   uint16_t& num_of_replicas,
                                                   const std::string& config_file_name) override;
-
+#endif
+#ifdef USE_COMM_TLS_TCP
   bft::communication::TlsTcpConfig GetTlsTCPConfig(bool is_replica,
                                                    uint16_t id,
                                                    uint16_t& num_of_clients,
@@ -43,7 +45,7 @@ class TestCommConfig : public ITestCommConfig {
                                                    const std::string& config_file_name,
                                                    bool use_unified_certs = false,
                                                    const std::string& cert_root_path = "certs") override;
-
+#endif
  private:
   std::unordered_map<bft::communication::NodeNum, bft::communication::NodeInfo> SetUpConfiguredNodes(
       bool is_replica,

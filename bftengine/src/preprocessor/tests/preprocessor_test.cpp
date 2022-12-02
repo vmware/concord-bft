@@ -23,6 +23,7 @@
 #include "ReplicaConfig.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "gtest/gtest.h"
+#include "tests/config/test_comm_config.hpp"
 
 using namespace std;
 using namespace bft::communication;
@@ -105,7 +106,7 @@ DummyRequestsHandler requestsHandler;
 
 class DummyReplica : public InternalReplicaApi {
  public:
-  explicit DummyReplica(bftEngine::impl::ReplicasInfo repInfo) : replicasInfo_(move(repInfo)) {}
+  explicit DummyReplica(bftEngine::impl::ReplicasInfo& repInfo) : replicasInfo_(repInfo) {}
 
   const bftEngine::impl::ReplicasInfo& getReplicasInfo() const override { return replicasInfo_; }
   bool isValidClient(NodeIdType) const override { return true; }
@@ -370,13 +371,20 @@ void setUpConfiguration_7() {
 }
 
 void setUpCommunication() {
-  unordered_map<NodeNum, NodeInfo> nodes;
+  auto logger = logging::getLogger("preprocessor_test");
+  TestCommConfig testCommConfig(logger);
+#ifdef USE_COMM_PLAIN_TCP
+  PlainTcpConfig conf = testCommConfig.GetTCPConfig(
+      true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, replicaConfig.numReplicas, "");
+#elif USE_COMM_TLS_TCP
+  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
+      true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, replicaConfig.numReplicas, "");
+#elif USE_COMM_UDP
+  PlainUdpConfig conf = testCommConfig.GetUDPConfig(
+      true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, replicaConfig.numReplicas, "");
+#endif
 
-  NodeInfo nodeInfo{"128.0.0.1", 4321, true};
-  nodes[0] = nodeInfo;
-
-  PlainUdpConfig configuration("128.0.0.1", 1234, 4096, nodes, replicaConfig.replicaId);
-  communicatorPtr.reset(CommFactory::create(configuration), [](ICommunication* c) {
+  communicatorPtr.reset(CommFactory::create(conf), [](ICommunication* c) {
     c->stop();
     delete c;
   });

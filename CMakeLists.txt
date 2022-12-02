@@ -25,10 +25,10 @@ option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
 option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)
+option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 option(LEAKCHECK "Enable Address and Leak Sanitizers" OFF)
 option(THREADCHECK "Enable Thread Sanitizer" OFF)
 option(UNDEFINED_BEHAVIOR_CHECK "Enable Undefined Behavior Sanitizer" OFF)
-option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 # Rocksdb is required for storage now. Consider removing this flag.
 option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" ON)
 option(USE_S3_OBJECT_STORE "Enable S3 Object Store" ON)
@@ -48,21 +48,6 @@ option(BUILD_UTT "Build UTT library" ON)
 
 if((USE_OPENSSL) AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
-endif()
-
-set(COMM_MODULES 0)
-if(BUILD_COMM_TCP_PLAIN)
-    math(EXPR COMM_MODULES "${COMM_MODULES}+1")
-endif()
-
-if(BUILD_COMM_TCP_TLS)
-    math(EXPR COMM_MODULES "${COMM_MODULES}+1")
-endif()
-
-# UDP module is not part of the CMake configuration, it will be used by default
-# if neither of plain TCP or TLS will be chosen
-if(${COMM_MODULES} GREATER 1)
-    message(FATAL_ERROR "Only one comm module can be chosen")
 endif()
 
 if(SLEEP_FOR_DBG)
@@ -204,7 +189,7 @@ endif()
 
 add_subdirectory(logging)
 add_subdirectory(util)
-add_subdirectory(secretsmanager)
+add_subdirectory(libs)
 add_subdirectory(threshsign)
 add_subdirectory(communication)
 add_subdirectory(kvbc)

@@ -19,7 +19,7 @@
 #include "Replica.hpp"
 #include "kvstream.h"
 #include "communication/StateControl.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "ReplicaConfig.hpp"
 #include "crypto/factory.hpp"

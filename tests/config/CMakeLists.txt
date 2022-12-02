@@ -1,5 +1,6 @@
 add_library(test_config_lib
         test_comm_config.cpp
+        ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp #TODO [TK] separate lib tools
         )
 target_include_directories(test_config_lib PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
