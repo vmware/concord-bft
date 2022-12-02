@@ -310,7 +310,8 @@ test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test 
 			if [[ '${BREAK_ON_FAILURE__}' = 'TRUE' ]];then echo "Breaking on first failure! (iteration $$i)"; exit $${RESULT}; fi; fi; \
 	done; \
 	echo "Test ${TEST_NAME} completed ${NUM_REPEATS__} iterations" \
-		"($$((${NUM_REPEATS__}-num_failures)) succeed, $${num_failures} failed)";
+		"($$((${NUM_REPEATS__}-num_failures)) succeed, $${num_failures} failed)"; \
+	exit $${num_failures}
 
 .PHONY: test-single-apollo-case
 test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
