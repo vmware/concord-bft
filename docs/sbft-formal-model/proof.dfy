@@ -485,23 +485,90 @@ module Proof {
       }
   }
 
-  lemma Oded2B(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
-    requires v.WF(c)
-    requires v'.WF(c)
-    requires Inv(c, v)
-    requires NextStep(c, v, v', step)
-    requires h_step.AdvanceWorkingWindowStep?
-    requires
+  predicate AdvanceWorkingWindowTaken(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+  {
+    && v.WF(c)
+    && v'.WF(c)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && h_step.AdvanceWorkingWindowStep?
+    &&
     var h_c := c.hosts[step.id].replicaConstants;
     var h_v := v.hosts[step.id].replicaVariables;
     var h_v' := v'.hosts[step.id].replicaVariables;
-    Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+      Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+  }
+
+  lemma Oded_AdvanceWorkingWindow_RecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires AdvanceWorkingWindowTaken(c, v, v', step, h_step)
     ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
   {
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
     var h_v := v.hosts[step.id].replicaVariables;
     h_v.workingWindow.reveal_Shift();
   }
+
+  predicate PerformStateTransferTaken(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+  {
+    && v.WF(c)
+    && v'.WF(c)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && h_step.PerformStateTransferStep?
+    &&
+    var h_c := c.hosts[step.id].replicaConstants;
+    var h_v := v.hosts[step.id].replicaVariables;
+    var h_v' := v'.hosts[step.id].replicaVariables;
+      Replica.PerformStateTransfer(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+  }
+
+  lemma Oded_PerformStateTransfer_RecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires PerformStateTransferTaken(c, v, v', step, h_step)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    var h_v := v.hosts[step.id].replicaVariables;
+    h_v.workingWindow.reveal_Shift();
+  }
+
+  lemma Jon_RecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step)
+    requires v.WF(c)
+    requires v'.WF(c)
+    requires Inv(c, v)
+    requires NextStep(c, v, v', step)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+
+    if(IsHonestReplica(c, step.id)) {
+      var h_c := c.hosts[step.id].replicaConstants;
+      var h_v := v.hosts[step.id].replicaVariables;
+      var h_v' := v'.hosts[step.id].replicaVariables;
+      var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+      if (h_step.AdvanceWorkingWindowStep?) {
+        //Oded_AdvanceWorkingWindow_RecordedCommitsClientOpsMatchPrePrepare(c, v, v',step, h_step);
+        h_v.workingWindow.reveal_Shift();
+        assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+      } else if(h_step.PerformStateTransferStep?) {
+        //Oded_PerformStateTransfer_RecordedCommitsClientOpsMatchPrePrepare(c, v, v',step, h_step);
+        h_v.workingWindow.reveal_Shift();
+        assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+      } else {
+        assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+      }
+      assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+    } else {
+      assert RecordedCommitsClientOpsMatchPrePrepare(c, v');
+    }
+
+    forall h_step | AdvanceWorkingWindowTaken(c, v, v' ,step, h_step)
+      ensures RecordedCommitsClientOpsMatchPrePrepare(c, v') {
+        Oded_AdvanceWorkingWindow_RecordedCommitsClientOpsMatchPrePrepare(c, v, v' ,step, h_step);
+      }
+  }
+
 
   lemma Oded2(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
     requires v.WF(c)
@@ -533,8 +600,9 @@ module Proof {
     requires
     var h_c := c.hosts[step.id].replicaConstants;
     var h_v := v.hosts[step.id].replicaVariables;
-    var h_v' := v'.hosts[step.id].replicaVariables;       
-    Replica.SendPrePrepare(h_c, h_v, h_v', step.msgOps)
+    var h_v' := v'.hosts[step.id].replicaVariables;
+    var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+    Replica.SendPrePrepare(h_c, h_v, h_v', step.msgOps, h_step.seqID)
     ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
   {
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
