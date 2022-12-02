@@ -484,47 +484,43 @@ module Proof {
       }
   }
 
-  lemma RecordedCommitsClientOpsMatchPrePrepareInductive(c: Constants, v:Variables, v':Variables, step:Step)
-    requires v.WF(c)
-    requires v'.WF(c)
+  lemma HonestPreservesRecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
-    requires NextStep(c, v, v', step)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
     ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
   {
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
 
-    if(IsHonestReplica(c, step.id)) {
-      var h_c := c.hosts[step.id].replicaConstants;
-      var h_v := v.hosts[step.id].replicaVariables;
-      var h_v' := v'.hosts[step.id].replicaVariables;
-      var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-      if (h_step.AdvanceWorkingWindowStep?) {
-        h_v.workingWindow.reveal_Shift();
-      } else if(h_step.PerformStateTransferStep?) {
-        h_v.workingWindow.reveal_Shift();
-      } 
-    }
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } 
   }
 
-  lemma RecordedPreparesHaveValidSenderIDInductive(c: Constants, v:Variables, v':Variables, step:Step)
-    requires v.WF(c)
-    requires v'.WF(c)
+  predicate HonestReplicaStepTaken(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+  {
+    && v.WF(c)
+    && v'.WF(c)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && h_v == v.hosts[step.id].replicaVariables
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+  }
+
+  lemma HonestPreservesRecordedPreparesHaveValidSenderID(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
-    requires NextStep(c, v, v', step)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
     ensures RecordedPreparesHaveValidSenderID(c, v')
   {
     reveal_RecordedPreparesHaveValidSenderID();
 
-    if(IsHonestReplica(c, step.id)) {
-      var h_c := c.hosts[step.id].replicaConstants;
-      var h_v := v.hosts[step.id].replicaVariables;
-      var h_v' := v'.hosts[step.id].replicaVariables;
-      var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-      if (h_step.AdvanceWorkingWindowStep?) {
-        h_v.workingWindow.reveal_Shift();
-      } else if(h_step.PerformStateTransferStep?) {
-        h_v.workingWindow.reveal_Shift();
-      }
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
     }
   }
 
