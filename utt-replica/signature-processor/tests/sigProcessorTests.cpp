@@ -294,7 +294,7 @@ class test_utt_instance : public ::testing::Test {
       sig_processors[i] = std::make_shared<utt::SigProcessor>(
           i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
       msr->registerMsgHandler(MsgCode::ClientRequest, [&, i](std::unique_ptr<bftEngine::impl::MessageBase> message) {
-        ClientRequestMsg* msg = (ClientRequestMsg*)(message.get());
+        std::unique_ptr<ClientRequestMsg> msg(reinterpret_cast<ClientRequestMsg*>(message.release()));
         uint64_t job_id{0};
 
         std::vector<uint8_t> cs_buffer(msg->requestLength() - sizeof(uint64_t));

@@ -35,14 +35,10 @@ class MessageBase {
 
   static_assert(sizeof(Header) == 6, "MessageBase::Header is 6B");
 
-  explicit MessageBase(NodeIdType sender);
-
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
   MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size);
 
   MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
-
-  void acquireOwnership() { owner_ = true; }
 
   void releaseOwnership() { owner_ = false; }
 
@@ -126,7 +122,7 @@ class MessageBase {
 };
 
 // Every subclass of MessageBase has to use this macro to generate a constructor for creation from MessageBase.
-// During deserialization we first place the raw char array that we receive with the actual message into the msgBody_
+// During de-serialization we first place the raw char array that we receive with the actual message into the msgBody_
 // of a MessageBase object to be able to get the msgType. Later during dispatch we need to create an object of the
 // actual message type from the MessageBase object holding the msgBody_ of the actual message.
 #define BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(TrueTypeName)                                                     \

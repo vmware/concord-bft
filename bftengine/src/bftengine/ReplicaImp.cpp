@@ -175,7 +175,8 @@ void ReplicaImp::registerMsgHandlers() {
 
 template <typename T>
 void ReplicaImp::messageHandler(std::unique_ptr<MessageBase> msg) {
-  auto trueTypeObj = std::make_unique<T>(msg.release());
+  auto trueTypeObj = std::make_unique<T>(msg.get());
+  delete msg.release();
   if (isCollectingState()) {
     // Extract only required information and handover to ST thread
     if (validateMessage(trueTypeObj.get())) {
@@ -252,7 +253,7 @@ void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
     }
   }
   if (!isCollectingState()) {
-    onMessage<T>(std::make_unique<T>(trueTypeObj));
+    onMessage<T>(std::unique_ptr<T>(trueTypeObj));
   } else {
     delete trueTypeObj;
   }
@@ -261,7 +262,7 @@ void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
 /**
  * validateMessage This is synchronous validate message.
  *
- * @param msg : Message that can validate itself as quick as possible..
+ * @param msg : Message that can validate itself as quick as possible.
  * @return : returns true if message validation succeeds else return false.
  */
 bool ReplicaImp::validateMessage(MessageBase *msg) {
@@ -542,7 +543,7 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(std::unique_ptr<pr
   LOG_DEBUG(GL,
             "Handling PreProcessResultMsg via ClientRequestMsg handler "
                 << KVLOG(msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
-  return onMessage<ClientRequestMsg>(std::make_unique<ClientRequestMsg>(msg.release()));
+  return onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg>(msg.release()));
 }
 
 template <>
@@ -1552,7 +1553,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       ppcim->ppm_ = nullptr;
       return;
     } else {
-      return onMessage(std::make_unique<PrePrepareMsg>(ppcim->ppm_));
+      return onMessage(std::unique_ptr<PrePrepareMsg>(ppcim->ppm_));
     }
   }
 
@@ -1738,7 +1739,7 @@ void ReplicaImp::onMessage<PreparePartialMsg>(std::unique_ptr<PreparePartialMsg>
 
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_INFO(CNSUS, "Received relevant PreparePartialMsg. " << KVLOG(msgSender, msgSeqNum, msg->size()));
+    LOG_INFO(CNSUS, "Received relevant PreparePartialMsg" << KVLOG(msgSender, msgSeqNum, msg->size()));
 
     controller->onMessage(msg);
 
@@ -3560,7 +3561,7 @@ void ReplicaImp::sendRepilcaRestartReady(uint8_t reason, const std::string &extr
     uint32_t targetNumOfMsgs =
         (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
     if (restart_ready_msgs.size() == targetNumOfMsgs) {
-      LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
+      LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send restart proof");
       sendReplicasRestartReadyProof(reason);
     }
   }
@@ -3951,7 +3952,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(std::unique_ptr<ReplicaRestar
   uint32_t targetNumOfMsgs =
       (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
   if (restart_msgs.size() == targetNumOfMsgs) {
-    LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
+    LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send restart proof");
     sendReplicasRestartReadyProof(static_cast<uint8_t>(msg->getReason()));
   }
   delete msg;
@@ -5312,7 +5313,7 @@ void ReplicaImp::handleDeferredRequests() {
       deferredMessagesMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
       if (msgHandlerCallback) {
-        msgHandlerCallback(std::make_unique<MessageBase>(*msg));
+        msgHandlerCallback(std::unique_ptr<MessageBase>(msg));
       } else {
         delete msg;
       }
@@ -5324,7 +5325,7 @@ void ReplicaImp::handleDeferredRequests() {
       deferredRORequestsMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
       if (msgHandlerCallback) {
-        msgHandlerCallback(std::make_unique<MessageBase>(*msg));
+        msgHandlerCallback(std::unique_ptr<MessageBase>(msg));
       } else {
         delete msg;
       }
@@ -5361,7 +5362,7 @@ void ReplicaImp::onExecutionFinish() {
                                     60000,
                                     "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
     // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-    onMessage(std::make_unique<ClientRequestMsg>(crm));
+    onMessage(std::unique_ptr<ClientRequestMsg>(crm));
     tryToSendPrePrepareMsg(false);
   }
 
@@ -5836,7 +5837,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
                                       60000,
                                       "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
       // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-      onMessage(std::make_unique<ClientRequestMsg>(crm));
+      onMessage(std::unique_ptr<ClientRequestMsg>(crm));
       tryToSendPrePrepareMsg(false);
     }
   }
@@ -5867,7 +5868,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
                                     60000,
                                     "wedge-noop-command-" + std::to_string(lastExecutedSeqNum));
     // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-    onMessage(std::make_unique<ClientRequestMsg>(crm));
+    onMessage(std::unique_ptr<ClientRequestMsg>(crm));
     tryToSendPrePrepareMsg(false);
   }
 
