@@ -316,7 +316,7 @@ void User::recoverFromStorage(IStorage& storage) {
   }
   auto rcm_sig = storage.getRcmSignature();
   if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
-  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
+  updateRegistration(pImpl_->pk_, rcm_sig, s2);
   pImpl_->lastExecutedTxNum_ = storage.getLastExecutedSn();
   auto coins = storage.getCoins();
   for (const auto& c : coins) {
@@ -324,7 +324,11 @@ void User::recoverFromStorage(IStorage& storage) {
     if (c.getType() == libutt::api::Coin::Normal) {
       pImpl_->coins_.push_back(c);
     } else if (c.getType() == libutt::api::Coin::Budget) {
+      if (pImpl_->budgetNullifiers_.size() >= 1) {
+        throw std::runtime_error("Currently multiple budget coins are not supported");
+      }
       pImpl_->budgetCoin_.emplace(c);
+      pImpl_->budgetNullifiers_.insert(c.getNullifier());
     }
   }
 }
