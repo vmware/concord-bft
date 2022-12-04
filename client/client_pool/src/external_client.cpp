@@ -239,7 +239,7 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
       pool_config_.comm_to_use == "tls"
           ? TlsTcp
           : pool_config_.comm_to_use == "tcp" ? PlainTcp : pool_config_.comm_to_use == "udp" ? PlainUdp : SimpleAuthTcp;
-#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COM_TLS_TCP)
+#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
   const auto& client_conf = pool_config_.participant_nodes.at(0).externalClients.at(client_id_);
   const auto listenPort = client_conf.client_port;
   const auto bufferLength = std::stoul(pool_config_.concord_bft_communication_buffer_length);
@@ -254,30 +254,32 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
                               static_cast<int32_t>(pool_config_.num_replicas - 1),
                               selfId};
 #endif
-    throw std::runtime_error("FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
-  }
-#ifdef USE_COM_TLS_TCP
-  auto const secretData = pool_config_.encrypted_config_enabled
-                              ? std::optional<concord::secretsmanager::SecretData>(pool_config_.secret_data)
-                              : std::nullopt;
-  return new TlsTcpConfig{"external_client",
-                          listenPort,
-                          static_cast<uint32_t>(bufferLength),
-                          pool_config_.replicas,
-                          static_cast<std::int32_t>(pool_config_.num_replicas - 1),
-                          selfId,
-                          pool_config_.tls_certificates_folder_path,
-                          pool_config_.tls_cipher_suite_list,
-                          pool_config_.use_unified_certificates,
-                          nullptr,
-                          secretData};
+    ConcordAssert(false && "FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
+  } else if (commType == TlsTcp) {
+#ifdef USE_COMM_TLS_TCP
+    auto const secretData = pool_config_.encrypted_config_enabled
+                                ? std::optional<concord::secretsmanager::SecretData>(pool_config_.secret_data)
+                                : std::nullopt;
+    return new TlsTcpConfig{"external_client",
+                            listenPort,
+                            static_cast<uint32_t>(bufferLength),
+                            pool_config_.replicas,
+                            static_cast<std::int32_t>(pool_config_.num_replicas - 1),
+                            selfId,
+                            pool_config_.tls_certificates_folder_path,
+                            pool_config_.tls_cipher_suite_list,
+                            pool_config_.use_unified_certificates,
+                            nullptr,
+                            secretData};
 #endif
-  throw std::runtime_error("FOR TLS COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_TLS_TCP\"");
-}
+    ConcordAssert(false && "FOR TLS COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_TLS_TCP\"");
+  }
 
+  ConcordAssert(false && "NEITHER \"tls\" nor \"tcp\" configuration option was chosen");
+}
 SharedCommPtr ConcordClient::ToCommunication(const BaseCommConfig& comm_config) {
   if (comm_config.commType_ == TlsTcp) {
-#ifdef USE_COM_TLS_TCP
+#ifdef USE_COMM_TLS_TCP
     return SharedCommPtr{CommFactory::create(comm_config)};
 #endif
   } else if (comm_config.commType_ == PlainUdp) {
