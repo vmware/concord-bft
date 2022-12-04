@@ -42,6 +42,7 @@
 #include "TimeUtils.hpp"
 #include "SimpleMemoryPool.hpp"
 #include "messages/MessageBase.hpp"
+#include "memory.hpp"
 
 using std::set;
 using std::map;
@@ -349,13 +350,27 @@ class BCStateTran : public IStateTransfer {
   // Message handlers
   ///////////////////////////////////////////////////////////////////////////
 
+  template <typename MSG>
+  static void freeStateTransferMsg(const MSG* m);
+
+  template <typename T>
+  using STMessageUptr = custom_deleter_unique_ptr<const T, freeStateTransferMsg<T>>;
+
+  template <typename T>
+  STMessageUptr<T> convertBaseStMsgToRealStMsgType(const BCStateTranBaseMsg* msgHeader) {
+    return STMessageUptr<T>(reinterpret_cast<const T*>(msgHeader));
+  }
+
   inline std::string getScopedMdcStr(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
-  bool onMessage(const AskForCheckpointSummariesMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const CheckpointSummaryMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const FetchBlocksMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const FetchResPagesMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const RejectFetchingMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint incomingEventsQPushTime);
+  void onMessage(STMessageUptr<AskForCheckpointSummariesMsg> m, uint32_t msgLen, uint16_t replicaId);
+  void onMessage(STMessageUptr<CheckpointSummaryMsg> m, uint32_t msgLen, uint16_t replicaId);
+  void onMessage(STMessageUptr<FetchBlocksMsg> m, uint32_t msgLen, uint16_t replicaId);
+  void onMessage(STMessageUptr<FetchResPagesMsg> m, uint32_t msgLen, uint16_t replicaId);
+  void onMessage(STMessageUptr<RejectFetchingMsg> m, uint32_t msgLen, uint16_t replicaId);
+  void onMessage(STMessageUptr<ItemDataMsg> m,
+                 uint32_t msgLen,
+                 uint16_t replicaId,
+                 LocalTimePoint incomingEventsQPushTime);
 
   ///////////////////////////////////////////////////////////////////////////
   // cache that holds virtual blocks
@@ -391,8 +406,13 @@ class BCStateTran : public IStateTransfer {
 
   typedef MsgsCertificate<CheckpointSummaryMsg, false, false, true, CheckpointSummaryMsg> CheckpointSummaryMsgCert;
 
+  static void freeCheckpointSummariesCert(CheckpointSummaryMsgCert* c) {
+    c->resetAndFree();
+    delete c;
+  }
+  using CheckpointSummaryMsgCertUptr = custom_deleter_unique_ptr<CheckpointSummaryMsgCert, freeCheckpointSummariesCert>;
   // map from checkpointNum to CheckpointSummaryMsgCert
-  map<uint64_t, CheckpointSummaryMsgCert*> summariesCerts;
+  map<uint64_t, CheckpointSummaryMsgCertUptr> summariesCerts;
 
   // map from replica Id to number of accepted CheckpointSummaryMsg messages
   map<uint16_t, uint16_t> numOfSummariesFromOtherReplicas;
@@ -445,7 +465,7 @@ class BCStateTran : public IStateTransfer {
   inline uint64_t nextRvbBlockId(uint64_t block_id) const;
 
   struct compareItemDataMsg {
-    bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
+    bool operator()(STMessageUptr<ItemDataMsg> const& l, STMessageUptr<ItemDataMsg> const& r) const {
       if (l->blockNumber != r->blockNumber)
         return (l->blockNumber > r->blockNumber);
       else
@@ -453,7 +473,7 @@ class BCStateTran : public IStateTransfer {
     }
   };
 
-  set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
+  set<STMessageUptr<ItemDataMsg>, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
   void stReset(DataStoreTransaction* txn,
