@@ -133,16 +133,16 @@ class User {
   friend std::unique_ptr<User> createUser(const std::string& userId,
                                           const utt::PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          IStorage& storage);
+                                          std::unique_ptr<IStorage> storage);
 
   friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
                                              const utt::PublicConfig& config,
                                              IUserPKInfrastructure& pki,
-                                             IStorage& storage);
+                                             std::unique_ptr<IStorage> storage);
 
-  static std::unique_ptr<User> createFromStorage(IStorage& storage);
+  void recoverFromStorage(IStorage& storage);
 
   struct Impl;
   std::unique_ptr<Impl> pImpl_;

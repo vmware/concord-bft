@@ -19,7 +19,8 @@ using namespace vmware::concord::utt::wallet::api::v1;
 
 Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config)
     : userId_{std::move(userId)}, pki_{pki} {
-  user_ = utt::client::createUser(userId_, config, pki_, storage_);
+  storage_ = std::make_unique<utt::client::InMemoryUserStorage>();
+  user_ = utt::client::createUser(userId_, config, pki_, std::move(storage_));
   if (!user_) throw std::runtime_error("Failed to create user!");
 }
 

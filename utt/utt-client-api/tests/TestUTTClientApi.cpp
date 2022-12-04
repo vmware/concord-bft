@@ -264,17 +264,23 @@ struct ServerMock {
 
 class UserTestStorage : public utt::client::IStorage {
  public:
+  bool isNewStorage() override { return true; };
+  void setKeyPair(const std::pair<std::string, std::string>&) override{};
   void setLastExecutedSn(uint64_t) override{};
-  void setRegistrationPartialCommitment(const libutt::api::Commitment&) override{};
-  void setRegistrationCommitment(const libutt::api::Commitment&) override{};
+  void setClientSideSecret(const libutt::api::types::CurvePoint&) override{};
+  void setSystemSideSecret(const libutt::api::types::CurvePoint&) override{};
+  void setRcmSignature(const libutt::api::types::Signature&) override{};
   void setCoin(const libutt::api::Coin&) override{};
   void removeCoin(const libutt::api::Coin&) override{};
   void startTransaction() override{};
   void commit() override{};
 
   uint64_t getLastExecutedSn() override { return 0; };
-  libutt::api::Commitment getRegistrationCommitment() override { return libutt::api::Commitment(); };
+  libutt::api::types::CurvePoint getClientSideSecret() override { return libutt::api::types::CurvePoint{}; }
+  libutt::api::types::CurvePoint getSystemSideSecret() override { return libutt::api::types::CurvePoint{}; }
   std::vector<libutt::api::Coin> getCoins() override { return std::vector<libutt::api::Coin>{}; }
+  libutt::api::types::Signature getRcmSignature() override { return libutt::api::types::Signature{}; }
+  std::pair<std::string, std::string> getKeyPair() override { return {std::string(), std::string()}; }
 };
 
 int main(int argc, char* argv[]) {
@@ -333,13 +339,13 @@ int main(int argc, char* argv[]) {
   };
 
   // Create new users by using the public config
-  UserTestStorage storage;
+  std::unique_ptr<UserTestStorage> storage = std::make_unique<UserTestStorage>();
   auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;
 
   for (size_t i = 0; i < C; ++i) {
-    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, storage));
+    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);
   }

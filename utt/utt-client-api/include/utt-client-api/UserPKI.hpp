@@ -21,6 +21,7 @@ namespace utt::client {
 /// @brief Interface that provides the means to generate a public/private key pair given a userId
 struct IUserPKInfrastructure {
   struct KeyPair {
+    KeyPair() = default;
     KeyPair(std::string sk, std::string pk) : sk_{std::move(sk)}, pk_{std::move(pk)} {}
     std::string sk_;
     std::string pk_;

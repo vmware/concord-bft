@@ -13,23 +13,36 @@
 
 #pragma once
 #include <vector>
-
-#include "commitment.hpp"
 #include "coin.hpp"
 
 namespace utt::client {
 class IStorage {
  public:
+  class guard {
+   public:
+    guard(IStorage& s) : s_{s} { s_.startTransaction(); }
+    ~guard() { s_.commit(); }
+
+   private:
+    IStorage& s_;
+  };
+  virtual ~IStorage() = default;
+  virtual bool isNewStorage() = 0;
+  virtual void setKeyPair(const std::pair<std::string, std::string>&) = 0;
   virtual void setLastExecutedSn(uint64_t) = 0;
-  virtual void setRegistrationPartialCommitment(const libutt::api::Commitment&) = 0;
-  virtual void setRegistrationCommitment(const libutt::api::Commitment&) = 0;
+  virtual void setClientSideSecret(const libutt::api::types::CurvePoint&) = 0;
+  virtual void setSystemSideSecret(const libutt::api::types::CurvePoint&) = 0;
+  virtual void setRcmSignature(const libutt::api::types::Signature&) = 0;
   virtual void setCoin(const libutt::api::Coin&) = 0;
   virtual void removeCoin(const libutt::api::Coin&) = 0;
   virtual void startTransaction() = 0;
   virtual void commit() = 0;
 
   virtual uint64_t getLastExecutedSn() = 0;
-  virtual libutt::api::Commitment getRegistrationCommitment() = 0;
+  virtual libutt::api::types::CurvePoint getClientSideSecret() = 0;
+  virtual libutt::api::types::CurvePoint getSystemSideSecret() = 0;
+  virtual libutt::api::types::Signature getRcmSignature() = 0;
   virtual std::vector<libutt::api::Coin> getCoins() = 0;
+  virtual std::pair<std::string, std::string> getKeyPair() = 0;
 };
 }  // namespace utt::client
