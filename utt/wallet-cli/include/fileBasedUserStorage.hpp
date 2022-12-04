@@ -12,12 +12,17 @@
 // file.
 
 #pragma once
-#include <unordered_map>
-#include <utt-client-api/IStorage.hpp>
 
+#include <utt-client-api/IStorage.hpp>
+#include <mutex>
+#include <optional>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 namespace utt::client {
-class InMemoryUserStorage : public IStorage {
+class FileBasedUserStorage : public IStorage {
  public:
+  FileBasedUserStorage(const std::string& path);
   bool isNewStorage() override;
   void setKeyPair(const std::pair<std::string, std::string>&) override;
   void setLastExecutedSn(uint64_t) override;
@@ -37,11 +42,8 @@ class InMemoryUserStorage : public IStorage {
   std::pair<std::string, std::string> getKeyPair() override;
 
  private:
-  uint64_t lastExecutedSn_;
-  libutt::api::types::CurvePoint s1_;
-  libutt::api::types::CurvePoint s2_;
-  libutt::api::types::Signature rcm_sig_;
-  std::unordered_map<std::string, libutt::api::Coin> coins_;
-  std::pair<std::string, std::string> keyPair_;
+  std::string state_path_;
+  std::string pending_path_;
+  json current_state_;
 };
 }  // namespace utt::client
