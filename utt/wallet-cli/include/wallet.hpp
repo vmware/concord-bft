@@ -21,7 +21,7 @@
 #include "wallet-api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 #include <utt-client-api/ClientApi.hpp>
-
+#include "inmemUserStorage.hpp"
 namespace WalletApi = vmware::concord::utt::wallet::api::v1;
 
 class Wallet {
@@ -81,9 +81,7 @@ class Wallet {
   /// @brief Updates the ERC20 balance of the wallet.
   void updatePublicBalance(Channel& chan);
 
-  struct DummyUserStorage : public utt::client::IUserStorage {};
-
-  DummyUserStorage storage_;
+  utt::client::InMemoryUserStorage storage_;
   std::string userId_;
   utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;

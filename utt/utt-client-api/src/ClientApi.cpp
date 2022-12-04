@@ -75,7 +75,7 @@ PublicConfig getPublicConfig(const Configuration& config) {
 std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
-                                 IUserStorage& storage) {
+                                 IStorage& storage) {
   if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
   return User::createInitial(userId, config, pki, storage);
 }

@@ -249,7 +249,7 @@ libutt::RSAEncryptor User::Impl::createRsaEncryptorForTransferToOther(const std:
 std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          IUserStorage& storage) {
+                                          IStorage& storage) {
   (void)storage;
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
@@ -280,7 +280,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   return user;
 }
 
-std::unique_ptr<User> User::createFromStorage(IUserStorage& storage) {
+std::unique_ptr<User> User::createFromStorage(IStorage& storage) {
   (void)storage;
   // [TODO-UTT] Implement User::createFromStorage
   return nullptr;

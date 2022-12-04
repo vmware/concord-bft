@@ -21,11 +21,8 @@
 
 #include <utt-common-api/CommonApi.hpp>
 #include "utt-client-api/UserPKI.hpp"
-
+#include "utt-client-api/IStorage.hpp"
 namespace utt::client {
-
-// Provides the means to store the user's data
-struct IUserStorage {};
 
 /// @brief A transaction required to be executed in order to fulfill some burn request
 /// with a target amount
@@ -136,16 +133,16 @@ class User {
   friend std::unique_ptr<User> createUser(const std::string& userId,
                                           const utt::PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          IUserStorage& storage);
+                                          IStorage& storage);
 
-  friend std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
+  friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
                                              const utt::PublicConfig& config,
                                              IUserPKInfrastructure& pki,
-                                             IUserStorage& storage);
+                                             IStorage& storage);
 
-  static std::unique_ptr<User> createFromStorage(IUserStorage& storage);
+  static std::unique_ptr<User> createFromStorage(IStorage& storage);
 
   struct Impl;
   std::unique_ptr<Impl> pImpl_;

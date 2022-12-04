@@ -262,6 +262,21 @@ struct ServerMock {
   }
 };
 
+class UserTestStorage : public utt::client::IStorage {
+ public:
+  void setLastExecutedSn(uint64_t) override{};
+  void setRegistrationPartialCommitment(const libutt::api::Commitment&) override{};
+  void setRegistrationCommitment(const libutt::api::Commitment&) override{};
+  void setCoin(const libutt::api::Coin&) override{};
+  void removeCoin(const libutt::api::Coin&) override{};
+  void startTransaction() override{};
+  void commit() override{};
+
+  uint64_t getLastExecutedSn() override { return 0; };
+  libutt::api::Commitment getRegistrationCommitment() override { return libutt::api::Commitment(); };
+  std::vector<libutt::api::Coin> getCoins() override { return std::vector<libutt::api::Coin>{}; }
+};
+
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
@@ -318,7 +333,7 @@ int main(int argc, char* argv[]) {
   };
 
   // Create new users by using the public config
-  utt::client::IUserStorage storage;
+  UserTestStorage storage;
   auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;
