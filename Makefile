@@ -209,6 +209,17 @@ pull: ## Pull images from remote
 	docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}
 	docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG}
 
+# for internal use only
+.PHONY: _validate-cmake-generated
+_validate-cmake-generated:
+	@if [ ! -d "${CONCORD_BFT_BUILD_DIR}" ] || \
+			[ ! -d "${CONCORD_BFT_BUILD_DIR}/CMakeFiles" ] || \
+			[ ! -f "${CONCORD_BFT_BUILD_DIR}/CTestTestfile.cmake" ] || \
+			[ ! -f "${CONCORD_BFT_BUILD_DIR}/CMakeCache.txt" ]; then \
+				echo 'Error: Please run "make gen-cmake" with the desired configuration to generate a CMake configuration!'; \
+				exit 1; \
+	fi
+
 .PHONY: login
 login: ## Login to the container. Note: if the container is already running, login into existing one.
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
@@ -241,14 +252,14 @@ build: gen-cmake ## Build Concord-BFT source. In order to build a specific targe
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
 
 .PHONY: list-targets
-list-targets: gen-cmake ## Prints the list of available targets
+list-targets: _validate-cmake-generated ## Prints the list of available targets
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
 .PHONY: format
-format: gen-cmake ## Format Concord-BFT source with clang-format
+format: _validate-cmake-generated ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -302,7 +313,7 @@ cppcheck: gen-cmake ## Run Cppcheck static analysis: `make cppcheck CPPCHECK_TAR
 	RESULT=$$?; exit $${RESULT};
 
 .PHONY: list-tests
-list-tests: gen-cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+list-tests: _validate-cmake-generated ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
 	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -377,7 +388,7 @@ test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apo
 		echo "Error: Failed to start test, please check if TEST_FILE_NAME=${TEST_FILE_NAME}" \
 			"or TEST_CASE_NAME=${TEST_CASE_NAME} environment variables exist!"; exit 1;\
 	fi
-	@docker run ${BASIC_RUN_PARAMS} \
+	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c "cd tests/apollo/; \
 		BREAK_ON_FAILURE=${BREAK_ON_FAILURE__} NUM_REPEATS=${NUM_REPEATS__} $(PREFIX) $(POSTFIX)"
 
