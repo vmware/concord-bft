@@ -58,10 +58,13 @@ std::vector<uint8_t> hexStringToBytes(const std::string& hex) {
   return bytes;
 }
 FileBasedUserStorage::FileBasedUserStorage(const std::string& path)
-    : state_path_{path + "/.state.json"}, pending_path_{path + "/.pending.json"} {
+    : state_path_{path + "/.state.json"}, pending_path_{path + "/.pending.json"}, lock_path_{path + "/.LOCK"} {
   fs::create_directories(path);
-  if (fs::exists(pending_path_)) {
+  if (fs::exists(lock_path_)) {
+    // If we have a lock file, then we have a pending file that we need to write to the actual storage.
+    if (!fs::exists(pending_path_)) throw std::runtime_error("storage is corrupted");
     fs::copy(pending_path_, state_path_, fs::copy_options::overwrite_existing);
+    fs::remove(lock_path_);
     fs::remove(pending_path_);
   }
   if (fs::exists(state_path_)) {
@@ -79,7 +82,12 @@ void FileBasedUserStorage::commit() {
   std::ofstream out_state(pending_path_);
   out_state << current_state_ << std::endl;
   out_state.close();
+  // Creating the lockfile marks that are ready to copy the content of pending to the actual state
+  std::ofstream lockfile(lock_path_);
+  lockfile.close();
   fs::copy(pending_path_, state_path_, fs::copy_options::overwrite_existing);
+  // Remove the lock only after a successful copy
+  fs::remove(lock_path_);
   fs::remove(pending_path_);
 }
 

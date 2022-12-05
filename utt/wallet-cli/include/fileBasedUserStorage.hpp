@@ -44,6 +44,7 @@ class FileBasedUserStorage : public IStorage {
  private:
   std::string state_path_;
   std::string pending_path_;
+  std::string lock_path_;
   json current_state_;
 };
 }  // namespace utt::client
