@@ -281,7 +281,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   auto user = std::make_unique<User>();
   user->pImpl_->pk_ = userKeys.pk_;
   user->pImpl_->params_ = uttConfig.getParams();
-  user->pImpl_->storage_.reset(storage.release());
+  user->pImpl_->storage_ = std::move(storage);
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
       userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
