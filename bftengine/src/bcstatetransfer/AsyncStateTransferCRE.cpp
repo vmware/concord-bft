@@ -142,6 +142,8 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   auto& repConfig = bftEngine::ReplicaConfig::instance();
   bftClientConf.f_val = repConfig.fVal;
   bftClientConf.c_val = repConfig.cVal;
+  bftClientConf.retry_timeout_config.initial_retry_timeout = bftClientConf.retry_timeout_config.min_retry_timeout =
+      bftClientConf.retry_timeout_config.max_retry_timeout = 1s;
   bftClientConf.id = bft::client::ClientId{repConfig.replicaId};
   for (uint16_t i = 0; i < repConfig.numReplicas; i++) {
     bftClientConf.all_replicas.emplace(bft::client::ReplicaId{i});
