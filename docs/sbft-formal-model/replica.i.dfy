@@ -304,19 +304,20 @@ module Replica {
 
   // Predicate that describes what is needed and how we mutate the state v into v' when SendPrePrepare
   // Action is taken. We use the "binding" variable msgOps through which we send/recv messages.
-  predicate SendPrePrepare(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>)
+  predicate SendPrePrepare(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID)
   {
     && v.WF(c)
     && msgOps.IsSend()
     && CurrentPrimary(c, v) == c.myId
-    && var msg := msgOps.send.value;
-    && msg.payload.PrePrepare?
-    && msg.payload.view == v.view
-    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
-    && msg.payload.seqID !in v.workingWindow.prePreparesRcvd
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
+    && msgOps.send == Some(Network.Message(c.myId,
+                                           PrePrepare(v.view, 
+                                                      seqID,
+                                                      v.workingWindow.prePreparesRcvd[seqID].value.payload.operationWrapper)))
+    && v.workingWindow.prePreparesRcvd[seqID].None?
     && v' == v.(workingWindow :=
                 v.workingWindow.(prePreparesRcvd :=
-                                 v.workingWindow.prePreparesRcvd[msg.payload.seqID := Some(msg)]))
+                                 v.workingWindow.prePreparesRcvd[seqID := Some(msgOps.send.value)]))
   }
 
   // Node local invariants that we need to satisfy dafny requires. This gets proven as part of the Distributed system invariants.
@@ -707,12 +708,14 @@ module Replica {
     && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == EmptyCommitProofSet())
     && v.viewChangeMsgsRecvd.msgs == {}
     && v.newViewMsgsRecvd.msgs == {}
+    && v.countExecutedSeqIDs == 0
+    && v.checkpointMsgsRecvd.msgs == {}
   }
 
   // Jay Normal Form - Dafny syntactic sugar, useful for selecting the next step
   datatype Step =
     //| RecvClientOperation()
-    | SendPrePrepareStep()
+    | SendPrePrepareStep(seqID:SequenceID)
     | RecvPrePrepareStep()
     | SendPrepareStep(seqID:SequenceID)
     | RecvPrepareStep()
@@ -735,7 +738,7 @@ module Replica {
 
   predicate NextStep(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, step: Step) {
     match step
-       case SendPrePrepareStep() => SendPrePrepare(c, v, v', msgOps)
+       case SendPrePrepareStep(seqID) => SendPrePrepare(c, v, v', msgOps, seqID)
        case RecvPrePrepareStep() => RecvPrePrepare(c, v, v', msgOps)
        case SendPrepareStep(seqID) => SendPrepare(c, v, v', msgOps, seqID)
        case RecvPrepareStep() => RecvPrepare(c, v, v', msgOps)
