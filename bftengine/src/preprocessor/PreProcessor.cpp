@@ -316,6 +316,10 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
 }
 
 void PreProcessor::stop() {
+<<<<<<< HEAD
+=======
+  
+>>>>>>> 63754006... Fix bug: access to DB after DB adapter obj destroyed
   if (!msgLoopDone_) {
     msgLoopDone_ = true;
     msgLoopSignal_.notify_all();
