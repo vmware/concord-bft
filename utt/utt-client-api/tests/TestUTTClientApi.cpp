@@ -361,12 +361,12 @@ int main(int argc, char* argv[]) {
   };
 
   // Create new users by using the public config
-  std::unique_ptr<InMemoryUserStorage> storage = std::make_unique<InMemoryUserStorage>();
   auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;
 
   for (size_t i = 0; i < C; ++i) {
+    std::unique_ptr<InMemoryUserStorage> storage = std::make_unique<InMemoryUserStorage>();
     users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);
