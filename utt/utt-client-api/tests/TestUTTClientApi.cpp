@@ -261,26 +261,48 @@ struct ServerMock {
     return ledger_.size();
   }
 };
-
-class UserTestStorage : public utt::client::IStorage {
+class InMemoryUserStorage : public utt::client::IStorage {
  public:
   bool isNewStorage() override { return true; };
-  void setKeyPair(const std::pair<std::string, std::string>&) override{};
-  void setLastExecutedSn(uint64_t) override{};
-  void setClientSideSecret(const libutt::api::types::CurvePoint&) override{};
-  void setSystemSideSecret(const libutt::api::types::CurvePoint&) override{};
-  void setRcmSignature(const libutt::api::types::Signature&) override{};
-  void setCoin(const libutt::api::Coin&) override{};
-  void removeCoin(const libutt::api::Coin&) override{};
-  void startTransaction() override{};
-  void commit() override{};
+  void setKeyPair(const std::pair<std::string, std::string>& keyPair) override { keyPair_ = keyPair; }
+  void setLastExecutedSn(uint64_t sn) override {
+    if (sn < lastExecutedSn_) throw std::runtime_error("trying to write an incorrect sequence number");
+    lastExecutedSn_ = sn;
+  }
+  void setClientSideSecret(const libutt::api::types::CurvePoint& s1) override { s1_ = s1; }
+  void setSystemSideSecret(const libutt::api::types::CurvePoint& s2) override { s2_ = s2; };
+  void setRcmSignature(const libutt::api::types::Signature& rcm_sig) override { rcm_sig_ = rcm_sig; }
+  void setCoin(const libutt::api::Coin& coin) override {
+    if (coins_.find(coin.getNullifier()) != coins_.end())
+      throw std::runtime_error("trying to add an already exist coin to storage");
+    coins_[coin.getNullifier()] = coin;
+  }
+  void removeCoin(const libutt::api::Coin& coin) override {
+    if (coins_.find(coin.getNullifier()) != coins_.end())
+      throw std::runtime_error("trying to remove an non existed coin to storage");
+    coins_.erase(coin.getNullifier());
+  };
+  void startTransaction() override {}
+  void commit() override {}
 
-  uint64_t getLastExecutedSn() override { return 0; };
-  libutt::api::types::CurvePoint getClientSideSecret() override { return libutt::api::types::CurvePoint{}; }
-  libutt::api::types::CurvePoint getSystemSideSecret() override { return libutt::api::types::CurvePoint{}; }
-  std::vector<libutt::api::Coin> getCoins() override { return std::vector<libutt::api::Coin>{}; }
-  libutt::api::types::Signature getRcmSignature() override { return libutt::api::types::Signature{}; }
-  std::pair<std::string, std::string> getKeyPair() override { return {std::string(), std::string()}; }
+  uint64_t getLastExecutedSn() override { return lastExecutedSn_; }
+  libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
+  libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
+  libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
+  std::vector<libutt::api::Coin> getCoins() override {
+    std::vector<libutt::api::Coin> coins;
+    for (const auto& [_, c] : coins_) coins.push_back(c);
+    return coins;
+  }
+  std::pair<std::string, std::string> getKeyPair() override { return keyPair_; }
+
+ private:
+  uint64_t lastExecutedSn_;
+  libutt::api::types::CurvePoint s1_;
+  libutt::api::types::CurvePoint s2_;
+  libutt::api::types::Signature rcm_sig_;
+  std::unordered_map<std::string, libutt::api::Coin> coins_;
+  std::pair<std::string, std::string> keyPair_;
 };
 
 int main(int argc, char* argv[]) {
@@ -339,7 +361,7 @@ int main(int argc, char* argv[]) {
   };
 
   // Create new users by using the public config
-  std::unique_ptr<UserTestStorage> storage = std::make_unique<UserTestStorage>();
+  std::unique_ptr<InMemoryUserStorage> storage = std::make_unique<InMemoryUserStorage>();
   auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;

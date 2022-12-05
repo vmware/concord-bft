@@ -3,7 +3,6 @@ add_subdirectory("proto")
 set(utt-wallet-cli-src
     src/main.cpp
     src/wallet.cpp
-    src/inmemUserStorage.cpp
     src/fileBasedUserStorage.cpp
 )
 find_package(nlohmann_json REQUIRED)

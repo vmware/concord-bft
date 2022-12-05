@@ -268,7 +268,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
       storage->setKeyPair({userKeys.sk_, userKeys.pk_});
     }
   } else {
-    logdbg_user << "loading key pair from storage" << endl;
+    logdbg << "loading key pair from storage" << endl;
     userKeys.sk_ = storage->getKeyPair().first;
     userKeys.pk_ = storage->getKeyPair().second;
   }
@@ -289,7 +289,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   std::map<std::string, std::string> selfTxCredentials{{userId, userKeys.pk_}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
   if (!isNewStorage) {
-    logdbg_user << "loading user data from storage" << endl;
+    logdbg << "loading user data from storage" << endl;
     user->recoverFromStorage(*(user->pImpl_->storage_));
   }
   return user;
