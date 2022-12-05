@@ -361,7 +361,7 @@ void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
   if (unblindedSig.empty()) throw std::runtime_error("Failed to unblind reg signature!");
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
-   pImpl_->is_registered_ = true;
+  pImpl_->is_registered_ = true;
   {
     IStorage::guard g(*pImpl_->storage_);
     auto rcm = pImpl_->client_->getRcm();
@@ -408,9 +408,7 @@ uint64_t User::getBalance() const {
   return sum;
 }
 
-bool User::hasRegistrationCommitment() const {
-  return pImpl_->is_registered_;
-}
+bool User::hasRegistrationCommitment() const { return pImpl_->is_registered_; }
 
 uint64_t User::getPrivacyBudget() const { return pImpl_->budgetCoin_ ? pImpl_->budgetCoin_->getVal() : 0; }
 

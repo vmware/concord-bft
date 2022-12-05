@@ -36,7 +36,7 @@ std::string bytesToHex(const std::string& bytes) {
     s << std::hex << std::setw(2) << std::setfill('0') << static_cast<std::uint16_t>(u);
   }
   return s.str();
-} 
+}
 
 std::string bytesToHex(const std::vector<uint8_t>& bytes) {
   std::stringstream s;
@@ -44,14 +44,14 @@ std::string bytesToHex(const std::vector<uint8_t>& bytes) {
     s << std::hex << std::setw(2) << std::setfill('0') << static_cast<std::uint16_t>(bytes[i]);
   }
   return s.str();
-} 
+}
 
 std::vector<uint8_t> hexStringToBytes(const std::string& hex) {
   std::vector<uint8_t> bytes;
 
   for (unsigned int i = 0; i < hex.length(); i += 2) {
     std::string byteString = hex.substr(i, 2);
-    uint8_t byte = (uint8_t) strtol(byteString.c_str(), NULL, 16);
+    uint8_t byte = (uint8_t)strtol(byteString.c_str(), NULL, 16);
     bytes.push_back(byte);
   }
 
@@ -111,7 +111,9 @@ void FileBasedUserStorage::setCoin(const libutt::api::Coin& c) {
   current_state_["coins"][bytesToHex(c.getNullifier())] = bytesToHex(libutt::api::serialize(c));
 }
 
-void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) { current_state_["coins"].erase(bytesToHex(c.getNullifier())); }
+void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) {
+  current_state_["coins"].erase(bytesToHex(c.getNullifier()));
+}
 
 uint64_t FileBasedUserStorage::getLastExecutedSn() { return current_state_["last_executed_sn"]; }
 
