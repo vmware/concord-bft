@@ -83,6 +83,7 @@ class User {
    */
   uint64_t getLastExecutedTxNum() const;
 
+  bool hasRegistrationCommitment() const;
   /// @brief Update the user's state with the effects of a transfer transaction
   /// @param txNum The transaction number
   /// @param tx A transfer transaction

@@ -97,6 +97,7 @@ struct User::Impl {
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
   std::set<std::string> budgetNullifiers_;
   std::unique_ptr<IStorage> storage_;
+  bool is_registered_ = false;
 };
 
 utt::Transaction User::Impl::createTx_Burn(const libutt::api::Coin& coin) {
@@ -267,7 +268,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
       storage->setKeyPair({userKeys.sk_, userKeys.pk_});
     }
   } else {
-    loginfo << "loading key pair from storage" << endl;
+    logdbg_user << "loading key pair from storage" << endl;
     userKeys.sk_ = storage->getKeyPair().first;
     userKeys.pk_ = storage->getKeyPair().second;
   }
@@ -288,7 +289,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   std::map<std::string, std::string> selfTxCredentials{{userId, userKeys.pk_}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
   if (!isNewStorage) {
-    loginfo << "loading user data from storage" << endl;
+    logdbg_user << "loading user data from storage" << endl;
     user->recoverFromStorage(*(user->pImpl_->storage_));
   }
   return user;
@@ -303,7 +304,7 @@ void User::recoverFromStorage(IStorage& storage) {
 
   auto s1 = storage.getClientSideSecret();
   if (s1.empty()) {
-    loginfo << "This client has not started registration phase, no additional data to recover" << endl;
+    logdbg_user << "This client has not started registration phase, no additional data to recover" << endl;
     return;
   }
   pImpl_->s1_ = s1;
@@ -311,12 +312,14 @@ void User::recoverFromStorage(IStorage& storage) {
   // We don't care about recovering rcm1. Its the system responsibility to prevent double registration
   auto s2 = storage.getSystemSideSecret();
   if (s2.empty()) {
-    loginfo << "This client has not passed yet the registration phase, no additional data to recover" << endl;
+    logdbg_user << "This client has not passed yet the registration phase, no additional data to recover" << endl;
     return;
   }
   auto rcm_sig = storage.getRcmSignature();
+  logdbg_user << rcm_sig.size() << endl;
   if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
-  updateRegistration(pImpl_->pk_, rcm_sig, s2);
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
+  pImpl_->is_registered_ = true;
   pImpl_->lastExecutedTxNum_ = storage.getLastExecutedSn();
   auto coins = storage.getCoins();
   for (const auto& c : coins) {
@@ -357,8 +360,8 @@ void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   auto unblindedSig =
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
   if (unblindedSig.empty()) throw std::runtime_error("Failed to unblind reg signature!");
-
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
+   pImpl_->is_registered_ = true;
   {
     IStorage::guard g(*pImpl_->storage_);
     auto rcm = pImpl_->client_->getRcm();
@@ -403,6 +406,10 @@ uint64_t User::getBalance() const {
     sum += coin.getVal();
   }
   return sum;
+}
+
+bool User::hasRegistrationCommitment() const {
+  return pImpl_->is_registered_;
 }
 
 uint64_t User::getPrivacyBudget() const { return pImpl_->budgetCoin_ ? pImpl_->budgetCoin_->getVal() : 0; }
