@@ -94,7 +94,6 @@ class Client {
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getS1() const;
   void setS1(const types::CurvePoint& s1);
-  bool hasCompleteRcm() const;
   /**
    * @brief Get the client id Hash as a CurvePoint
    *

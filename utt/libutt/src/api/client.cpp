@@ -97,7 +97,7 @@ void Client::setPRFKey(const types::CurvePoint& s2) {
 const std::string& Client::getPid() const { return pImpl_->ask_.pid; }
 types::CurvePoint Client::getPidHash() const { return pImpl_->ask_.getPidHash().to_words(); }
 types::CurvePoint Client::getPRFSecretKey() const { return pImpl_->ask_.s.to_words(); }
-bool Client::hasCompleteRcm() const { return complete_s; }
+
 void Client::setRCMSig(const UTTParams& d, const types::CurvePoint& s2, const types::Signature& sig) {
   setPRFKey(s2);
   // Compute the complete rcm including s2
