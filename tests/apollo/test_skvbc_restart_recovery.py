@@ -26,7 +26,7 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
-loops = 10
+loops = 5
 timeouts = 60 # variable is added to vurnable timeouts in case vm is slow.
 
 def start_replica_cmd(builddir, replica_id):
@@ -78,7 +78,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        primary_replica = 0
+        primary_replica = 10
 
         # Pick one replica to restart multiple times while the system is processing client requests
         replica_to_restart = random.choice(
