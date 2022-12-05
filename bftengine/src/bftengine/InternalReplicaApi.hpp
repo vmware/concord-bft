@@ -46,6 +46,9 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual SeqNum getLastExecutedSeqNum() const = 0;
   virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMessage() { return std::make_pair(nullptr, false); }
   virtual bool tryToSendPrePrepareMsg(bool batchingLogic) { return false; }
+  // register a components' stop function to be run at the beginning of ReplicaImp's stop function.
+  // all components dependent on ReplicaImp running (and only those components) must register a stop func
+  virtual void registerStopCallback(std::function<void(void)> stopCallback) = 0;
   virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
     return std::make_pair(nullptr, false);
   }
