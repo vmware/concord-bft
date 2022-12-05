@@ -38,13 +38,13 @@ endif()
 option(
   BUILD_WALLET_CLI
   "Enable building of wallet-cli"
-  ON
+  OFF
 )
 
 option(
   BUILD_PRIVACY_ADMIN_CLI
   "Enable building of admin-cli"
-  ON
+  OFF
 )
 
 #
