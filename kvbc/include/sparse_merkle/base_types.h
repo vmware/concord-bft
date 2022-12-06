@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "assertUtils.hpp"
-#include "crypto/crypto.hpp"
+#include "crypto/digest.hpp"
 
 namespace concord {
 namespace kvbc {

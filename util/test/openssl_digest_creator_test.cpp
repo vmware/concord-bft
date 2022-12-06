@@ -17,8 +17,8 @@
 #include "crypto/openssl/digest_creator.hpp"
 #include "crypto/crypto.hpp"
 
-using concord::crypto::SHA2_256;
-using concord::crypto::SHA3_256;
+using concord::crypto::openssl::SHA2_256;
+using concord::crypto::openssl::SHA3_256;
 using concord::crypto::openssl::OpenSSLDigestCreator;
 
 using DigestGeneratorTest_SHA2_256 = OpenSSLDigestCreator<SHA2_256>;

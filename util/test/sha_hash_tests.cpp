@@ -15,7 +15,7 @@
 #include <fstream>
 
 #include "gtest/gtest.h"
-#include "crypto/crypto.hpp"
+#include "crypto/digest.hpp"
 
 namespace {
 

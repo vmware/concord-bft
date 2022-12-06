@@ -1,5 +1,5 @@
 #include "KeyStore.h"
-#include "crypto/crypto.hpp"
+#include "crypto/digest.hpp"
 #include "gtest/gtest.h"
 #include "keys_and_signatures.cmf.hpp"
 

@@ -14,7 +14,7 @@
 #pragma once
 
 #include "kv_types.hpp"
-#include "crypto/crypto.hpp"
+#include "crypto/digest.hpp"
 
 #include <cstddef>
 #include <ctime>

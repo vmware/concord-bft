@@ -19,6 +19,7 @@
 #include "crypto/openssl/hash.hpp"
 #include "concord.cmf.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "crypto/digest.hpp"
 
 namespace concord::client::clientservice {
 

@@ -109,4 +109,8 @@ class EVPHash {
   EVP_MD_CTX* ctx_{nullptr};
   bool updating_{false};
 };
+
+using SHA3_256 = openssl::EVPHash<EVP_sha3_256, 32>;
+using SHA2_256 = openssl::EVPHash<EVP_sha256, 32>;
+
 }  // namespace concord::crypto::openssl

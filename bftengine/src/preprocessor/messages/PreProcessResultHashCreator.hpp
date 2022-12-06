@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "crypto/crypto.hpp"
+#include "crypto/digest.hpp"
 #include "SharedTypes.hpp"
 
 namespace preprocessor {

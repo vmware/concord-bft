@@ -16,6 +16,9 @@
 
 namespace concord::crypto {
 
+using SHA3_256 = openssl::SHA3_256;
+using SHA2_256 = openssl::SHA2_256;
+
 using Digest = DigestHolder<DigestGenerator>;
 
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");
