@@ -484,20 +484,6 @@ module Proof {
       }
   }
 
-  lemma HonestPreservesRecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
-    requires Inv(c, v)
-    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
-    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
-  {
-    reveal_RecordedCommitsClientOpsMatchPrePrepare();
-
-    if (h_step.AdvanceWorkingWindowStep?) {
-      h_v.workingWindow.reveal_Shift();
-    } else if(h_step.PerformStateTransferStep?) {
-      h_v.workingWindow.reveal_Shift();
-    } 
-  }
-
   predicate HonestReplicaStepTaken(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
   {
     && v.WF(c)
@@ -524,7 +510,152 @@ module Proof {
     }
   }
 
+  lemma HonestPreservesRecordedPrePreparesRecvdCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedPrePreparesRecvdCameFromNetwork(c, v')
+  {
+    reveal_RecordedPrePreparesRecvdCameFromNetwork();
 
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    }
+  }
+
+  lemma HonestPreservesRecordedPreparesInAllHostsRecvdCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v')
+  {
+    reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    }
+  }
+
+  lemma HonestPreservesRecordedPreparesMatchHostView(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedPreparesMatchHostView(c, v')
+  {
+    reveal_RecordedPreparesMatchHostView();
+
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    }
+  }
+
+  lemma AlwaysPreservesEveryCommitMsgIsSupportedByAQuorumOfPrepares(c: Constants, v:Variables, v':Variables, step:Step)
+    requires Inv(c, v)
+    requires NextStep(c, v, v', step)
+    ensures EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v')
+  {
+    reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    // A proof of EveryCommitMsgIsSupportedByAQuorumOfPrepares,
+    // by selecting an arbitrary commitMsg instance
+    forall commitMsg | && commitMsg in v'.network.sentMsgs 
+                       && commitMsg.payload.Commit?
+                       && IsHonestReplica(c, commitMsg.sender) ensures 
+      QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper) {
+      if(commitMsg in v.network.sentMsgs) { // the commitMsg has been sent in a previous step
+        // In this case, the proof is trivial - we just need to "teach" Dafny about subset cardinality
+        var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, commitMsg.payload.view, 
+                                                      commitMsg.payload.seqID, commitMsg.payload.operationWrapper));
+        var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', commitMsg.payload.view,
+                                                      commitMsg.payload.seqID, commitMsg.payload.operationWrapper));
+        Library.SubsetCardinality(senders, senders');
+      } else { // the commitMsg is being sent in the current step
+        reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+        reveal_RecordedPreparesMatchHostView();
+        reveal_RecordedPreparesClientOpsMatchPrePrepare();
+        var prepares := sentPreparesForSeqID(c, v, commitMsg.payload.view,
+                                             commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+        var prepares' := sentPreparesForSeqID(c, v', commitMsg.payload.view, 
+                                             commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+        assert prepares == prepares'; // Trigger (hint) - sending a commitMsg does not affect the set of prepares
+        
+        // Prove that the prepares in the working window are a subset of the prepares in the network:
+        var prepareSendersFromNetwork := Messages.sendersOf(prepares);
+        var h_v := v.hosts[step.id];
+        var prepareSendersInWorkingWindow := h_v.replicaVariables.workingWindow.preparesRcvd[commitMsg.payload.seqID].Keys;
+        assert (forall sender | sender in prepareSendersInWorkingWindow 
+                              :: && var msg := h_v.replicaVariables.workingWindow.preparesRcvd[commitMsg.payload.seqID][sender];
+                                 && msg in v.network.sentMsgs);
+        assert (forall sender | sender in prepareSendersInWorkingWindow 
+                              :: sender in prepareSendersFromNetwork); //Trigger for subset operator
+        Library.SubsetCardinality(prepareSendersInWorkingWindow, prepareSendersFromNetwork);
+      }
+    }
+  }
+
+  lemma HonestPreservesRecordedPreparesClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedPreparesClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedPreparesClientOpsMatchPrePrepare();
+
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    }
+  }
+
+  lemma HonestPreservesRecordedCommitsClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
+  {
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+
+    if (h_step.AdvanceWorkingWindowStep?) {
+      h_v.workingWindow.reveal_Shift();
+    } else if(h_step.PerformStateTransferStep?) {
+      h_v.workingWindow.reveal_Shift();
+    }
+  }
+
+  lemma HonestPreservesEveryCommitIsSupportedByPreviouslySentPrepares(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures EveryCommitIsSupportedByPreviouslySentPrepares(c, v')
+  {
+    reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
+    QuorumOfPreparesInNetworkMonotonic(c, v, v', step);
+    if (h_step.SendCommitStep?) {
+            forall commitMsg | && commitMsg in v'.network.sentMsgs
+                           && commitMsg.payload.Commit?
+                           && IsHonestReplica(c, commitMsg.sender)
+          ensures QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, 
+            commitMsg.payload.seqID, commitMsg.payload.operationWrapper) {
+              if commitMsg in v.network.sentMsgs {
+                assert QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, 
+                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+              } else {
+                reveal_RecordedPreparesMatchHostView();
+                reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+                reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+                var recordedPrepares := set | msg in h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID];
+                assert x <= sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+                assert QuorumOfPreparesInNetwork(c, v, commitMsg.payload.view, 
+                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+                assert QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, 
+                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+              }
+            }
+      
+    } else {
+      assert EveryCommitIsSupportedByPreviouslySentPrepares(c, v');
+    }
+  }
 
   lemma Oded2(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
     requires v.WF(c)
@@ -627,19 +758,6 @@ module Proof {
 
   lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)
     requires NextStep(c, v, v', step)
-    requires (c.clusterConfig.IsHonestReplica(step.id)
-              && var h_c := c.hosts[step.id].replicaConstants;
-                 var h_v := v.hosts[step.id].replicaVariables;
-                 var h_v' := v'.hosts[step.id].replicaVariables;
-                 var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-                 Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step))
-              || 
-              (c.clusterConfig.IsFaultyReplica(step.id)
-               && var h_c := c.hosts[step.id].faultyReplicaConstants;
-                  var h_v := v.hosts[step.id].faultyReplicaVariables;
-                  var h_v' := v'.hosts[step.id].faultyReplicaVariables;
-                  var h_step :| FaultyReplica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-                  FaultyReplica.NextStep(h_c, h_v, h_v', step.msgOps, h_step))
     ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
                                         :: QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp))
   {
@@ -649,45 +767,6 @@ module Proof {
       var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, view, seqID, clientOp));
       var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
       Library.SubsetCardinality(senders, senders');
-    }
-  }
-
-  lemma ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c: Constants, v:Variables, v':Variables, step:Step)
-    requires Inv(c, v)
-    requires NextStep(c, v, v', step)
-    ensures EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v')
-  {
-    // A proof of EveryCommitMsgIsSupportedByAQuorumOfPrepares,
-    // by selecting an arbitrary commitMsg instance
-    forall commitMsg | && commitMsg in v'.network.sentMsgs 
-                       && commitMsg.payload.Commit?
-                       && IsHonestReplica(c, commitMsg.sender) ensures 
-      QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper) {
-      if(commitMsg in v.network.sentMsgs) { // the commitMsg has been sent in a previous step
-        // In this case, the proof is trivial - we just need to "teach" Dafny about subset cardinality
-        var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, commitMsg.payload.view, 
-                                                      commitMsg.payload.seqID, commitMsg.payload.operationWrapper));
-        var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', commitMsg.payload.view,
-                                                      commitMsg.payload.seqID, commitMsg.payload.operationWrapper));
-        Library.SubsetCardinality(senders, senders');
-      } else { // the commitMsg is being sent in the current step
-        var prepares := sentPreparesForSeqID(c, v, commitMsg.payload.view,
-                                             commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
-        var prepares' := sentPreparesForSeqID(c, v', commitMsg.payload.view, 
-                                             commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
-        assert prepares == prepares'; // Trigger (hint) - sending a commitMsg does not affect the set of prepares
-        
-        // Prove that the prepares in the working window are a subset of the prepares in the network:
-        var prepareSendersFromNetwork := Messages.sendersOf(prepares);
-        var h_v := v.hosts[step.id];
-        var prepareSendersInWorkingWindow := h_v.replicaVariables.workingWindow.preparesRcvd[commitMsg.payload.seqID].Keys;
-        assert (forall sender | sender in prepareSendersInWorkingWindow 
-                              :: && var msg := h_v.replicaVariables.workingWindow.preparesRcvd[commitMsg.payload.seqID][sender];
-                                 && msg in v.network.sentMsgs);
-        assert (forall sender | sender in prepareSendersInWorkingWindow 
-                              :: sender in prepareSendersFromNetwork); //Trigger for subset operator
-        Library.SubsetCardinality(prepareSendersInWorkingWindow, prepareSendersFromNetwork);
-      }
     }
   }
 
