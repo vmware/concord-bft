@@ -190,13 +190,19 @@ static void signal_handler(int signal_num) {
 }
 }  // namespace
 int main(int argc, char** argv) {
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
+  struct sigaction sa;
+  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) starting...");
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = signal_handler;
+  sigfillset(&sa.sa_mask);
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
 
   try {
     concord::kvbc::test::run_replica(argc, argv);
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }
+  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) shutting down...");
   return 0;
 }
