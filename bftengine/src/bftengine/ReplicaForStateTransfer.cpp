@@ -94,12 +94,12 @@ void ReplicaForStateTransfer::start() {
                 succ = false;
                 break;
               }  // else if (!isGettingBlocks)
-              LOG_INFO(GL, "halting cre");
-              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
-              // blocks that haven't been handled yet
-              cre_->halt();
             }
           }  // while (!succ) {
+          LOG_INFO(GL, "halting cre");
+          // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
+          // blocks that haven't been handled yet
+          cre_->halt();
         }
       },
       IStateTransfer::StateTransferCallBacksPriorities::HIGH);
