@@ -77,6 +77,7 @@ install_third_party_libraries() {
         protobuf==3.15.8 \
         grpcio==1.37.1 \
         grpcio-tools==1.37.1 \
+        psutil==5.9.1 \
         cryptography==3.3.2
 }
 
@@ -127,6 +128,22 @@ install_HdrHistogram_lib() {
 
 }
 
+install_log4cpp_lib() {
+    cd ${HOME}
+    wget ${WGET_FLAGS} \
+        https://github.com/log4cplus/log4cplus/releases/download/REL_2_0_4/log4cplus-2.0.4.tar.gz && \
+        tar -xzf log4cplus-2.0.4.tar.gz && \
+        rm log4cplus-2.0.4.tar.gz && \
+        cd log4cplus-2.0.4 && \
+        autoreconf -f -i && \
+        ./configure CXXFLAGS="--std=c++11 -march=x86-64 -mtune=generic" \
+                    --enable-static && \
+        make -j$(nproc) && \
+        make install && \
+        cd ${HOME} && \
+        rm -r log4cplus-2.0.4
+
+}
 
 install_googletest() {
     cd ${HOME}
@@ -207,6 +224,7 @@ install_rocksdb_lib() {
         rm -r rocksdb-6.8.1
 
 }
+
 install_rapidcheck() {
     cd ${HOME}
     git clone https://github.com/emil-e/rapidcheck.git && \
@@ -231,7 +249,6 @@ install_minio() {
     pip3 install minio
 
 }
-
 
 install_opentracing_lib() {
     cd ${HOME}
@@ -278,7 +295,6 @@ install_openssl() {
         make install && \
         echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
         rm -rf /usr/local/src/openssl-${OPENSSL_VER}
-
 }
 
 # gRPC
@@ -423,7 +439,6 @@ install_cppcheck(){
   rm -rf cppcheck-${CPPCHECK_VER}
 }
 
-
 install_ccache(){
   # ccache is used to accelerate C/C++ recompilation
   CCACHE_VER=4.6.1
@@ -438,6 +453,22 @@ install_ccache(){
     cd "${HOME}" && \
     rm -rf ccache-${CCACHE_VER} ccache-${CCACHE_VER}.tar.xz
   mkdir -p /mnt/ccache/
+}
+
+# A heap memory usage profiler
+install_heaptrack(){
+  HEAPTRACK_VER=1.4.0
+  cd /tmp/ && \
+  git clone https://github.com/KDE/heaptrack.git heaptrack && \
+    cd heaptrack && \
+    git checkout v${HEAPTRACK_VER} && \
+    mkdir build && cd build && \
+    apt install -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev gettext && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DHEAPTRACK_BUILD_GUI:BOOL=OFF .. && \
+    make -j$(nproc) && make install && \
+    cd "${HOME}" && \
+	  rm -rf /tmp/heaptrack && \
+	  apt purge -y libunwind-dev libboost-iostreams-dev libboost-filesystem-dev gettext
 }
 
 install_build_tools
@@ -463,6 +494,7 @@ install_thrift_lib
 install_jaegertracing_cpp_lib
 install_cppcheck
 install_ccache
+install_heaptrack
 
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v

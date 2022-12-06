@@ -20,7 +20,7 @@ if(LEAKCHECK)
   # For Leak Sanitizers to report errors we need to shut down processes gracefully
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
-  ASAN_OPTIONS=log_path=${ASAN_LOG_DIR}/leak.log:symbolize=1:check_initialization_order=1:detect_leaks=1 \
+  ASAN_OPTIONS=log_path=${ASAN_LOG_DIR}/asan.log:symbolize=1:check_initialization_order=1:detect_leaks=1 \
   ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
   ")
 endif()
@@ -31,7 +31,7 @@ if(THREADCHECK)
   # For Leak Sanitizers to report errors we need to shut down processes gracefully
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
-  TSAN_OPTIONS=log_path=${TSAN_LOG_DIR}/leak.log:history_size=7 \
+  TSAN_OPTIONS=log_path=${TSAN_LOG_DIR}/tsan.log:history_size=7 \
   TSAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
   ")
 endif()
@@ -45,6 +45,11 @@ if(UNDEFINED_BEHAVIOR_CHECK)
   UBSAN_OPTIONS=log_path=${UBSAN_LOG_DIR}/ubsan.log:history_size=7:print_stacktrace=1:external_symbolizer_path=/usr/bin/llvm-symbolizer \
   UBSAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
   ")
+endif()
+
+if(HEAPTRACK)
+  # shut down processes gracefully, enable heaptrack and set log dir
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true ENABLE_HEAPTRACK=TRUE")
 endif()
 
 if(CODECOVERAGE)
