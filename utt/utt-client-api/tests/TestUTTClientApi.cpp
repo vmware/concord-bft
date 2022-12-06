@@ -278,7 +278,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
     coins_[coin.getNullifier()] = coin;
   }
   void removeCoin(const libutt::api::Coin& coin) override {
-    if (coins_.find(coin.getNullifier()) != coins_.end())
+    if (coins_.find(coin.getNullifier()) == coins_.end())
       throw std::runtime_error("trying to remove an non existed coin to storage");
     coins_.erase(coin.getNullifier());
   };
