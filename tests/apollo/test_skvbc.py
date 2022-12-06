@@ -65,7 +65,7 @@ class SkvbcTest(ApolloTest):
         """
 
         if exchange_keys:
-            await bft_network.check_initital_key_exchange(full_key_exchange=False)
+            await bft_network.check_initial_key_exchange(full_key_exchange=False)
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -112,7 +112,7 @@ class SkvbcTest(ApolloTest):
         2. Make sure that eventually we are able to add blocks
         """
         replicas_to_start = [r for r in range(1, bft_network.config.n)]
-        await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
+        await bft_network.check_initial_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
         for i in replicas_to_start:
             view = await bft_network.get_metric(i, bft_network, "Gauges", "view")
             assert int(view) == 1

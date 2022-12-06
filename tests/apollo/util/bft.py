@@ -265,7 +265,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                         f'{num_repeats} repetitions'):
                                         random.seed(seed)
                                         if rotate_keys:
-                                            await bft_network.check_initital_key_exchange(
+                                            await bft_network.check_initial_key_exchange(
                                                 check_master_key_publication=publish_master_keys)
                                         set_debug_tools_env(bft_network)
                                         bft_network.test_start_time = time.time()
@@ -1766,12 +1766,12 @@ class BftTestNetwork:
                             break
                 await trio.sleep(1)
 
-    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[], check_master_key_publication=False):
+    async def check_initial_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[], check_master_key_publication=False):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
-        with log.start_action(action_type="check_initital_key_exchange"):
+        with log.start_action(action_type="check_initial_key_exchange"):
             required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
             replicas_to_start = [r for r in range(self.config.n)] if replicas_to_start == [] else replicas_to_start
             self.start_replicas(replicas_to_start)
