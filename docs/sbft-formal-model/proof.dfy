@@ -571,10 +571,10 @@ module Proof {
     }
   }
 
-  predicate SentCommitIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SentCommitStepWasTaken(c: Constants, v:Variables, v':Variables,
                                 step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -587,16 +587,17 @@ module Proof {
 
   lemma SendCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
-    requires SentCommitIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SentCommitStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendClientOperationIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendClientOperationStepWasTaken(c: Constants, v:Variables, v':Variables,
                                          step:Step, h_step:Client.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && c.clusterConfig.IsClient(step.id)
     && var h_c := c.hosts[step.id].clientConstants;
@@ -609,16 +610,17 @@ module Proof {
 
   lemma SendClientOperationPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Client.Step)
-    requires SendClientOperationIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendClientOperationStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendPrePrepareIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendPrePrepareStepWasTaken(c: Constants, v:Variables, v':Variables,
                                     step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -631,16 +633,17 @@ module Proof {
 
   lemma SendPrePrepareStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                        step:Step, h_step:Replica.Step)
-    requires SendPrePrepareIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendPrePrepareStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendPrepareIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendPrepareStepWasTaken(c: Constants, v:Variables, v':Variables,
                                     step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -653,17 +656,18 @@ module Proof {
 
   lemma SendPrepareStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                        step:Step, h_step:Replica.Step)
-    requires SendPrepareIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendPrepareStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvPrePrepareIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvPrePrepareStepWasTaken(c: Constants, v:Variables, v':Variables,
                                     step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -676,16 +680,17 @@ module Proof {
 
   lemma RecvPrePrepareStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
-    requires RecvPrePrepareIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvPrePrepareStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvPrepareIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvPrepareStepWasTaken(c: Constants, v:Variables, v':Variables,
                                 step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -698,16 +703,17 @@ module Proof {
 
   lemma RecvPrepareStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
-    requires RecvPrepareIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvPrepareStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvCommitIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvCommitStepWasTaken(c: Constants, v:Variables, v':Variables,
                                 step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -720,16 +726,17 @@ module Proof {
 
   lemma RecvCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
-    requires RecvCommitIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvCommitStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate DoCommitIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate DoCommitStepWasTaken(c: Constants, v:Variables, v':Variables,
                                 step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -742,16 +749,17 @@ module Proof {
 
   lemma DoCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
-    requires DoCommitIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires DoCommitStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate ExecuteStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate ExecuteStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -764,16 +772,17 @@ module Proof {
 
   lemma ExecuteStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires ExecuteStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires ExecuteStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendCheckpointStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendCheckpointStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -786,16 +795,17 @@ module Proof {
 
   lemma SendCheckpointStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires SendCheckpointStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendCheckpointStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvCheckpointStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvCheckpointStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -808,15 +818,16 @@ module Proof {
 
   lemma RecvCheckpointStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires RecvCheckpointStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvCheckpointStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
-  predicate AdvanceWorkingWindowStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate AdvanceWorkingWindowStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -829,16 +840,17 @@ module Proof {
 
   lemma AdvanceWorkingWindowStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires AdvanceWorkingWindowStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires AdvanceWorkingWindowStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate PerformStateTransferStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate PerformStateTransferStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -851,16 +863,17 @@ module Proof {
 
   lemma PerformStateTransferStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires PerformStateTransferStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires PerformStateTransferStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate LeaveViewStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate LeaveViewStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -873,16 +886,17 @@ module Proof {
 
   lemma LeaveViewStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires LeaveViewStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires LeaveViewStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendViewChangeMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendViewChangeMsgStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -895,16 +909,17 @@ module Proof {
 
   lemma SendViewChangeMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires SendViewChangeMsgStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendViewChangeMsgStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvViewChangeMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvViewChangeMsgStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -917,16 +932,17 @@ module Proof {
 
   lemma RecvViewChangeMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires RecvViewChangeMsgStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvViewChangeMsgStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SelectQuorumOfViewChangeMsgsStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SelectQuorumOfViewChangeMsgsStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -939,16 +955,17 @@ module Proof {
 
   lemma SelectQuorumOfViewChangeMsgsStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires SelectQuorumOfViewChangeMsgsStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SelectQuorumOfViewChangeMsgsStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate SendNewViewMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate SendNewViewMsgStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -961,16 +978,17 @@ module Proof {
 
   lemma SendNewViewMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires SendNewViewMsgStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires SendNewViewMsgStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
   }
 
-  predicate RecvNewViewMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+  predicate RecvNewViewMsgStepStepWasTaken(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
+    requires Inv(c, v)
   {
-    && Inv(c, v)
     && NextStep(c, v, v', step)
     && IsHonestReplica(c, step.id)
     && var h_c := c.hosts[step.id].replicaConstants;
@@ -983,7 +1001,8 @@ module Proof {
 
   lemma RecvNewViewMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
-    requires RecvNewViewMsgStepIsEnabled(c, v, v', step, h_step)
+    requires Inv(c, v)
+    requires RecvNewViewMsgStepStepWasTaken(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
