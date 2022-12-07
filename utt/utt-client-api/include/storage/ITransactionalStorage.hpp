@@ -43,7 +43,17 @@ class ITransactionalStorage : public IStorage {
   libutt::api::types::Signature getRcmSignature() override;
   std::vector<libutt::api::Coin> getCoins() override;
   std::pair<std::string, std::string> getKeyPair() override;
+
+  /**
+   * @brief Starts a new atomic transaction
+   *
+   */
   virtual void startTransaction() = 0;
+
+  /**
+   * @brief Atomically commits a transaction
+   *
+   */
   virtual void commit() = 0;
 
  protected:
