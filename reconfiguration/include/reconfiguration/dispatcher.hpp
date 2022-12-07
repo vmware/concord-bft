@@ -14,7 +14,6 @@
 
 #include "ireconfiguration.hpp"
 #include "concord.cmf.hpp"
-#include "OpenTracing.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
 

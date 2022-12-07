@@ -6,6 +6,7 @@ find_package(Boost ${MIN_BOOST_VERSION})
 add_subdirectory("cmf")
 
 set(corebft_source_files
+    src/bftengine/Reconfiguration.cpp
     src/bftengine/PrimitiveTypes.cpp
     src/bftengine/DebugStatistics.cpp
     src/bftengine/SeqNumInfo.cpp

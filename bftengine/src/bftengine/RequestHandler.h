@@ -12,11 +12,12 @@
 
 #pragma once
 
-#include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
 #include "Metrics.hpp"
-
+#include "ReplicasInfo.hpp"
+#include "Reconfiguration.hpp"
+#include "ReplicaConfig.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <optional>
 
@@ -26,12 +27,14 @@ class RequestHandler : public IRequestsHandler {
  public:
   RequestHandler(
       std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>()) {
-    using namespace concord::reconfiguration;
-    reconfig_handler_.push_back(std::make_shared<ReconfigurationHandler>());
+    bftEngine::impl::ReplicasInfo reps_info(ReplicaConfig::instance(), false, false);
+    reconfig_handler_.push_back(
+        std::make_shared<ReconfigurationHandler>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                                                 bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo));
     for (const auto &rh : reconfig_handler_) {
       reconfig_dispatcher_.addReconfigurationHandler(rh);
     }
-    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
+    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>(reps_info));
     reconfig_dispatcher_.setAggregator(aggregator_);
   }
 

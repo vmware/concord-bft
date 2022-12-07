@@ -1,17 +1,15 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// compliance with the Apache 2.0 License.
 //
-// This product may include a number of subcomponents with separate copyright
-// notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "reconfiguration/reconfiguration_handler.hpp"
-
+#include "Reconfiguration.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
@@ -23,11 +21,11 @@
 #include "bftengine/DbCheckpointManager.hpp"
 #include "ReplicaConfig.hpp"
 #include "crypto/factory.hpp"
+#include "SigManager.hpp"
 
 #include <fstream>
 
-namespace concord::reconfiguration {
-
+namespace bftEngine::impl {
 using namespace concord::messages;
 using concord::crypto::KeyFormat;
 using concord::crypto::Factory;
@@ -92,7 +90,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   addCreateDbSnapshotCbOnWedge(command.bft_support);
   std::ofstream configuration_file;
   configuration_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
-                              configurationsFileName + "." +
+                              concord::reconfiguration::configurationsFileName + "." +
                               std::to_string(bftEngine::ReplicaConfig::instance().replicaId),
                           std::ios_base::app);
   if (!configuration_file.good()) {
@@ -315,36 +313,6 @@ bool ReconfigurationHandler::handle(const concord::messages::DbSizeReadRequest&,
   }
 }
 
-BftReconfigurationHandler::BftReconfigurationHandler() {
-  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
-  if (operatorPubKeyPath.empty()) {
-    LOG_WARN(getLogger(),
-             "The operator public key is missing, the reconfiguration handler won't be able to execute the requests");
-    return;
-  }
-  std::ifstream key_content;
-  key_content.open(operatorPubKeyPath);
-  if (!key_content) {
-    LOG_WARN(getLogger(), "unable to read the operator public key file");
-    return;
-  }
-  auto key_str = std::string{};
-  auto buf = std::string(4096, '\0');
-  while (key_content.read(&buf[0], 4096)) {
-    key_str.append(buf, 0, key_content.gcount());
-  }
-  key_str.append(buf, 0, key_content.gcount());
-  verifier_ =
-      Factory::getVerifier(key_str, bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo, KeyFormat::PemFormat);
-}
-
-bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
-                                                const std::string& data,
-                                                const std::string& signature) const {
-  if (verifier_ == nullptr) return false;
-  return verifier_->verify(data, signature);
-}
-
 bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& msg,
                                           uint64_t,
                                           uint32_t sender_id,
@@ -373,4 +341,11 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
         msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;
 }
-}  // namespace concord::reconfiguration
+bool ClientReconfigurationHandler::verifySignature(uint32_t sender_id,
+                                                   const std::string& data,
+                                                   const std::string& signature) const {
+  return (reps_info_.isIdOfExternalClient(sender_id) &&
+          bftEngine::impl::SigManager::instance()->hasVerifier(sender_id) &&
+          bftEngine::impl::SigManager::instance()->verifySig(sender_id, data, signature));
+}
+}  // namespace bftEngine::impl

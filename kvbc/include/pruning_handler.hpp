@@ -20,8 +20,8 @@
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include <future>
-#include "reconfiguration/reconfiguration_handler.hpp"
-
+#include "bftengine/Reconfiguration.hpp"
+#include "bftengine/ReplicasInfo.hpp"
 namespace concord::kvbc::pruning {
 
 // This class signs pruning messages via the replica's private key that it gets
@@ -92,7 +92,7 @@ class PruningVerifier {
   // once during construction.
   std::unordered_set<std::uint64_t> replica_ids_;
 };
-class PruningHandler : public concord::reconfiguration::BftReconfigurationHandler {
+class PruningHandler : public concord::reconfiguration::OperatorCommandsReconfigurationHandler {
   // This class implements the KVB pruning state machine. Main functionalities
   // include executing pruning based on configuration policy and replica states as
   // well as providing read-only information to the operator node.
@@ -140,7 +140,12 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   // exception if there is an issue with the configuration (for example, if the
   // configuration enables pruning but does not provide a purning operator
   // public key).
-  PruningHandler(kvbc::IReader &, kvbc::IBlockAdder &, kvbc::IBlocksDeleter &, bool run_async = false);
+  PruningHandler(const std::string &operator_pkey_path,
+                 concord::crypto::SignatureAlgorithm type,
+                 kvbc::IReader &,
+                 kvbc::IBlockAdder &,
+                 kvbc::IBlocksDeleter &,
+                 bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               uint32_t,
@@ -185,10 +190,13 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
  * The read only pruning handler knows to answer only getLatestPruneableBlock.
  * As it doesn't participant the consensus, the only thing we want to know is what the latest reachable block is.
  */
-class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconfigurationHandler {
+class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::OperatorCommandsReconfigurationHandler {
  public:
-  ReadOnlyReplicaPruningHandler(IReader &ro_storage)
-      : ro_storage_{ro_storage},
+  ReadOnlyReplicaPruningHandler(const std::string &operator_pkey_path,
+                                concord::crypto::SignatureAlgorithm type,
+                                IReader &ro_storage)
+      : concord::reconfiguration::OperatorCommandsReconfigurationHandler{operator_pkey_path, type},
+        ro_storage_{ro_storage},
         signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
         pruning_enabled_{bftEngine::ReplicaConfig::instance().pruningEnabled_},
         replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
