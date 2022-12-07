@@ -282,8 +282,6 @@ class InMemoryUserStorage : public utt::client::IStorage {
       throw std::runtime_error("trying to remove an non existed coin to storage");
     coins_.erase(coin.getNullifier());
   };
-  void startTransaction() override {}
-  void commit() override {}
 
   uint64_t getLastExecutedSn() override { return lastExecutedSn_; }
   libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
@@ -303,6 +301,14 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::types::Signature rcm_sig_;
   std::unordered_map<std::string, libutt::api::Coin> coins_;
   std::pair<std::string, std::string> keyPair_;
+};
+
+class mockTransactionalStorage : public utt::client::ITransactionalStorage {
+ public:
+  mockTransactionalStorage(std::unique_ptr<utt::client::IStorage> storage)
+      : utt::client::ITransactionalStorage{std::move(storage)} {}
+  void startTransaction() override {}
+  void commit() override {}
 };
 
 int main(int argc, char* argv[]) {
@@ -366,7 +372,8 @@ int main(int argc, char* argv[]) {
   std::vector<uint64_t> initialBudget;
 
   for (size_t i = 0; i < C; ++i) {
-    std::unique_ptr<InMemoryUserStorage> storage = std::make_unique<InMemoryUserStorage>();
+    std::unique_ptr<utt::client::ITransactionalStorage> storage =
+        std::make_unique<mockTransactionalStorage>(std::make_unique<InMemoryUserStorage>());
     users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);

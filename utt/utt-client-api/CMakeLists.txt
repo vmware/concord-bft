@@ -4,6 +4,7 @@ set(utt-client-api-src
     src/User.cpp
     src/PickCoins.cpp
     src/UserPKI.cpp
+    src/ITransactionalStorage.cpp
 )
 
 add_library(utt_client_api STATIC ${utt-client-api-src})

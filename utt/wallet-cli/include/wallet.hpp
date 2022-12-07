@@ -81,7 +81,7 @@ class Wallet {
   /// @brief Updates the ERC20 balance of the wallet.
   void updatePublicBalance(Channel& chan);
 
-  std::unique_ptr<utt::client::IStorage> storage_;
+  std::unique_ptr<utt::client::ITransactionalStorage> storage_;
   std::string userId_;
   utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
