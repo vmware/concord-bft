@@ -342,8 +342,7 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
 bool ClientReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                    const std::string& data,
                                                    const std::string& signature) const {
-  return (reps_info_.isIdOfExternalClient(sender_id) &&
-          bftEngine::impl::SigManager::instance()->hasVerifier(sender_id) &&
+  return (bftEngine::impl::SigManager::instance()->hasVerifier(sender_id) &&
           bftEngine::impl::SigManager::instance()->verifySig(sender_id, data, signature));
 }
 }  // namespace bftEngine::impl

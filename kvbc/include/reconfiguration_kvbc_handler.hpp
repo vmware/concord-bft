@@ -59,7 +59,6 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
  public:
   StateSnapshotReconfigurationHandler(const std::string& path_to_operator_pub_key,
                                       concord::crypto::SignatureAlgorithm sig_type,
-                                      const bftEngine::impl::ReplicasInfo& reps_info,
                                       kvbc::IBlockAdder& block_adder,
                                       kvbc::IReader& ro_storage,
                                       const Converter& state_value_converter,
@@ -67,8 +66,7 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
       : ReconfigurationBlockTools{block_adder, ro_storage},
         state_value_converter_{state_value_converter},
         last_app_txn_time_cb_{last_app_txn_time_cb_},
-        op_reconf_handler_{path_to_operator_pub_key, sig_type},
-        client_reconf_handler_{reps_info} {}
+        op_reconf_handler_{path_to_operator_pub_key, sig_type} {}
 
   bool handle(const concord::messages::StateSnapshotRequest&,
               uint64_t,
@@ -121,10 +119,8 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
 class KvbcClientReconfigurationHandler : public bftEngine::impl::ClientReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
-  KvbcClientReconfigurationHandler(const bftEngine::impl::ReplicasInfo& reps_info,
-                                   kvbc::IBlockAdder& block_adder,
-                                   kvbc::IReader& ro_storage)
-      : bftEngine::impl::ClientReconfigurationHandler{reps_info}, ReconfigurationBlockTools{block_adder, ro_storage} {}
+  KvbcClientReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
               uint32_t,

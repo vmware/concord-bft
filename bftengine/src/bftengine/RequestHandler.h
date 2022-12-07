@@ -27,14 +27,13 @@ class RequestHandler : public IRequestsHandler {
  public:
   RequestHandler(
       std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>()) {
-    bftEngine::impl::ReplicasInfo reps_info(ReplicaConfig::instance(), false, false);
     reconfig_handler_.push_back(
         std::make_shared<ReconfigurationHandler>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
                                                  bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo));
     for (const auto &rh : reconfig_handler_) {
       reconfig_dispatcher_.addReconfigurationHandler(rh);
     }
-    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>(reps_info));
+    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
     reconfig_dispatcher_.setAggregator(aggregator_);
   }
 

@@ -88,7 +88,7 @@ class ReconfigurationHandler : public concord::reconfiguration::OperatorCommands
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
  public:
-  ClientReconfigurationHandler(const ReplicasInfo &reps_info) : reps_info_{reps_info} {}
+  ClientReconfigurationHandler() {}
   bool handle(const concord::messages::ClientExchangePublicKey &,
               uint64_t,
               uint32_t,
@@ -96,8 +96,5 @@ class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigu
               concord::messages::ReconfigurationResponse &) override;
 
   bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override;
-
- protected:
-  ReplicasInfo reps_info_;
 };
 }  // namespace bftEngine::impl

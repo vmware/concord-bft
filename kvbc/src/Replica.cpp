@@ -167,7 +167,6 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   adapter::ReplicaBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
-  bftEngine::impl::ReplicasInfo reps_info(bftEngine::ReplicaConfig::instance(), false, false);
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(
                                                 bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
                                                 bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
@@ -180,7 +179,6 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(
           bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
-          reps_info,
           *this,
           *this,
           m_stateSnapshotValueConverter,
@@ -190,7 +188,7 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
                                                 *this, *this, this->AdaptivePruningManager_),
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(reps_info, *this, *this),
+      std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalPostKvReconfigurationHandler>(*this, *this),
