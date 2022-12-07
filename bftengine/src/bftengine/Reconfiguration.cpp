@@ -20,7 +20,6 @@
 #include "secrets/secrets_manager_plain.h"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "ReplicaConfig.hpp"
-#include "crypto/factory.hpp"
 #include "SigManager.hpp"
 
 #include <fstream>
@@ -28,7 +27,6 @@
 namespace bftEngine::impl {
 using namespace concord::messages;
 using concord::crypto::KeyFormat;
-using concord::crypto::Factory;
 
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
