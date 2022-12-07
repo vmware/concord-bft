@@ -50,9 +50,8 @@ class E2eTestSuite {
         "Mint above public balance should not change balance"));
   }
 
-  bool run() {
-    bool failed = false;
-    unsigned int failedCount = 0, passedCount = 0;
+  int run() {
+    int failedCount = 0, passedCount = 0;
     Admin::createPrivacyBudget(context.chanAdmin, "user-1", 5000);
     for (auto &test : testScenarios) {
       assertWalletsPresent();
@@ -60,7 +59,6 @@ class E2eTestSuite {
       if (E2eTestResult::PASSED != result) {
         std::cout << "Test\033[31m FAILED\033[0m, status: " << result
                   << ", test description: " << test->getDescription() << std::endl;
-        failed = true;
         ++failedCount;
       } else {
         ++passedCount;
@@ -69,7 +67,7 @@ class E2eTestSuite {
     }
     std::cout << "Privacy feature E2E tests completed, \033[32m PASSED \033[0m: " << passedCount
               << ", \033[31m FAILED \033[0m: " << failedCount << std::endl;
-    return failed;
+    return failedCount;
   }
 
  private:
@@ -114,6 +112,6 @@ int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
   E2eTestSuite testSuite = E2eTestSuite();
-  testSuite.run();
-  return 0;
+  int failedCount = testSuite.run();
+  return failedCount;
 }
