@@ -17,8 +17,6 @@
 #include <string>
 #include <cstddef>
 
-#include "crypto/openssl/hash.hpp"
-
 namespace concord::crypto {
 
 // Interface for wrapper class for private keys in asymmetric cryptography
