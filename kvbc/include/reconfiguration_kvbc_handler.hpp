@@ -13,19 +13,21 @@
 #pragma once
 
 #include "ReplicaConfig.hpp"
-#include "reconfiguration/ireconfiguration.hpp"
 #include "db_interfaces.h"
 #include "blockchain_misc.hpp"
 #include "hex_tools.h"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include "SigManager.hpp"
-#include "reconfiguration/reconfiguration_handler.hpp"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
 #include "newest_public_event_group_record_time.h"
 #include "bftengine/PersistentStorageImp.hpp"
+#include "Reconfiguration.hpp"
+#include "reconfiguration/reconfiguration.hpp"
+#include "Replica.hpp"
+#include "ControlStateManager.hpp"
 #include <functional>
 #include <string>
 #include <utility>
@@ -55,13 +57,16 @@ class ReconfigurationBlockTools {
 class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
                                             public concord::reconfiguration::IReconfigurationHandler {
  public:
-  StateSnapshotReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+  StateSnapshotReconfigurationHandler(const std::string& path_to_operator_pub_key,
+                                      concord::crypto::SignatureAlgorithm sig_type,
+                                      kvbc::IBlockAdder& block_adder,
                                       kvbc::IReader& ro_storage,
                                       const Converter& state_value_converter,
                                       const kvbc::LastApplicationTransactionTimeCallback& last_app_txn_time_cb_)
       : ReconfigurationBlockTools{block_adder, ro_storage},
         state_value_converter_{state_value_converter},
-        last_app_txn_time_cb_{last_app_txn_time_cb_} {}
+        last_app_txn_time_cb_{last_app_txn_time_cb_},
+        op_reconf_handler_{path_to_operator_pub_key, sig_type} {}
 
   bool handle(const concord::messages::StateSnapshotRequest&,
               uint64_t,
@@ -83,12 +88,12 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
 
   // Allow snapshot requests from the Operator and from Clients.
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
-    // Try the BFT reconfiguration handler first. If not verified by the reconfiguration handler, try the
+    // Try the operator reconfiguration handler first. If not verified by the reconfiguration handler, try the
     // ClientReconfigurationHandler, if transaction signing is enabled, else donot check the signature.
     // For StateSnapshotRequest, SignedPublicStateHashRequest and StateSnapshotReadAsOfRequest, we will
     // allow the reconfiguration request without verification.
     if (bftEngine::ReplicaConfig::instance().clientTransactionSigningEnabled) {
-      return (bft_reconf_handler_.verifySignature(sender_id, data, signature) ||
+      return (op_reconf_handler_.verifySignature(sender_id, data, signature) ||
               client_reconf_handler_.verifySignature(sender_id, data, signature));
     } else {
       return true;
@@ -104,14 +109,14 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
   // The result must be a string that can be parsed via google::protobuf::util::TimeUtil::FromString().
   kvbc::LastApplicationTransactionTimeCallback last_app_txn_time_cb_{kvbc::newestPublicEventGroupRecordTime};
 
-  const concord::reconfiguration::BftReconfigurationHandler bft_reconf_handler_;
-  const concord::reconfiguration::ClientReconfigurationHandler client_reconf_handler_;
+  const concord::reconfiguration::OperatorCommandsReconfigurationHandler op_reconf_handler_;
+  const bftEngine::impl::ClientReconfigurationHandler client_reconf_handler_;
 };
 
 /*
  * This component is responsible for logging a reconfiguration requests (issued by a specific bft CRE) to the blockchain
  */
-class KvbcClientReconfigurationHandler : public concord::reconfiguration::ClientReconfigurationHandler,
+class KvbcClientReconfigurationHandler : public bftEngine::impl::ClientReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
   KvbcClientReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
@@ -146,14 +151,19 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
  * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the
  * blockchian.
  */
-class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
+class ReconfigurationHandler : public concord::reconfiguration::OperatorCommandsReconfigurationHandler,
                                public ReconfigurationBlockTools {
  public:
-  ReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+  ReconfigurationHandler(const std::string& path_to_operator_pub_key,
+                         concord::crypto::SignatureAlgorithm sig_type,
+                         kvbc::IBlockAdder& block_adder,
                          kvbc::IReader& ro_storage,
                          concord::performance::AdaptivePruningManager& apm,
                          concord::performance::ISystemResourceEntity& replicaResources)
-      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm), replicaResources_(replicaResources) {
+      : concord::reconfiguration::OperatorCommandsReconfigurationHandler{path_to_operator_pub_key, sig_type},
+        ReconfigurationBlockTools{block_adder, ro_storage},
+        apm_(apm),
+        replicaResources_(replicaResources) {
     const auto& command = apm_.getLatestConfiguration();
     if (command.sender_id != 0) {
       if (command.mode == concord::performance::PruningMode::LEGACY) {

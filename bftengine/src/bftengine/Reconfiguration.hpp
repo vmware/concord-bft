@@ -1,35 +1,25 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
-// This product is licensed to you under the Apache 2.0 license (the "License").
-// You may not use this product except in compliance with the Apache 2.0 License.
+// This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
+// compliance with the Apache 2.0 License.
 //
-// This product may include a number of subcomponents with separate copyright
-// notices and license terms. Your use of these subcomponents is subject to the
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #pragma once
 
-#include "Logger.hpp"
-#include "Replica.hpp"
-#include "concord.cmf.hpp"
-#include "ireconfiguration.hpp"
-#include "OpenTracing.hpp"
-#include "SigManager.hpp"
+#include "reconfiguration/reconfiguration.hpp"
+#include "ReplicasInfo.hpp"
 
-namespace concord::reconfiguration {
-class BftReconfigurationHandler : public IReconfigurationHandler {
- public:
-  BftReconfigurationHandler();
-  bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override;
+namespace bftEngine::impl {
 
-  std::unique_ptr<concord::crypto::IVerifier> verifier_;
-};
-class ReconfigurationHandler : public BftReconfigurationHandler {
+class ReconfigurationHandler : public concord::reconfiguration::OperatorCommandsReconfigurationHandler {
  public:
-  ReconfigurationHandler() {}
+  ReconfigurationHandler(const std::string &operator_pub_key_path, concord::crypto::SignatureAlgorithm type)
+      : OperatorCommandsReconfigurationHandler{operator_pub_key_path, type} {}
   bool handle(const concord::messages::WedgeCommand &,
               uint64_t,
               uint32_t,
@@ -98,16 +88,13 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
  public:
+  ClientReconfigurationHandler() {}
   bool handle(const concord::messages::ClientExchangePublicKey &,
               uint64_t,
               uint32_t,
               const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
 
-  bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override {
-    if (!bftEngine::impl::SigManager::instance()->hasVerifier(sender_id)) return false;
-    return bftEngine::impl::SigManager::instance()->verifySig(sender_id, data, signature);
-  }
+  bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override;
 };
-
-}  // namespace concord::reconfiguration
+}  // namespace bftEngine::impl

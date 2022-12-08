@@ -20,6 +20,7 @@
 #include "SimpleClient.hpp"
 #include "SharedTypes.hpp"
 #include "ControlStateManager.hpp"
+#include "Replica.hpp"
 #include <optional>
 #include <sstream>
 

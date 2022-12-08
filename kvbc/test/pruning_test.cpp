@@ -431,7 +431,12 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
 
   // Construct the pruning state machine with a nullptr TimeContract to verify
   // it works in case the time service is disabled.
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
@@ -452,7 +457,12 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
   auto &blocks_deleter = storage;
   const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
@@ -479,7 +489,12 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
@@ -506,7 +521,12 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
@@ -527,7 +547,12 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
 
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
   concord::messages::ReconfigurationResponse rres;
@@ -547,7 +572,12 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   TestStorage storage(db);
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   const auto latest_prunable_block_id = storage.getLastBlockId() - num_blocks_to_keep;
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
@@ -571,7 +601,12 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
+  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                           storage,
+                           storage,
+                           blocks_deleter,
+                           false};
 
   // Add a valid N + 1 latest prunable block.
   {

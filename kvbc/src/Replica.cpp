@@ -63,7 +63,10 @@ Status Replica::initInternals() {
     LOG_INFO(logger,
              "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
-    requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
+    requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(
+        bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+        bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+        *this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
         replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
@@ -165,11 +168,21 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(
-                                                *this, *this, this->AdaptivePruningManager_, this->replicaResources_),
+                                                bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                                                bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                                                *this,
+                                                *this,
+                                                this->AdaptivePruningManager_,
+                                                this->replicaResources_),
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(
-          *this, *this, m_stateSnapshotValueConverter, m_lastAppTxnCallback),
+          bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+          bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+          *this,
+          *this,
+          m_stateSnapshotValueConverter,
+          m_lastAppTxnCallback),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
                                                 *this, *this, this->AdaptivePruningManager_),
@@ -181,7 +194,12 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
       std::make_shared<kvbc::reconfiguration::InternalPostKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::POST);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
+      new concord::kvbc::pruning::PruningHandler(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                                                 bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+                                                 *this,
+                                                 *this,
+                                                 *this,
+                                                 true));
   requestHandler->setReconfigurationHandler(pruning_handler);
   for (const auto &rh : m_cmdHandler->getReconfigurationHandler()) {
     stReconfigurationSM_->registerHandler(rh);

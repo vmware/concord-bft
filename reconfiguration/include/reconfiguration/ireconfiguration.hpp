@@ -13,12 +13,14 @@
 #pragma once
 
 #include "concord.cmf.hpp"
-#include "OpenTracing.hpp"
-#include "kv_types.hpp"
-#include "Replica.hpp"
-#include "bftengine/TimeService.hpp"
-#include "bftengine/PersistentStorageImp.hpp"
-
+#include <memory>
+#include "Logger.hpp"
+namespace bftEngine {
+struct Timestamp;
+namespace impl {
+class PersistentStorage;
+}
+}  // namespace bftEngine
 namespace concord::reconfiguration {
 enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
 const static std::string configurationsFileName{"configurations"};
@@ -332,7 +334,7 @@ class IReconfigurationHandler {
 
  protected:
   logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
+    static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
 };

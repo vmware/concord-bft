@@ -22,6 +22,8 @@
 #include "secrets/secrets_manager_plain.h"
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
+#include "Replica.hpp"
+#include "ControlStateManager.hpp"
 
 namespace concord::kvbc {
 /*

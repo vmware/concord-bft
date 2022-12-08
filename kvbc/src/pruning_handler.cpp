@@ -114,11 +114,14 @@ const PruningVerifier::Replica& PruningVerifier::getReplica(ReplicaVector::size_
   return replicas_[idx];
 }
 
-PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
+PruningHandler::PruningHandler(const std::string& operator_pkey_path,
+                               concord::crypto::SignatureAlgorithm type,
+                               kvbc::IReader& ro_storage,
                                kvbc::IBlockAdder& blocks_adder,
                                kvbc::IBlocksDeleter& blocks_deleter,
                                bool run_async)
-    : logger_{logging::getLogger("concord.pruning")},
+    : concord::reconfiguration::OperatorCommandsReconfigurationHandler{operator_pkey_path, type},
+      logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
       verifier_{bftEngine::ReplicaConfig::instance().publicKeysOfReplicas},
       ro_storage_{ro_storage},
