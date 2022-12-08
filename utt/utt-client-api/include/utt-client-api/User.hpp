@@ -21,7 +21,7 @@
 
 #include <utt-common-api/CommonApi.hpp>
 #include "utt-client-api/UserPKI.hpp"
-#include "storage/ITransactionalStorage.hpp"
+#include "storage/IStorage.hpp"
 namespace utt::client {
 
 /// @brief A transaction required to be executed in order to fulfill some burn request
@@ -134,16 +134,16 @@ class User {
   friend std::unique_ptr<User> createUser(const std::string& userId,
                                           const utt::PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          std::unique_ptr<ITransactionalStorage> storage);
+                                          std::unique_ptr<IStorage> storage);
 
-  friend std::unique_ptr<User> loadUserFromStorage(ITransactionalStorage& storage);
+  friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
                                              const utt::PublicConfig& config,
                                              IUserPKInfrastructure& pki,
-                                             std::unique_ptr<ITransactionalStorage> storage);
+                                             std::unique_ptr<IStorage> storage);
 
-  void recoverFromStorage(ITransactionalStorage& storage);
+  void recoverFromStorage(IStorage& storage);
 
   struct Impl;
   std::unique_ptr<Impl> pImpl_;

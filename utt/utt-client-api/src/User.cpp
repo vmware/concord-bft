@@ -96,7 +96,7 @@ struct User::Impl {
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
   std::set<std::string> budgetNullifiers_;
-  std::unique_ptr<ITransactionalStorage> storage_;
+  std::unique_ptr<IStorage> storage_;
   bool is_registered_ = false;
 };
 
@@ -251,7 +251,7 @@ libutt::RSAEncryptor User::Impl::createRsaEncryptorForTransferToOther(const std:
 std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          std::unique_ptr<ITransactionalStorage> storage) {
+                                          std::unique_ptr<IStorage> storage) {
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
 
@@ -264,7 +264,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   if (isNewStorage) {
     userKeys = pki.generateKeys(userId);
     {
-      ITransactionalStorage::guard g(*storage);
+      IStorage::guard g(*storage);
       storage->setKeyPair({userKeys.sk_, userKeys.pk_});
     }
   } else {
@@ -295,7 +295,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   return user;
 }
 
-void User::recoverFromStorage(ITransactionalStorage& storage) {
+void User::recoverFromStorage(IStorage& storage) {
   /**
    * To recover the client we need to perform the following:
    * 1. recover registration data (if there is any)
@@ -343,7 +343,7 @@ UserRegistrationInput User::getRegistrationInput() const {
   if (!pImpl_->client_) return UserRegistrationInput{};  // Empty
   libutt::api::Commitment comm = pImpl_->client_->generateInputRCM();
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     pImpl_->storage_->setClientSideSecret(pImpl_->client_->getS1());
   }
   return libutt::api::serialize<libutt::api::Commitment>(comm);
@@ -363,7 +363,7 @@ void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
   pImpl_->is_registered_ = true;
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     auto rcm = pImpl_->client_->getRcm();
     pImpl_->storage_->setRcmSignature(rcm.second);
     pImpl_->storage_->setSystemSideSecret(s2);
@@ -391,7 +391,7 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
   }
 
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     pImpl_->storage_->setCoin(claimedCoins[0]);
   }
   pImpl_->budgetCoin_ = claimedCoins[0];
@@ -431,7 +431,7 @@ void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
   logdbg_user << "executing transfer tx: " << txNum << endl;
 
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     pImpl_->storage_->setLastExecutedSn(txNum);
 
     pImpl_->lastExecutedTxNum_ = txNum;
@@ -482,7 +482,7 @@ void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
 
   logdbg_user << "executing mint tx: " << txNum << endl;
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     if (mint.getRecipentID() != pImpl_->client_->getPid()) {
       logdbg_user << "ignores mint transaction for different user: " << mint.getRecipentID() << endl;
     } else {
@@ -510,7 +510,7 @@ void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
 
   logdbg_user << "executing burn tx: " << txNum << endl;
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
       logdbg_user << "ignores burn tx for different user: " << burn.getOwnerPid() << endl;
     } else {
@@ -537,7 +537,7 @@ void User::updateNoOp(uint64_t txNum) {
 
   logdbg_user << "executing noop tx: " << txNum << endl;
   {
-    ITransactionalStorage::guard g(*pImpl_->storage_);
+    IStorage::guard g(*pImpl_->storage_);
     pImpl_->storage_->setLastExecutedSn(txNum);
     pImpl_->lastExecutedTxNum_ = txNum;
   }

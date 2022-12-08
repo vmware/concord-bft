@@ -54,9 +54,9 @@ PublicConfig getPublicConfig(const Configuration& config);
 std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
-                                 std::unique_ptr<ITransactionalStorage> storage);
+                                 std::unique_ptr<IStorage> storage);
 
 // Load an existing user from storage
-std::unique_ptr<User> loadUserFromStorage(ITransactionalStorage& storage);
+std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
 }  // namespace utt::client

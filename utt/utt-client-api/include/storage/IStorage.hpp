@@ -18,6 +18,15 @@
 namespace utt::client {
 class IStorage {
  public:
+  class guard {
+   public:
+    guard(IStorage& storage) : storage_{storage} { storage_.startTransaction(); }
+    ~guard() { storage_.commit(); }
+
+   private:
+    IStorage& storage_;
+  };
+
   virtual ~IStorage() = default;
 
   /**
@@ -118,5 +127,17 @@ class IStorage {
    * @return std::pair<std::string, std::string> where the first is the private key and the second is the public key
    */
   virtual std::pair<std::string, std::string> getKeyPair() = 0;
+
+  /**
+   * @brief Starts a new atomic transaction
+   *
+   */
+  virtual void startTransaction() = 0;
+
+  /**
+   * @brief Atomically commits a transaction
+   *
+   */
+  virtual void commit() = 0;
 };
 }  // namespace utt::client

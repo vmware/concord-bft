@@ -293,6 +293,8 @@ class InMemoryUserStorage : public utt::client::IStorage {
     return coins;
   }
   std::pair<std::string, std::string> getKeyPair() override { return keyPair_; }
+  void startTransaction() override {}
+  void commit() override {}
 
  private:
   uint64_t lastExecutedSn_;
@@ -301,14 +303,6 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::types::Signature rcm_sig_;
   std::unordered_map<std::string, libutt::api::Coin> coins_;
   std::pair<std::string, std::string> keyPair_;
-};
-
-class mockTransactionalStorage : public utt::client::ITransactionalStorage {
- public:
-  mockTransactionalStorage(std::unique_ptr<utt::client::IStorage> storage)
-      : utt::client::ITransactionalStorage{std::move(storage)} {}
-  void startTransaction() override {}
-  void commit() override {}
 };
 
 int main(int argc, char* argv[]) {
@@ -372,8 +366,7 @@ int main(int argc, char* argv[]) {
   std::vector<uint64_t> initialBudget;
 
   for (size_t i = 0; i < C; ++i) {
-    std::unique_ptr<utt::client::ITransactionalStorage> storage =
-        std::make_unique<mockTransactionalStorage>(std::make_unique<InMemoryUserStorage>());
+    std::unique_ptr<utt::client::IStorage> storage = std::make_unique<InMemoryUserStorage>();
     users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);

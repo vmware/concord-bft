@@ -58,19 +58,8 @@ std::vector<uint8_t> hexStringToBytes(const std::string& hex) {
   return bytes;
 }
 
-std::unique_ptr<FileBasedTransactionalStorage> FileBasedTransactionalStorage::create(const std::string& path) {
-  std::shared_ptr<FileBasedUserStorageState> state;
-  return std::make_unique<FileBasedTransactionalStorage>(std::make_unique<FileBasedUserStorage>(state), storage_, path);
-}
-
-FileBasedTransactionalStorage : FileBasedTransactionalStorage(std::unique_ptr<IStorage> storage,
-                                                              std::shared_ptr<FileBasedUserStorageState> state,
-                                                              const std::string& path)
-    : ITransactionalStorage{std::move(storage)},
-      state_path_{path + "/.state.json"},
-      pending_path_{path + "/.pending.json"},
-      lock_path_{path + "/.LOCK"},
-      state_{state} {
+FileBasedUserStorage::FileBasedUserStorage(const std::string& path)
+    : state_path_{path + "/.state.json"}, pending_path_{path + "/.pending.json"}, lock_path_{path + "/.LOCK"} {
   fs::create_directories(path);
   if (fs::exists(lock_path_)) {
     // If we have a lock file, then we have a pending file that we need to write to the actual storage.
@@ -85,11 +74,11 @@ FileBasedTransactionalStorage : FileBasedTransactionalStorage(std::unique_ptr<IS
   }
 }
 
-void FileBasedTransactionalStorage::startTransaction() {
+void FileBasedUserStorage::startTransaction() {
   if (!state_->state_.contains("initialized")) state_->state_["initialized"] = true;
 }
 
-void FileBasedTransactionalStorage::commit() {
+void FileBasedUserStorage::commit() {
   std::ofstream out_state(pending_path_);
   out_state << state_->state_ << std::endl;
   out_state.close();

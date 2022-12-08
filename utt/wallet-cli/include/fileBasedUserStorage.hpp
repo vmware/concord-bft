@@ -13,16 +13,14 @@
 
 #pragma once
 
-#include <storage/ITransactionalStorage.hpp>
+#include <storage/IStorage.hpp>
 #include <mutex>
 #include <optional>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 namespace utt::client {
-struct FileBasedUserStorageState {
-  json state_;
-} class FileBasedUserStorage : public IStorage {
+class FileBasedUserStorage : public IStorage {
  public:
   FileBasedUserStorage(std::shared_ptr<FileBasedUserStorageState> state) : state_{state} {}
   bool isNewStorage() override;
@@ -42,24 +40,13 @@ struct FileBasedUserStorageState {
   libutt::api::types::Signature getRcmSignature() override;
   std::vector<libutt::api::Coin> getCoins() override;
   std::pair<std::string, std::string> getKeyPair() override;
-
- private:
-  std::shared_ptr<FileBasedUserStorageState> state_;
-};
-
-class FileBasedTransactionalStorage : public ITransactionalStorage {
- public:
-  FileBasedTransactionalStorage(std::unique_ptr<IStorage> storage,
-                                std::shared_ptr<FileBasedUserStorageState> state,
-                                const std::string& path);
   void startTransaction() override;
   void commit() override;
-  static std::unique_ptr<FileBasedTransactionalStorage> create(const std::string& path);
 
  private:
   std::string state_path_;
   std::string pending_path_;
   std::string lock_path_;
-  std::shared_ptr<FileBasedUserStorageState> state_;
-}
+  json state_;
+};
 }  // namespace utt::client
