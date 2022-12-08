@@ -14,7 +14,7 @@
 
 #include "concord.cmf.hpp"
 #include <memory>
-#include "Logger.hpp"
+#include "log/logger.hpp"
 namespace bftEngine {
 struct Timestamp;
 namespace impl {
