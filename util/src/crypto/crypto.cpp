@@ -14,7 +14,8 @@
 #include <utility>
 
 #include "crypto/crypto.hpp"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "hex_tools.h"
 #include "string.hpp"

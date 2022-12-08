@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "sliver.hpp"
 #include "storage/db_interface.h"
 

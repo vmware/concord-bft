@@ -15,8 +15,9 @@
 #include <iomanip>
 #include <inttypes.h>
 #include <chrono>
+
+#include "log/logger.hpp"
 #include "messages/MsgCode.hpp"
-#include "Logger.hpp"
 
 using namespace std;
 using namespace std::chrono;

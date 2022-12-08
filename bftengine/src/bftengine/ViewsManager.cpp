@@ -15,9 +15,10 @@
 #include <set>
 #include <vector>
 
-#include "Logger.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ViewsManager.hpp"
+
+#include "log/logger.hpp"
 #include "ReplicasInfo.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ViewChangeMsg.hpp"

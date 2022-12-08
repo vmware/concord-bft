@@ -17,8 +17,6 @@
 #pragma once
 
 #include "assertUtils.hpp"
-#include "Logger.hpp"
-
 #include <condition_variable>
 #include <future>
 #include <mutex>
@@ -27,6 +25,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "log/logger.hpp"
 
 namespace concord::util {
 

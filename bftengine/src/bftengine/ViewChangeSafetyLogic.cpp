@@ -12,10 +12,10 @@
 #include "ViewChangeSafetyLogic.hpp"
 #include "threshsign/IThresholdVerifier.h"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "CryptoManager.hpp"
 #include <set>
 #include <unordered_map>
+#include "log/logger.hpp"
 
 namespace bftEngine {
 namespace impl {

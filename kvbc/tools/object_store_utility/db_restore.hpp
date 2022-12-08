@@ -12,7 +12,8 @@
 // file.
 #pragma once
 #include <memory>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "integrity_checker.hpp"
 

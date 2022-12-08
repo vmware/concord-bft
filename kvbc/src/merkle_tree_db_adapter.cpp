@@ -15,7 +15,6 @@
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "Logger.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/histograms.h"
 #include "status.hpp"
@@ -28,6 +27,7 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v2MerkleTree {
 

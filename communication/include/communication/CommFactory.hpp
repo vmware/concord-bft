@@ -13,8 +13,8 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
-#include "Logger.hpp"
 
 namespace bft::communication {
 class CommFactory {

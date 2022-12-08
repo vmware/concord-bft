@@ -10,13 +10,13 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "Logger.hpp"
 #include "Utils.h"
 
 #include <iostream>
 #include <fstream>
 #include <vector>
 
+#include "log/logger.hpp"
 #include "lib/IThresholdSchemeBenchmark.h"
 #include "lib/Benchmark.h"
 

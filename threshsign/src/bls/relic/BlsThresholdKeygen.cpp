@@ -13,9 +13,9 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/bls/relic/BlsThresholdKeygen.h"
 
+#include "log/logger.hpp"
 #include "BlsPolynomial.h"
 
-#include "Logger.hpp"
 #include "XAssert.h"
 
 using std::endl;

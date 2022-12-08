@@ -10,12 +10,13 @@
 // file.
 
 #include "SimpleThreadPool.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 
 #include <exception>
 #include <iostream>
 #include <mutex>
+
+#include "log/logger.hpp"
 
 logging::Logger SP = logging::getLogger("thread-pool");
 namespace concord::util {

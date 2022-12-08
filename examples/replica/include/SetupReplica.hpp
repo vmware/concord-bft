@@ -18,10 +18,10 @@
 #include <optional>
 #include <utility>
 #include <yaml-cpp/yaml.h>
+#include "log/logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
 #include "MetricsServer.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"

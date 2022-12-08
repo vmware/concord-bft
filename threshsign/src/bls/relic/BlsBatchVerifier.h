@@ -17,9 +17,9 @@
 #include "threshsign/bls/relic/BlsNumTypes.h"
 
 #include "Utils.h"
-#include "Logger.hpp"
-
 #include <vector>
+
+#include "log/logger.hpp"
 
 namespace BLS {
 namespace Relic {

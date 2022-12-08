@@ -19,7 +19,6 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "communication/StatusInfo.h"
-#include "Logger.hpp"
 #include "KVBCInterfaces.h"
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter_interface.h"
@@ -32,6 +31,7 @@
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
+#include "log/logger.hpp"
 #include "ReplicaResources.h"
 #include "AdaptivePruningManager.hpp"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"

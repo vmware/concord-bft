@@ -16,9 +16,9 @@
 #include <optional>
 #include <variant>
 
+#include "log/logger.hpp"
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
-#include "Logger.hpp"
 #include "s3/client.hpp"
 #include "bftengine/PersistentStorage.hpp"
 #include "storage_factory_interface.h"

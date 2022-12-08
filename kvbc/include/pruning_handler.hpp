@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include "Replica.hpp"
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
@@ -22,6 +21,8 @@
 #include <future>
 #include "bftengine/Reconfiguration.hpp"
 #include "bftengine/ReplicasInfo.hpp"
+
+#include "log/logger.hpp"
 namespace concord::kvbc::pruning {
 
 // This class signs pruning messages via the replica's private key that it gets

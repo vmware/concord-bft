@@ -16,9 +16,9 @@
 #include <chrono>
 #include <mutex>
 
+#include "log/logger.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "Metrics.hpp"
-#include "Logger.hpp"
 
 using std::chrono::steady_clock;
 using concordMetrics::GaugeHandle;

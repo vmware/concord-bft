@@ -11,8 +11,9 @@
 
 #include <chrono>
 #include "ReplicaBase.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"

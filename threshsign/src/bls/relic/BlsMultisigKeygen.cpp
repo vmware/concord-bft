@@ -11,10 +11,10 @@
 // LICENSE file.
 
 #include "threshsign/bls/relic/BlsMultisigKeygen.h"
+
+#include "log/logger.hpp"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/bls/relic/Library.h"
-
-#include "Logger.hpp"
 
 namespace BLS {
 namespace Relic {

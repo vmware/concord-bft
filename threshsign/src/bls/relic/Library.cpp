@@ -12,8 +12,8 @@
 
 #include "threshsign/bls/relic/Library.h"
 
+#include "log/logger.hpp"
 #include "kvstream.h"
-#include "Logger.hpp"
 #include "Utils.h"
 
 namespace BLS {

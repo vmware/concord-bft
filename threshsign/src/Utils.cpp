@@ -12,8 +12,6 @@
 
 #include "Utils.h"
 #include "AutoBuf.h"
-#include "Logger.hpp"
-
 #include <string>
 #include <stdexcept>
 #include <climits>
@@ -21,6 +19,7 @@
 #include <set>
 #include <fstream>
 
+#include "log/logger.hpp"
 #include "XAssert.h"
 
 using std::endl;

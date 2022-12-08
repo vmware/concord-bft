@@ -11,10 +11,10 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "Logger.hpp"
 #include <functional>
 #include <boost/program_options.hpp>
 
+#include "log/logger.hpp"
 #include "integrity_checker.hpp"
 #include "db_restore.hpp"
 

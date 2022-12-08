@@ -12,12 +12,13 @@
 #pragma once
 
 #include <memory>
+
+#include "log/logger.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
-#include "Logger.hpp"
 #include "crypto/crypto.hpp"
 
 namespace bftEngine {

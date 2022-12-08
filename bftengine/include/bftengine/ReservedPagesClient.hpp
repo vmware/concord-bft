@@ -20,7 +20,8 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace bftEngine {
 

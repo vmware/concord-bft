@@ -15,6 +15,7 @@
 #include <cmath>
 #include <condition_variable>
 #include <SimpleClient.hpp>
+#include "log/logger.hpp"
 
 #include "ClientMsgs.hpp"
 #include "OpenTracing.hpp"
@@ -25,7 +26,6 @@
 #include "messages/ClientBatchRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
-#include "Logger.hpp"
 
 using namespace std;
 using namespace std::chrono;

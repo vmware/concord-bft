@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <inttypes.h>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"

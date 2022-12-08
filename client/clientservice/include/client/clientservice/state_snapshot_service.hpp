@@ -14,9 +14,9 @@
 #include <vector>
 #include <mutex>
 #include <grpcpp/grpcpp.h>
+#include "log/logger.hpp"
 #include "state_snapshot.grpc.pb.h"
 #include "crypto/openssl/hash.hpp"
-#include "Logger.hpp"
 #include "concord.cmf.hpp"
 #include "client/concordclient/concord_client.hpp"
 

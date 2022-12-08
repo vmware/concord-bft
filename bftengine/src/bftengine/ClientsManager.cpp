@@ -13,7 +13,6 @@
 #include "messages/ClientReplyMsg.hpp"
 #include "IStateTransfer.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
@@ -21,6 +20,8 @@
 #include "ReplicasInfo.hpp"
 
 #include <chrono>
+
+#include "log/logger.hpp"
 using namespace std::chrono;
 using namespace concord::serialize;
 namespace bftEngine::impl {

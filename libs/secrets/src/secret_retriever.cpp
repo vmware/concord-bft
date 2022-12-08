@@ -19,7 +19,8 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <regex>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "httplib.h"
 
 using json = nlohmann::json;

@@ -19,9 +19,9 @@
 #include <iterator>
 #include <functional>
 
+#include "log/logger.hpp"
 #include "type_traits.h"
 #include "demangle.hpp"
-#include "Logger.hpp"
 
 namespace concord {
 namespace serialize {

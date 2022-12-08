@@ -16,9 +16,10 @@
 #include "assertUtils.hpp"
 #include "gtest/gtest.h"
 #include <vector>
-#include "Logger.hpp"
 #include <thread>
 #include <memory>
+
+#include "log/logger.hpp"
 #include "simple_test_client.hpp"
 #include "simple_test_replica.hpp"
 #include "diagnostics.h"

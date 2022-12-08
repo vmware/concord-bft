@@ -21,8 +21,8 @@
 #include <exception>
 #include <optional>
 #include <sstream>
-#include "Logger.hpp"
 
+#include "log/logger.hpp"
 #include "concord_kvbc.pb.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"

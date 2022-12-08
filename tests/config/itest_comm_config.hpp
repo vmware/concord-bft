@@ -15,7 +15,7 @@
 
 #include <string>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
 #include "ReplicaConfig.hpp"
 

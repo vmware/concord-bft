@@ -5,7 +5,6 @@
 
 #include "gtest/gtest.h"
 #include "s3/client.hpp"
-#include "Logger.hpp"
 #include "s3/config_parser.hpp"
 #include "sliver.hpp"
 
@@ -14,6 +13,7 @@
 #include <ctime>
 #include <fstream>
 #include <util/filesystem.hpp>
+#include "log/logger.hpp"
 
 namespace concord::storage::s3::test {
 

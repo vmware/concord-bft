@@ -32,7 +32,7 @@
 
 #include "BlsPolynomial.h"
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
 namespace BLS::Relic {
 

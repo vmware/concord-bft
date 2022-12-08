@@ -15,7 +15,8 @@
 #include <utility>
 
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace bft::communication {
 

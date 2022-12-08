@@ -17,7 +17,6 @@
 
 #include "endianness.hpp"
 #include "Handoff.hpp"
-#include "Logger.hpp"
 #include "memorydb/client.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
@@ -36,6 +35,7 @@
 #include <type_traits>
 #include <vector>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace {
 

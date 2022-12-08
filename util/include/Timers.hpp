@@ -18,7 +18,8 @@
 #include <vector>
 #include <algorithm>
 #include <mutex>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 namespace concordUtil {
 
 // A collection of timers backed by a vector.

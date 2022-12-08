@@ -3,8 +3,9 @@
  * Test multi* functions for RocksDBClient class.
  */
 
-#include "Logger.hpp"
 #include "gtest/gtest.h"
+
+#include "log/logger.hpp"
 #include "kv_types.hpp"
 #include "direct_kv_db_adapter.h"
 #include "direct_kv_block.h"

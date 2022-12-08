@@ -22,12 +22,12 @@
 #include <condition_variable>
 #include <thread>
 
+#include "log/logger.hpp"
 #include "grpc_connection.hpp"
 #include "thread_pool.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 
-#include "Logger.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
 

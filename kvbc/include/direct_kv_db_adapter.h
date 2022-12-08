@@ -7,12 +7,12 @@
 
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
-#include "Logger.hpp"
 #include "storage/db_interface.h"
 #include "storage/direct_kv_key_manipulator.h"
 #include "PerformanceManager.hpp"
 
 #include <memory>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v1DirectKeyValue {
 

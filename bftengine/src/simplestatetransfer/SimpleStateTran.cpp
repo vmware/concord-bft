@@ -17,12 +17,12 @@
 #include <utility>
 #include <future>
 
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
-#include "Logger.hpp"
 #include "storage/direct_kv_key_manipulator.h"
 #include "Timers.hpp"
 

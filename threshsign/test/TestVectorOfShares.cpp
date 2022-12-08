@@ -14,7 +14,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Utils.h"
 #include "XAssert.h"
 #include "AutoBuf.h"

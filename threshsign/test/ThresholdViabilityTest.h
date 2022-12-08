@@ -13,6 +13,7 @@
 #include <vector>
 #include <memory>
 
+#include "log/logger.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/IThresholdSigner.h"
@@ -21,7 +22,6 @@
 #include "threshsign/IPublicParameters.h"
 #include "threshsign/VectorOfShares.h"
 
-#include "Logger.hpp"
 #include "Utils.h"
 #include "AutoBuf.h"
 #include "XAssert.h"

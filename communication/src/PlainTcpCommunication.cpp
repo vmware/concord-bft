@@ -25,7 +25,6 @@
 #include <sys/time.h>
 
 #include "communication/CommDefs.hpp"
-#include "Logger.hpp"
 #include "boost/bind.hpp"
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
@@ -37,6 +36,7 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 
 using namespace std;

@@ -16,12 +16,12 @@
 #pragma once
 
 #include "storage/db_types.h"
-#include "Logger.hpp"
 #include "db_adapter_interface.h"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "PersistentStorage.hpp"
 
 #include <memory>
+#include "log/logger.hpp"
 
 namespace concord::kvbc {
 

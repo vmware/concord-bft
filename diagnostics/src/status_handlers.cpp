@@ -12,7 +12,8 @@
 // file.
 
 #include "status_handlers.h"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace concord::diagnostics {
 

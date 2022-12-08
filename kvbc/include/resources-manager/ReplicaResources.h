@@ -1,7 +1,8 @@
 // Copyright 2022 VMware, all rights reserved
 
 #pragma once
-
+#include <mutex>
+#include <atomic>
 #include "ISystemResourceEntity.hpp"
 // This class collects several measurements that help to evaluate the load on the system.
 // The current usage is for deciding how many blocks can be pruned.

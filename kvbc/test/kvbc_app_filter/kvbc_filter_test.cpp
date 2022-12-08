@@ -18,10 +18,11 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "Logger.hpp"
 #include "categorization/updates.h"
 #include "endianness.hpp"
 #include "gtest/gtest.h"
+
+#include "log/logger.hpp"
 #include "kv_types.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"

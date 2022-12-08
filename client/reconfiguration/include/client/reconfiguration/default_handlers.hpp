@@ -14,6 +14,7 @@
 #include "cre_interfaces.hpp"
 #include "secrets/secrets_manager_plain.h"
 
+#include <memory>
 #include <vector>
 
 namespace concord::client::reconfiguration::handlers {

@@ -17,8 +17,8 @@
 #include <set>
 #include <memory>
 
+#include "log/logger.hpp"
 #include "string.hpp"
-#include "Logger.hpp"
 #include "InMemoryDataStore.hpp"
 #include "storage/key_manipulator_interface.h"
 

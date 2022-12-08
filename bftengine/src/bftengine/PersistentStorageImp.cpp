@@ -11,7 +11,6 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE file.
 
 #include "PersistentStorageImp.hpp"
-#include "Logger.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
@@ -19,6 +18,7 @@
 #include <list>
 #include <sstream>
 #include <stdexcept>
+#include "log/logger.hpp"
 
 using namespace std;
 using namespace concord::serialize;

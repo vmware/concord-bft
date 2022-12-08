@@ -47,7 +47,8 @@
 #include <opentracing/span.h>
 #include <condition_variable>
 #include <thread>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "client/concordclient/event_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 

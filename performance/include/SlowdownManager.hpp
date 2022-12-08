@@ -25,7 +25,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace concord::performance {
 

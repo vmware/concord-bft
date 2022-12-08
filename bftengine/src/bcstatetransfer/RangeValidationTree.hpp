@@ -22,11 +22,11 @@
 #include <limits>
 #include <unordered_set>
 
+#include "log/logger.hpp"
 #include "crypto/integer.hpp"
 
 #include "crypto/digest.hpp"
 #include "Serializable.h"
-#include "Logger.hpp"
 #include "Metrics.hpp"
 
 namespace bftEngine::bcst::impl {

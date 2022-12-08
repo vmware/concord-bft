@@ -13,8 +13,8 @@
 
 #include "IncomingMsgsStorageImp.hpp"
 #include "messages/InternalMessage.hpp"
-#include "Logger.hpp"
 #include <future>
+#include "log/logger.hpp"
 
 using std::queue;
 using namespace std::chrono;

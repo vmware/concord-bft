@@ -1,10 +1,11 @@
 #include "gtest/gtest.h"
 #include <gmock/gmock.h>
+
+#include "log/logger.hpp"
 #include "base64.h"
 #include "aes.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
-#include "Logger.hpp"
 #include "kvstream.h"
 
 using namespace concord::secretsmanager;

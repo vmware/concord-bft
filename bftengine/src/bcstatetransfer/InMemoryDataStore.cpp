@@ -14,8 +14,9 @@
 #include <set>
 
 #include "InMemoryDataStore.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 
 namespace bftEngine {

@@ -11,7 +11,6 @@
 // LICENSE file.
 
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "communication/CommDefs.hpp"
 
 #include "errnoString.hpp"
@@ -26,6 +25,7 @@
 #include <thread>
 #include <functional>
 #include <poll.h>
+#include "log/logger.hpp"
 
 using namespace std;
 

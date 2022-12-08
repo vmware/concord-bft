@@ -16,7 +16,7 @@
 #include <optional>
 #include <set>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "bftclient/config.h"
 #include "msg_receiver.h"
 

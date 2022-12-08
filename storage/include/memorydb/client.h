@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include <map>
 #include "sliver.hpp"
 #include "key_comparator.h"
 #include "storage/db_interface.h"
 #include <functional>
+
+#include "log/logger.hpp"
 #include "storage/storage_metrics.h"
 
 namespace concord {

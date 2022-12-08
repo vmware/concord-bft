@@ -16,10 +16,11 @@
 #include <cassert>
 #include <string>
 #include <set>
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "crypto/digest.hpp"
-#include "Logger.hpp"
 
 using std::set;
 using concord::storage::ITransaction;

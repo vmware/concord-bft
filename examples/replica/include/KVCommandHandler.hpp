@@ -17,7 +17,7 @@
 #include <chrono>
 #include <thread>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "OpenTracing.hpp"
 #include "sliver.hpp"
 #include "db_interfaces.h"

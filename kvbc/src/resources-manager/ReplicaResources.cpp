@@ -1,8 +1,8 @@
 // Copyright 2022 VMware, all rights reserved
 
 #include "ReplicaResources.h"
-#include "Logger.hpp"
 #include <thread>
+#include "log/logger.hpp"
 
 using namespace concord::performance;
 using namespace std::chrono_literals;

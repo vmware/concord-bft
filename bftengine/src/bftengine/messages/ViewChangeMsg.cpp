@@ -14,8 +14,9 @@
 
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
+
+#include "log/logger.hpp"
 #include "ViewsManager.hpp"
-#include "Logger.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 

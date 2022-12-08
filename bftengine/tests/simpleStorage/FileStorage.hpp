@@ -15,7 +15,7 @@
 
 #include <mutex>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "MetadataStorage.hpp"
 #include "MetadataStorageTypes.hpp"
 

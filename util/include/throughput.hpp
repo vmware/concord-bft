@@ -16,8 +16,8 @@
 #include <stdint.h>
 #include <chrono>
 
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 
 // uncomment the next line to add debug prints
 // #define DO_DEBUG_TRP

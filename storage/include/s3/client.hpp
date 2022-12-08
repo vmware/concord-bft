@@ -19,7 +19,8 @@
 #include <thread>
 #include <mutex>
 #include <functional>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "kvstream.h"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"

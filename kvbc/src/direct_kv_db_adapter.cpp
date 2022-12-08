@@ -12,7 +12,6 @@
 //    -> Ascending order of Key
 //       -> Descending order of Block Id
 
-#include "Logger.hpp"
 #include "sliver.hpp"
 #include "status.hpp"
 #include "kv_types.hpp"
@@ -36,6 +35,7 @@
 #include <sstream>
 #include <iomanip>
 #include <mutex>
+#include "log/logger.hpp"
 
 using logging::Logger;
 using concordUtils::Status;

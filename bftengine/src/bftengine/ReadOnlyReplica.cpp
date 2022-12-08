@@ -16,12 +16,13 @@
 #include <bftengine/Replica.hpp>
 #include <messages/StateTransferMsg.hpp>
 #include "ReadOnlyReplica.hpp"
+
+#include "log/logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 #include "PersistentStorage.hpp"
 #include "MsgsCommunicator.hpp"

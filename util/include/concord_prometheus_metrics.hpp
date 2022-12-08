@@ -19,7 +19,8 @@
 #include <prometheus/summary.h>
 #include <string>
 #include <utility>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "Metrics.hpp"
 #include "Statistics.hpp"
 

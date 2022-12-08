@@ -20,7 +20,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Metrics.hpp"
 
 #define MAX_MSG_SIZE (64 * 1024)  // 64k

@@ -15,9 +15,10 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include <map>
 #include <vector>
+
+#include "log/logger.hpp"
 #include "string.hpp"
 #include "s3/client.hpp"
 #include "config_file_parser.hpp"

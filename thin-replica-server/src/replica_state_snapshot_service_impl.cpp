@@ -13,11 +13,11 @@
 
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
 
-#include "Logger.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 
 #include <stdexcept>
 #include <string>
+#include "log/logger.hpp"
 
 namespace concord::thin_replica {
 

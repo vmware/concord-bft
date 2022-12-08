@@ -13,9 +13,9 @@
 #include "threshsign/VectorOfShares.h"
 
 #include "XAssert.h"
-#include "Logger.hpp"
-
 #include <cstring>
+
+#include "log/logger.hpp"
 
 using std::endl;
 

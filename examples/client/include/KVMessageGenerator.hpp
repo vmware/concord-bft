@@ -16,7 +16,7 @@
 #include <map>
 #include <vector>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "kv_replica_msgs.cmf.hpp"
 #include "MessageParser.hpp"
 #include "IMessageGenerator.hpp"

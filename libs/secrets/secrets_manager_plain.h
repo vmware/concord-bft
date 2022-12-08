@@ -15,8 +15,8 @@
 
 #include <string>
 
+#include "log/logger.hpp"
 #include "secrets_manager_impl.h"
-#include "Logger.hpp"
 
 namespace concord::secretsmanager {
 

@@ -7,7 +7,7 @@
 #include <exception>
 #include <string>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "db_interfaces.h"
 #include "categorization/db_categories.h"
 

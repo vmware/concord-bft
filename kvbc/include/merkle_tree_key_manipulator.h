@@ -13,8 +13,8 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "kv_types.hpp"
-#include "Logger.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/keys.h"

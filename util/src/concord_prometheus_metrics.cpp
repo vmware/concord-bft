@@ -15,7 +15,8 @@
 #include <prometheus/text_serializer.h>
 #include <map>
 #include <tuple>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 using namespace prometheus;
 using namespace concordMetrics;

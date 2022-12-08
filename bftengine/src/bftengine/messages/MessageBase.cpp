@@ -12,9 +12,10 @@
 #include <cstring>
 
 #include "MessageBase.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "ReplicaConfig.hpp"
-#include "Logger.hpp"
 
 #ifdef DEBUG_MEMORY_MSG
 #include <set>

@@ -20,7 +20,7 @@
 #include <functional>
 #include <exception>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "kvstream.h"
 
 // uncomment to add debug prints
@@ -134,9 +134,6 @@ class Handoff {
         log_prefix_(name_ + ": "),
         logger_{logging::getLogger("concord.util.handoff")},
         element_id_counter_{0} {
-    // keep for debugging
-    SET_LOG_LEVEL(log4cplus::TRACE_LOG_LEVEL);
-
     thread_ = std::thread([this, replicaId] {
       try {
         MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId));

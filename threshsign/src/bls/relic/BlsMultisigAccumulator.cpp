@@ -13,10 +13,10 @@
 #include "threshsign/bls/relic/BlsMultisigAccumulator.h"
 #include "threshsign/bls/relic/Library.h"
 
-#include "Logger.hpp"
 #include "XAssert.h"
 
 #include <vector>
+#include "log/logger.hpp"
 
 namespace BLS {
 namespace Relic {

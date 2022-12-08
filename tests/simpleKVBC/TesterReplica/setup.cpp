@@ -22,7 +22,6 @@
 #include <chrono>
 #include <memory>
 
-#include "Logger.hpp"
 #include "setup.hpp"
 #include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
@@ -36,6 +35,7 @@
 #include "secrets/secrets_manager_enc.h"
 #include <boost/algorithm/string.hpp>
 #include <util/filesystem.hpp>
+#include "log/logger.hpp"
 #include "strategy/StrategyUtils.hpp"
 #include "strategy/ByzantineStrategy.hpp"
 #include "strategy/ShufflePrePrepareMsgStrategy.hpp"

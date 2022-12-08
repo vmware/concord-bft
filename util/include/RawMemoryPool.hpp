@@ -12,13 +12,13 @@
 #pragma once
 
 #include "Timers.hpp"
-#include "Logger.hpp"
 #include "Metrics.hpp"
 
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
 #include <boost/lockfree/queue.hpp>
+#include "log/logger.hpp"
 
 // This thread-safe memory pool implementation is intended for the raw memory chunks operations. During the pool
 // initialization, a pre-defined number (minChunksNum_) of raw memory chunks of size chunkSize_ gets allocated.

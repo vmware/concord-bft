@@ -12,7 +12,7 @@
 
 #include "IThresholdSchemeBenchmark.h"
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Utils.h"
 
 using std::endl;

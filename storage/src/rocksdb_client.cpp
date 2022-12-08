@@ -30,7 +30,7 @@
 #include <utility>
 
 #include "assertUtils.hpp"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
 using concordUtils::Sliver;
 using concordUtils::Status;
