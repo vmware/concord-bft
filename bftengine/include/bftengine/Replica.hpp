@@ -94,7 +94,6 @@ class IExternalObject {
  public:
   virtual ~IExternalObject() = default;
   virtual void setAggregator(const std::shared_ptr<concordMetrics::Aggregator> &a) = 0;
-  virtual void stop() = 0;
 };
 
 class IReplica {
