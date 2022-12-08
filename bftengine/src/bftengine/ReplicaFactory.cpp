@@ -28,12 +28,12 @@ class ReplicaInternal : public IReplica {
   friend class IReplica;
 
  public:
-  ReplicaInternal(std::unique_ptr<IExternalObject> &&external = nullptr,
+  ReplicaInternal(std::unique_ptr<IExternalObject> externalObject = nullptr,
                   const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr,
                   const std::shared_ptr<PersistentStorage> &persistent_storage = nullptr,
                   const std::shared_ptr<IInternalBFTClient> &internal_client = nullptr,
                   const std::function<void(bool)> &viewChangeCallBack = nullptr)
-      : external_{std::move(external)},
+      : externalObject_{std::move(externalObject)},
         ticks_gen_{ticks_gen},
         persistent_storage_{persistent_storage},
         internal_client_{internal_client},
@@ -48,10 +48,9 @@ class ReplicaInternal : public IReplica {
   std::shared_ptr<PersistentStorage> persistentStorage() const override;
   std::shared_ptr<IInternalBFTClient> internalClient() const override { return internal_client_; }
   void setReplica(std::unique_ptr<ReplicaBase> &&replica) { replica_ = std::move(replica); }
-  ReplicaBase *getReplica() { return replica_.get(); }
 
  private:
-  std::unique_ptr<IExternalObject> external_;
+  std::unique_ptr<IExternalObject> externalObject_;
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
   std::mutex debugWaitLock_;
@@ -64,10 +63,9 @@ class ReplicaInternal : public IReplica {
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
 
 void ReplicaInternal::start() {
-  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled() && replica_->getAggregator() && external_) {
-    external_->setAggregator(replica_->getAggregator());
+  if (externalObject_ && replica_->getAggregator()) {
+    externalObject_->setAggregator(replica_->getAggregator());
   }
-
   replica_->start();
 }
 
@@ -189,7 +187,7 @@ ReplicaFactory::IReplicaPtr ReplicaFactory::createReplica(
     }
 
     // Init the persistent storage
-    ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr));
+    ((PersistentStorageImp *)persistentStoragePtr.get())->init(std::move(metadataStoragePtr));
   }
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
@@ -247,7 +245,6 @@ ReplicaFactory::IReplicaPtr ReplicaFactory::createReplica(
                                                         viewChangeCallBack);
     replicaInternal->setReplica(std::move(replicaImp));
   }
-
   return replicaInternal;
 }
 
@@ -281,12 +278,10 @@ std::unique_ptr<preprocessor::PreProcessor> ReplicaFactory::createPreProcessor(
     LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
     return nullptr;
   }
-
   if (ReplicaConfig::instance().getpreExecutionFeatureEnabled()) {
     return make_unique<preprocessor::PreProcessor>(
         msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers, pm);
   }
-
   return nullptr;
 }
 

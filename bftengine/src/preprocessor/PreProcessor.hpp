@@ -134,7 +134,7 @@ class PreProcessor : public bftEngine::IExternalObject {
                std::shared_ptr<concord::performance::PerformanceManager> &sdm);
 
   ~PreProcessor();
-  void stop() override;
+  void stop();
 
   // For testing purposes
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
