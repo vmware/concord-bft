@@ -23,10 +23,10 @@
 
 uint64_t getSeq();
 
-#ifndef USE_LOG4CPP
-#include "Logging.hpp"
+#ifdef USE_LOG4CPP
+#include "detail/logging4cplus.hpp"
 #else
-#include "Logging4cplus.hpp"
+#include "detail/logging.hpp"
 #endif
 
 extern logging::Logger GL;
@@ -52,6 +52,7 @@ namespace logging {
 
 Logger getLogger(const std::string& name);
 void initLogger(const std::string& configFileName);
+std::string toString(logging::LogLevel);
 
 class ScopedMdc {
  public:

@@ -10,11 +10,12 @@
 // terms and conditions of the subcomponent's license,
 // as noted in the LICENSE file.
 
-#include "Logger.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <mutex>
+
+#include "logger.hpp"
 namespace logging {
 
 std::array<std::string, 6> LoggerImpl::LEVELS_STRINGS = {"TRACE", "DEBUG", "INFO ", "WARN ", "ERROR", "FATAL"};
@@ -37,6 +38,7 @@ void initLogger(const std::string& configFileName) {
   }
 }
 
+std::string toString(LogLevel l) { return LoggerImpl::LEVELS_STRINGS[l]; }
 /**
  * simple configuration
  * logger_name:logging_level
@@ -80,5 +82,4 @@ bool Logger::config(const std::string& configFileName) {
   }
   return true;
 }
-
 }  // namespace logging

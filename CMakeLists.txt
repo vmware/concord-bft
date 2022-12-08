@@ -17,10 +17,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Enable debug or release builds" FORCE)
 endif()
 
-if(NOT DEFINED USE_LOG4CPP)
-    option(USE_LOG4CPP "Enable LOG4CPP" ON)
-endif()
-
+option(USE_LOG4CPP "Enable LOG4CPP" ON)
 option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
 option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
@@ -46,7 +43,7 @@ option(BUILD_THIRDPARTY "Whether to build third party libraries or use preinstal
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" ON)
-
+option(BUILD_SHARED_LIBS "whether to create shared libraires" OFF)
 if((USE_OPENSSL) AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
 endif()
@@ -195,7 +192,10 @@ if(BUILD_THIRDPARTY)
 	add_subdirectory(thirdparty)
 endif()
 
-add_subdirectory(logging)
+#link all libraries against logging by default
+add_subdirectory(libs/log)
+link_libraries(logging)
+
 add_subdirectory(util)
 add_subdirectory(libs)
 add_subdirectory(threshsign)

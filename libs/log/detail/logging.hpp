@@ -89,6 +89,8 @@ class LoggerImpl {
 
   std::string name_;
   LogLevel level_ = LogLevel::info;
+
+ public:
   static std::array<std::string, 6> LEVELS_STRINGS;
 };
 
@@ -111,10 +113,12 @@ class Logger {
 
 }  // namespace logging
 
-#define LOG_COMMON(logger, level, s)                                                                              \
-  if ((logger).getLogLevel() <= level) {                                                                          \
-    (logger).print(level, __PRETTY_FUNCTION__) << s << " | [SQ:" << std::to_string(getSeq()) << "]" << std::endl; \
-  }
+#define LOG_COMMON(logger, level, s)                                \
+  do {                                                              \
+    if ((logger).getLogLevel() <= level) {                          \
+      (logger).print(level, __PRETTY_FUNCTION__) << s << std::endl; \
+    }                                                               \
+  } while (0)
 
 #define LOG_TRACE(l, s) LOG_COMMON(l, logging::LogLevel::trace, s)
 #define LOG_DEBUG(l, s) LOG_COMMON(l, logging::LogLevel::debug, s)

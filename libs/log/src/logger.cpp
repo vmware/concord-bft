@@ -10,9 +10,9 @@
 // terms and conditions of the subcomponent's license,
 // as noted in the LICENSE file.
 
-#include "Logger.hpp"
 #include <fstream>
 #include <iostream>
+#include "logger.hpp"
 
 namespace logging {
 

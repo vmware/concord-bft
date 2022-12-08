@@ -128,23 +128,6 @@ install_HdrHistogram_lib() {
 
 }
 
-install_log4cpp_lib() {
-    cd ${HOME}
-    wget ${WGET_FLAGS} \
-        https://github.com/log4cplus/log4cplus/releases/download/REL_2_0_4/log4cplus-2.0.4.tar.gz && \
-        tar -xzf log4cplus-2.0.4.tar.gz && \
-        rm log4cplus-2.0.4.tar.gz && \
-        cd log4cplus-2.0.4 && \
-        autoreconf -f -i && \
-        ./configure CXXFLAGS="--std=c++11 -march=x86-64 -mtune=generic" \
-                    --enable-static && \
-        make -j$(nproc) && \
-        make install && \
-        cd ${HOME} && \
-        rm -r log4cplus-2.0.4
-
-}
-
 install_googletest() {
     cd ${HOME}
     git clone https://github.com/google/googletest.git && \
@@ -461,7 +444,6 @@ install_cmake
 install_boost
 install_yaml
 install_HdrHistogram_lib
-install_log4cpp_lib
 install_googletest
 install_gmp_lib
 install_relic_toolkit
