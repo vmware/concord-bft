@@ -1691,7 +1691,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             bft_network.restart_clients(generate_tx_signing_keys=True, restart_replicas=False)
 
             live_replicas = bft_network.all_replicas(without=replicas_for_st.union(crashed_replica))
-            await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=live_replicas)
+            await bft_network.check_initial_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=live_replicas)
             for i in range(601):
                 await skvbc.send_write_kv_set()
             bft_network.start_replicas(crashed_replica)
@@ -1798,7 +1798,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
-        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        await bft_network.check_initial_key_exchange(stop_replicas=False)
         bft_network.start_replica(ro_replica_id)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
@@ -1835,7 +1835,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
-        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        await bft_network.check_initial_key_exchange(stop_replicas=False)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)

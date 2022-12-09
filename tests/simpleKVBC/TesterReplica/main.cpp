@@ -25,7 +25,16 @@
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 #include "diagnostics_server.h"
+
+#ifdef RUN_WITH_LEAKCHECK
+#include <sanitizer/lsan_interface.h>
+#else
+#define __lsan_do_recoverable_leak_check()
+#endif
+
 #include <csignal>
+
+using namespace std;
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -181,14 +190,14 @@ void run_replica(int argc, char** argv) {
 }
 }  // namespace concord::kvbc::test
 
-using namespace std;
-
 namespace {
 static void signal_handler(int signal_num) {
   LOG_INFO(GL, "Program received signal " << signal_num);
   concord::kvbc::test::timeToExit = true;
+  __lsan_do_recoverable_leak_check();
 }
 }  // namespace
+
 int main(int argc, char** argv) {
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
@@ -198,5 +207,7 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }
+  __lsan_do_recoverable_leak_check();
+
   return 0;
 }

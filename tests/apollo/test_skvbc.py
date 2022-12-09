@@ -65,7 +65,7 @@ class SkvbcTest(ApolloTest):
         """
 
         if exchange_keys:
-            await bft_network.check_initital_key_exchange(full_key_exchange=False)
+            await bft_network.check_initial_key_exchange(full_key_exchange=False)
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -112,7 +112,7 @@ class SkvbcTest(ApolloTest):
         2. Make sure that eventually we are able to add blocks
         """
         replicas_to_start = [r for r in range(1, bft_network.config.n)]
-        await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
+        await bft_network.check_initial_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
         for i in replicas_to_start:
             view = await bft_network.get_metric(i, bft_network, "Gauges", "view")
             assert int(view) == 1
@@ -152,8 +152,8 @@ class SkvbcTest(ApolloTest):
                 bft_network.all_replicas(without={0}))
             bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-            blinking.start_blinking(bft_network.start_replica_cmd(br))
+            start_cmd, replica_binary_path = bft_network.start_replica_cmd(br)
+            blinking.start_blinking(start_cmd)
 
             for _ in range(300):
                 # Perform an unconditional KV put.

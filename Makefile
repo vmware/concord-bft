@@ -1,9 +1,16 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
-CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.49
-CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 
-CONCORD_BFT_DOCKERFILE?=Dockerfile
+# Release (production) image
+CONCORD_BFT_DOCKER_IMAGE_RELEASE?=concord-bft
+CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE?=0.50
+CONCORD_BFT_DOCKERFILE_RELEASE?=Dockerfile
+
+# Debug (development) image
+CONCORD_BFT_DOCKER_IMAGE_DEBUG?=concord-bft-debug
+CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG?=0.01
+CONCORD_BFT_DOCKERFILE_DEBUG?=DockerfileDebug
+
+CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 CONCORD_BFT_BUILD_DIR?=build
 CONCORD_BFT_TARGET_SOURCE_PATH?=/concord-bft
 CONCORD_BFT_KVBC_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/cmf
@@ -60,21 +67,41 @@ CONCORD_BFT_CMAKE_BUILD_KVBC_BENCH?=TRUE
 CONCORD_BFT_CMAKE_ASAN?=FALSE
 CONCORD_BFT_CMAKE_TSAN?=FALSE
 CONCORD_BFT_CMAKE_UBSAN?=FALSE
+CONCORD_BFT_CMAKE_HEAPTRACK?=FALSE
 CONCORD_BFT_CMAKE_CODECOVERAGE?=FALSE
 CONCORD_BFT_CMAKE_CCACHE?=TRUE
 CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE?=FALSE
 ENABLE_RESTART_RECOVERY_TESTS?=FALSE
 CONCORD_ENABLE_ALL_METRICS?=FALSE
 
+# Our CMake logic won't allow more one of these flags to be raised, so having this if/else logic makes sense
 ifeq (${CONCORD_BFT_CMAKE_ASAN},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
 else ifeq (${CONCORD_BFT_CMAKE_TSAN},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
 else ifeq (${CONCORD_BFT_CMAKE_UBSAN},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-endif
-ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},TRUE)
+else ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
+else ifeq (${CONCORD_BFT_CMAKE_HEAPTRACK},TRUE)
+	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
+	ifneq (${RUN_WITH_DEBUG_IMAGE},TRUE)
+    $(info CONCORD_BFT_CMAKE_HEAPTRACK=TRUE: setting RUN_WITH_DEBUG_IMAGE=TRUE to support heaptrack run)
+    RUN_WITH_DEBUG_IMAGE=TRUE
+	endif
+endif
+
+# By default, we run with the release (production) image. Debug image carries more tools.
+# For convenience, set RUN_WITH_DEBUG_IMAGE=TRUE to run with the default debug image or
+# directly set CONCORD_BFT_DOCKER_IMAGE_FULL_PATH to any custome local docker debug image.
+RUN_WITH_DEBUG_IMAGE?=FALSE
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE=\
+${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE}
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG=\
+${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG}
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH?=${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}
+ifeq (${RUN_WITH_DEBUG_IMAGE},TRUE)
+	CONCORD_BFT_DOCKER_IMAGE_FULL_PATH=${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG}
 endif
 
 # The consistency parameter makes sense only at MacOS.
@@ -107,6 +134,7 @@ CONCORD_BFT_CMAKE_FLAGS?= \
 			-DUSE_FAKE_CLOCK_IN_TIME_SERVICE=${CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE} \
 			-DLEAKCHECK=${CONCORD_BFT_CMAKE_ASAN} \
 			-DTHREADCHECK=${CONCORD_BFT_CMAKE_TSAN} \
+			-DHEAPTRACK=${CONCORD_BFT_CMAKE_HEAPTRACK} \
 			-DUNDEFINED_BEHAVIOR_CHECK=${CONCORD_BFT_CMAKE_UBSAN} \
 			-DCODECOVERAGE=${CONCORD_BFT_CMAKE_CODECOVERAGE} \
 			-DTXN_SIGNING_ENABLED=${CONCORD_BFT_CMAKE_TRANSACTION_SIGNING_ENABLED} \
@@ -127,6 +155,19 @@ ifeq (${CONCORD_BFT_CMAKE_CCACHE},TRUE)
 		--env CCACHE_DIR=/mnt/ccache/
 endif
 
+# To support running X11 applications (e.g heaptrack_gui, for newly created containers only) - set CONCORD_BFT_ENABLE_X11_APPS=TRUE and allow container
+# to make connections to the host X server:
+# > xhost + // run on host, before running container.
+# > make login CONCORD_BFT_ENABLE_X11_APPS=TRUE // as an example, here we run target logging with X11 enabled.
+# > xhost - // run on host. This command should be called again on host when container X11 connction is no longer needed.
+ifeq (${CONCORD_BFT_ENABLE_X11_APPS},TRUE)
+CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=\
+	-v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+	-v ${HOME}/.Xauthority:/root/.Xauthority \
+	-e QT_X11_NO_MITSHM=1 -e XDG_RUNTIME_DIR=/tmp -e RUNLEVEL=3 -e DISPLAY=${DISPLAY} \
+	--network host
+endif
+
 ifneq (${APOLLO_LOG_STDOUT},)
 	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=--env APOLLO_LOG_STDOUT=TRUE
 	CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS+=-V
@@ -136,14 +177,19 @@ ifneq (${SKIP_FORMAT},)
 	CONCORD_BFT_FORMAT_CMD=
 endif
 
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE=\
+${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE}
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG=\
+${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG}
+CONCORD_BFT_DOCKER_IMAGE_FULL_PATH?=${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}
+
 BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
 					  --memory-swap -1 \
 					  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
 					  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
 					  --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
 					  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
-					  ${CONCORD_BFT_ADDITIONAL_RUN_PARAMS} \
-					  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
+					  ${CONCORD_BFT_ADDITIONAL_RUN_PARAMS} ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH}
 
 .DEFAULT_GOAL:=build
 
@@ -159,11 +205,23 @@ help: ## The Makefile helps to build Concord-BFT in a docker container
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%s:\033[0m \n%s\n", $$1, $$2}'
 
 .PHONY: pull
-pull: ## Pull image from remote
-	docker pull ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
+pull: ## Pull images from remote
+	docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}
+	docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG}
+
+# for internal use only
+.PHONY: _validate-cmake-generated
+_validate-cmake-generated:
+	@if [ ! -d "${CONCORD_BFT_BUILD_DIR}" ] || \
+			[ ! -d "${CONCORD_BFT_BUILD_DIR}/CMakeFiles" ] || \
+			[ ! -f "${CONCORD_BFT_BUILD_DIR}/CTestTestfile.cmake" ] || \
+			[ ! -f "${CONCORD_BFT_BUILD_DIR}/CMakeCache.txt" ]; then \
+				echo 'Error: Please run "make gen-cmake" with the desired configuration to generate a CMake configuration!'; \
+				exit 1; \
+	fi
 
 .PHONY: login
-login: ## Login to the container. Note: if the container is already running, login into existing one
+login: ## Login to the container. Note: if the container is already running, login into existing one.
 	@if [ "${IF_CONTAINER_RUNS}" != "true" ]; then \
 		docker run ${BASIC_RUN_PARAMS} \
 			${CONCORD_BFT_CONTAINER_SHELL};exit 0; \
@@ -194,14 +252,14 @@ build: gen-cmake ## Build Concord-BFT source. In order to build a specific targe
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
 
 .PHONY: list-targets
-list-targets: gen-cmake ## Prints the list of available targets
+list-targets: _validate-cmake-generated ## Prints the list of available targets
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
 .PHONY: format
-format: gen-cmake ## Format Concord-BFT source with clang-format
+format: _validate-cmake-generated ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -255,7 +313,7 @@ cppcheck: gen-cmake ## Run Cppcheck static analysis: `make cppcheck CPPCHECK_TAR
 	RESULT=$$?; exit $${RESULT};
 
 .PHONY: list-tests
-list-tests: gen-cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+list-tests: _validate-cmake-generated ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
 	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -330,7 +388,7 @@ test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apo
 		echo "Error: Failed to start test, please check if TEST_FILE_NAME=${TEST_FILE_NAME}" \
 			"or TEST_CASE_NAME=${TEST_CASE_NAME} environment variables exist!"; exit 1;\
 	fi
-	@docker run ${BASIC_RUN_PARAMS} \
+	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c "cd tests/apollo/; \
 		BREAK_ON_FAILURE=${BREAK_ON_FAILURE__} NUM_REPEATS=${NUM_REPEATS__} $(PREFIX) $(POSTFIX)"
 
@@ -377,12 +435,32 @@ codecoverage: ## Generate Code Coverage report for Apollo tests
                 "./scripts/run-codecoverage.sh"
 	@echo "Completed make codecoverage"
 
-.PHONY: build-docker-image
-build-docker-image: ## Build the image. Note: without caching
-	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE}:latest \
-		-f ./${CONCORD_BFT_DOCKERFILE} .
+.PHONY: build-docker-image-release
+build-docker-image-release: ## Build a release image. It has the minimal installations needed. Note: without caching.
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
+		-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} .
 	@echo
-	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE}:latest\"."
-	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION + 1)."
+	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest\"."
+	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE + 1)."
 	@echo "If you want the image to be the default, please update the following variables:"
-	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION"
+	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE"
+
+build-docker-image-debug: SHELL:=/bin/bash
+.PHONY: build-docker-image-debug
+build-docker-image-debug: ## Build a debug image. It has additional tools used for performance analysis, sanitizing and debugging. Note: without caching.
+	@if [[ "$(shell docker images -q ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE})" == "" ]]; then \
+		bash -c "docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}" &> /dev/null; \
+		if [ $$? -ne 0 ]; then \
+  		echo "Error: docker image ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE} must exist," \
+				"please run target build-docker-image-release first!"; \
+			exit 1; \
+		fi \
+	fi
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest \
+		--build-arg CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE="${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}" \
+		-f ./${CONCORD_BFT_DOCKERFILE_DEBUG} .
+	@echo
+	@echo "Build finished. Debug Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest\"."
+	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG + 1)."
+	@echo "If you want the image to be the default, please update the following variables:"
+	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG"
