@@ -18,10 +18,10 @@
 namespace utt::client {
 class IStorage {
  public:
-  class guard {
+  class tx_guard {
    public:
-    guard(IStorage& storage) : storage_{storage} { storage_.startTransaction(); }
-    ~guard() { storage_.commit(); }
+    tx_guard(IStorage& storage) : storage_{storage} { storage_.startTransaction(); }
+    ~tx_guard() { storage_.commit(); }
 
    private:
     IStorage& storage_;

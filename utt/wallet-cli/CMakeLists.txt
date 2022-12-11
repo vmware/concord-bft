@@ -20,3 +20,5 @@ target_include_directories(utt-wallet-lib PUBLIC include/ ../utt-client-api/incl
 target_link_libraries(utt-wallet-lib PUBLIC
   utt-wallet-api-proto utt_client_api nlohmann_json::nlohmann_json stdc++fs
 )
+
+add_subdirectory(tests)

@@ -22,7 +22,7 @@ using json = nlohmann::json;
 namespace utt::client {
 class FileBasedUserStorage : public IStorage {
  public:
-  FileBasedUserStorage(std::shared_ptr<FileBasedUserStorageState> state) : state_{state} {}
+  FileBasedUserStorage(const std::string& path);
   bool isNewStorage() override;
   void setKeyPair(const std::pair<std::string, std::string>&) override;
   void setLastExecutedSn(uint64_t) override;
@@ -40,8 +40,6 @@ class FileBasedUserStorage : public IStorage {
   libutt::api::types::Signature getRcmSignature() override;
   std::vector<libutt::api::Coin> getCoins() override;
   std::pair<std::string, std::string> getKeyPair() override;
-  void startTransaction() override;
-  void commit() override;
 
  private:
   std::string state_path_;

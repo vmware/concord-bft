@@ -70,17 +70,18 @@ FileBasedUserStorage::FileBasedUserStorage(const std::string& path)
   }
   if (fs::exists(state_path_)) {
     std::ifstream f(state_path_);
-    state_->state_ = json::parse(f);
+    state_ = json::parse(f);
   }
+  if (!state_.contains("last_executed_sn")) state_["last_executed_sn"] = 0;
 }
 
 void FileBasedUserStorage::startTransaction() {
-  if (!state_->state_.contains("initialized")) state_->state_["initialized"] = true;
+  if (!state_.contains("initialized")) state_["initialized"] = true;
 }
 
 void FileBasedUserStorage::commit() {
   std::ofstream out_state(pending_path_);
-  out_state << state_->state_ << std::endl;
+  out_state << state_ << std::endl;
   out_state.close();
   // Creating the lockfile marks that are ready to copy the content of pending to the actual state
   std::ofstream lockfile(lock_path_);
@@ -91,47 +92,43 @@ void FileBasedUserStorage::commit() {
   fs::remove(pending_path_);
 }
 
-FileBasedUserStorage::FileBasedUserStorage(const std::string& path) {
-  if (!state_->state_.contains("last_executed_sn")) state_->state_["last_executed_sn"] = 0;
-}
-
-bool FileBasedUserStorage::isNewStorage() { return !state_->state_.contains("initialized"); }
+bool FileBasedUserStorage::isNewStorage() { return !state_.contains("initialized"); }
 
 void FileBasedUserStorage::setKeyPair(const std::pair<std::string, std::string>& keyPair) {
-  state_->state_["key_pair"] = {{"sk", bytesToHex(keyPair.first)}, {"pk", bytesToHex(keyPair.second)}};
+  state_["key_pair"] = {{"sk", bytesToHex(keyPair.first)}, {"pk", bytesToHex(keyPair.second)}};
 }
 
-void FileBasedUserStorage::setLastExecutedSn(uint64_t sn) { state_->state_["last_executed_sn"] = sn; }
+void FileBasedUserStorage::setLastExecutedSn(uint64_t sn) { state_["last_executed_sn"] = sn; }
 
 void FileBasedUserStorage::setClientSideSecret(const libutt::api::types::CurvePoint& s1) {
   std::stringstream ss;
   libutt::serializeVector(ss, s1);
-  state_->state_["s1"] = bytesToHex(ss.str());
+  state_["s1"] = bytesToHex(ss.str());
 }
 
 void FileBasedUserStorage::setSystemSideSecret(const libutt::api::types::CurvePoint& s2) {
   std::stringstream ss;
   libutt::serializeVector(ss, s2);
-  state_->state_["s2"] = bytesToHex(ss.str());
+  state_["s2"] = bytesToHex(ss.str());
 }
 
 void FileBasedUserStorage::setRcmSignature(const libutt::api::types::Signature& rcm_sig) {
-  state_->state_["rcm_sig"] = bytesToHex(rcm_sig);
+  state_["rcm_sig"] = bytesToHex(rcm_sig);
 }
 
 void FileBasedUserStorage::setCoin(const libutt::api::Coin& c) {
-  state_->state_["coins"][bytesToHex(c.getNullifier())] = bytesToHex(libutt::api::serialize(c));
+  state_["coins"][bytesToHex(c.getNullifier())] = bytesToHex(libutt::api::serialize(c));
 }
 
 void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) {
-  state_->state_["coins"].erase(bytesToHex(c.getNullifier()));
+  state_["coins"].erase(bytesToHex(c.getNullifier()));
 }
 
-uint64_t FileBasedUserStorage::getLastExecutedSn() { return state_->state_["last_executed_sn"]; }
+uint64_t FileBasedUserStorage::getLastExecutedSn() { return state_["last_executed_sn"]; }
 
 libutt::api::types::CurvePoint FileBasedUserStorage::getClientSideSecret() {
   std::stringstream ss;
-  auto bytes = hexStringToBytes(state_->state_["s1"]);
+  auto bytes = hexStringToBytes(state_["s1"]);
   ss.str(std::string(bytes.begin(), bytes.end()));
   libutt::api::types::CurvePoint ret;
   libutt::deserializeVector<uint64_t>(ss, ret);
@@ -140,28 +137,26 @@ libutt::api::types::CurvePoint FileBasedUserStorage::getClientSideSecret() {
 
 libutt::api::types::CurvePoint FileBasedUserStorage::getSystemSideSecret() {
   std::stringstream ss;
-  auto bytes = hexStringToBytes(state_->state_["s2"]);
+  auto bytes = hexStringToBytes(state_["s2"]);
   ss.str(std::string(bytes.begin(), bytes.end()));
   libutt::api::types::CurvePoint ret;
   libutt::deserializeVector<uint64_t>(ss, ret);
   return ret;
 }
 
-libutt::api::types::Signature FileBasedUserStorage::getRcmSignature() {
-  return hexStringToBytes(state_->state_["rcm_sig"]);
-}
+libutt::api::types::Signature FileBasedUserStorage::getRcmSignature() { return hexStringToBytes(state_["rcm_sig"]); }
 
 std::vector<libutt::api::Coin> FileBasedUserStorage::getCoins() {
   std::vector<libutt::api::Coin> coins;
-  for (const auto& serialized_coin : state_->state_["coins"]) {
+  for (const auto& serialized_coin : state_["coins"]) {
     coins.push_back(libutt::api::deserialize<libutt::api::Coin>(hexStringToBytes(serialized_coin)));
   }
   return coins;
 }
 
 std::pair<std::string, std::string> FileBasedUserStorage::getKeyPair() {
-  auto sk = hexStringToBytes(state_->state_["key_pair"]["sk"]);
-  auto pk = hexStringToBytes(state_->state_["key_pair"]["pk"]);
+  auto sk = hexStringToBytes(state_["key_pair"]["sk"]);
+  auto pk = hexStringToBytes(state_["key_pair"]["pk"]);
   return {std::string(sk.begin(), sk.end()), std::string(pk.begin(), pk.end())};
 }
 }  // namespace utt::client

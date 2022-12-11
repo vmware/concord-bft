@@ -255,16 +255,13 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
 
-  // [TODO-UTT] Maybe we do something with pki and storage here before we try to create the user.
   // - Ask pki to create a new public/private key pair?
-  // - Ask storage to allocate X amount of storage?
-  // - Generate s1
   bool isNewStorage = storage->isNewStorage();
   utt::client::IUserPKInfrastructure::KeyPair userKeys;
   if (isNewStorage) {
     userKeys = pki.generateKeys(userId);
     {
-      IStorage::guard g(*storage);
+      IStorage::tx_guard g(*storage);
       storage->setKeyPair({userKeys.sk_, userKeys.pk_});
     }
   } else {
@@ -343,7 +340,7 @@ UserRegistrationInput User::getRegistrationInput() const {
   if (!pImpl_->client_) return UserRegistrationInput{};  // Empty
   libutt::api::Commitment comm = pImpl_->client_->generateInputRCM();
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     pImpl_->storage_->setClientSideSecret(pImpl_->client_->getS1());
   }
   return libutt::api::serialize<libutt::api::Commitment>(comm);
@@ -363,7 +360,7 @@ void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
   pImpl_->is_registered_ = true;
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     auto rcm = pImpl_->client_->getRcm();
     pImpl_->storage_->setRcmSignature(rcm.second);
     pImpl_->storage_->setSystemSideSecret(s2);
@@ -391,7 +388,7 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
   }
 
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     pImpl_->storage_->setCoin(claimedCoins[0]);
   }
   pImpl_->budgetCoin_ = claimedCoins[0];
@@ -431,7 +428,7 @@ void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
   logdbg_user << "executing transfer tx: " << txNum << endl;
 
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     pImpl_->storage_->setLastExecutedSn(txNum);
 
     pImpl_->lastExecutedTxNum_ = txNum;
@@ -482,7 +479,7 @@ void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
 
   logdbg_user << "executing mint tx: " << txNum << endl;
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     if (mint.getRecipentID() != pImpl_->client_->getPid()) {
       logdbg_user << "ignores mint transaction for different user: " << mint.getRecipentID() << endl;
     } else {
@@ -510,7 +507,7 @@ void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
 
   logdbg_user << "executing burn tx: " << txNum << endl;
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
       logdbg_user << "ignores burn tx for different user: " << burn.getOwnerPid() << endl;
     } else {
@@ -537,7 +534,7 @@ void User::updateNoOp(uint64_t txNum) {
 
   logdbg_user << "executing noop tx: " << txNum << endl;
   {
-    IStorage::guard g(*pImpl_->storage_);
+    IStorage::tx_guard g(*pImpl_->storage_);
     pImpl_->storage_->setLastExecutedSn(txNum);
     pImpl_->lastExecutedTxNum_ = txNum;
   }
