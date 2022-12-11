@@ -1,8 +1,8 @@
 #pragma once
 
+#include "log/logger.hpp"
 #include "Metrics.hpp"
 #include "sliver.hpp"
-#include "Logger.hpp"
 namespace concord::storage::s3 {
 
 class Metrics {

@@ -13,11 +13,12 @@
 
 #include "cre_interfaces.hpp"
 #include "config.hpp"
-#include "Logger.hpp"
 #include "Metrics.hpp"
 
 #include <vector>
 #include <thread>
+
+#include "log/logger.hpp"
 namespace concord::client::reconfiguration {
 class ClientReconfigurationEngine {
  public:

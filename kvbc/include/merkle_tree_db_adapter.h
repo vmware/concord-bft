@@ -16,7 +16,6 @@
 #include "assertUtils.hpp"
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
-#include "Logger.hpp"
 #include "merkle_tree_block.h"
 #include "sliver.hpp"
 #include "sparse_merkle/tree.h"
@@ -29,6 +28,7 @@
 #include <optional>
 #include <unordered_set>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v2MerkleTree {
 

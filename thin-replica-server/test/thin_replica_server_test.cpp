@@ -18,7 +18,6 @@
 #include <sstream>
 #include <string>
 #include "thin-replica-server/grpc_services.hpp"
-#include "Logger.hpp"
 #include "concord_kvbc.pb.h"
 
 #include "kv_types.hpp"
@@ -28,6 +27,7 @@
 
 #include "db_interfaces.h"
 #include "gtest/gtest.h"
+#include "log/logger.hpp"
 
 namespace {
 

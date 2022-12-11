@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <sstream>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "TimeUtils.hpp"
 #include "Metrics.hpp"

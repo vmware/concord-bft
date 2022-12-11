@@ -143,7 +143,8 @@ void RVBManager::init(bool fetching) {
     LOG_INFO(logger_, "Done Reconstructing RVB data from storage" << KVLOG(total_duration, num_rvbs_added));
   }
 
-  if (print_rvt && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
+  if (print_rvt &&
+      (debug_prints_log_level.find(logging::toString(logger_.getLogLevel())) != debug_prints_log_level.end())) {
     in_mem_rvt_->printToLog(LogPrintVerbosity::SUMMARY, "init");
   }
 }
@@ -219,7 +220,8 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
              "Updated RVT (remove): Removed "
                  << i << " digests from in_mem_rvt_, from/to block IDs:" << KVLOG(from_block_id, to_block_id));
   }
-  if (!pruned_blocks_digests_.empty() && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
+  if (!pruned_blocks_digests_.empty() &&
+      (debug_prints_log_level.find(logging::toString(logger_.getLogLevel())) != debug_prints_log_level.end())) {
     ostringstream oss;
     oss << "pruned_blocks_digests_: size: " << pruned_blocks_digests_.size() << " Pairs: ";
     for (auto const& pair : pruned_blocks_digests_) {
@@ -845,36 +847,6 @@ void RVBManager::reset(RvbDataInitialSource inital_source) {
   last_checkpoint_desc_.makeZero();
   rvb_data_source_ = inital_source;
   // we do not clear the pruned digests
-}
-
-// TODO - move to a new ST utility file
-std::string RVBManager::getLogLevel() const {
-  auto log_level = logger_.getLogLevel();
-#ifdef USE_LOG4CPP
-  return (log_level == log4cplus::TRACE_LOG_LEVEL)
-             ? "trace"
-             : (log_level == log4cplus::DEBUG_LOG_LEVEL)
-                   ? "trace"
-                   : (log_level == log4cplus::INFO_LOG_LEVEL)
-                         ? "info"
-                         : (log_level == log4cplus::WARN_LOG_LEVEL)
-                               ? "warning"
-                               : (log_level == log4cplus::ERROR_LOG_LEVEL)
-                                     ? "error"
-                                     : (log_level == log4cplus::FATAL_LOG_LEVEL) ? "fatal" : "info";
-#else
-  return (log_level == logging::LogLevel::trace)
-             ? "trace"
-             : (log_level == logging::LogLevel::debug)
-                   ? "trace"
-                   : (log_level == logging::LogLevel::info)
-                         ? "info"
-                         : (log_level == logging::LogLevel::warning)
-                               ? "warning"
-                               : (log_level == logging::LogLevel::error)
-                                     ? "error"
-                                     : (log_level == logging::LogLevel::fatal) ? "fatal" : "info";
-#endif
 }
 
 template <typename T>

@@ -19,7 +19,8 @@
 #include <mutex>
 #include <thread>
 #include <functional>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 

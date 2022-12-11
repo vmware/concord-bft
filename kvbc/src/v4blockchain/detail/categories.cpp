@@ -12,8 +12,9 @@
 // file.
 
 #include "v4blockchain/detail/categories.h"
+
+#include "log/logger.hpp"
 #include "v4blockchain/detail/column_families.h"
-#include "Logger.hpp"
 #include "v4blockchain/detail/detail.h"
 
 using namespace concord::kvbc;

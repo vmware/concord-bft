@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "simpleKVBTestsBuilder.hpp"
 #include "KVBCInterfaces.h"
 

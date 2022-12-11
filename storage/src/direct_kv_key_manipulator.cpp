@@ -12,13 +12,13 @@
 //    -> Ascending order of Key
 //       -> Descending order of Block Id
 
-#include "Logger.hpp"
 #include "sliver.hpp"
 #include "status.hpp"
 #include "storage/direct_kv_key_manipulator.h"
 #include "hex_tools.h"
 #include "assertUtils.hpp"
 #include <cstring>
+#include "log/logger.hpp"
 
 using logging::Logger;
 using concordUtils::Sliver;

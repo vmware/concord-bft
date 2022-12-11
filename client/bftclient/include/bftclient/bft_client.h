@@ -15,8 +15,8 @@
 #include <optional>
 #include <chrono>
 
+#include "log/logger.hpp"
 #include "communication/ICommunication.hpp"
-#include "Logger.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 
 #include "bftclient/config.h"

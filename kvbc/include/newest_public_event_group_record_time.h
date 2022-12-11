@@ -15,11 +15,10 @@
 
 #include "db_interfaces.h"
 #include "kvbc_app_filter/kvbc_app_filter.h"
-#include "Logger.hpp"
-
 #include <string>
 
 #include <google/protobuf/util/time_util.h>
+#include "log/logger.hpp"
 
 namespace concord::kvbc {
 

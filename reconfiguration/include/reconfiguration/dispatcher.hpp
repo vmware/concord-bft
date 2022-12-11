@@ -12,9 +12,9 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "ireconfiguration.hpp"
 #include "concord.cmf.hpp"
-#include "Logger.hpp"
 #include "Metrics.hpp"
 
 namespace concord::reconfiguration {

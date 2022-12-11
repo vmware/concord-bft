@@ -12,11 +12,11 @@
 #include <cmath>
 
 #include "messages/FullCommitProofMsg.hpp"
-#include "Logger.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 #include <chrono>
 #include <algorithm>
+#include "log/logger.hpp"
 
 using namespace std::chrono;
 

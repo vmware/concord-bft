@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Utils.h"
 #include "XAssert.h"
 #include "app/Main.h"

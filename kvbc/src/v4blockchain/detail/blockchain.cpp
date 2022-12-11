@@ -12,8 +12,8 @@
 // file.
 
 #include "v4blockchain/detail/blockchain.h"
-#include "Logger.hpp"
 #include <algorithm>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v4blockchain::detail {
 

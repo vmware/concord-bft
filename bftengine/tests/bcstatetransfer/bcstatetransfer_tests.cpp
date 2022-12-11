@@ -26,12 +26,11 @@
 // 3rd party includes
 #include "gtest/gtest.h"
 
-// own includes
+#include "log/logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "BCStateTran.hpp"
 #include "test_app_state.hpp"
 #include "test_replica.hpp"
-#include "Logger.hpp"
 #include "DBDataStore.hpp"
 #include "direct_kv_db_adapter.h"
 #include "memorydb/client.h"
@@ -1528,51 +1527,26 @@ void BcStTest::printConfiguration() {
 }
 
 void BcStTest::configureLog() {
-  std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
-  if (!UserInput::getInstance()->loglevel_.empty()) {
-    testConfig_.logLevel = UserInput::getInstance()->loglevel_;
-  }
-  auto logLevelStr = testConfig_.logLevel;
-  if (possibleLogLevels.find(logLevelStr) == possibleLogLevels.end()) {
-    std::cout << "\n===\n\n"
-              << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
-    exit(1);
-  }
-#ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
-#else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
-#endif
+  // TODO [TK] - configure from file
+  //  std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
+  //  if (!UserInput::getInstance()->loglevel_.empty()) {
+  //    testConfig_.logLevel = UserInput::getInstance()->loglevel_;
+  //  }
+  //  auto logLevelStr = testConfig_.logLevel;
+  //  if (possibleLogLevels.find(logLevelStr) == possibleLogLevels.end()) {
+  //    std::cout << "\n===\n\n"
+  //              << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
+  //    exit(1);
+  //  }
+
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
   // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(logLevel);
 }
 
 void BcStTest::compareAppStateblocks(uint64_t minBlockId, uint64_t maxBlockId) const {

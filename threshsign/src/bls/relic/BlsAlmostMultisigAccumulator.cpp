@@ -18,7 +18,7 @@
 #include "BlsAlmostMultisigAccumulator.h"
 #include "BlsAlmostMultisigCoefficients.h"
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
 using std::endl;
 

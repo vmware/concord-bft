@@ -3,9 +3,10 @@
 // Storage key comparators definition.
 
 #pragma once
+
 #ifdef USE_ROCKSDB
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include <rocksdb/comparator.h>
 #include <rocksdb/slice.h>
 #include "sliver.hpp"

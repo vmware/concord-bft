@@ -17,7 +17,8 @@
 #include <unordered_map>
 #include <variant>
 #include <memory>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 
 namespace bft::communication {

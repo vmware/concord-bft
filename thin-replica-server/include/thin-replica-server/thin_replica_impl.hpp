@@ -30,7 +30,7 @@
 #include <string>
 #include <fstream>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "Metrics.hpp"
 #include "db_interfaces.h"
 #include "kv_types.hpp"

@@ -13,7 +13,6 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include "OpenTracing.hpp"
 #include "sliver.hpp"
 #include "db_interfaces.h"
@@ -23,6 +22,8 @@
 #include "ControlStateManager.hpp"
 #include <chrono>
 #include <thread>
+
+#include "log/logger.hpp"
 #include "skvbc_messages.cmf.hpp"
 #include "SharedTypes.hpp"
 #include "categorization/db_categories.h"

@@ -15,8 +15,8 @@
 #include <condition_variable>
 #include <queue>
 
+#include "log/logger.hpp"
 #include "communication/ICommunication.hpp"
-#include "Logger.hpp"
 #include "bftclient/config.h"
 
 namespace bft::client {

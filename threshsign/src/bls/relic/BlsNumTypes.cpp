@@ -12,11 +12,11 @@
 
 #include "threshsign/bls/relic/BlsNumTypes.h"
 
+#include "log/logger.hpp"
 #include "Timer.h"
 #include "Utils.h"
 #include "AutoBuf.h"
 #include "XAssert.h"
-#include "Logger.hpp"
 
 using std::endl;
 

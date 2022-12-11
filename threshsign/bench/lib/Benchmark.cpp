@@ -12,9 +12,8 @@
 
 #include "Benchmark.h"
 
+#include "log/logger.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
-
-#include "Logger.hpp"
 
 std::vector<std::pair<int, int>> Benchmark::getThresholdTestCases(
     int maxf, bool oneF, bool twoF, bool threeF, int increment) {

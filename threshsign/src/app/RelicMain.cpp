@@ -7,11 +7,10 @@
 
 #include "RelicMain.h"
 
-#include "Logger.hpp"
-
 #include "threshsign/bls/relic/Library.h"
 
 #include <memory>
+#include "log/logger.hpp"
 
 using BLS::Relic::Library;
 

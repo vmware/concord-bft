@@ -22,8 +22,9 @@
 #include <list>
 #include <variant>
 #include <unordered_map>
+
+#include "log/logger.hpp"
 #include "Statistics.hpp"
-#include "Logger.hpp"
 
 namespace concordMetrics {
 template <class T>

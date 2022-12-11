@@ -10,8 +10,9 @@
 // file.
 
 #include "SignedShareMsgs.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 #include "EpochManager.hpp"
 #include "threshsign/IThresholdSigner.h"

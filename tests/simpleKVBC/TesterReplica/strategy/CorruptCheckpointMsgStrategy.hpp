@@ -14,7 +14,7 @@
 
 #include <unordered_set>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
 #include "StrategyUtils.hpp"
 

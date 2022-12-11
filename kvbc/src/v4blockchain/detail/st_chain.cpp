@@ -12,9 +12,10 @@
 // file.
 
 #include "v4blockchain/detail/st_chain.h"
+
+#include "log/logger.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include "v4blockchain/detail/blockchain.h"
-#include "Logger.hpp"
 
 namespace concord::kvbc::v4blockchain::detail {
 

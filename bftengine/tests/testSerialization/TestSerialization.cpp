@@ -18,12 +18,12 @@
 #include "../../src/bftengine/PersistentStorageWindows.hpp"
 #include "../mocks/ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
-#include "Logger.hpp"
 #include "Serializable.h"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include <string>
 #include <cassert>
+#include "log/logger.hpp"
 
 using namespace std;
 using namespace bftEngine;
@@ -405,8 +405,6 @@ int main() {
 
   persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   logging::Logger logger = logging::getLogger("testSerialization.replica");
-  // uncomment if needed
-  // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str());  // Required for the init testing.
 

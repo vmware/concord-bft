@@ -27,8 +27,8 @@
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options/variables_map.hpp>
 
+#include "log/logger.hpp"
 #include "rocksdb/native_client.h"
-#include "Logger.hpp"
 #include "categorization/updates.h"
 #include "blockchain_adapter.hpp"
 #include "thread_pool.hpp"

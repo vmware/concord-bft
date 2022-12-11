@@ -19,7 +19,7 @@
 #include <asio/steady_timer.hpp>
 #include <asio/io_context.hpp>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
 namespace concord_client_pool {
 

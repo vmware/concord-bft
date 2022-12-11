@@ -18,8 +18,7 @@
 #include <set>
 #include <functional>
 
-#include "Logger.hpp"
-
+#include "log/logger.hpp"
 #include "secrets_manager_impl.h"
 #include "secret_data.h"
 

@@ -15,8 +15,9 @@
 
 #include <fstream>
 #include <string>
+
+#include "log/logger.hpp"
 #include "ReplicaConfig.hpp"
-#include "Logger.hpp"
 
 namespace concord {
 namespace util {

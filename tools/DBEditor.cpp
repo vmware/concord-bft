@@ -24,7 +24,7 @@
 #define USE_ROCKSDB 1
 
 #include "assertUtils.hpp"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "rocksdb/key_comparator.h"
 #include "rocksdb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"

@@ -5,11 +5,11 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "key_manipulator_interface.h"
 
 #include "db_interface.h"
 #include "storage/db_types.h"
-#include "Logger.hpp"
 
 namespace concord::storage::v1DirectKeyValue {
 

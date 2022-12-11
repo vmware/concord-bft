@@ -18,9 +18,9 @@
 #include <grpcpp/server.h>
 #include <optional>
 
+#include "log/logger.hpp"
 #include "thin_replica.pb.h"
 #include "client/concordclient/event_update.hpp"
-#include "Logger.hpp"
 
 using opentracing::expected;
 

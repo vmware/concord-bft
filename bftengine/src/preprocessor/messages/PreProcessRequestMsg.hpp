@@ -13,8 +13,9 @@
 
 #include "OpenTracing.hpp"
 #include "messages/MessageBase.hpp"
-#include "Logger.hpp"
 #include <memory>
+
+#include "log/logger.hpp"
 
 namespace preprocessor {
 

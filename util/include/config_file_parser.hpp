@@ -15,9 +15,10 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include <map>
 #include <vector>
+
+#include "log/logger.hpp"
 #include "string.hpp"
 #include "util/filesystem.hpp"
 

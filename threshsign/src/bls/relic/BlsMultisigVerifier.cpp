@@ -11,11 +11,12 @@
 // LICENSE file.
 
 #include "threshsign/bls/relic/BlsMultisigVerifier.h"
+
+#include "log/logger.hpp"
 #include "threshsign/bls/relic/BlsMultisigAccumulator.h"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/VectorOfShares.h"
 
-#include "Logger.hpp"
 #include "XAssert.h"
 
 using namespace std;

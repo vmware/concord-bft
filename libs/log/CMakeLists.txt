@@ -1,0 +1,15 @@
+project(logging LANGUAGES CXX)
+
+add_library(logging STATIC src/logger.cpp )
+target_include_directories(logging PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../ PRIVATE .)
+
+if(USE_LOG4CPP)
+    message(STATUS "USE_LOG4CPP")
+    include(log4cplus.cmake)
+    target_sources(logging PRIVATE src/logging4cplus.cpp)
+    find_package(log4cplus REQUIRED)
+    target_compile_definitions(logging PUBLIC USE_LOG4CPP)
+    target_link_libraries(logging PUBLIC log4cplus)
+else(USE_LOG4CPP)
+    target_sources(logging PRIVATE src/logging.cpp)
+endif(USE_LOG4CPP)

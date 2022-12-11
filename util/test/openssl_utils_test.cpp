@@ -13,7 +13,8 @@
 //
 
 #include "gtest/gtest.h"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "crypto/factory.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"

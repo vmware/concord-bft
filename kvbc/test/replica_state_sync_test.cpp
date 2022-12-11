@@ -13,7 +13,6 @@
 #include "gtest/gtest.h"
 
 #include "DbMetadataStorage.hpp"
-#include "Logger.hpp"
 #include "block_metadata.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "db_interfaces.h"
@@ -30,6 +29,7 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace {
 

@@ -21,10 +21,10 @@
 #include "client/clientservice/client_service.hpp"
 #include "client/clientservice/configuration.hpp"
 #include "client/concordclient/concord_client.hpp"
-#include "Logger.hpp"
 #include "Metrics.hpp"
 #include "secrets/secret_retriever.hpp"
 #include <jaegertracing/Tracer.h>
+#include "log/logger.hpp"
 
 using concord::client::clientservice::ClientService;
 using concord::client::clientservice::configureSubscription;

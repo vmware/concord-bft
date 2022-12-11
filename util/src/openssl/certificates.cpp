@@ -12,10 +12,10 @@
 // file.
 
 #include "crypto/openssl/certificates.hpp"
-#include "Logger.hpp"
 #include "util/filesystem.hpp"
 
 #include <regex>
+#include "log/logger.hpp"
 
 namespace concord::crypto {
 using std::unique_ptr;

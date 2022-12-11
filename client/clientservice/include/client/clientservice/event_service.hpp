@@ -13,7 +13,7 @@
 #include <event.grpc.pb.h>
 #include <memory>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 namespace concord::client::clientservice {

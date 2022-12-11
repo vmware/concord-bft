@@ -15,7 +15,8 @@
 #include <iostream>
 #include <set>
 #include <algorithm>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 namespace test {
 namespace serializable {
 
@@ -231,10 +232,6 @@ TEST(serializable, VectorSerializablePtrVectors) {
 }  // namespace test
 
 int main(int argc, char** argv) {
-#ifdef USE_LOG4CPP
-  // uncomment if needed
-  // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
-#endif
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

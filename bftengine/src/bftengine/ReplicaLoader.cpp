@@ -12,12 +12,13 @@
 // file.
 
 #include "ReplicaLoader.hpp"
+
+#include "log/logger.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "CryptoManager.hpp"
-#include "Logger.hpp"
 
 #define Verify(expr, errorCode) \
   {                             \

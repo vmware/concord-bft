@@ -1,10 +1,9 @@
 #include "assertUtils.hpp"
 #include "direct_kv_block.h"
 #include "kv_types.hpp"
-#include "Logger.hpp"
-
 #include <cassert>
 #include <cstring>
+#include "log/logger.hpp"
 
 using concordUtils::Sliver;
 using concord::kvbc::SetOfKeyValuePairs;

@@ -17,8 +17,8 @@
 #include <vector>
 #include <memory>
 
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "blockchain_misc.hpp"
 #include "kv_types.hpp"
 #include "categorization/base_types.h"

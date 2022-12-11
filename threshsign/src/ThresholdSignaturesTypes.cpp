@@ -11,12 +11,13 @@
 // LICENSE file.
 
 #include "threshsign/ThresholdSignaturesTypes.h"
+
+#include "log/logger.hpp"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/IThresholdFactory.h"
 #include "threshsign/ThresholdSignaturesSchemes.h"
 #include "yaml_utils.hpp"
-#include "Logger.hpp"
 #include "string.hpp"
 #include "crypto/crypto.hpp"
 

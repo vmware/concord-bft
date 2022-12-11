@@ -18,10 +18,11 @@
 
 #include <asio.hpp>
 #include <asio/ssl.hpp>
+
+#include "log/logger.hpp"
 #include "util/filesystem.hpp"
 
 #include "communication/CommDefs.hpp"
-#include "Logger.hpp"
 #include "TlsConnectionManager.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"

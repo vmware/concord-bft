@@ -31,9 +31,9 @@
 #include <iostream>
 #include <limits>
 
+#include "log/logger.hpp"
 #include "test_parameters.hpp"
 #include "simple_test_client.hpp"
-#include "Logger.hpp"
 
 logging::Logger clientLogger = logging::getLogger("simpletest.client");
 

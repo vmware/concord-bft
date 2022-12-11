@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include "Logger.hpp"
 #include <yaml-cpp/yaml.h>
+#include "log/logger.hpp"
 
 namespace concord::osexample {
 enum MessageType : uint16_t { WRITE = 0, READ = 1, BOTH = 2 };

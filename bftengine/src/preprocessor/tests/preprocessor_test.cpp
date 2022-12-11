@@ -17,7 +17,7 @@
 #include "messages/PreProcessBatchRequestMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "RequestProcessingState.hpp"
 #include "ReplicaConfig.hpp"

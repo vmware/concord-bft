@@ -24,7 +24,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "XAssert.h"
 
 using namespace std;

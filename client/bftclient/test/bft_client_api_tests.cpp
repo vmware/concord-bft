@@ -20,12 +20,12 @@
 
 #include "gtest/gtest.h"
 
+#include "log/logger.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftclient/bft_client.h"
 #include "bftclient/fake_comm.h"
 #include "msg_receiver.h"
 #include "crypto/factory.hpp"
-#include "Logger.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 
 using namespace std;

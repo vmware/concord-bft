@@ -10,7 +10,6 @@
 // terms and conditions of the subcomponent's license,
 // as noted in the LICENSE file.
 
-#include "Logger.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -19,6 +18,8 @@
 #include <log4cplus/consoleappender.h>
 #include <log4cplus/fileappender.h>
 #include <log4cplus/initializer.h>
+
+#include "logger.hpp"
 
 using namespace log4cplus;
 
@@ -60,5 +61,7 @@ std::string get(const std::string& key) {
   log4cplus::getMDC().get(&result, key);
   return result;
 }
+
+std::string toString(LogLevel l) { return log4cplus::getLogLevelManager().toString(l); }
 
 }  // namespace logging

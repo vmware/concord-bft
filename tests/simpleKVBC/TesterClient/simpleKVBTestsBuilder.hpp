@@ -15,8 +15,9 @@
 
 #include <list>
 #include <map>
+
+#include "log/logger.hpp"
 #include "KVBCInterfaces.h"
-#include "Logger.hpp"
 #include "skvbc_messages.cmf.hpp"
 
 namespace concord::kvbc::test {

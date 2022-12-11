@@ -15,7 +15,7 @@
 
 #ifdef USE_ROCKSDB
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "rocksdb/native_client.h"
 #include "sparse_merkle/tree.h"
 

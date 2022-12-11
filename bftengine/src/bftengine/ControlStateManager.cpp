@@ -12,8 +12,9 @@
 // file.
 
 #include "ControlStateManager.hpp"
+
+#include "log/logger.hpp"
 #include "SigManager.hpp"
-#include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "Replica.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"

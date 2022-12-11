@@ -14,13 +14,13 @@
 #include <fstream>
 #include <vector>
 
+#include "log/logger.hpp"
 #include "bls/relic/LagrangeInterpolation.h"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/bls/relic/PublicParametersFactory.h"
 
 #include "Utils.h"
 #include "Timer.h"
-#include "Logger.hpp"
 #include "app/RelicMain.h"
 
 #include "lib/Benchmark.h"

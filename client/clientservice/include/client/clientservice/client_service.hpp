@@ -14,11 +14,11 @@
 #include <memory>
 #include <string>
 
+#include "log/logger.hpp"
 #include "event_service.hpp"
 #include "request_service.hpp"
 #include "state_snapshot_service.hpp"
 #include "health_service.hpp"
-#include "Logger.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 namespace concord::client::clientservice {

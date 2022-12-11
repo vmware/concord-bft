@@ -147,7 +147,7 @@ class RVBManager {
  protected:
   // logging
   logging::Logger logger_;
-  const std::set<std::string> debug_prints_log_level{"trace", "debug"};
+  const std::set<std::string> debug_prints_log_level{"TRACE", "DEBUG"};
 
   // config, storage and data store
   const Config& config_;
@@ -202,7 +202,6 @@ class RVBManager {
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;
 
-  std::string getLogLevel() const;
 #pragma pack(push, 1)
   struct RvbDigestInfo {
     BlockId block_id;

@@ -11,10 +11,11 @@
 // LICENSE file.
 
 #include "threshsign/bls/relic/BlsPublicParameters.h"
+
+#include "log/logger.hpp"
 #include "threshsign/bls/relic/Library.h"
 
 #include "Utils.h"
-#include "Logger.hpp"
 
 using namespace std;
 using namespace concord::serialize;

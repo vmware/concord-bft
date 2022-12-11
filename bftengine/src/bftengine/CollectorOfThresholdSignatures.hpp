@@ -16,6 +16,7 @@
 #include <set>
 #include <iterator>
 
+#include "log/logger.hpp"
 #include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "crypto/digest.hpp"
@@ -24,7 +25,6 @@
 #include "IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
 #include "messages/SignedShareMsgs.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 #include "demangle.hpp"
 #include "threshsign/IThresholdVerifier.h"

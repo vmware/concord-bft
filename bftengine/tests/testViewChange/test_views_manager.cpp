@@ -13,8 +13,9 @@
 
 #include "EpochManager.hpp"
 #include "gtest/gtest.h"
+
+#include "log/logger.hpp"
 #include "helper.hpp"
-#include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "ReservedPagesMock.hpp"
 #include "SigManager.hpp"

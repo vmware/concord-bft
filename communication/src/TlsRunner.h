@@ -12,8 +12,8 @@
 #include <asio.hpp>
 #include <thread>
 
+#include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
-#include "Logger.hpp"
 #include "TlsConnectionManager.h"
 
 #pragma once

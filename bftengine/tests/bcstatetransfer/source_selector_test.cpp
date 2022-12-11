@@ -13,8 +13,8 @@
 
 #include "gtest/gtest.h"
 
+#include "log/logger.hpp"
 #include "SourceSelector.hpp"
-#include "Logger.hpp"
 
 namespace {
 

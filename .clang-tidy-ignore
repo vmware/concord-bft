@@ -6,3 +6,6 @@
 # ignore test as it tests moved objects
 *lru_cache_test.cpp
 *BenchmarkThreshsign.cpp
+
+# ignore third party source files
+*/_deps/*

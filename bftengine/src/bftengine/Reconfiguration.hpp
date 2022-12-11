@@ -12,6 +12,7 @@
 #pragma once
 
 #include "reconfiguration/reconfiguration.hpp"
+#include "log/logger.hpp"
 #include "ReplicasInfo.hpp"
 
 namespace bftEngine::impl {

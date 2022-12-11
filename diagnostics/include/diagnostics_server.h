@@ -27,7 +27,7 @@
 #include <thread>
 #include <unistd.h>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "errnoString.hpp"
 #include "kvstream.h"
 #include "protocol.h"

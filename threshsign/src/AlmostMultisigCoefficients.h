@@ -16,9 +16,8 @@
 #include <vector>
 #include <mutex>
 
+#include "log/logger.hpp"
 #include "XAssert.h"
-#include "Logger.hpp"
-
 #include "threshsign/VectorOfShares.h"
 #include "threshsign/ThresholdSignaturesTypes.h"
 

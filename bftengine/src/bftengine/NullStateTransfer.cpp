@@ -10,9 +10,10 @@
 // file.
 
 #include "NullStateTransfer.hpp"
+
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "crypto/digest.hpp"
-#include "Logger.hpp"
 
 using concord::crypto::Digest;
 using concord::crypto::DigestGenerator;

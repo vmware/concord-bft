@@ -14,7 +14,7 @@
 #include "endianness.hpp"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/column_families.h"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "v4blockchain/detail/blockchain.h"
 #include "rocksdb/details.h"
 

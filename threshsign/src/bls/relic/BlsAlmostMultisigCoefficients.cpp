@@ -22,7 +22,7 @@
 
 #include <vector>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
 namespace BLS {
 namespace Relic {

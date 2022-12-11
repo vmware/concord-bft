@@ -17,13 +17,11 @@
 #include <log4cplus/mdc.h>
 #include <log4cplus/configurator.h>
 
-#ifdef USE_LOG4CPP
-
 #undef LOG4CPLUS_MACRO_FUNCTION
 #define LOG4CPLUS_MACRO_FUNCTION() __FUNCTION__
 
 namespace logging {
-
+typedef log4cplus::LogLevel LogLevel;
 typedef log4cplus::Logger Logger;
 
 std::string get(const std::string& key);
@@ -45,5 +43,3 @@ std::string get(const std::string& key);
 
 #define LOG_CONFIGURE_AND_WATCH(config_file, millis) \
   log4cplus::ConfigureAndWatchThread configureThread(config_file, millis)
-
-#endif

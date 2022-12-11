@@ -20,9 +20,9 @@
 #include <sstream>
 #include <inttypes.h>
 
+#include "log/logger.hpp"
 #include "app/RelicMain.h"
 
-#include "Logger.hpp"
 #include "Utils.h"
 #include "Timer.h"
 #include "XAssert.h"

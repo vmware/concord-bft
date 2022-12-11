@@ -13,7 +13,7 @@
 
 #include <set>
 
-// TODO(GG): clean/move 'include' statements
+#include "log/logger.hpp"
 #include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "SysConsts.hpp"
@@ -21,7 +21,6 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "messages/PartialCommitProofMsg.hpp"
 #include "messages/FullCommitProofMsg.hpp"
-#include "Logger.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
 

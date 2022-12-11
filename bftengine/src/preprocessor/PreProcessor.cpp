@@ -11,8 +11,9 @@
 
 #include "PreProcessor.hpp"
 #include <optional>
+
+#include "log/logger.hpp"
 #include "InternalReplicaApi.hpp"
-#include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"

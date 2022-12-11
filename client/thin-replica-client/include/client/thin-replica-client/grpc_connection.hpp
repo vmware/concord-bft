@@ -20,11 +20,11 @@
 #include <atomic>
 
 #include <grpcpp/grpcpp.h>
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
 #include "replica_state_snapshot.grpc.pb.h"
 #include "thread_pool.hpp"
-#include "Logger.hpp"
 
 using namespace std::chrono_literals;
 

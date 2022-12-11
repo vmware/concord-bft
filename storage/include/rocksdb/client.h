@@ -18,7 +18,7 @@
 #pragma once
 
 #ifdef USE_ROCKSDB
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include <rocksdb/db.h>
 #include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>

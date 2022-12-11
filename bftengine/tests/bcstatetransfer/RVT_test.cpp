@@ -20,8 +20,8 @@
 
 #include "gtest/gtest.h"
 
+#include "log/logger.hpp"
 #include "RangeValidationTree.hpp"
-#include "Logger.hpp"
 #include "kv_types.hpp"
 
 using namespace std;

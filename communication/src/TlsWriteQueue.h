@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
-#include "Logger.hpp"
 #include "TlsDiagnostics.h"
 #include "endianness.hpp"
 namespace bft::communication::tls {

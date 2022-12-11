@@ -14,8 +14,8 @@
 #include "ClientPreProcessRequestMsg.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
-#include "Logger.hpp"
 #include <deque>
+#include "log/logger.hpp"
 
 namespace bftEngine::impl {
 

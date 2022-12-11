@@ -13,9 +13,9 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
-#include "Logger.hpp"
 
 namespace concord::crypto {
 

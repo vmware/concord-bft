@@ -12,10 +12,10 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "communication/ICommunication.hpp"
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
 #include "messages/MessageBase.hpp"
 
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"

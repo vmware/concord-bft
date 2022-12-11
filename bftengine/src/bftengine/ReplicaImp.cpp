@@ -18,9 +18,10 @@
 #include <nlohmann/json.hpp>
 
 #include "ReplicaImp.hpp"
+
+#include "log/logger.hpp"
 #include "Timers.hpp"
 #include "assertUtils.hpp"
-#include "Logger.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 #include "DebugStatistics.hpp"
 #include "SysConsts.hpp"

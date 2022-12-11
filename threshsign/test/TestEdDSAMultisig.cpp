@@ -44,7 +44,7 @@ class EdDSAMultisigTest : public testing::Test {
   EdDSAMultisigFactory factory_;
 
  private:
-  void SetUp() override { EDDSA_MULTISIG_LOG.setLogLevel(log4cplus::DEBUG_LOG_LEVEL); }
+  void SetUp() override {}
 };
 
 TEST_F(EdDSAMultisigTest, ValidateSerializeDeserialize) {

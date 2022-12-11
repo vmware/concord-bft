@@ -17,8 +17,8 @@
 #include <set>
 #include <functional>
 
+#include "log/logger.hpp"
 #include "DataStore.hpp"
-#include "Logger.hpp"
 #include "kvstream.h"
 
 using std::map;

@@ -14,7 +14,8 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include <sstream>
 #include <iostream>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 using namespace std;
 using namespace concord::serialize;

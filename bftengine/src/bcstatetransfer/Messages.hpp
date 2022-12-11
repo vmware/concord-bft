@@ -16,8 +16,8 @@
 #include <stdint.h>
 #include <limits>
 
+#include "log/logger.hpp"
 #include "IStateTransfer.hpp"
-#include "Logger.hpp"
 #include "hex_tools.h"
 
 namespace bftEngine {

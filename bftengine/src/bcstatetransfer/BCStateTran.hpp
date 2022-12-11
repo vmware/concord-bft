@@ -24,7 +24,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "IStateTransfer.hpp"
 #include "DataStore.hpp"

@@ -22,8 +22,8 @@
 #include <future>
 #include <optional>
 #include <set>
-#include "Logger.hpp"
 
+#include "log/logger.hpp"
 #include "assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"

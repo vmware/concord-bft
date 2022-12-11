@@ -17,11 +17,11 @@
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 
 #include "NotImplementedException.h"
-#include "Logger.hpp"
 #include "XAssert.h"
 #include "Timer.h"
 
 #include <algorithm>
+#include "log/logger.hpp"
 
 using std::endl;
 

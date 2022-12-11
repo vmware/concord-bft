@@ -19,8 +19,8 @@
 #include <execinfo.h>
 #include <sstream>
 
+#include "log/logger.hpp"
 #include "kvstream.h"
-#include "Logger.hpp"
 
 inline void printCallStack() {
   const uint32_t MAX_FRAMES = 100;

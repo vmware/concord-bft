@@ -7,8 +7,8 @@
 
 #include "Main.h"
 
+#include "log/logger.hpp"
 #include "XAssert.h"
-#include "Logger.hpp"
 
 using std::endl;
 
