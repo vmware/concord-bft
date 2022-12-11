@@ -25,7 +25,7 @@ class E2eTestScenario {
   std::string description;
   void checkExpectedBalances(Wallet::Channel &chanWallet,
                              std::unique_ptr<Wallet> &wallet,
-                             const E2eTestExpectedUserBalances expectedBalances,
+                             const E2eTestExpectedUserBalances &expectedBalances,
                              E2eTestResult &result);
 
  public:
