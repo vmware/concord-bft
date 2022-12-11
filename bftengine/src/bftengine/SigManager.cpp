@@ -43,6 +43,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
                                  KeyFormat replicasKeysFormat,
                                  const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
                                  KeyFormat clientsKeysFormat,
+                                 const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
                                  ReplicasInfo& replicasInfo) {
   vector<pair<Key, KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
@@ -96,6 +97,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
       publickeys,
       publicKeysMapping,
       ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
+      operatorKey,
       replicasInfo);
 }
 
@@ -105,6 +107,7 @@ SigManager* SigManager::init(ReplicaId myId,
                              KeyFormat replicasKeysFormat,
                              const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
                              KeyFormat clientsKeysFormat,
+                             const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
                              ReplicasInfo& replicasInfo) {
   SigManager* sm = initImpl(myId,
                             mySigPrivateKey,
@@ -112,6 +115,7 @@ SigManager* SigManager::init(ReplicaId myId,
                             replicasKeysFormat,
                             publicKeysOfClients,
                             clientsKeysFormat,
+                            operatorKey,
                             replicasInfo);
   return SigManager::instance(sm);
 }
@@ -122,6 +126,7 @@ SigManager::SigManager(PrincipalId myId,
                        const vector<pair<Key, KeyFormat>>& publickeys,
                        const map<PrincipalId, KeyIndex>& publicKeysMapping,
                        bool clientTransactionSigningEnabled,
+                       const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
                        ReplicasInfo& replicasInfo)
     : myId_(myId),
       clientTransactionSigningEnabled_(clientTransactionSigningEnabled),
@@ -162,6 +167,11 @@ SigManager::SigManager(PrincipalId myId,
       LOG_DEBUG(KEY_EX_LOG, "Adding key of client " << p.first << " key size " << key.size());
     }
   }
+  if (std::get<0>(operatorKey) > 0 && !std::get<1>(operatorKey).empty()) {
+    verifiers_[std::get<0>(operatorKey)] = std::shared_ptr<IVerifier>(Factory::getVerifier(
+        std::get<1>(operatorKey), ReplicaConfig::instance().operatorMsgSigningAlgo, std::get<2>(operatorKey)));
+  }
+
   clientsPublicKeys_.version = 1;  // version `1` suggests RSAVerifier.
   LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();

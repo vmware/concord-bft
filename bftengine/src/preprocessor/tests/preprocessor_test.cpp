@@ -355,6 +355,7 @@ void setUpConfiguration_4() {
                                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                   nullptr,
                                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                  {0, "", concord::crypto::KeyFormat::PemFormat},
                                                   *replicasInfo[i].get()));
   }
   replicaConfig.replicaId = replica_0;

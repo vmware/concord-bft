@@ -48,14 +48,22 @@ namespace {
 ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
   ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   auto &config = ld.repConfig;
-
-  ld.sigManager = SigManager::init(config.replicaId,
-                                   config.replicaPrivateKey,
-                                   config.publicKeysOfReplicas,
-                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                   ReplicaConfig::instance().getPublicKeysOfClients(),
-                                   concord::crypto::KeyFormat::PemFormat,
-                                   *ld.repsInfo);
+  std::string operator_key;
+  std::ifstream op_key_file(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
+  if (!op_key_file.fail()) {
+    std::stringstream buffer;
+    buffer << op_key_file.rdbuf();
+    operator_key = buffer.str();
+  }
+  ld.sigManager =
+      SigManager::init(config.replicaId,
+                       config.replicaPrivateKey,
+                       config.publicKeysOfReplicas,
+                       concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                       ReplicaConfig::instance().getPublicKeysOfClients(),
+                       concord::crypto::KeyFormat::PemFormat,
+                       {ld.repsInfo->getIdOfOperator(), operator_key, concord::crypto::KeyFormat::PemFormat},
+                       *ld.repsInfo);
 
   std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,
                                                                            ld.repConfig.thresholdSystemSubType_,

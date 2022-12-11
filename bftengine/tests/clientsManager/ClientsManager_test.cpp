@@ -151,6 +151,7 @@ static void resetSigManager() {
                                                               kKeyFormatForTesting,
                                                               &kInitialPublicKeysOfClientsForTesting,
                                                               kKeyFormatForTesting,
+                                                              {0, "", concord::crypto::KeyFormat::PemFormat},
                                                               *sigManagerReplicasInfoForTesting));
 }
 

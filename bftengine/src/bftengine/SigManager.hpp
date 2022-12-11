@@ -55,6 +55,7 @@ class SigManager {
                           concord::crypto::KeyFormat replicasKeysFormat,
                           const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
                           concord::crypto::KeyFormat clientsKeysFormat,
+                          const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
                           ReplicasInfo& replicasInfo);
 
   // returns 0 if pid is invalid - caller might consider throwing an exception
@@ -113,6 +114,7 @@ class SigManager {
              const std::vector<std::pair<Key, concord::crypto::KeyFormat>>& publickeys,
              const std::map<PrincipalId, KeyIndex>& publicKeysMapping,
              bool clientTransactionSigningEnabled,
+             const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
              ReplicasInfo& replicasInfo);
 
   static SigManager* initImpl(ReplicaId myId,
@@ -121,6 +123,7 @@ class SigManager {
                               concord::crypto::KeyFormat replicasKeysFormat,
                               const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
                               concord::crypto::KeyFormat clientsKeysFormat,
+                              const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
                               ReplicasInfo& replicasInfo);
 
   const PrincipalId myId_;
@@ -154,6 +157,7 @@ class SigManager {
       concord::crypto::KeyFormat replicasKeysFormat,
       const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
       concord::crypto::KeyFormat clientsKeysFormat,
+      const std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>& operatorKey,
       ReplicasInfo& replicasInfo) {
     return initImpl(myId,
                     mySigPrivateKey,
@@ -161,6 +165,7 @@ class SigManager {
                     replicasKeysFormat,
                     publicKeysOfClients,
                     clientsKeysFormat,
+                    operatorKey,
                     replicasInfo);
   }
 #endif
