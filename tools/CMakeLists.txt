@@ -19,7 +19,8 @@ target_link_libraries(GenerateConcordKeys
                       PUBLIC
                       threshsign
                       util
-					  stdc++fs)
+                      concord-crypto
+                      stdc++fs)
 
 set_target_properties(GenerateConcordKeys
                       PROPERTIES

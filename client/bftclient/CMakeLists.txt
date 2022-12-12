@@ -21,6 +21,7 @@ target_link_libraries(bftclient_new PRIVATE
     diagnostics
     secretsmanager
     util
+    concord-crypto
 )
 
 if (BUILD_TESTING)

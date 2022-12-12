@@ -17,7 +17,7 @@ target_include_directories(secretsmanager PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRE
                                           PRIVATE src
 )
 
-target_link_libraries(secretsmanager PUBLIC util)
+target_link_libraries(secretsmanager PUBLIC concord-crypto)
 
 install(TARGETS secretsmanager
 #       EXPORT  secretsmanager-targets #TODO [TK] generate secretsmanager-config.cmake

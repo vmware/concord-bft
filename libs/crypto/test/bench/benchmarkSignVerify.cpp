@@ -22,7 +22,7 @@
 #include <random>
 
 #include "thread_pool.hpp"
-#include "picobench.hpp"
+#include "picobench/picobench.hpp"
 #include "crypto/crypto.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"

@@ -21,6 +21,7 @@ target_link_libraries(thin_replica_server PUBLIC
   kvbc
   logging
   util
+  concord-crypto
 )
 
 # Unit tests

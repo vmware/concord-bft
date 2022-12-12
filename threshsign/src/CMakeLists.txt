@@ -14,7 +14,7 @@ target_include_directories(threshsign PUBLIC ../include ${Boost_INCLUDE_DIR}
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(threshsign PUBLIC /usr/local/ssl/include ${CMAKE_CURRENT_SOURCE_DIR}/../../util/include/ /usr/local/include/)
 endif()
-target_link_libraries(threshsign PUBLIC Threads::Threads)
+target_link_libraries(threshsign PUBLIC Threads::Threads concord-crypto)
 
 message(STATUS "Using OpenSSL EdDSA threshold signatures")
 add_subdirectory(eddsa)

@@ -12,7 +12,6 @@ target_include_directories(v4migration_tool_lib PUBLIC "v4migration_tool/include
 target_link_libraries(v4migration_tool_lib PUBLIC
         kvbc
         util
-        Boost::program_options
         )
 
 add_executable(v4migration_tool

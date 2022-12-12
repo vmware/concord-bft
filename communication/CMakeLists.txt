@@ -31,7 +31,7 @@ else()
     target_compile_definitions(bftcommunication PUBLIC USE_COMM_UDP)
 endif()
 
-target_link_libraries(bftcommunication PUBLIC util)
+target_link_libraries(bftcommunication PUBLIC util concord-crypto)
 
 target_include_directories(bftcommunication PUBLIC ../bftengine/include/bftengine)
 target_include_directories(bftcommunication PUBLIC include)

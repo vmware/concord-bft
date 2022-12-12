@@ -12,29 +12,17 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/crypto/crypto.cpp
-    src/openssl/certificates.cpp
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
     src/io.cpp)
-add_library(util STATIC ${util_source_files} src/crypto/factory.cpp)
+    
+add_library(util STATIC ${util_source_files})
 
-if(USE_OPENSSL)
-        set(OPENSSL_USE_STATIC_LIBS TRUE)
-    find_package(OpenSSL REQUIRED)
-        set(OPENSSL_USE_STATIC_LIBS FALSE)
-    target_sources(util PRIVATE src/openssl/crypto.cpp)
-    target_link_libraries(util PUBLIC OpenSSL::Crypto z)
-    target_compile_definitions(util PUBLIC USE_OPENSSL)
-endif()
-
-target_link_libraries(util PUBLIC
-        Threads::Threads)
 if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_link_libraries(util PUBLIC stdc++fs)
 endif()
 
-target_include_directories(util PUBLIC include include/openssl ${Boost_INCLUDE_DIR})
+target_include_directories(util PUBLIC include ${Boost_INCLUDE_DIR})
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(util PUBLIC ${OPENSSL_ROOT_DIR}/include)
 endif()
@@ -87,4 +75,3 @@ if(USE_PROMETHEUS)
             )
 endif()
 
-add_subdirectory(bench)
