@@ -314,14 +314,13 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   }
 
   std::string getOperatorPublicKey() {
-    std::string operator_key;
     std::ifstream op_key_file(pathToOperatorPublicKey_);
     if (!op_key_file.fail()) {
       std::stringstream buffer;
       buffer << op_key_file.rdbuf();
-      operator_key = buffer.str();
+      return buffer.str();
     }
-    return operator_key;
+    return std::string();
   }
 
  protected:
