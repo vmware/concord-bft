@@ -18,6 +18,7 @@
 #include <vector>
 #include <unordered_map>
 #include <chrono>
+#include <optional>
 #include "string.hpp"
 #include "kvstream.h"
 #include "crypto/factory.hpp"
@@ -310,6 +311,17 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   }
   inline std::set<std::pair<const std::string, std::set<uint16_t>>>* getPublicKeysOfClients() {
     return (clientTransactionSigningEnabled || !clientsKeysPrefix.empty()) ? &publicKeysOfClients : nullptr;
+  }
+
+  std::string getOperatorPublicKey() {
+    std::string operator_key;
+    std::ifstream op_key_file(pathToOperatorPublicKey_);
+    if (!op_key_file.fail()) {
+      std::stringstream buffer;
+      buffer << op_key_file.rdbuf();
+      operator_key = buffer.str();
+    }
+    return operator_key;
   }
 
  protected:

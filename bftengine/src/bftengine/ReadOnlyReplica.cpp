@@ -59,13 +59,6 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       MsgCode::StateTransfer,
       std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   metrics_.Register();
-  std::string operator_key;
-  std::ifstream op_key_file(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
-  if (!op_key_file.fail()) {
-    std::stringstream buffer;
-    buffer << op_key_file.rdbuf();
-    operator_key = buffer.str();
-  }
 
   SigManager::init(config_.replicaId,
                    config_.replicaPrivateKey,
@@ -73,7 +66,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                    ReplicaConfig::instance().getPublicKeysOfClients(),
                    concord::crypto::KeyFormat::PemFormat,
-                   {repsInfo->getIdOfOperator(), operator_key, concord::crypto::KeyFormat::PemFormat},
+                   {{repsInfo->getIdOfOperator(),
+                     ReplicaConfig::instance().getOperatorPublicKey(),
+                     concord::crypto::KeyFormat::PemFormat}},
                    *repsInfo);
 
   // Register status handler for Read-Only replica

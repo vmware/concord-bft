@@ -113,6 +113,5 @@ bftEngine::impl::SigManager* createSigManager(size_t myId,
                           replicasKeysFormat,
                           nullptr,
                           concord::crypto::KeyFormat::PemFormat,
-                          {0, "", concord::crypto::KeyFormat::PemFormat},
                           replicasInfo);
 }

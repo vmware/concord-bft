@@ -58,7 +58,6 @@ void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
                                     KeyFormat::HexaDecimalStrippedFormat,
                                     nullptr /*publicKeysOfClients*/,
                                     KeyFormat::PemFormat,
-                                    {0, "", concord::crypto::KeyFormat::PemFormat},
                                     *repsInfo_);
 }
 

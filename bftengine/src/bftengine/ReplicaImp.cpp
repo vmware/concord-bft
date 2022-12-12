@@ -4452,22 +4452,16 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (firstTime) {
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    std::string operator_key;
-    std::ifstream op_key_file(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
-    if (!op_key_file.fail()) {
-      std::stringstream buffer;
-      buffer << op_key_file.rdbuf();
-      operator_key = buffer.str();
-    }
-    sigManager_.reset(
-        SigManager::init(config_.replicaId,
-                         config_.replicaPrivateKey,
-                         config_.publicKeysOfReplicas,
-                         concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                         ReplicaConfig::instance().getPublicKeysOfClients(),
-                         concord::crypto::KeyFormat::PemFormat,
-                         {repsInfo->getIdOfOperator(), operator_key, concord::crypto::KeyFormat::PemFormat},
-                         *repsInfo));
+    sigManager_.reset(SigManager::init(config_.replicaId,
+                                       config_.replicaPrivateKey,
+                                       config_.publicKeysOfReplicas,
+                                       concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                       ReplicaConfig::instance().getPublicKeysOfClients(),
+                                       concord::crypto::KeyFormat::PemFormat,
+                                       {{repsInfo->getIdOfOperator(),
+                                         ReplicaConfig::instance().getOperatorPublicKey(),
+                                         concord::crypto::KeyFormat::PemFormat}},
+                                       *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {
     repsInfo = replicasInfo;

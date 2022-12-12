@@ -181,14 +181,8 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
   }
 
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(myId,
-                                                     myPrivKey,
-                                                     publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
-                                                     nullptr,
-                                                     KeyFormat::PemFormat,
-                                                     {0, "", concord::crypto::KeyFormat::PemFormat},
-                                                     replicaInfo));
+  unique_ptr<SigManager> sigManager(SigManager::init(
+      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
 
   for (size_t i{0}; i < numReplicas; ++i) {
     const auto& signer = signers[i];
@@ -253,14 +247,8 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   }
 
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(myId,
-                                                     myPrivKey,
-                                                     publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
-                                                     nullptr,
-                                                     KeyFormat::PemFormat,
-                                                     {0, "", concord::crypto::KeyFormat::PemFormat},
-                                                     replicaInfo));
+  unique_ptr<SigManager> sigManager(SigManager::init(
+      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
   // sign with SigManager
   expectedSignerSigLen = sigManager->getSigLength(myId);
   generateRandomData(data, RANDOM_DATA_SIZE);
@@ -357,7 +345,6 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
                                                      KeyFormat::PemFormat,
                                                      &publicKeysOfClients,
                                                      KeyFormat::PemFormat,
-                                                     {0, "", concord::crypto::KeyFormat::PemFormat},
                                                      replicaInfo));
 
   // principalIdToSignerIndex carries all principal ids for replica, read only replicas and bft-clients.

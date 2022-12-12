@@ -107,6 +107,8 @@ class ReplicasInfo {
   const std::set<PrincipalId> _idsOfExternalClients;
   const std::set<PrincipalId> _idsOfClientServices;
   const std::set<PrincipalId> _idsOfInternalClients;
+
+  // Currently we support only a single operator entity in the system
   PrincipalId _operator_id;
 };
 }  // namespace impl

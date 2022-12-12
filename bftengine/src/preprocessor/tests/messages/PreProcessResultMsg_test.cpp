@@ -49,7 +49,6 @@ bftEngine::impl::SigManager* createSigManagerWithSigning(
                           replicasKeysFormat,
                           publicKeysOfClients,
                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                          {0, "", concord::crypto::KeyFormat::PemFormat},
                           replicasInfo);
 }
 
