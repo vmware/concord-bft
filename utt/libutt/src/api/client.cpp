@@ -85,6 +85,8 @@ Commitment Client::generateInputRCM(uint64_t nonce) {
   return comm;
 }
 
+types::CurvePoint Client::getS1() const { return pImpl_->ask_.s.to_words(); }
+void Client::setS1(const types::CurvePoint& s1) { pImpl_->ask_.s.from_words(s1); }
 void Client::setPRFKey(const types::CurvePoint& s2) {
   if (complete_s) return;
   Fr fr_s2;

@@ -71,7 +71,7 @@ class E2eTestSuite {
   }
 
  private:
-  void configureWallet(std::unique_ptr<Wallet> &wallet, std::string userId) {
+  void configureWallet(std::unique_ptr<Wallet> &wallet, const std::string &userId) {
     wallet = std::make_unique<Wallet>(userId, pki, config);
     wallet->registerUser(context.chanWallet);
   }

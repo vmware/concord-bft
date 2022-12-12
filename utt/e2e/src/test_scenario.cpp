@@ -6,7 +6,7 @@ using namespace libutt;
 
 void E2eTestScenario::checkExpectedBalances(Wallet::Channel &chanWallet,
                                             std::unique_ptr<Wallet> &wallet,
-                                            const E2eTestExpectedUserBalances expectedBalances,
+                                            const E2eTestExpectedUserBalances &expectedBalances,
                                             E2eTestResult &result) {
   uint64_t publicBalance = 0, privateBalance = 0, privacyBudget = 0;
   std::tie(publicBalance, privateBalance, privacyBudget) = wallet->getBalanceInfo(chanWallet);

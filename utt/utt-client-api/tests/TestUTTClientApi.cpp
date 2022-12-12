@@ -261,6 +261,49 @@ struct ServerMock {
     return ledger_.size();
   }
 };
+class InMemoryUserStorage : public utt::client::IStorage {
+ public:
+  bool isNewStorage() override { return true; };
+  void setKeyPair(const std::pair<std::string, std::string>& keyPair) override { keyPair_ = keyPair; }
+  void setLastExecutedSn(uint64_t sn) override {
+    if (sn < lastExecutedSn_) throw std::runtime_error("trying to write an incorrect sequence number");
+    lastExecutedSn_ = sn;
+  }
+  void setClientSideSecret(const libutt::api::types::CurvePoint& s1) override { s1_ = s1; }
+  void setSystemSideSecret(const libutt::api::types::CurvePoint& s2) override { s2_ = s2; };
+  void setRcmSignature(const libutt::api::types::Signature& rcm_sig) override { rcm_sig_ = rcm_sig; }
+  void setCoin(const libutt::api::Coin& coin) override {
+    if (coins_.find(coin.getNullifier()) != coins_.end())
+      throw std::runtime_error("trying to add an already exist coin to storage");
+    coins_[coin.getNullifier()] = coin;
+  }
+  void removeCoin(const libutt::api::Coin& coin) override {
+    if (coins_.find(coin.getNullifier()) == coins_.end())
+      throw std::runtime_error("trying to remove an non existed coin to storage");
+    coins_.erase(coin.getNullifier());
+  };
+
+  uint64_t getLastExecutedSn() override { return lastExecutedSn_; }
+  libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
+  libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
+  libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
+  std::vector<libutt::api::Coin> getCoins() override {
+    std::vector<libutt::api::Coin> coins;
+    for (const auto& [_, c] : coins_) coins.push_back(c);
+    return coins;
+  }
+  std::pair<std::string, std::string> getKeyPair() override { return keyPair_; }
+  void startTransaction() override {}
+  void commit() override {}
+
+ private:
+  uint64_t lastExecutedSn_;
+  libutt::api::types::CurvePoint s1_;
+  libutt::api::types::CurvePoint s2_;
+  libutt::api::types::Signature rcm_sig_;
+  std::unordered_map<std::string, libutt::api::Coin> coins_;
+  std::pair<std::string, std::string> keyPair_;
+};
 
 int main(int argc, char* argv[]) {
   (void)argc;
@@ -318,13 +361,13 @@ int main(int argc, char* argv[]) {
   };
 
   // Create new users by using the public config
-  utt::client::IUserStorage storage;
   auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;
 
   for (size_t i = 0; i < C; ++i) {
-    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, storage));
+    std::unique_ptr<utt::client::IStorage> storage = std::make_unique<InMemoryUserStorage>();
+    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);
   }

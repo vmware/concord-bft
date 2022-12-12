@@ -96,6 +96,8 @@ struct User::Impl {
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
   std::set<std::string> budgetNullifiers_;
+  std::unique_ptr<IStorage> storage_;
+  bool is_registered_ = false;
 };
 
 utt::Transaction User::Impl::createTx_Burn(const libutt::api::Coin& coin) {
@@ -249,19 +251,25 @@ libutt::RSAEncryptor User::Impl::createRsaEncryptorForTransferToOther(const std:
 std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
-                                          IUserStorage& storage) {
-  (void)storage;
+                                          std::unique_ptr<IStorage> storage) {
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
 
-  // [TODO-UTT] Maybe we do something with pki and storage here before we try to create the user.
   // - Ask pki to create a new public/private key pair?
-  // - Ask storage to allocate X amount of storage?
-  // - Generate s1
+  bool isNewStorage = storage->isNewStorage();
+  utt::client::IUserPKInfrastructure::KeyPair userKeys;
+  if (isNewStorage) {
+    userKeys = pki.generateKeys(userId);
+    {
+      IStorage::tx_guard g(*storage);
+      storage->setKeyPair({userKeys.sk_, userKeys.pk_});
+    }
+  } else {
+    logdbg << "loading key pair from storage" << endl;
+    userKeys.sk_ = storage->getKeyPair().first;
+    userKeys.pk_ = storage->getKeyPair().second;
+  }
 
-  // [TODO-UTT] To create a user we need to successfully generate and persist to storage the user's secret key
-  // and PRF secret s1.
-  auto userKeys = pki.generateKeys(userId);
   if (userKeys.sk_.empty()) throw std::runtime_error("User public key not generated!");
   if (userKeys.pk_.empty()) throw std::runtime_error("User private key not generated!");
 
@@ -270,20 +278,59 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   auto user = std::make_unique<User>();
   user->pImpl_->pk_ = userKeys.pk_;
   user->pImpl_->params_ = uttConfig.getParams();
+  user->pImpl_->storage_ = std::move(storage);
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
       userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
 
   std::map<std::string, std::string> selfTxCredentials{{userId, userKeys.pk_}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
-
+  if (!isNewStorage) {
+    logdbg << "loading user data from storage" << endl;
+    user->recoverFromStorage(*(user->pImpl_->storage_));
+  }
   return user;
 }
 
-std::unique_ptr<User> User::createFromStorage(IUserStorage& storage) {
-  (void)storage;
-  // [TODO-UTT] Implement User::createFromStorage
-  return nullptr;
+void User::recoverFromStorage(IStorage& storage) {
+  /**
+   * To recover the client we need to perform the following:
+   * 1. recover registration data (if there is any)
+   * 2. recover all existing coins
+   */
+
+  auto s1 = storage.getClientSideSecret();
+  if (s1.empty()) {
+    logdbg_user << "This client has not started registration phase, no additional data to recover" << endl;
+    return;
+  }
+  pImpl_->s1_ = s1;
+  pImpl_->client_->setS1(s1);
+  // We don't care about recovering rcm1. Its the system responsibility to prevent double registration
+  auto s2 = storage.getSystemSideSecret();
+  if (s2.empty()) {
+    logdbg_user << "This client has not passed yet the registration phase, no additional data to recover" << endl;
+    return;
+  }
+  auto rcm_sig = storage.getRcmSignature();
+  logdbg_user << rcm_sig.size() << endl;
+  if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
+  pImpl_->is_registered_ = true;
+  pImpl_->lastExecutedTxNum_ = storage.getLastExecutedSn();
+  auto coins = storage.getCoins();
+  for (const auto& c : coins) {
+    if (!pImpl_->client_->validate(c)) throw std::runtime_error("client has failed to validate its own stored coins");
+    if (c.getType() == libutt::api::Coin::Normal) {
+      pImpl_->coins_.push_back(c);
+    } else if (c.getType() == libutt::api::Coin::Budget) {
+      if (pImpl_->budgetNullifiers_.size() >= 1) {
+        throw std::runtime_error("Currently multiple budget coins are not supported");
+      }
+      pImpl_->budgetCoin_.emplace(c);
+      pImpl_->budgetNullifiers_.insert(c.getNullifier());
+    }
+  }
 }
 
 User::User() : pImpl_{new Impl{}} {}
@@ -291,7 +338,12 @@ User::~User() = default;
 
 UserRegistrationInput User::getRegistrationInput() const {
   if (!pImpl_->client_) return UserRegistrationInput{};  // Empty
-  return libutt::api::serialize<libutt::api::Commitment>(pImpl_->client_->generateInputRCM());
+  libutt::api::Commitment comm = pImpl_->client_->generateInputRCM();
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    pImpl_->storage_->setClientSideSecret(pImpl_->client_->getS1());
+  }
+  return libutt::api::serialize<libutt::api::Commitment>(comm);
 }
 
 void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
@@ -305,9 +357,14 @@ void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   auto unblindedSig =
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
   if (unblindedSig.empty()) throw std::runtime_error("Failed to unblind reg signature!");
-
-  // [TODO-UTT] What if we already updated a registration? How do we check it?
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
+  pImpl_->is_registered_ = true;
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    auto rcm = pImpl_->client_->getRcm();
+    pImpl_->storage_->setRcmSignature(rcm.second);
+    pImpl_->storage_->setSystemSideSecret(s2);
+  }
 }
 
 void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
@@ -322,6 +379,7 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
   // Expect a single budget token to be claimed by the user
   if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
   if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid initial budget coin!");
+
   auto nullifer = claimedCoins[0].getNullifier();
   // std::cout << "Budget nullifer is, hash " << std::hash<std::string>{}(nullifer) << " raw " << nullifer << "\n";
   if (pImpl_->budgetNullifiers_.count(claimedCoins[0].getNullifier()) == 1) {
@@ -329,7 +387,10 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
     return;
   }
 
-  // [TODO-UTT] Requires atomic, durable write through IUserStorage
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    pImpl_->storage_->setCoin(claimedCoins[0]);
+  }
   pImpl_->budgetCoin_ = claimedCoins[0];
 
   logdbg_user << "claimed budget token " << dbgPrintCoins({*pImpl_->budgetCoin_}) << endl;
@@ -343,6 +404,8 @@ uint64_t User::getBalance() const {
   }
   return sum;
 }
+
+bool User::hasRegistrationCommitment() const { return pImpl_->is_registered_; }
 
 uint64_t User::getPrivacyBudget() const { return pImpl_->budgetCoin_ ? pImpl_->budgetCoin_->getVal() : 0; }
 
@@ -364,38 +427,44 @@ void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
 
   logdbg_user << "executing transfer tx: " << txNum << endl;
 
-  // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
-  pImpl_->lastExecutedTxNum_ = txNum;
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    pImpl_->storage_->setLastExecutedSn(txNum);
 
-  // [TODO-UTT] More consistency checks
-  // If we slash coins we expect to also update our budget coin
+    pImpl_->lastExecutedTxNum_ = txNum;
 
-  // Slash spent coins
-  for (const auto& null : uttTx.getNullifiers()) {
-    auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&null](const libutt::api::Coin& coin) {
-      return coin.getNullifier() == null;
-    });
-    if (it != pImpl_->coins_.end()) {
-      logdbg_user << "slashing spent coin " << dbgPrintCoins({*it}) << endl;
-      pImpl_->coins_.erase(it);
+    // [TODO-UTT] More consistency checks
+    // If we slash coins we expect to also update our budget coin
+
+    // Slash spent coins
+    for (const auto& null : uttTx.getNullifiers()) {
+      auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&null](const libutt::api::Coin& coin) {
+        return coin.getNullifier() == null;
+      });
+      if (it != pImpl_->coins_.end()) {
+        logdbg_user << "slashing spent coin " << dbgPrintCoins({*it}) << endl;
+        pImpl_->storage_->removeCoin(*it);
+        pImpl_->coins_.erase(it);
+      }
     }
-  }
 
-  // Claim coins
-  auto claimedCoins = pImpl_->client_->claimCoins(uttTx, pImpl_->params_, sigs);
-  for (auto& coin : claimedCoins) {
-    if (coin.getType() == libutt::api::Coin::Type::Normal) {
+    // Claim coins
+    auto claimedCoins = pImpl_->client_->claimCoins(uttTx, pImpl_->params_, sigs);
+
+    for (auto& coin : claimedCoins) {
       if (!pImpl_->client_->validate(coin)) throw std::runtime_error("Invalid normal coin in transfer!");
-      logdbg_user << "claimed normal coin: " << dbgPrintCoins({coin}) << endl;
-      pImpl_->coins_.emplace_back(std::move(coin));
-    } else if (coin.getType() == libutt::api::Coin::Type::Budget) {
-      // Replace budget coin
-      if (!pImpl_->client_->validate(coin)) throw std::runtime_error("Invalid budget coin in transfer!");
-      if (coin.getVal() > 0) {
-        logdbg_user << "claimed budget coin: " << dbgPrintCoins({coin}) << endl;
-        pImpl_->budgetCoin_ = std::move(coin);
-      } else {
-        pImpl_->budgetCoin_ = std::nullopt;
+      pImpl_->storage_->setCoin(coin);
+      if (coin.getType() == libutt::api::Coin::Type::Normal) {
+        logdbg_user << "claimed normal coin: " << dbgPrintCoins({coin}) << endl;
+        pImpl_->coins_.emplace_back(std::move(coin));
+      } else if (coin.getType() == libutt::api::Coin::Type::Budget) {
+        // Replace budget coin
+        if (coin.getVal() > 0) {
+          logdbg_user << "claimed budget coin: " << dbgPrintCoins({coin}) << endl;
+          pImpl_->budgetCoin_ = std::move(coin);
+        } else {
+          pImpl_->budgetCoin_ = std::nullopt;
+        }
       }
     }
   }
@@ -409,22 +478,23 @@ void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
   auto mint = libutt::api::deserialize<libutt::api::operations::Mint>(tx.data_);
 
   logdbg_user << "executing mint tx: " << txNum << endl;
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    if (mint.getRecipentID() != pImpl_->client_->getPid()) {
+      logdbg_user << "ignores mint transaction for different user: " << mint.getRecipentID() << endl;
+    } else {
+      auto claimedCoins =
+          pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
 
-  if (mint.getRecipentID() != pImpl_->client_->getPid()) {
-    logdbg_user << "ignores mint transaction for different user: " << mint.getRecipentID() << endl;
-  } else {
-    auto claimedCoins =
-        pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
-
-    // Expect a single token to be claimed by the user
-    if (claimedCoins.size() != 1) throw std::runtime_error("Expected single coin in mint tx!");
-    if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
-
-    pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
+      // Expect a single token to be claimed by the user
+      if (claimedCoins.size() != 1) throw std::runtime_error("Expected single coin in mint tx!");
+      if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
+      pImpl_->storage_->setCoin(claimedCoins[0]);
+      pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
+    }
+    pImpl_->storage_->setLastExecutedSn(txNum);
+    pImpl_->lastExecutedTxNum_ = txNum;
   }
-
-  // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
-  pImpl_->lastExecutedTxNum_ = txNum;
 }
 
 // [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifier to slash?
@@ -436,22 +506,26 @@ void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
 
   logdbg_user << "executing burn tx: " << txNum << endl;
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
+      logdbg_user << "ignores burn tx for different user: " << burn.getOwnerPid() << endl;
+    } else {
+      auto nullifier = burn.getNullifier();
+      if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
 
-  if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
-    logdbg_user << "ignores burn tx for different user: " << burn.getOwnerPid() << endl;
-  } else {
-    auto nullifier = burn.getNullifier();
-    if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
+      auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
+        return coin.getNullifier() == nullifier;
+      });
+      if (it == pImpl_->coins_.end()) throw std::runtime_error("Burned token missing in wallet!");
+      pImpl_->storage_->removeCoin(*it);
+      pImpl_->coins_.erase(it);
+    }
 
-    auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
-      return coin.getNullifier() == nullifier;
-    });
-    if (it == pImpl_->coins_.end()) throw std::runtime_error("Burned token missing in wallet!");
-    pImpl_->coins_.erase(it);
+    // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
+    pImpl_->storage_->setLastExecutedSn(txNum);
+    pImpl_->lastExecutedTxNum_ = txNum;
   }
-
-  // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
-  pImpl_->lastExecutedTxNum_ = txNum;
 }
 
 void User::updateNoOp(uint64_t txNum) {
@@ -459,8 +533,11 @@ void User::updateNoOp(uint64_t txNum) {
   if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Noop tx number is not consecutive!");
 
   logdbg_user << "executing noop tx: " << txNum << endl;
-
-  pImpl_->lastExecutedTxNum_ = txNum;
+  {
+    IStorage::tx_guard g(*pImpl_->storage_);
+    pImpl_->storage_->setLastExecutedSn(txNum);
+    pImpl_->lastExecutedTxNum_ = txNum;
+  }
 }
 
 utt::Transaction User::mint(uint64_t amount) const {
