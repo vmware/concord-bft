@@ -19,6 +19,7 @@
 #include "crypto/openssl/hash.hpp"
 #include "concord.cmf.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "crypto/digest.hpp"
 
 namespace concord::client::clientservice {
 
@@ -41,7 +42,7 @@ class StateSnapshotServiceImpl final
 
  private:
   void isHashValid(uint64_t snapshot_id,
-                   const concord::crypto::openssl::SHA3_256::Digest& final_hash,
+                   const concord::crypto::SHA3_256::Digest& final_hash,
                    const std::chrono::milliseconds& timeout,
                    grpc::Status& return_status);
 

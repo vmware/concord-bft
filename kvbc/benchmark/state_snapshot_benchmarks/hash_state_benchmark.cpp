@@ -18,7 +18,6 @@
 #include "hex_tools.h"
 #include "kv_types.hpp"
 #include "rocksdb/native_client.h"
-#include "crypto/openssl/hash.hpp"
 #include "thread_pool.hpp"
 
 #include "multi_get_batch.hpp"
@@ -199,7 +198,7 @@ int run(int argc, char* argv[]) {
   auto db = NativeClient::newClient(config["rocksdb-path"].as<std::string>(), read_only, opts);
 
   // Start with an arbitrary hash - SHA2-256('a').
-  auto current_hash = concord::crypto::openssl::SHA2_256{}.digest("a", 1);
+  auto current_hash = concord::crypto::SHA2_256{}.digest("a", 1);
   const auto time = Time{};
   auto multi_get_batch = MultiGetBatch<Buffer>{static_cast<std::uint64_t>(point_lookup_batch_size),
                                                static_cast<std::uint32_t>(point_lookup_threads)};
@@ -243,7 +242,7 @@ int run(int argc, char* argv[]) {
       for (auto j = 0ull; j < serialized_keys.size(); ++j) {
         ConcordAssert(statuses[j].ok());
         bytes_read += (serialized_keys[j].size() + value_slices[j].size());
-        auto h = concord::crypto::openssl::SHA2_256{};
+        auto h = concord::crypto::SHA2_256{};
         h.init();
         h.update(current_hash.data(), current_hash.size());
         const auto& ver_key = multi_get_batch[key_idx];

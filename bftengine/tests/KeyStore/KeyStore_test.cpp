@@ -1,4 +1,5 @@
 #include "KeyStore.h"
+#include "crypto/digest.hpp"
 #include "gtest/gtest.h"
 #include "keys_and_signatures.cmf.hpp"
 
@@ -52,7 +53,7 @@ TEST(checkAndSetState_set_true, ClientKeyStore) {
   cks.save(str_ser);
   ASSERT_TRUE(cks.published());
   auto loaded_keys = cks.load();
-  auto hashed_keys = concord::crypto::openssl::SHA3_256().digest(str_ser.c_str(), str_ser.size());
+  auto hashed_keys = concord::crypto::SHA3_256().digest(str_ser.c_str(), str_ser.size());
   auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
   ASSERT_EQ(loaded_keys, strHashed_keys);
 }

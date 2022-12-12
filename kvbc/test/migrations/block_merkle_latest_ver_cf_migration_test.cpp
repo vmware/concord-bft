@@ -19,7 +19,6 @@
 #include "categorization/db_categories.h"
 #include "categorization/kv_blockchain.h"
 #include "hex_tools.h"
-#include "crypto/openssl/hash.hpp"
 #include "storage/test/storage_test_common.h"
 
 #include "util/filesystem.hpp"
@@ -142,7 +141,7 @@ class block_merkle_latest_ver_cf_migration_test : public Test {
     // Firstly, accumulate the key-values in a write batch, with the key hashes as keys.
     it.first();
     while (it) {
-      const auto hash = concord::crypto::openssl::SHA3_256{}.digest(it.keyView().data(), it.keyView().size());
+      const auto hash = concord::crypto::SHA3_256{}.digest(it.keyView().data(), it.keyView().size());
       batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hash, it.valueView());
       it.next();
     }

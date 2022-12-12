@@ -18,10 +18,9 @@
 
 #include "sparse_merkle/internal_node.h"
 #include "sliver.hpp"
-#include "crypto/openssl/hash.hpp"
 
 using concordUtils::Sliver;
-using concord::crypto::openssl::SHA3_256;
+using concord::crypto::SHA3_256;
 using namespace concord::kvbc::sparse_merkle;
 
 static constexpr size_t ROOT_INDEX = 0;

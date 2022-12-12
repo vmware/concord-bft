@@ -12,6 +12,7 @@
 #pragma once
 
 #include "hash.hpp"
+#include "crypto/crypto.hpp"
 #include "crypto/digest_creator.hpp"
 
 namespace concord::crypto::openssl {
