@@ -48,7 +48,7 @@ class ReplicasInfo {
   const std::set<PrincipalId>& idsOfExternalClients() const { return _idsOfExternalClients; }
   const std::set<PrincipalId>& idsOfInternalClients() const { return _idsOfInternalClients; }
   const std::set<PrincipalId>& idsOfIClientServices() const { return _idsOfClientServices; }
-  PrincipalId getIdOfOperator() { return _operator_id; }
+  PrincipalId getIdOfOperator() const { return _operator_id; }
   ReplicaId primaryOfView(ViewNum view) const { return (view % _numberOfReplicas); }
 
   // TODO(GG): Improve the following methods (Don't use simple arrays. Use iterators or something similar)
