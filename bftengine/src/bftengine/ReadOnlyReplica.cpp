@@ -67,6 +67,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                    ReplicaConfig::instance().getPublicKeysOfClients(),
                    concord::crypto::KeyFormat::PemFormat,
+                   {{repsInfo->getIdOfOperator(),
+                     ReplicaConfig::instance().getOperatorPublicKey(),
+                     concord::crypto::KeyFormat::PemFormat}},
                    *repsInfo);
 
   // Register status handler for Read-Only replica

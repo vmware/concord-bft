@@ -144,6 +144,10 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
         return ret;
       }()} {
+  _operator_id = config.operatorEnabled_
+                     ? static_cast<PrincipalId>(numberOfReplicas() + _idsOfClientProxies.size() +
+                                                _idsOfExternalClients.size() + _idsOfClientServices.size())
+                     : 0;
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 

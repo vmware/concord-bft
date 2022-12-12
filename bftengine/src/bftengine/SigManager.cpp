@@ -37,13 +37,15 @@ std::string SigManager::getClientsPublicKeys() {
   return std::string(output.begin(), output.end());
 }
 
-SigManager* SigManager::initImpl(ReplicaId myId,
-                                 const Key& mySigPrivateKey,
-                                 const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                                 KeyFormat replicasKeysFormat,
-                                 const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                                 KeyFormat clientsKeysFormat,
-                                 ReplicasInfo& replicasInfo) {
+SigManager* SigManager::initImpl(
+    ReplicaId myId,
+    const Key& mySigPrivateKey,
+    const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+    KeyFormat replicasKeysFormat,
+    const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+    KeyFormat clientsKeysFormat,
+    const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
+    ReplicasInfo& replicasInfo) {
   vector<pair<Key, KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
@@ -96,6 +98,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
       publickeys,
       publicKeysMapping,
       ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
+      operatorKey,
       replicasInfo);
 }
 
@@ -106,12 +109,30 @@ SigManager* SigManager::init(ReplicaId myId,
                              const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
                              KeyFormat clientsKeysFormat,
                              ReplicasInfo& replicasInfo) {
+  return init(myId,
+              mySigPrivateKey,
+              publicKeysOfReplicas,
+              replicasKeysFormat,
+              publicKeysOfClients,
+              clientsKeysFormat,
+              std::nullopt,
+              replicasInfo);
+}
+SigManager* SigManager::init(ReplicaId myId,
+                             const Key& mySigPrivateKey,
+                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                             KeyFormat replicasKeysFormat,
+                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                             KeyFormat clientsKeysFormat,
+                             const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
+                             ReplicasInfo& replicasInfo) {
   SigManager* sm = initImpl(myId,
                             mySigPrivateKey,
                             publicKeysOfReplicas,
                             replicasKeysFormat,
                             publicKeysOfClients,
                             clientsKeysFormat,
+                            operatorKey,
                             replicasInfo);
   return SigManager::instance(sm);
 }
@@ -122,6 +143,7 @@ SigManager::SigManager(PrincipalId myId,
                        const vector<pair<Key, KeyFormat>>& publickeys,
                        const map<PrincipalId, KeyIndex>& publicKeysMapping,
                        bool clientTransactionSigningEnabled,
+                       const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
                        ReplicasInfo& replicasInfo)
     : myId_(myId),
       clientTransactionSigningEnabled_(clientTransactionSigningEnabled),
@@ -162,6 +184,14 @@ SigManager::SigManager(PrincipalId myId,
       LOG_DEBUG(KEY_EX_LOG, "Adding key of client " << p.first << " key size " << key.size());
     }
   }
+  if (operatorKey.has_value()) {
+    auto& [operator_id, operator_pub_key, operator_key_fmt] = operatorKey.value();
+    if (operator_id > 0 && !operator_pub_key.empty()) {
+      verifiers_[operator_id] = std::shared_ptr<IVerifier>(
+          Factory::getVerifier(operator_pub_key, ReplicaConfig::instance().operatorMsgSigningAlgo, operator_key_fmt));
+    }
+  }
+
   clientsPublicKeys_.version = 1;  // version `1` suggests RSAVerifier.
   LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();

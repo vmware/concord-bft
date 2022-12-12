@@ -49,13 +49,15 @@ namespace {
 ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
   ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   auto &config = ld.repConfig;
-
   ld.sigManager = SigManager::init(config.replicaId,
                                    config.replicaPrivateKey,
                                    config.publicKeysOfReplicas,
                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                    ReplicaConfig::instance().getPublicKeysOfClients(),
                                    concord::crypto::KeyFormat::PemFormat,
+                                   {{ld.repsInfo->getIdOfOperator(),
+                                     ReplicaConfig::instance().getOperatorPublicKey(),
+                                     concord::crypto::KeyFormat::PemFormat}},
                                    *ld.repsInfo);
 
   std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,
