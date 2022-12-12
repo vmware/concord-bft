@@ -134,21 +134,7 @@ class PreProcessor : public bftEngine::IExternalObject {
                std::shared_ptr<concord::performance::PerformanceManager> &sdm);
 
   ~PreProcessor();
-<<<<<<< HEAD
   void stop() override;
-=======
-  void stop();
-
-  static void addNewPreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                                 std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
-                                 std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                                 bftEngine::IRequestsHandler &requestsHandler,
-                                 InternalReplicaApi &myReplica,
-                                 concordUtil::Timers &timers,
-                                 std::shared_ptr<concord::performance::PerformanceManager> &pm);
-
-  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
->>>>>>> 63754006... Fix bug: access to DB after DB adapter obj destroyed
 
   // For testing purposes
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
