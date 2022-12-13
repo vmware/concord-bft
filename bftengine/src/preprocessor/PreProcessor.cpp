@@ -314,7 +314,6 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
   }
 }
 
-
 void PreProcessor::stop() {
   if (!msgLoopDone_) {
     msgLoopDone_ = true;

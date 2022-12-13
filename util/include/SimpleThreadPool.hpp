@@ -66,6 +66,11 @@ class SimpleThreadPool {
     return job_queue_.size();
   }
 
+  bool isStopped() {
+    guard g(queue_lock_);
+    return stopped_;
+  }
+
  protected:
   bool load(Job*& outJob);
   void execute(Job*);
