@@ -116,12 +116,12 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
 }
 
 template <>
-void ReadOnlyReplica::onMessage<StateTransferMsg>(unique_ptr<StateTransferMsg> msg) {
+void ReadOnlyReplica::onMessage<StateTransferMsg>(std::unique_ptr<StateTransferMsg> msg) {
   ReplicaForStateTransfer::onMessage(move(msg));
 }
 
 template <>
-void ReadOnlyReplica::onMessage<CheckpointMsg>(unique_ptr<CheckpointMsg> msg) {
+void ReadOnlyReplica::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> msg) {
   if (isCollectingState()) {
     return;
   }
@@ -192,7 +192,7 @@ void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const Ch
 }
 
 template <>
-void ReadOnlyReplica::onMessage<ClientRequestMsg>(unique_ptr<ClientRequestMsg> msg) {
+void ReadOnlyReplica::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> msg) {
   const NodeIdType senderId = msg->senderId();
   const NodeIdType clientId = msg->clientProxyId();
   const bool reconfig_flag = (msg->flags() & MsgFlag::RECONFIG_FLAG) != 0;

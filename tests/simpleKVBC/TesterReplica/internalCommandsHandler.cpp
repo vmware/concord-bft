@@ -284,7 +284,7 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
       deserialize(reply_buffer_as_uint8, reply_buffer_as_uint8 + req.outActualReplySize, reply);
       SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
       write_rep.latest_block = currBlock + 1;
-      vector<uint8_t> serialized_reply;
+      std::vector<uint8_t> serialized_reply;
       serialize(serialized_reply, reply);
 
       // We expect modifying the value of latest_block in the SKVBCWriteReply
@@ -469,7 +469,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
   else
     write_rep.latest_block = currBlock;
 
-  vector<uint8_t> serialized_reply;
+  std::vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
   ConcordAssert(serialized_reply.size() <= maxReplySize);
   copy(serialized_reply.begin(), serialized_reply.end(), outReply);
@@ -514,7 +514,7 @@ OperationResult InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCG
     }
   }
 
-  vector<uint8_t> serialized_reply;
+  std::vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
   if (maxReplySize < serialized_reply.size()) {
     LOG_ERROR(m_logger,
@@ -552,7 +552,7 @@ OperationResult InternalCommandsHandler::executeReadCommand(const SKVBCReadReque
     read_rep.reads[i].second.assign(value.begin(), value.end());
   }
 
-  vector<uint8_t> serialized_reply;
+  std::vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
   if (maxReplySize < serialized_reply.size()) {
     LOG_ERROR(m_logger,
@@ -575,7 +575,7 @@ OperationResult InternalCommandsHandler::executeGetLastBlockCommand(size_t maxRe
   SKVBCGetLastBlockReply &glb_rep = std::get<SKVBCGetLastBlockReply>(reply.reply);
   glb_rep.latest_block = m_storage->getLastBlockId();
 
-  vector<uint8_t> serialized_reply;
+  std::vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
   if (serialized_reply.size() > maxReplySize) {
     LOG_ERROR(m_logger,

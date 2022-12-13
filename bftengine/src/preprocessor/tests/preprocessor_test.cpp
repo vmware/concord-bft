@@ -24,6 +24,7 @@
 #include "IncomingMsgsStorageImp.hpp"
 #include "gtest/gtest.h"
 #include "tests/config/test_comm_config.hpp"
+#include "bftengine/MsgsCommunicator.hpp"
 
 using namespace std;
 using namespace bft::communication;

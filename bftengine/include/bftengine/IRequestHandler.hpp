@@ -22,7 +22,6 @@
 #include <deque>
 #include "OpenTracing.hpp"
 #include "TimeService.hpp"
-#include "PersistentStorageImp.hpp"
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
@@ -34,6 +33,10 @@ class CronTableRegistry;
 }
 
 namespace bftEngine {
+namespace impl {
+class PersistentStorage;
+}
+
 class IRequestsHandler {
  public:
   struct ExecutionRequest {
