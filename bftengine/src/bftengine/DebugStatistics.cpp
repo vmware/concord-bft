@@ -140,28 +140,10 @@ void DebugStatistics::clearCounters(DebugStatDesc& d) {
   d.pendingRequests = 0;
 }
 
-#ifdef USE_TLS
-void DebugStatistics::initDebugStatisticsData() {
-  ThreadLocalData* l = ThreadLocalData::Get();
-  ConcordAssert(l->debugStatData == nullptr);
-  DebugStatDesc* dsd = new DebugStatDesc;
-  l->debugStatData = dsd;
-}
-
-void DebugStatistics::freeDebugStatisticsData() {
-  ThreadLocalData* l = ThreadLocalData::Get();
-  DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
-  delete dsd;
-  l->debugStatData = nullptr;
-}
-#else
-
 DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
 
 void DebugStatistics::initDebugStatisticsData() {}
 
 void DebugStatistics::freeDebugStatisticsData() {}
-}
-}
 
-#endif
+}
