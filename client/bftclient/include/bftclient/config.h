@@ -22,6 +22,7 @@
 #include "bftclient/base_types.h"
 #include "bftclient/quorums.h"
 #include "secrets/secret_data.h"
+#include "crypto/crypto.hpp"
 
 using namespace std::chrono_literals;
 
@@ -70,6 +71,7 @@ struct ClientConfig {
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
   std::optional<concord::secretsmanager::SecretData> secrets_manager_config = std::nullopt;
   std::optional<std::string> replicas_master_key_folder_path = "./replicas_rsa_keys";
+  concord::crypto::SignatureAlgorithm message_sigs_algorithm = concord::crypto::SignatureAlgorithm::EdDSA;
 };
 
 // Generic per-request configuration shared by reads and writes.
