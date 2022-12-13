@@ -204,6 +204,7 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }
+
   LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) shutting down...");
   return 0;
 }
