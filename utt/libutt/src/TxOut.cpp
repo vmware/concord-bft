@@ -1,7 +1,7 @@
 #include <utt/Configuration.h>
 
 #include <optional>
-
+#include <xutils/Utils.h>
 #include <utt/Address.h>
 #include <utt/Coin.h>
 #include <utt/Params.h>
@@ -25,8 +25,7 @@ std::ostream& operator<<(std::ostream& out, const libutt::TxOut& txout) {
   // out << txout.t << endl;
   out << txout.icm;
   out << txout.icm_pok;
-  out << txout.ctxt.size() << endl;
-  out.write((char*)(txout.ctxt.data()), (long)txout.ctxt.size());
+  out << libutt::Utils::bin2hex(txout.ctxt.data(), txout.ctxt.size());
   return out;
 }
 
@@ -50,11 +49,12 @@ std::istream& operator>>(std::istream& in, libutt::TxOut& txout) {
   // libff::consume_OUTPUT_NEWLINE(in);
   in >> txout.icm;
   in >> txout.icm_pok;
-  size_t ctxt_size{0};
-  in >> ctxt_size;
-  libff::consume_OUTPUT_NEWLINE(in);
-  txout.ctxt.resize(ctxt_size);
-  if (ctxt_size > 0) in.read((char*)(txout.ctxt.data()), (long)ctxt_size);
+  std::string hex_str;
+  in >> hex_str;
+  if (hex_str.size() > 0) {
+    txout.ctxt.resize(hex_str.size() / 2);  // 2 digits in hex compose a single byte
+    libutt::Utils::hex2bin(hex_str, txout.ctxt.data(), hex_str.size() / 2);
+  }
   return in;
 }
 
