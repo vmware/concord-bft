@@ -146,4 +146,5 @@ void DebugStatistics::initDebugStatisticsData() {}
 
 void DebugStatistics::freeDebugStatisticsData() {}
 
-}
+}  // namespace impl
+}  // namespace bftEngine
