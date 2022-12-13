@@ -298,6 +298,7 @@ class BftTestNetwork:
         self.clients = OrderedDict(clients)
         self.metrics = metrics
         self.reserved_clients = {}
+        self.debug_tool = None # As of now, debug tool is set only on is_existing=False runs
         self.reserved_client_ids_in_use = []
         if client_factory:
             self.client_factory = client_factory
@@ -716,7 +717,9 @@ class BftTestNetwork:
             cmd = self.config.start_replica_cmd(self.builddir, replica_id)
         # Potentially, set debug tool name as 1st parameter (usually this will happen for external tools only)
         # if debug tool is set, return the actual replica binary path index in the command
-        replica_binary_path_index = self.debug_tool.set_tool_in_replica_command(cmd)
+        replica_binary_path_index = 0
+        if self.debug_tool:
+            replica_binary_path_index = self.debug_tool.set_tool_in_replica_command(cmd)
         if self.certdir:
             cmd.append("-c")
             cmd.append(self.certdir + "/" + str(replica_id))
@@ -862,7 +865,7 @@ class BftTestNetwork:
                     self.verify_matching_replica_client_communication(replica_test_log_path)
             # If we run with some debug tool, let the module process the triggered proc process, and set the process info
             # according to the returned value. Some debug tools spawn multiple processes.
-            if self.debug_tool.name:
+            if self.debug_tool and self.debug_tool.name:
                 self.procs[replica_id] = self.debug_tool.process_pids_after_replica_started(proc, replica_id)
             else:
                 self.procs[replica_id] = proc
@@ -991,7 +994,8 @@ class BftTestNetwork:
                     for fd in self.open_fds.get(replica_id, ()):
                         fd.close()
                     proc.wait()
-                    self.debug_tool.process_output(replica_id, proc, self.testdir)
+                    if self.debug_tool:
+                        self.debug_tool.process_output(replica_id, proc, self.testdir)
                 del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
