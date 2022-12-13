@@ -13,6 +13,7 @@
 
 #include "cre_interfaces.hpp"
 #include "secrets/secrets_manager_plain.h"
+#include "crypto/crypto.hpp"
 
 #include <memory>
 #include <vector>
@@ -42,7 +43,8 @@ class ClientTlsKeyExchangeHandler : public IStateHandler {
                               const std::vector<uint32_t>& bft_clients,
                               uint16_t clientservice_pid,
                               bool use_unified_certificates,
-                              std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
+                              std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+                              crypto::SignatureAlgorithm sig_algorithm);
   bool validate(const State&) const override;
   bool execute(const State&, WriteState&) override;
   void exchangeTlsKeys(const std::string& pkey_path, const std::string& cert_path, const uint64_t blockid);
@@ -62,6 +64,7 @@ class ClientTlsKeyExchangeHandler : public IStateHandler {
   uint64_t init_last_tls_update_block_;
   concord::secretsmanager::SecretsManagerPlain psm_;
   std::string version_path_;
+  crypto::SignatureAlgorithm sig_algorithm_;
 };
 
 class ClientMasterKeyExchangeHandler : public IStateHandler {
@@ -69,6 +72,7 @@ class ClientMasterKeyExchangeHandler : public IStateHandler {
   ClientMasterKeyExchangeHandler(uint32_t client_id,
                                  const std::string& master_key_path,
                                  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+                                 crypto::SignatureAlgorithm sig_algorithm,
                                  uint64_t last_update_block);
   bool validate(const State&) const override;
   bool execute(const State&, WriteState&) override;
@@ -81,6 +85,7 @@ class ClientMasterKeyExchangeHandler : public IStateHandler {
   uint32_t client_id_;
   std::string master_key_path_;
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  crypto::SignatureAlgorithm sig_algorithm_;
   uint64_t init_last_update_block_;
   concord::secretsmanager::SecretsManagerPlain psm_;
 };

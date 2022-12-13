@@ -12,7 +12,6 @@ target_include_directories(cre PUBLIC
         ${bftengine_SOURCE_DIR}/include/bftengine)
 
 target_link_libraries(cre PUBLIC
-        corebft
         bftclient_new
         cmf_messages
         util)
