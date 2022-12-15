@@ -31,11 +31,10 @@ IThresholdVerifier *EdDSAMultisigFactory::newVerifier(ShareID reqSigners,
                                                       const std::vector<std::string> &verifKeysStr) const {
   using SingleVerifier = EdDSAMultisigVerifier::SingleVerifier;
   using PublicKey = SingleVerifier::VerifierKeyType;
-  ConcordAssertEQ(verifKeysStr.size(), static_cast<std::vector<std::string>::size_type>(totalSigners + 1));
+  ConcordAssertEQ(verifKeysStr.size(), static_cast<std::vector<std::string>::size_type>(totalSigners));
   std::vector<SingleVerifier> verifiers;
-  verifiers.emplace_back(SingleVerifier{EdDSAThreshsignPublicKey{EdDSAThreshsignPublicKey::ByteArray{}}});
   std::transform(
-      verifKeysStr.begin() + 1, verifKeysStr.end(), std::back_inserter(verifiers), [](const std::string &publicKeyHex) {
+      verifKeysStr.begin(), verifKeysStr.end(), std::back_inserter(verifiers), [](const std::string &publicKeyHex) {
         LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(publicKeyHex));
         return EdDSAMultisigVerifier::SingleVerifier(fromHexString<PublicKey>(publicKeyHex));
       });
@@ -54,15 +53,10 @@ IThresholdFactory::SignersVerifierTuple EdDSAMultisigFactory::newRandomSigners(N
                                                                                NumSharesType numSigners) const {
   std::vector<EdDSAThreshsignPrivateKey> allPrivateKeys;
   std::vector<EdDSAMultisigVerifier::SingleVerifier> allVerifiers;
-  std::vector<std::unique_ptr<IThresholdSigner>> signers(static_cast<size_t>(numSigners + 1));
-
-  // One-based indices
-  allPrivateKeys.push_back(EdDSAThreshsignPrivateKey{EdDSAThreshsignPrivateKey::ByteArray{}});
-  allVerifiers.emplace_back(EdDSAThreshsignPublicKey{EdDSAThreshsignPublicKey::ByteArray{}});
-  signers[0].reset(new EdDSAMultisigSigner(allPrivateKeys[0], (uint32_t)0));
+  std::vector<std::unique_ptr<IThresholdSigner>> signers(static_cast<size_t>(numSigners));
 
   ConcordAssertLE(reqSigners, numSigners);
-  for (size_t i = 1; i <= static_cast<size_t>(numSigners); i++) {
+  for (size_t i = 0; i < static_cast<size_t>(numSigners); i++) {
     auto [privateKey, publicKey] = newKeyPair();
     const auto &priv = *dynamic_cast<EdDSAThreshsignPrivateKey *>(privateKey.get());
     const auto &pub = *dynamic_cast<EdDSAThreshsignPublicKey *>(publicKey.get());

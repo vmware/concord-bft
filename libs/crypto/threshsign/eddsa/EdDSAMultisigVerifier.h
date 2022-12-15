@@ -56,6 +56,7 @@ class EdDSAMultisigVerifier : public IThresholdVerifier {
   /// This is stubbed as there is no meaning to a single public key in this implementation
   const IPublicKey &getPublicKey() const override;
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
+  const concord::crypto::IVerifier &getVerifier(size_t verifier) const;
 
   bool verifySingleSignature(const concord::Byte *msg, size_t msgLen, const SingleEdDSASignature &signature) const;
   ~EdDSAMultisigVerifier() override = default;
