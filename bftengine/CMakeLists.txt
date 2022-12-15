@@ -38,6 +38,7 @@ set(corebft_source_files
     src/bftengine/ReplicaFactory.cpp
     src/bftengine/RequestsBatchingLogic.cpp
     src/bftengine/ReplicaStatusHandlers.cpp
+    src/bftengine/CryptoManager.cpp
     src/bcstatetransfer/BCStateTran.cpp
     src/bcstatetransfer/BCStateTranInterface.cpp
     src/bcstatetransfer/RVBManager.cpp

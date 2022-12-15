@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <memory>
 
 #include "log/logger.hpp"
@@ -31,81 +32,60 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    * Singleton access method
    * For the first time should be called with a non-null argument
    */
-  static CryptoManager& instance(std::unique_ptr<Cryptosystem>&& cryptoSys = nullptr) {
-    static CryptoManager cm_(std::move(cryptoSys));
-    return cm_;
-  }
-  std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit(const SeqNum sn) const {
-    return get(sn)->thresholdSigner_;
-  }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit(const SeqNum sn) const {
-    return get(sn)->thresholdVerifierForSlowPathCommit_;
-  }
-  std::shared_ptr<IThresholdSigner> thresholdSignerForCommit(const SeqNum sn) const {
-    return get(sn)->thresholdSigner_;
-  }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit(const SeqNum sn) const {
-    return get(sn)->thresholdVerifierForCommit_;
-  }
-  std::shared_ptr<IThresholdSigner> thresholdSignerForOptimisticCommit(const SeqNum sn) const {
-    return get(sn)->thresholdSigner_;
-  }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const SeqNum sn) const {
-    return get(sn)->thresholdVerifierForOptimisticCommit_;
-  }
 
-  std::unique_ptr<Cryptosystem>& getLatestCryptoSystem() const { return cryptoSystems_.rbegin()->second->cryptosys_; }
+  static std::shared_ptr<CryptoManager> s_cm;
+
+  static std::shared_ptr<CryptoManager> init(std::unique_ptr<Cryptosystem>&& cryptoSys);
+  static CryptoManager& instance();
+  static void reset(std::shared_ptr<CryptoManager> other);
+
+  std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit(const SeqNum sn) const;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit(const SeqNum sn) const;
+  std::shared_ptr<IThresholdSigner> thresholdSignerForCommit(const SeqNum sn) const;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit(const SeqNum sn) const;
+  std::shared_ptr<IThresholdSigner> thresholdSignerForOptimisticCommit(const SeqNum sn) const;
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const SeqNum sn) const;
+  std::unique_ptr<Cryptosystem>& getLatestCryptoSystem() const;
 
   /**
    * @return An algorithm identifier for the latest threshold signature scheme
    */
-  concord::crypto::SignatureAlgorithm getLatestSignatureAlgorithm() const {
-    const std::unordered_map<std::string, concord::crypto::SignatureAlgorithm> typeToAlgorithm{
-        {MULTISIG_EDDSA_SCHEME, concord::crypto::SignatureAlgorithm::EdDSA},
-    };
-    auto currentType = getLatestCryptoSystem()->getType();
-    return typeToAlgorithm.at(currentType);
-  }
+  concord::crypto::SignatureAlgorithm getLatestSignatureAlgorithm() const;
 
   // IMultiSigKeyGenerator methods
-  std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override {
-    LOG_INFO(logger(), "Generating new multisig key pair");
-    auto [priv, pub] = getLatestCryptoSystem()->generateNewKeyPair();
-    return {priv, pub, getLatestSignatureAlgorithm()};
-  }
+  std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override;
 
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.
-  // Therefore the first called will create a CryptoSys
+  // Therefore the first called will create ca CryptoSys
   void onPrivateKeyExchange(const std::string& secretKey,
                             const std::string& verificationKey,
-                            const SeqNum& sn) override {
-    LOG_INFO(logger(), "Private key exchange:" << KVLOG(sn, verificationKey));
-    auto sys_wrapper = create(sn);
-    sys_wrapper->cryptosys_->updateKeys(secretKey, verificationKey);
-    sys_wrapper->init();
-  }
+                            const SeqNum& sn) override;
+
   void onPublicKeyExchange(const std::string& verificationKey,
                            const std::uint16_t& signerIndex,
-                           const SeqNum& sn) override {
-    LOG_INFO(logger(), "Public key exchange:" << KVLOG(sn, signerIndex, verificationKey));
-    auto sys = create(sn);
-    // the +1 is due to Crypto system starts counting from 1
-    sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex + 1);
-    sys->init();
-  }
+                           const SeqNum& sn) override;
 
-  void onCheckpoint(const uint64_t& checkpoint) {
-    LOG_INFO(logger(), "Checkpoint: " << checkpoint);
-    // clearOldKeys();
-  }
+  void onCheckpoint(uint64_t newCheckpoint);
+
+  // Important note:
+  // CryptoManager's cryptosystems are currently implemented using a naive eddsa multisig scheme
+  // The following methods break the abstraction of the threshsign library in order
+  // to extract ISigner and IVerifier object.
+  // This abstraction is broken to allow using the consensus key as the replica's main key (In SigManager), thus
+  // enabling an operator to change it (key rotation).
+  // This code will need to be refactored if a different cryptosystem is used.
+  IThresholdSigner* getSigner(SeqNum seq) const;
+  IThresholdVerifier* getMultisigVerifier(SeqNum seq) const;
+  std::array<std::shared_ptr<IThresholdVerifier>, 2> getLatestVerifiers() const;
+  std::array<std::shared_ptr<IThresholdSigner>, 2> getLatestSigners() const;
 
  private:
   /**
    *  Holds Cryptosystem, signers and verifiers per checkpoint
    */
   struct CryptoSystemWrapper {
-    CryptoSystemWrapper(std::unique_ptr<Cryptosystem>&& cs) : cryptosys_(std::move(cs)) {}
+    CryptoSystemWrapper(std::unique_ptr<Cryptosystem>&& cs);
     CryptoSystemWrapper(const CryptoSystemWrapper&) = delete;
     std::unique_ptr<Cryptosystem> cryptosys_;
     std::shared_ptr<IThresholdSigner> thresholdSigner_;
@@ -119,68 +99,33 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     // verifier of a threshold signature (for threshold N out of N)
     std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit_;
 
-    void init() {
-      std::uint16_t f{ReplicaConfig::instance().getfVal()};
-      std::uint16_t c{ReplicaConfig::instance().getcVal()};
-      std::uint16_t numSigners{ReplicaConfig::instance().getnumReplicas()};
-      thresholdSigner_.reset(cryptosys_->createThresholdSigner());
-      thresholdVerifierForSlowPathCommit_.reset(cryptosys_->createThresholdVerifier(f * 2 + c + 1));
-      thresholdVerifierForCommit_.reset(cryptosys_->createThresholdVerifier(f * 3 + c + 1));
-      thresholdVerifierForOptimisticCommit_.reset(cryptosys_->createThresholdVerifier(numSigners));
-    }
+    void init();
   };
+  using SeqToSystemMap = std::map<std::uint64_t, std::shared_ptr<CryptoSystemWrapper>>;
 
   // accessing existing Cryptosystems
-  std::shared_ptr<CryptoSystemWrapper> get(const SeqNum& sn) const {
-    // find last chckp that is less than a chckp of a given sn
-    uint64_t chckp = (sn - 1) / checkpointWindowSize;
-    auto it = cryptoSystems_.rbegin();
-    while (it != cryptoSystems_.rend()) {
-      if (it->first <= chckp) {
-        // LOG_TRACE(logger(), KVLOG(sn, chckp, it->first, it->second));
-        return it->second;
-      }
-      it++;
-    }
-    LOG_FATAL(logger(), "Cryptosystem not found for checkpoint: " << chckp << "seqnum: " << sn);
-    ConcordAssert(false && "should never reach here");
-  }
+  std::shared_ptr<CryptoSystemWrapper> get(const SeqNum& sn) const;
+
   // create CryptoSys for sn if still doesn't exist
-  std::shared_ptr<CryptoSystemWrapper> create(const SeqNum& sn) {
-    // Cryptosystem for this sn will be activated upon reaching a second checkpoint from now
-    uint64_t chckp = sn / checkpointWindowSize + 2;
-    if (auto it = cryptoSystems_.find(chckp); it != cryptoSystems_.end()) return it->second;
-    // copy construct new Cryptosystem from a last one as we want it to include all the existing keys
-    std::unique_ptr<Cryptosystem> cs =
-        std::make_unique<Cryptosystem>(*cryptoSystems_.rbegin()->second->cryptosys_.get());
-    LOG_INFO(logger(), "created new Cryptosytem for checkpoint: " << chckp);
-    return cryptoSystems_.insert(std::make_pair(chckp, std::make_shared<CryptoSystemWrapper>(std::move(cs))))
-        .first->second;
-  }
+  std::shared_ptr<CryptoSystemWrapper> create(const SeqNum& sn);
 
-  // store at most 2 cryptosystems
-  void clearOldKeys() {
-    while (cryptoSystems_.size() > 2) {
-      LOG_INFO(logger(), "delete Cryptosytem for checkpoint: " << cryptoSystems_.begin()->first);
-      cryptoSystems_.erase(cryptoSystems_.begin());
-    }
-  }
 
-  CryptoManager(std::unique_ptr<Cryptosystem>&& cryptoSys) {
-    // default cryptosystem is always at chckp 0
-    cryptoSystems_.insert(std::make_pair(0, std::make_shared<CryptoSystemWrapper>(std::move(cryptoSys))));
-    cryptoSystems_.begin()->second->init();
-  }
-  logging::Logger& logger() const {
-    static logging::Logger logger_ = logging::getLogger("concord.bft.crypto-mgr");
-    return logger_;
-  }
+  CryptoManager(std::unique_ptr<Cryptosystem>&& cryptoSys);
+  logging::Logger& logger() const;
   CryptoManager(const CryptoManager&) = delete;
   CryptoManager(const CryptoManager&&) = delete;
   CryptoManager& operator=(const CryptoManager&) = delete;
   CryptoManager& operator=(const CryptoManager&&) = delete;
 
+  void assertMapSizeValid() const;
+  const SeqToSystemMap& getSeqToSystem() const;
+
   // chckp -> CryptoSys
-  std::map<std::uint64_t, std::shared_ptr<CryptoSystemWrapper>> cryptoSystems_;
+  // TODO: this can be converted to a concurrent queue instead of using a mutex
+  SeqToSystemMap cryptoSystems_;
+  // Old cryptosystems can be removed on a checkpoint, which might invalidate
+  // existing cryptoSystems_ iterators. We thus protect cryptoSystems_ access with a mutex
+  // and rely on shared_ptr to keep old cryptosystems alive in concurrent threads when they lag
+  mutable std::mutex mutex_;
 };
 }  // namespace bftEngine
