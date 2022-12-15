@@ -129,6 +129,7 @@ struct ConcordClientConfig {
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;
+  uint64_t metrics_dump_interval_ms = 600;
 };
 
 struct StateSnapshotRequest {

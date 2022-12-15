@@ -178,7 +178,8 @@ int main(int argc, char** argv) {
   }
 
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
-  clientservice = std::make_unique<ClientService>(std::move(concord_client), metrics_collector->getAggregator());
+  clientservice = std::make_unique<ClientService>(
+      std::move(concord_client), metrics_collector->getAggregator(), config.metrics_dump_interval_ms);
 
   try {
     auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<unsigned>());

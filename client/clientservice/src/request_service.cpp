@@ -16,9 +16,11 @@
 #include "client/concordclient/concord_client.hpp"
 #include "concord_client_request.pb.h"
 #include "client/thin-replica-client/trace_contexts.hpp"
+#include "throughput.hpp"
 
 using namespace client::thin_replica_client;
 using namespace vmware::concord::client::concord_client_request::v1;
+using concord::util::DurationTracker;
 
 namespace concord::client::clientservice {
 
@@ -154,6 +156,8 @@ void RequestServiceCallData::sendToConcordClient() {
                                 ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_INTERNAL));
           break;
       }
+      metrics_.num_failed_requests++;
+      updateAggregator();
       this->populateResult(status);
       return;
     }
@@ -166,6 +170,8 @@ void RequestServiceCallData::sendToConcordClient() {
       ConcordClientResponse concord_response;
       if (!concord_response.ParseFromArray(data.c_str(), data.size())) {
         status = grpc::Status(grpc::StatusCode::INTERNAL, "Internal error in parsing typed response");
+        metrics_.num_failed_requests++;
+        updateAggregator();
         this->populateResult(status);
         return;
       }
@@ -174,6 +180,8 @@ void RequestServiceCallData::sendToConcordClient() {
       this->response_.set_raw_response(std::move(data));
     }
 
+    metrics_.num_completed_requests++;
+    updateAggregator();
     this->populateResult(grpc::Status::OK);
   };
 
@@ -203,7 +211,28 @@ void RequestServiceCallData::sendToConcordClient() {
     config.request.span_context = carrier.str();
     client_->send(config, std::move(msg), callback);
   }
+  metrics_.num_incoming_requests++;
+  updateAggregator();
 }
+
+concordMetrics::Component RequestServiceCallData::metrics_component_{
+    concordMetrics::Component("RequestService", std::make_shared<concordMetrics::Aggregator>())};
+
+RequestServiceCallData::Metrics RequestServiceCallData::metrics_{
+    metrics_component_.RegisterAtomicCounter("num_completed_requests", 0),
+    metrics_component_.RegisterAtomicCounter("num_incoming_requests", 0),
+    metrics_component_.RegisterAtomicCounter("num_failed_requests", 0)};
+
+uint64_t RequestServiceCallData::metrics_dump_interval_ms_{0};
+
+void RequestServiceCallData::updateAggregator() {
+  static DurationTracker<std::chrono::milliseconds> aggregator_dt("aggregator_dt", true);
+  if (aggregator_dt.totalDuration() >= metrics_dump_interval_ms_) {
+    metrics_component_.UpdateAggregator();
+    aggregator_dt.start(true);
+  }
+}
+
 }  // namespace requestservice
 
 }  // namespace concord::client::clientservice

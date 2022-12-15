@@ -94,6 +94,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   readYamlField(yaml, "client_batching_max_messages_nbr", config.topology.client_batching_max_messages_nbr);
   readYamlField(yaml, "client_batching_flush_timeout_ms", config.topology.client_batching_flush_timeout_ms);
   readYamlField(yaml, "replicas_master_key_path", config.topology.path_to_replicas_master_key, false);
+  readYamlField(yaml, "metrics_dump_interval_ms", config.metrics_dump_interval_ms, false);
 
   parseConfigFileForStateSnapshot(config.state_snapshot_config, yaml);
 
