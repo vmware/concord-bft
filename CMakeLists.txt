@@ -165,15 +165,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
     string(APPEND CMAKE_CXX_FLAGS " -ferror-limit=3")
 
-    # Our RELIC library used in threshsign is in the habit of picking generic
-    # macro names like HASH and ALIGNED, which conflicts with our own code or
-    # other libraries. Even worse, compilers don't show 'macro redefined' warnings
-    # for system header files such as our installed RELIC library. So we do this:
-    # TODO: [TK] move to the threshsign module
-    string(APPEND CMAKE_CXX_FLAGS " --no-system-header-prefix relic")
-
-    string(APPEND CMAKE_CXX_FLAGS " -Wmacro-redefined")
-    string(APPEND CMAKE_CXX_FLAGS " -Wsign-compare")
 
     # Export a compile database for use by semantic analysis tools
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -197,7 +188,6 @@ add_subdirectory(libs/log)
 link_libraries(logging)
 add_subdirectory(util)
 add_subdirectory(libs)
-add_subdirectory(threshsign)
 add_subdirectory(communication)
 add_subdirectory(kvbc)
 add_subdirectory(performance)

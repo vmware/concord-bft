@@ -14,9 +14,9 @@
 #include <memory>
 
 #include "log/logger.hpp"
-#include "threshsign/ThresholdSignaturesTypes.h"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
 #include "crypto/crypto.hpp"

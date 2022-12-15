@@ -27,8 +27,8 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "kvstream.h"
 #include "demangle.hpp"
-#include "threshsign/IThresholdVerifier.h"
-#include "threshsign/IThresholdAccumulator.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdAccumulator.h"
 
 namespace bftEngine {
 namespace impl {

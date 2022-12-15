@@ -108,7 +108,6 @@ target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
   util
-  concord-crypto
   concordbft_storage
   preprocessor
   bftcommunication

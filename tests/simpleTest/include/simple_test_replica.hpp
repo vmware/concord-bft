@@ -27,8 +27,8 @@
 #include <thread>
 #include "commonDefs.h"
 #include "simple_test_replica_behavior.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "ReplicaFactory.hpp"
 
 using namespace bftEngine;

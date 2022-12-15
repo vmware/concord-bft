@@ -13,7 +13,7 @@
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "EpochManager.hpp"
-#include "threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdSigner.h"
 
 namespace bftEngine {
 namespace impl {

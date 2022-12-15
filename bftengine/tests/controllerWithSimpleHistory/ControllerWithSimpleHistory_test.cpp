@@ -11,7 +11,7 @@
 
 #include "ControllerWithSimpleHistory.hpp"
 #include "messages/SignedShareMsgs.hpp"
-#include "threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdSigner.h"
 #include "gtest/gtest.h"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"

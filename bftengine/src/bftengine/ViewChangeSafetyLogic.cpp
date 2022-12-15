@@ -10,7 +10,7 @@
 // file.
 
 #include "ViewChangeSafetyLogic.hpp"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "assertUtils.hpp"
 #include "CryptoManager.hpp"
 #include <set>
