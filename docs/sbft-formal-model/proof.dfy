@@ -216,17 +216,34 @@ module Proof {
              && commitMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
 
-  predicate {:opaque} EveryPrepareClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
+  predicate {:opaque} EveryPrepareClientOpMatchesRecordedPrePrepare_deprecated(c:Constants, v:Variables) {
     && v.WF(c)
-    && (forall prepareMsg | && prepareMsg in v.network.sentMsgs
-                           && prepareMsg.payload.Prepare?
-                           && IsHonestReplica(c, prepareMsg.sender)
-                           && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
-                           && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
-                           && prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
-                           && prepareMsg.payload.view == replicaVariables.view
+    && (forall prepareMsg | 
+                      && prepareMsg in v.network.sentMsgs
+                      && prepareMsg.payload.Prepare?
+                      && IsHonestReplica(c, prepareMsg.sender)
+                      && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
+                      && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
+                      && prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+                      && prepareMsg.payload.view == replicaVariables.view
           :: && var recordedPrePrepare := 
                 v.hosts[prepareMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID];
+             && recordedPrePrepare.Some?
+             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
+  }
+
+  predicate {:opaque} EveryPrepareClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall prepareMsg:Network.Message<Messages.Message> | 
+          && prepareMsg.payload.Prepare?
+          && IsHonestReplica(c, prepareMsg.sender)
+          && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
+          && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
+          && prepareMsg.sender in replicaVariables.workingWindow.preparesRcvd[prepareMsg.payload.seqID].Keys
+          && replicaVariables.workingWindow.preparesRcvd[prepareMsg.payload.seqID][prepareMsg.sender] == prepareMsg
+          //&& prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+          //&& prepareMsg.payload.view == replicaVariables.view
+          :: && var recordedPrePrepare := v.hosts[prepareMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID];
              && recordedPrePrepare.Some?
              && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
@@ -623,6 +640,19 @@ module Proof {
     }
   }
 
+  lemma CountPrepareMessages(proofSet:Replica.PrepareProofSet)
+    requires forall sender | sender in proofSet.Keys :: proofSet[sender].sender == sender
+    ensures |proofSet.Values| == |proofSet.Keys|
+  {
+    if |proofSet.Keys| > 0 {
+      var element :| element in proofSet.Keys;
+      var subMap := MapRemoveOne(proofSet, element);
+      CountPrepareMessages(subMap);
+      assert proofSet.Values == subMap.Values + {proofSet[element]};
+      assert proofSet.Keys == subMap.Keys + {element};
+    }
+  }
+
   lemma HonestPreservesEveryCommitIsSupportedByPreviouslySentPrepares(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -643,8 +673,23 @@ module Proof {
                 reveal_RecordedPreparesMatchHostView();
                 reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
                 reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
-                var recordedPrepares := set | msg in h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID];
-                assert x <= sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+                var recordedPrepares := h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID].Values;
+                CountPrepareMessages(h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID]);
+                var sentPrepares := sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+                assert recordedPrepares <= sentPrepares by {
+                  forall msg | msg in recordedPrepares ensures msg in sentPrepares {
+                        assert msg in v.network.sentMsgs;
+                        assert msg.payload.Prepare?;
+                        assert msg.payload.view == commitMsg.payload.view;
+                        assert msg.payload.seqID == commitMsg.payload.seqID;
+                        assert msg in v.network.sentMsgs;
+                        assert msg.payload.operationWrapper == h_v.workingWindow.prePreparesRcvd[commitMsg.payload.seqID].value.payload.operationWrapper;
+                        assert msg.payload.operationWrapper == commitMsg.payload.operationWrapper;
+                        assert msg.sender in getAllReplicas(c);
+                  }
+                }
+                Library.SubsetCardinality(recordedPrepares, sentPrepares);
+                // assert x <= sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
                 assert QuorumOfPreparesInNetwork(c, v, commitMsg.payload.view, 
                         commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
                 assert QuorumOfPreparesInNetwork(c, v', commitMsg.payload.view, 
