@@ -17,7 +17,6 @@
 #include <memory>
 #include <set>
 #include <functional>
-
 #include "log/logger.hpp"
 #include "secrets_manager_impl.h"
 #include "secret_data.h"
@@ -25,7 +24,7 @@
 namespace concord::secretsmanager {
 
 struct KeyParams;
-
+class iAES_Mode;
 // SecretsManagerEnc handles encryption and decryption of files.
 // The following flow is used for encryption:
 // 1. SecretData are the input parameters for SecretsManagerEnc. They contain an algorithm name, symmetric key and IV.
@@ -48,13 +47,14 @@ class SecretsManagerEnc : public ISecretsManagerImpl {
   std::optional<std::string> decryptFile(std::string_view path) override;
   std::optional<std::string> decryptFile(const std::ifstream& file) override;
   std::optional<std::string> decryptString(const std::string& input) override;
+  std::unique_ptr<iAES_Mode> getEncryptionMode();
 
   // = default won't work here. The destructor needs to be defined in the cpp due to the forward declarations and
   // unique_ptr
   ~SecretsManagerEnc();
 
  private:
-  const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding"};
+  const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding", "AES/GCM/NoPadding"};
 
   logging::Logger logger_ = logging::getLogger("concord.bft.secrets-manager-enc");
   const std::unique_ptr<KeyParams> key_params_;

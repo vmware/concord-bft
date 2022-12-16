@@ -48,6 +48,20 @@ SecretData getSecretData() {
   return ret;
 }
 
+SecretData getSecretData_GCM() {
+  // Key and IV are just 32bit and 16 bit random values.
+  // Can be generated from /dev/rand or any wrapper around it:
+  // dd if=/dev/random of=./key bs=1 count=32 bs=1
+  // dd if=/dev/random of=./iv bs=1 count=16 bs=1
+  SecretData ret;
+  ret.algo = "AES/GCM/NoPadding";
+  ret.key = "71df1518bb2330201985cfddbf3fb1f30c6f63b0a953b1ce633e48387b5093eb";
+  ret.iv = "3d75354384953730b9701019f5d7a2e0";
+  ret.key_length = 256;
+
+  return ret;
+}
+
 SecretsManagerEnc getSecretsManager() { return SecretsManagerEnc{getSecretData()}; }
 
 TEST(SecretsManager, StringToHex) {
@@ -86,6 +100,28 @@ TEST(SecretsManager, Internals) {
   auto plain_text = e.decrypt(dec);
   ASSERT_EQ(plain_text, input);
 }
+TEST(SecretsManager, Internals_GCM) {
+  const std::string input{"I would be encrypted"};
+  const std::string encrypted{"s54vIO4fPg0MVvmihQtpTtO2alQXHwwTVWkFbEH93TQ5Kg0E\n"};
+
+  auto secret_data = getSecretData_GCM();
+  concord::secretsmanager::KeyParams key_params(secret_data.key, secret_data.iv);
+
+  // Encrypt
+  concord::secretsmanager::AES_GCM e(key_params);
+  auto cipher_text = e.encrypt(input);
+  auto cipher_text_encoded = base64Enc(cipher_text);
+  ASSERT_EQ(cipher_text_encoded, encrypted);
+
+  // Decrypt
+  auto dec = base64Dec(cipher_text_encoded);
+
+  std::cout << std::endl;
+  ASSERT_EQ(dec, cipher_text);
+
+  auto plain_text = e.decrypt(cipher_text);
+  ASSERT_EQ(plain_text, input);
+}
 
 TEST(SecretsManager, Base64) {
   const std::vector<uint8_t> cipher_text{
@@ -110,6 +146,16 @@ TEST(SecretsManager, EmptyFileTest) {
 TEST(SecretsManager, FileTest) {
   std::string filename{"/tmp/secrets_manager_unit_test"};
   auto sm = getSecretsManager();
+
+  sm.encryptFile(filename, long_input);
+  auto output = sm.decryptFile(filename);
+
+  ASSERT_EQ(long_input, output);
+}
+
+TEST(SecretsManager, FileTest_GCM) {
+  std::string filename{"/tmp/secrets_manager_unit_test_GCM"};
+  auto sm = SecretsManagerEnc{getSecretData_GCM()};
 
   sm.encryptFile(filename, long_input);
   auto output = sm.decryptFile(filename);
