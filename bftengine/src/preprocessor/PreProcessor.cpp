@@ -349,26 +349,11 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
   }
 }
 
-void PreProcessor::stop() {
-  if (!msgLoopDone_) {
-    msgLoopDone_ = true;
-    msgLoopSignal_.notify_all();
-    cancelTimers();
-  }
-
-  if (!threadPool_.isStopped()) {
-    threadPool_.stop();
-    if (msgLoopThread_.joinable()) {
-      msgLoopThread_.join();
-    }
-  }
-}
-
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                            IRequestsHandler &requestsHandler,
-                           InternalReplicaApi &myReplica,
+                           const InternalReplicaApi &myReplica,
                            concordUtil::Timers &timers,
                            shared_ptr<concord::performance::PerformanceManager> &pm)
     : msgsCommunicator_(msgsCommunicator),
@@ -408,9 +393,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
       pm_{pm},
       memoryPoolEnabled_(myReplica_.getReplicaConfig().enablePreProcessorMemoryPool) {
-  // register a stop call back for the new preprocessor in order to stop it before replica is destroyed
-  myReplica_.registerStopCallback([this]() { this->stop(); });
-
   clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
   registerMsgHandlers();
   metricsComponent_.Register();
@@ -460,9 +442,13 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 
 PreProcessor::~PreProcessor() {
   LOG_TRACE(logger(), "~PreProcessor start");
-
-  stop();
-
+  msgLoopDone_ = true;
+  msgLoopSignal_.notify_all();
+  cancelTimers();
+  threadPool_.stop();
+  if (msgLoopThread_.joinable()) {
+    msgLoopThread_.join();
+  }
   if (!memoryPoolEnabled_) {
     for (const auto &result : preProcessResultBuffers_) {
       delete[] result->buffer;

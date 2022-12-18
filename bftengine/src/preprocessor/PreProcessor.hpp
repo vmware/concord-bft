@@ -129,12 +129,11 @@ class PreProcessor {
                std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                bftEngine::IRequestsHandler &requestsHandler,
-               InternalReplicaApi &replica,
+               const InternalReplicaApi &replica,
                concordUtil::Timers &timers,
                std::shared_ptr<concord::performance::PerformanceManager> &sdm);
 
   ~PreProcessor();
-  void stop();
 
   static void addNewPreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                  std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
@@ -316,7 +315,7 @@ class PreProcessor {
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlersRegistrator_;
   bftEngine::IRequestsHandler &requestsHandler_;
-  InternalReplicaApi &myReplica_;
+  const InternalReplicaApi &myReplica_;
   const ReplicaId myReplicaId_;
   const uint32_t maxExternalMsgSize_;
   const uint32_t maxPreExecResultSize_;

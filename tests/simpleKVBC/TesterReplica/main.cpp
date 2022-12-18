@@ -25,7 +25,16 @@
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 #include "diagnostics_server.h"
+
+#ifdef RUN_WITH_LEAKCHECK
+#include <sanitizer/lsan_interface.h>
+#else
+#define __lsan_do_recoverable_leak_check()
+#endif
+
 #include <csignal>
+
+using namespace std;
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -34,8 +43,6 @@
 
 #include <memory>
 #include <unistd.h>
-
-using namespace std;
 
 namespace concord::kvbc::test {
 std::shared_ptr<concord::kvbc::Replica> replica;
@@ -187,23 +194,20 @@ namespace {
 static void signal_handler(int signal_num) {
   LOG_INFO(GL, "Program received signal " << signal_num);
   concord::kvbc::test::timeToExit = true;
+  __lsan_do_recoverable_leak_check();
 }
 }  // namespace
 
 int main(int argc, char** argv) {
-  struct sigaction sa;
-  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) starting...");
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = signal_handler;
-  sigfillset(&sa.sa_mask);
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
+  signal(SIGINT, signal_handler);
+  signal(SIGTERM, signal_handler);
 
   try {
     concord::kvbc::test::run_replica(argc, argv);
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }
-  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) shutting down...");
+  __lsan_do_recoverable_leak_check();
+
   return 0;
 }

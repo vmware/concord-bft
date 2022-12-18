@@ -128,7 +128,7 @@ class DummyReplica : public InternalReplicaApi {
   SeqNum getPrimaryLastUsedSeqNum() const override { return 0; }
   uint64_t getRequestsInQueue() const override { return 0; }
   SeqNum getLastExecutedSeqNum() const override { return 0; }
-  void registerStopCallback(std::function<void(void)> stopCallback) override { (void)stopCallback; };
+
   void setPrimary(bool primary) { primary_ = primary; };
 
  private:

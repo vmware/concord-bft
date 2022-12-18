@@ -119,7 +119,6 @@ class DbCheckpointManager {
   }
   ~DbCheckpointManager() {
     stopped_ = true;
-    shutdownCond_.notify_all();  // to wake up monitor thread so it can be destructed
     if (monitorThread_.joinable()) monitorThread_.join();
   }
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
@@ -197,8 +196,6 @@ class DbCheckpointManager {
   mutable std::mutex lock_;
   mutable std::mutex lockDbCheckPtFuture_;
   std::mutex lockLastDbCheckpointDesc_;
-  std::condition_variable shutdownCond_;  // used to wake up monitor thread periodically or when destructing an obj
-  std::mutex shutdownLock_;          // used for the above cond var. doesn't really coordinate anything between threads.
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   SeqNum lastCheckpointSeqNum_{0};
   std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> lastCreatedCheckpointMetadata_{std::nullopt};

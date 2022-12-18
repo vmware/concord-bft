@@ -40,32 +40,14 @@ class MsgType {
 };
 
 struct BCStateTranBaseMsg {
-  BCStateTranBaseMsg(uint16_t type) : type(type) {}
   uint16_t type;
-  // This struct and its derived structs are used to de/serialize message buffers sent over communication channels.
-  // Since virtual methods modify the memory layout of a struct, there cannot be any for both this base struct and its
-  // inheritors.
-};
-
-// VariableSizeMsg is useful for structs with a flexible array member
-template <typename T>
-class VariableSizeMsg {
- public:
-  VariableSizeMsg(size_t dataSize) : buffer_(new concord::Byte[calcMsgSize(dataSize)]()) {}
-
-  T* operator->() const { return reinterpret_cast<T*>(buffer_.get()); }
-
-  char* getSerializedMsg() const { return reinterpret_cast<char*>(buffer_.get()); }
-
-  static size_t calcMsgSize(size_t dataSize) { return sizeof(T) - 1 + dataSize; }
-
- private:
-  std::unique_ptr<concord::Byte[]> buffer_;
 };
 
 struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
-  AskForCheckpointSummariesMsg()
-      : BCStateTranBaseMsg{MsgType::AskForCheckpointSummaries}, msgSeqNum{}, minRelevantCheckpointNum{} {}
+  AskForCheckpointSummariesMsg() {
+    memset(this, 0, sizeof(AskForCheckpointSummariesMsg));
+    type = MsgType::AskForCheckpointSummaries;
+  }
 
   uint64_t msgSeqNum;
   uint64_t minRelevantCheckpointNum;
@@ -74,11 +56,31 @@ struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
 struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   CheckpointSummaryMsg() = delete;
 
-  static VariableSizeMsg<CheckpointSummaryMsg> alloc(size_t rvbDataSize) {
-    VariableSizeMsg<CheckpointSummaryMsg> msg{rvbDataSize};
+  static CheckpointSummaryMsg* alloc(size_t rvbDataSize) {
+    size_t totalByteSize = sizeof(CheckpointSummaryMsg) + rvbDataSize - 1;
+    CheckpointSummaryMsg* msg{static_cast<CheckpointSummaryMsg*>(std::malloc(totalByteSize))};
+    if (!msg) {
+      throw std::bad_alloc();
+    }
+    memset(msg, 0, totalByteSize);
     msg->type = MsgType::CheckpointsSummary;
     msg->rvbDataSize = rvbDataSize;
     return msg;
+  }
+
+  static CheckpointSummaryMsg* alloc(const CheckpointSummaryMsg* rMsg) {
+    auto msg = alloc(rMsg->rvbDataSize);
+    msg->checkpointNum = rMsg->checkpointNum;
+    msg->maxBlockId = rMsg->maxBlockId;
+    msg->digestOfMaxBlockId = rMsg->digestOfMaxBlockId;
+    msg->digestOfResPagesDescriptor = rMsg->digestOfResPagesDescriptor;
+    msg->requestMsgSeqNum = rMsg->requestMsgSeqNum;
+    memcpy(msg->data, rMsg->data, rMsg->rvbDataSize);
+    return msg;
+  }
+
+  static void free(const CheckpointSummaryMsg* msg) {
+    std::free(const_cast<char*>(reinterpret_cast<const char*>(msg)));
   }
 
   static void free(void* context, const CheckpointSummaryMsg* msg) {
@@ -86,7 +88,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     rep->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(msg)));
   }
 
-  size_t size() const { return VariableSizeMsg<CheckpointSummaryMsg>::calcMsgSize(rvbDataSize); }
+  size_t size() const { return sizeof(CheckpointSummaryMsg) + rvbDataSize - 1; }
   size_t sizeofRvbData() const { return rvbDataSize; }
 
   uint64_t checkpointNum;
@@ -166,14 +168,10 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 };
 
 struct FetchBlocksMsg : public BCStateTranBaseMsg {
-  FetchBlocksMsg()
-      : BCStateTranBaseMsg{MsgType::FetchBlocks},
-        msgSeqNum{},
-        minBlockId{},
-        maxBlockId{},
-        maxBlockIdInCycle{},
-        rvbGroupId{},
-        lastKnownChunkInLastRequiredBlock{} {}
+  FetchBlocksMsg() {
+    memset(this, 0, sizeof(FetchBlocksMsg));
+    type = MsgType::FetchBlocks;
+  }
 
   uint64_t msgSeqNum;
   uint64_t minBlockId;
@@ -184,12 +182,10 @@ struct FetchBlocksMsg : public BCStateTranBaseMsg {
 };
 
 struct FetchResPagesMsg : public BCStateTranBaseMsg {
-  FetchResPagesMsg()
-      : BCStateTranBaseMsg{MsgType::FetchResPages},
-        msgSeqNum{},
-        lastCheckpointKnownToRequester{},
-        requiredCheckpointNum{},
-        lastKnownChunk{} {}
+  FetchResPagesMsg() {
+    memset(this, 0, sizeof(FetchResPagesMsg));
+    type = MsgType::FetchResPages;
+  }
 
   uint64_t msgSeqNum;
   uint64_t lastCheckpointKnownToRequester;
@@ -215,8 +211,12 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
     };
   };
   RejectFetchingMsg() = delete;
-  RejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum)
-      : BCStateTranBaseMsg{MsgType::RejectFetching}, requestMsgSeqNum{reqMsgSeqNum}, rejectionCode{rejCode} {}
+  RejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum) {
+    memset(this, 0, sizeof(RejectFetchingMsg));
+    type = MsgType::RejectFetching;
+    rejectionCode = rejCode;
+    requestMsgSeqNum = reqMsgSeqNum;
+  }
 
   uint64_t requestMsgSeqNum;
   uint16_t rejectionCode;
@@ -232,30 +232,31 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
 };
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
-  ItemDataMsg() = delete;
-
-  static VariableSizeMsg<ItemDataMsg> alloc(size_t dataSize) {
-    VariableSizeMsg<ItemDataMsg> msg{dataSize};
+  static ItemDataMsg* alloc(uint32_t dataSize) {
+    size_t msgSize = sizeof(ItemDataMsg) - 1 + dataSize;
+    ItemDataMsg* msg = static_cast<ItemDataMsg*>(std::malloc(msgSize));
+    if (!msg) {
+      throw std::bad_alloc();
+    }
+    memset(msg, 0, msgSize);
     msg->type = MsgType::ItemData;
     msg->dataSize = dataSize;
     return msg;
   }
 
+  static void free(ItemDataMsg* msg) { std::free(msg); }
+
   uint64_t requestMsgSeqNum;
   uint64_t blockNumber;
   uint16_t totalNumberOfChunksInBlock;
   uint16_t chunkNumber;
+  uint32_t dataSize;
   uint8_t lastInBatch;
   uint32_t rvbDigestsSize;  // if non-zero, size in bytes  which is dedicated to RVB
                             // digests from the total of dataSize (rvbDigestsSize < dataSize)
- private:
-  uint32_t dataSize;
+  char data[1];             // MSB[raw block of size dataSize-rvbDigestsSize|RVB DIGESTS of size rvbDigestsSize]LSB
 
- public:
-  char data[1];  // MSB[raw block of size dataSize-rvbDigestsSize|RVB DIGESTS of size rvbDigestsSize]LSB
-
-  uint32_t size() const { return VariableSizeMsg<ItemDataMsg>::calcMsgSize(dataSize); }
-  uint32_t getDataSize() const { return dataSize; }
+  uint32_t size() const { return sizeof(ItemDataMsg) - 1 + dataSize; }
 };
 
 #pragma pack(pop)
