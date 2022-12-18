@@ -4560,15 +4560,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
 ReplicaImp::~ReplicaImp() {
   // TODO(GG): rewrite this method !!!!!!!! (notice that the order may be important here ).
   // TODO(GG): don't delete objects that are passed as params (TBD)
-  if (!internalThreadPool.isStopped()) {
-    LOG_FATAL(GL, "internalThreadPool should be stopped in ReplicaImp's stop function and not in destructor");
-    ConcordAssert(false);
-  }
-
-  if (!postExecThread_.isStopped()) {
-    LOG_FATAL(GL, "postExecThread_ should be stopped in ReplicaImp's stop function and not in destructor");
-    ConcordAssert(false);
-  }
+  internalThreadPool.stop();
+  postExecThread_.stop();
 
   delete viewsManager;
   delete controller;
@@ -4586,13 +4579,6 @@ ReplicaImp::~ReplicaImp() {
 
 void ReplicaImp::stop() {
   LOG_DEBUG(GL, "ReplicaImp::stop started");
-
-  // stop components dependent on ReplicaImp
-  stopCallbacks_.invokeAll();
-
-  internalThreadPool.stop();
-  postExecThread_.stop();
-
   if (retransmissionsLogicEnabled) {
     timers_.cancel(retranTimer_);
   }

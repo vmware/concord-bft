@@ -24,36 +24,31 @@
 #include <openssl/bn.h>
 #include <openssl/err.h>
 #include "scope_exit.hpp"
-#include "crypto.hpp"
 
 #define THROW_OPENSSL_ERROR throw std::runtime_error(ERR_reason_error_string(ERR_get_error()))
 namespace concord::crypto::openssl {
 
 class Integer {
  public:
-  Integer() : num_{BN_new()} { assertResultValid(num_.get()); }
+  Integer() : num_{BN_new()} {
+    if (!num_) THROW_OPENSSL_ERROR;
+  }
   explicit Integer(const long n) : Integer() {
     long val = n;
     if (val < 0) {
-      BN_set_negative(num_.get(), 1);
+      BN_set_negative(num_, 1);
       val *= -1;
     }
-    assertResultValid(BN_set_word(num_.get(), val));
+    if (!BN_set_word(num_, val)) THROW_OPENSSL_ERROR;
   }
   Integer(const std::string& s) : Integer{reinterpret_cast<unsigned const char*>(s.data()), s.size()} {}
   // BN_bin2bn() converts the positive integer in big-endian form of length len at s into a BIGNUM
   Integer(const unsigned char* val_ptr, size_t size) : num_{BN_bin2bn(val_ptr, size, nullptr)} {
-    assertResultValid(num_.get());
+    if (!num_) THROW_OPENSSL_ERROR;
   }
-  ~Integer() = default;
-  Integer(const Integer& i) : num_{BN_dup(i.num_.get())} { assertResultValid(num_.get()); }
-  Integer(Integer&& other) { num_ = std::move(other.num_); }
-
-  template <typename T>
-  static void assertResultValid(T result) {
-    if (!result) {
-      THROW_OPENSSL_ERROR;
-    }
+  ~Integer() { BN_free(num_); }
+  Integer(const Integer& i) : num_{BN_dup(i.num_)} {
+    if (!num_) THROW_OPENSSL_ERROR;
   }
 
  private:
@@ -61,97 +56,89 @@ class Integer {
 
  public:
   static Integer fromHexString(const std::string& hex_str) {
-    BIGNUM* res = nullptr;
-    assertResultValid(BN_hex2bn(&res, hex_str.c_str()));
-    return Integer(res);
+    BIGNUM* num = BN_new();
+    if (!num) THROW_OPENSSL_ERROR;
+    if (!BN_hex2bn(&num, hex_str.c_str())) THROW_OPENSSL_ERROR;
+    return num;
   }
   static Integer fromDecString(const std::string& dec_str) {
-    BIGNUM* res = nullptr;
-    assertResultValid(BN_dec2bn(&res, dec_str.c_str()));
-    return Integer(res);
+    BIGNUM* num = BN_new();
+    if (!num) THROW_OPENSSL_ERROR;
+    if (!BN_dec2bn(&num, dec_str.c_str())) THROW_OPENSSL_ERROR;
+    return num;
   }
-  void setNegative() { BN_set_negative(num_.get(), 1); }
-  bool isNegative() { return BN_is_negative(num_.get()); }
+  void setNegative() { BN_set_negative(num_, 1); }
+  bool isNegative() { return BN_is_negative(num_); }
 
   Integer operator+(const Integer& i) {
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_add(res, num_.get(), i.num_.get()));
-    return Integer(res);
+    BN_add(res, num_, i.num_);
+    return res;
   }
   Integer& operator+=(const Integer& i) {
-    *this = (*this + i);
+    BN_add(num_, num_, i.num_);
     return *this;
   }
   Integer operator-(const Integer& i) {
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_sub(res, num_.get(), i.num_.get()));
-    return Integer(res);
+    BN_sub(res, num_, i.num_);
+    return res;
   }
   Integer& operator-=(const Integer& i) {
-    *this = (*this - i);
+    BN_sub(num_, num_, i.num_);
     return *this;
   }
   Integer operator*(const Integer& i) const {
-    UniqueBNCTX ctx(BN_CTX_new());
-    assertResultValid(ctx.get());
+    BN_CTX* ctx = BN_CTX_new();
+    if (!ctx) THROW_OPENSSL_ERROR;
+    concord::util::ScopeExit s{[&]() { BN_CTX_free(ctx); }};
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_mul(res, num_.get(), i.num_.get(), ctx.get()));
-    return Integer(res);
+    if (!res) THROW_OPENSSL_ERROR;
+    if (!BN_mul(res, num_, i.num_, ctx)) THROW_OPENSSL_ERROR;
+    return res;
   }
   Integer operator/(const Integer& i) const {
-    UniqueBNCTX ctx(BN_CTX_new());
-    assertResultValid(ctx.get());
+    BN_CTX* ctx = BN_CTX_new();
+    if (!ctx) THROW_OPENSSL_ERROR;
+    concord::util::ScopeExit s{[&]() { BN_CTX_free(ctx); }};
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_div(res, nullptr, num_.get(), i.num_.get(), ctx.get()));
-    return Integer(res);
+    if (!res) THROW_OPENSSL_ERROR;
+    if (!BN_div(res, nullptr, num_, i.num_, ctx)) THROW_OPENSSL_ERROR;
+    return res;
   }
   Integer operator%(const Integer& i) const {
-    UniqueBNCTX ctx(BN_CTX_new());
-    assertResultValid(ctx.get());
+    BN_CTX* ctx = BN_CTX_new();
+    if (!ctx) THROW_OPENSSL_ERROR;
+    concord::util::ScopeExit s{[&]() { BN_CTX_free(ctx); }};
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_mod(res, num_.get(), i.num_.get(), ctx.get()));
-    return Integer(res);
+    if (!res) THROW_OPENSSL_ERROR;
+    if (!BN_mod(res, num_, i.num_, ctx)) THROW_OPENSSL_ERROR;
+    return res;
   }
   Integer operator=(const Integer& i) {
-    num_.reset(BN_dup(i.num_.get()));
-    assertResultValid(num_.get());
+    num_ = BN_dup(i.num_);
+    if (!num_) THROW_OPENSSL_ERROR;
     return *this;
   }
 
-  bool operator!=(const Integer& i) const { return BN_cmp(num_.get(), i.num_.get()) != 0; }
-  bool operator==(const Integer& i) const { return BN_cmp(num_.get(), i.num_.get()) == 0; }
+  bool operator!=(const Integer& i) const { return BN_cmp(num_, i.num_) != 0; }
+  bool operator==(const Integer& i) const { return BN_cmp(num_, i.num_) == 0; }
 
   Integer operator<<(size_t n) const {
     BIGNUM* res = BN_new();
-    assertResultValid(res);
-    assertResultValid(BN_lshift(res, num_.get(), n));
-    return Integer(res);
+    if (!res) THROW_OPENSSL_ERROR;
+    if (!BN_lshift(res, num_, n)) THROW_OPENSSL_ERROR;
+    return res;
   }
-
-  size_t size() const { return BN_num_bytes(num_.get()); }
+  size_t size() const { return BN_num_bytes(num_); }
   std::string toHexString(bool add_prefix = false) const {
-    auto strNum = BN_bn2hex(num_.get());
-    assertResultValid(strNum);
-    std::string result{UniqueOpenSSLString{strNum}.get()};
-    if (add_prefix) {
-      result = std::string("0x") + result;
-    }
-    return result;
+    if (add_prefix) return std::string("0x") + BN_bn2hex(num_);
+    return BN_bn2hex(num_);
   }
-  std::string toDecString() const {
-    auto strNum = BN_bn2dec(num_.get());
-    assertResultValid(strNum);
-    std::string result{UniqueOpenSSLString{strNum}.get()};
-    return result;
-  }
+  std::string toDecString() const { return BN_bn2dec(num_); }
 
  private:
-  UniqueBIGNUM num_;
+  BIGNUM* num_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Integer& i) {

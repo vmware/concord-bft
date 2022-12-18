@@ -40,7 +40,7 @@ class ClientImp : public IClient {
 
  protected:
   ClientImp() = default;
-  ~ClientImp() override { delete comm_; };
+  ~ClientImp() override = default;
 
   ClientConfig config_;
   std::unique_ptr<bftEngine::SeqNumberGeneratorForClientRequests> seqGen_;

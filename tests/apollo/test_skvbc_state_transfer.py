@@ -348,8 +348,7 @@ class SkvbcStateTransferTest(ApolloTest):
                 bft_network.all_replicas(),
                 num_of_checkpoints_to_add=2,
                 verify_checkpoint_persistency=False,
-                assert_state_transfer_not_started=False,
-                expected_starting_checkpoint=i * 2)
+                assert_state_transfer_not_started=False)
 
             if i > 0 and i % 2 == 0:
                 await op.latest_pruneable_block()

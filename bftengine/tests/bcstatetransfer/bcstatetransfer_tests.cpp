@@ -1077,7 +1077,7 @@ FakeSources::FakeSources(const Config& targetConfig,
 void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescriptors) {
   // We expect a source not fetching. Sending a reject message is not yet supported
   ASSERT_FALSE(datastore_->getIsFetchingState());
-  vector<VariableSizeMsg<CheckpointSummaryMsg>> checkpointSummaryReplies;
+  vector<CheckpointSummaryMsg*> checkpointSummaryReplies;
 
   if (generateBlocksAndDescriptors) {
     // Generate all the blocks until maxBlockId of the last checkpoint - set into appState_
@@ -1098,25 +1098,31 @@ void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescri
   for (uint64_t i = testState_.maxRepliedCheckpointNum; i >= testState_.minRepliedCheckpointNum; i--) {
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
-    auto reply(CheckpointSummaryMsg::alloc(desc.rvbData.size()));
+    CheckpointSummaryMsg* reply(CheckpointSummaryMsg::alloc(desc.rvbData.size()));
+    ASSERT_TRUE(reply);
     reply->checkpointNum = desc.checkpointNum;
     reply->maxBlockId = desc.maxBlockId;
     reply->digestOfMaxBlockId = desc.digestOfMaxBlockId;
     reply->digestOfResPagesDescriptor = desc.digestOfResPagesDescriptor;
     reply->requestMsgSeqNum = firstAskForCheckpointSummariesMsg->msgSeqNum;
     std::copy(desc.rvbData.begin(), desc.rvbData.end(), reply->data);
-    checkpointSummaryReplies.push_back(std::move(reply));
+    checkpointSummaryReplies.push_back(reply);
   }
 
   // send replies from all replicas (shuffle the requests to get a random reply order)
   auto rng = std::default_random_engine{};
   std::shuffle(std::begin(testedReplicaIf_.sent_messages_), std::end(testedReplicaIf_.sent_messages_), rng);
-  for (const auto& reply : checkpointSummaryReplies) {
+  for (const auto reply : checkpointSummaryReplies) {
     for (auto& request : testedReplicaIf_.sent_messages_) {
+      CheckpointSummaryMsg* uniqueReply = CheckpointSummaryMsg::alloc(reply);
+      ASSERT_TRUE(uniqueReply);
       char* msgBytes{nullptr};
-      ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(reply.getSerializedMsg(), reply->size(), &msgBytes));
-      stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), reply->size(), request.to_);
+      ASSERT_NFF(
+          TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(uniqueReply), uniqueReply->size(), &msgBytes));
+      stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), uniqueReply->size(), request.to_);
+      CheckpointSummaryMsg::free(uniqueReply);
     }
+    CheckpointSummaryMsg::free(reply);
   }
   ASSERT_EQ(clearSentMessagesByMessageType(MsgType::AskForCheckpointSummaries), targetConfig_.numReplicas - 1);
 }
@@ -1146,7 +1152,8 @@ void FakeSources::replyFetchBlocksMsg() {
   while (true) {
     size_t rvbGroupDigestsActualSize{0};
     auto blk = appState_.peekBlock(nextBlockId);
-    auto itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize + rvbGroupDigestsExpectedSize);
+    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize + rvbGroupDigestsExpectedSize);
+    ASSERT_TRUE(itemDataMsg);
     bool lastInBatch = ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch) ||
                        ((nextBlockId - 1) < fetchBlocksMsg->minBlockId);
     itemDataMsg->lastInBatch = lastInBatch;
@@ -1162,11 +1169,14 @@ void FakeSources::replyFetchBlocksMsg() {
       ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsActualSize);
       rvbGroupDigestsExpectedSize = 0;
     }
+    itemDataMsg->dataSize = blk->totalBlockSize + rvbGroupDigestsActualSize;
     itemDataMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
     memcpy(itemDataMsg->data + rvbGroupDigestsActualSize, blk.get(), blk->totalBlockSize);
     char* msgBytes{nullptr};
-    ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(itemDataMsg.getSerializedMsg(), itemDataMsg->size(), &msgBytes));
+    ASSERT_NFF(
+        TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(itemDataMsg), itemDataMsg->size(), &msgBytes));
     stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), itemDataMsg->size(), msg.to_);
+    ItemDataMsg::free(itemDataMsg);
     if (lastInBatch) {
       break;
     }
@@ -1241,19 +1251,23 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
     ASSERT_GT(chunkSize, 0);
 
     char* pRawChunk = rawVBlock_.get() + (nextChunk - 1) * targetConfig_.maxChunkSize;
-    auto itemDataMsg = ItemDataMsg::alloc(chunkSize);
+    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(chunkSize);
+    ASSERT_TRUE(itemDataMsg);
 
     itemDataMsg->requestMsgSeqNum = fetchResPagesMsg->msgSeqNum;
     itemDataMsg->blockNumber = BcStTestDelegator::ID_OF_VBLOCK_RES_PAGES;
     itemDataMsg->totalNumberOfChunksInBlock = numOfChunksInVBlock;
     itemDataMsg->chunkNumber = nextChunk;
+    itemDataMsg->dataSize = chunkSize;
     itemDataMsg->lastInBatch =
         ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch || (nextChunk == numOfChunksInVBlock));
     memcpy(itemDataMsg->data, pRawChunk, chunkSize);
 
     char* msgBytes{nullptr};
-    ASSERT_NFF(TestUtils::allocCopyStateTransferMsg(itemDataMsg.getSerializedMsg(), itemDataMsg->size(), &msgBytes));
+    ASSERT_NFF(
+        TestUtils::allocCopyStateTransferMsg(reinterpret_cast<char*>(itemDataMsg), itemDataMsg->size(), &msgBytes));
     stDelegator_->handleStateTransferMessage(reinterpret_cast<char*>(msgBytes), itemDataMsg->size(), msg.to_);
+    ItemDataMsg::free(itemDataMsg);
     numOfSentChunks++;
 
     // if we've already sent enough chunks
@@ -1474,16 +1488,16 @@ void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlock
     ASSERT_EQ(blk->blockId, currentBlockId);
     // just compare the blocks, dont validate digests.
     if (itemDataMsg->rvbDigestsSize > 0) {
-      ASSERT_GT(itemDataMsg->getDataSize(), itemDataMsg->rvbDigestsSize);
-      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->getDataSize() - itemDataMsg->rvbDigestsSize);
+      ASSERT_GT(itemDataMsg->dataSize, itemDataMsg->rvbDigestsSize);
+      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize - itemDataMsg->rvbDigestsSize);
       ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()),
                        itemDataMsg->data + itemDataMsg->rvbDigestsSize,
-                       itemDataMsg->getDataSize() - itemDataMsg->rvbDigestsSize),
+                       itemDataMsg->dataSize - itemDataMsg->rvbDigestsSize),
                 0);
       // TODO - add here check for the RVB data. Need to get RVB group id from fake dest?
     } else {
-      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->getDataSize());
-      ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()), itemDataMsg->data, itemDataMsg->getDataSize()), 0);
+      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize);
+      ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()), itemDataMsg->data, itemDataMsg->dataSize), 0);
     }
     --currentBlockId;
   }
@@ -3034,11 +3048,11 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
 
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
-    Digest stateDigest, reservedPagesDigest, cpRvbDataDigest;
+    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     uint64_t outBlockId;
 
     stateTransfer_->getDigestOfCheckpoint(
-        i, sizeof(Digest), outBlockId, stateDigest.content(), reservedPagesDigest.content(), cpRvbDataDigest.content());
+        i, sizeof(Digest), outBlockId, stateDigest.content(), reservedPagesDigest.content(), rvbDataDigest.content());
     ASSERT_EQ(desc.checkpointNum, i);
     ASSERT_EQ(desc.maxBlockId, outBlockId);
     ASSERT_TRUE(!memcmp(desc.digestOfMaxBlockId.content(), stateDigest.content(), sizeof(Digest)));
@@ -3047,7 +3061,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
     if (i == testState_.minRepliedCheckpointNum) {
       // first checkpoint has a default RVB
       const auto& defaultRvbDataDigest = stDelegator_->computeDefaultRvbDataDigest();
-      ASSERT_TRUE(!memcmp(defaultRvbDataDigest.content(), cpRvbDataDigest.content(), sizeof(Digest)));
+      ASSERT_TRUE(!memcmp(defaultRvbDataDigest.content(), rvbDataDigest.content(), sizeof(Digest)));
     } else {
       DigestGenerator digestCtx;
       Digest rvbDataDigest;
