@@ -435,33 +435,32 @@ codecoverage: ## Generate Code Coverage report for Apollo tests
                 "./scripts/run-codecoverage.sh"
 	@echo "Completed make codecoverage"
 
-BUILD_IMAGE_MODE=ALL
-build-docker-images: SHELL:=/bin/bash
-.PHONY: build-docker-images
-build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest, then build a debug image based on the just-built release image, and tag it as ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest. By default, both images are built. To build only a release image set BUILD_IMAGE_MODE=RELEASE. to build only debug image set BUILD_IMAGE_MODE=DEBUG. When a debug image is built, it relys on an existing concord-bft:latest image. To have an output image being used (as default) by Makefile: tag it with docker, and then modify CONCORD_BFT_DOCKER_IMAGE_RELEASE + CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE in Makefile for a release image, and CONCORD_BFT_DOCKER_IMAGE_DEBUG + CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG for a debug image.
-	@if [ '${BUILD_IMAGE_MODE}' != 'RELEASE' ] && [ '${BUILD_IMAGE_MODE}' != 'DEBUG' ] && [ '${BUILD_IMAGE_MODE}' != 'ALL' ]; then \
-		echo "Error: BUILD_IMAGE_MODE must be one of the values: ALL,DEBUG,RELEASE!"; \
-		exit 1; \
+.PHONY: build-docker-image-release
+build-docker-image-release: ## Build a release image. It has the minimal installations needed. Note: without caching.
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
+		-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} .
+	@echo
+	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest\"."
+	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE + 1)."
+	@echo "If you want the image to be the default, please update the following variables:"
+	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE"
+
+build-docker-image-debug: SHELL:=/bin/bash
+.PHONY: build-docker-image-debug
+build-docker-image-debug: ## Build a debug image. It has additional tools used for performance analysis, sanitizing and debugging. Note: without caching.
+	@if [[ "$(shell docker images -q ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE})" == "" ]]; then \
+		bash -c "docker pull ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}" &> /dev/null; \
+		if [ $$? -ne 0 ]; then \
+  		echo "Error: docker image ${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE} must exist," \
+				"please run target build-docker-image-release first!"; \
+			exit 1; \
+		fi \
 	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
-			-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} . ; \
-	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'DEBUG' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest \
-			--build-arg CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE="${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest" \
-			-f ./${CONCORD_BFT_DOCKERFILE_DEBUG} . ; \
-	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		printf "\nDone building release image!\n" ; \
-		echo "Release Docker image name: ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest"; \
-		echo "If you want the image to be the default, please tag it first, and then update the following variables:"; \
-		echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE, and CONCORD_BFT_DOCKER_IMAGE_RELEASE";\
-	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'DEBUG' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		printf "\nDone building debug image!\n" ; \
-		echo "Debug Docker image name: ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest"; \
-		echo "If you want the image to be the default, please tag it first, and then update the following variables:"; \
-		echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG, and CONCORD_BFT_DOCKER_IMAGE_DEBUG";\
-	fi
-	@printf "\nBefore you push an image to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION_<DEBUG|RELEASE> + 1).\n"
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest \
+		--build-arg CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE="${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}" \
+		-f ./${CONCORD_BFT_DOCKERFILE_DEBUG} .
+	@echo
+	@echo "Build finished. Debug Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest\"."
+	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG + 1)."
+	@echo "If you want the image to be the default, please update the following variables:"
+	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG"
