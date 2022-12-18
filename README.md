@@ -76,7 +76,7 @@ See [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) for an example. Thi
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-sudo ./install_deps_release.sh # Installs all dependencies and 3rd parties
+sudo ./install_deps.sh # Installs all dependencies and 3rd parties
 mkdir build
 cd build
 cmake ..
@@ -135,8 +135,8 @@ The CI builds and runs tests in a docker container. To add a new dependency or t
 
 * Rebase against master
 * In order to add/remove dependencies update the file
-  [install_deps_release.sh](https://github.com/vmware/concord-bft/blob/master/install_deps_release.sh)
-* Build a new image: `make build-docker-image-release`
+  [install_deps.sh](https://github.com/vmware/concord-bft/blob/master/install_deps.sh)
+* Build a new image: `make build-docker-image`
 * Check image current version in the
   [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L3)
 * Tag the new image: `docker tag concord-bft:latest concordbft/concord-bft:<version>`,

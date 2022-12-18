@@ -14,7 +14,7 @@
 import hashlib
 from logging import setLogRecordFactory
 import sys
-import psutil
+
 import os
 import os.path
 import shutil
@@ -36,7 +36,6 @@ from util.test_base import repeat_test
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
-import util.bft_debug_tool
 import bft_config
 import bft_client
 import bft_metrics_client
@@ -215,11 +214,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                         'first success' if break_on_first_success else
                                                         f'{num_repeats} repetitions'):
                                         random.seed(seed)
-                                        bft_network.debug_tool = util.bft_debug_tool.BftDebugTool( \
-                                            bft_network.config.n + bft_network.config.num_ro_replicas, \
-                                            bft_network.builddir, bft_network.current_test)
                                         if rotate_keys:
-                                            await bft_network.check_initial_key_exchange(
+                                            await bft_network.check_initital_key_exchange(
                                                 check_master_key_publication=publish_master_keys)
                                         bft_network.test_start_time = time.time()
                                         await async_fn(*args, **kwargs, bft_network=bft_network)
@@ -252,14 +248,14 @@ class BftTestNetwork:
                 client.__exit__()
             for client in self.reserved_clients.values():
                 client.__exit__()
-            if self.with_cre and self.cre_proc is not None:
+            if self.with_cre and self.cre_pid is not None:
                 if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                    self.cre_proc.terminate()
+                    self.cre_pid.terminate()
                 else:
-                    self.cre_proc.kill()
+                    self.cre_pid.kill()
                 for fd in self.cre_fds:
                     fd.close()
-                self.cre_proc.wait()
+                self.cre_pid.wait()
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
@@ -271,8 +267,8 @@ class BftTestNetwork:
             if self.test_start_time:
                 message = f"test duration = {time.time() - self.test_start_time} seconds"
                 log.log_message(message_type=message)
-                if self.current_test_case_path:
-                    with open(os.path.join(self.current_test_case_path, "test_duration.log"), "w+") as log_file:
+                if self.test_dir:
+                    with open(f"{self.test_dir}test_duration.log", 'w+') as log_file:
                         log_file.write(f"{message}\n")
             if self.perf_proc:
                 self.perf_proc.wait()
@@ -282,8 +278,6 @@ class BftTestNetwork:
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
                  procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
         self.is_existing = is_existing
-        self.assert_dirs_exist([origdir, testdir, certdir, builddir, toolsdir])
-
         self.origdir = origdir
         self.config = config
         self.testdir = testdir
@@ -306,14 +300,14 @@ class BftTestNetwork:
         self.open_fds = {}
         self.current_test = ""
         self.background_nursery = background_nursery
-        self.current_test_case_path = None
+        self.test_dir = None
         self.test_start_time = None
         self.perf_proc = None
         self.ro_replicas = ro_replicas
         self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() in ["true", "on"])
         self.with_cre = False
         self.use_unified_certs = False
-        self.cre_proc = None
+        self.cre_pid = None
         self.cre_fds = None
         self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_clients + RESERVED_CLIENTS_QUOTA
         self._replica_log_dir_timestamp = logdir_timestamp()
@@ -327,7 +321,6 @@ class BftTestNetwork:
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
         certdir = tempfile.mkdtemp()
-        cls.assert_dirs_exist([testdir, certdir, builddir, toolsdir])
         bft_network = cls(
             is_existing=False,
             origdir=os.getcwd(),
@@ -414,10 +407,10 @@ class BftTestNetwork:
                     now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
                     test_name = f"{now}_{self.current_test}"
 
-                self.current_test_case_path = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
-                test_log = f"{self.current_test_case_path}stdout_cre.log"
+                self.test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{self.test_dir}stdout_cre.log"
 
-                Path(self.current_test_case_path).mkdir(parents=True, exist_ok=True)
+                os.makedirs(self.test_dir, exist_ok=True)
 
                 stdout_file = open(test_log, 'w+')
                 stderr_file = open(test_log, 'w+')
@@ -443,7 +436,7 @@ class BftTestNetwork:
                 digest = self.binary_digest(cre_exe) if Path(cre_exe).exists() else 'Unknown'
                 with log.start_action(action_type="start_reconfiguration_client_process", binary=cre_exe,
                                       binary_digest=digest):
-                    self.cre_proc = subprocess.Popen(
+                    self.cre_pid = subprocess.Popen(
                         cre_cmd,
                         stdout=stdout_file,
                         stderr=stderr_file,
@@ -451,7 +444,7 @@ class BftTestNetwork:
 
     def stop_cre(self):
         with log.start_action(action_type="stop_cre"):
-            p = self.cre_proc
+            p = self.cre_pid
             if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
                 p.terminate()
             else:
@@ -517,7 +510,7 @@ class BftTestNetwork:
     def _generate_operator_keys(self):
         if self.builddir is None:
             return
-        with open(os.path.join(self.builddir, "operator_pub.pem"), 'w') as f:
+        with open(self.builddir + "/operator_pub.pem", 'w') as f:
             if ("ecdsa" == operator_msg_signing_algo):
                 # ECDSA public key.
                 f.write("-----BEGIN PUBLIC KEY-----\n"
@@ -529,7 +522,8 @@ class BftTestNetwork:
                 f.write("-----BEGIN PUBLIC KEY-----\n"
                         "MCowBQYDK2VwAyEAq6x6mTckhvzscZmDtRAwgneYpIE3sqkdLdaZ4B5JBbw=\n"
                         "-----END PUBLIC KEY-----")
-        with open(os.path.join(self.builddir, "operator_priv.pem"), 'w') as f:
+
+        with open(self.builddir + "/operator_priv.pem", 'w') as f:
             if ("ecdsa" == operator_msg_signing_algo):
                 # ECDSA private key.
                 f.write("-----BEGIN EC PRIVATE KEY-----\n"
@@ -558,11 +552,11 @@ class BftTestNetwork:
         # If not running TLS, just exit here. keep certs_path to pass it by default to any type of replicas
         # We want to save time in non-TLs runs, avoiding certificate generation
         temp_cert_dir = self.certdir + "/tmp"
-        Path(temp_cert_dir).mkdir(parents=True, exist_ok=True)
+        os.makedirs(temp_cert_dir, exist_ok=True)
         args = [certs_gen_script_path, str(num_to_generate), temp_cert_dir, str(start_index), str(int(use_unified_certs))]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
         for c in range(num_to_generate):
-            comp_cert_dir = os.path.join(self.certdir, str(c))
+            comp_cert_dir = self.certdir + "/" + str(c)
             shutil.rmtree(comp_cert_dir, ignore_errors=True)
             shutil.copytree(temp_cert_dir, comp_cert_dir)
         shutil.rmtree(temp_cert_dir, ignore_errors=True)
@@ -702,9 +696,7 @@ class BftTestNetwork:
 
     def start_replica_cmd(self, replica_id):
         """
-        Returns a tuple:
-            1) Command line to start replica with the given id
-            2) The binary index in the command line of the replica binary. In debug tools run, it might be different than 0.
+        Returns command line to start replica with the given id
         If the callback accepts three parameters and one of them is named 'config' - pass the network configuration too.
         Append the SSL certificate path. This is needed only for TLS communication.
         """
@@ -713,9 +705,6 @@ class BftTestNetwork:
             cmd = self.config.start_replica_cmd(self.builddir, replica_id, self.config)
         else:
             cmd = self.config.start_replica_cmd(self.builddir, replica_id)
-        # Potentially, set debug tool name as 1st parameter (usually this will happen for external tools only)
-        # if debug tool is set, return the actual replica binary path index in the command
-        replica_binary_path_index = self.debug_tool.set_tool_in_replica_command(cmd)
         if self.certdir:
             cmd.append("-c")
             cmd.append(self.certdir + "/" + str(replica_id))
@@ -725,25 +714,19 @@ class BftTestNetwork:
             keys_path = os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys")
             cmd.append("-t")
             cmd.append(keys_path)
-        return cmd, cmd[replica_binary_path_index]
+        return cmd
 
     def check_error_logs(self):
         """
         Checking FATAL logs in replica logs and writing in a file.
         If the file exists for any testcase, warning is displayed in CI
         """
-
-        if not self.current_test_case_path:
-            # Some tests to not start any replicas/cre, or with KEEP_APOLLO_LOGS=FALSE - in that case there is nothing to check
-            log.log_message(message_type="skipping check_error_logs since self.current_test_case_path is None")
-            return
-
         with log.start_action(action_type="replica_log_scanner") as action:
             cmd = ['grep', '-R', 'FATAL', '--exclude=ReplicaErrorLogs.txt']
-            file_path =  os.path.join(self.current_test_case_path, "ReplicaErrorLogs.txt")
+            file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
 
             with open(file_path, 'w+') as outfile:
-                subprocess.run(cmd, stdout=outfile, cwd=self.current_test_case_path)
+                subprocess.run(cmd, stdout=outfile, cwd=self.test_dir)
 
             if os.path.isfile(file_path):
                 if  os.stat(file_path).st_size > 0:
@@ -767,6 +750,7 @@ class BftTestNetwork:
                 except AlreadyRunningError:
                     if not self.is_existing:
                         raise
+
             assert len(self.procs) == self.config.n
 
     def stop_all_replicas(self):
@@ -804,10 +788,10 @@ class BftTestNetwork:
             if not test_name:
                 test_name = f"{self._replica_log_dir_timestamp}_{self.current_test}"
 
-            self.current_test_case_path = os.path.join(self.builddir, "tests", "apollo", "logs", test_name, self.current_test)
-            replica_test_log_path = os.path.join(self.current_test_case_path, f"stdout_{replica_id}.log")
+            self.test_dir = os.path.join(self.builddir, "tests", "apollo", "logs", test_name, self.current_test)
+            replica_test_log_path = os.path.join(self.test_dir, f"stdout_{replica_id}.log")
 
-            Path(self.current_test_case_path).mkdir(parents=True, exist_ok=True)
+            os.makedirs(self.test_dir, exist_ok=True)
 
             stdout_file = open(replica_test_log_path, 'w+')
             stderr_file = open(replica_test_log_path, 'w+')
@@ -826,7 +810,7 @@ class BftTestNetwork:
         if os.environ.get('CODECOVERAGE', "").lower() in ["true", "on"] and \
                 os.environ.get('GRACEFUL_SHUTDOWN',"").lower() in ["true", "on"]:
             self.coverage_dir = f"{self.builddir}/tests/apollo/codecoverage/{test_name}/{self.current_test}/"
-            Path(self.coverage_dir).mkdir(parents=True, exist_ok=True)
+            os.makedirs(self.coverage_dir, exist_ok=True)
             profraw_file_name = f"coverage_{replica_id}_%9m.profraw"
             profraw_file_path = os.path.join(
                 self.coverage_dir, profraw_file_name)
@@ -836,20 +820,22 @@ class BftTestNetwork:
             raise AlreadyRunningError(replica_id)
 
         is_external = self.is_existing and self.config.stop_replica_cmd is not None
-        start_cmd, replica_binary_path = self.start_replica_cmd(replica_id)
+        start_cmd = self.start_replica_cmd(replica_id)
+        replica_binary_path = start_cmd[0]
         digest = self.binary_digest(replica_binary_path) if Path(replica_binary_path).exists() else 'Unknown'
+
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
                               binary_path=replica_binary_path, binary_digest=digest, cmd=' '.join(start_cmd)):
             my_env = os.environ.copy()
             my_env["RID"] = str(replica_id)
             if is_external:
-                proc = subprocess.run(
+                self.procs[replica_id] = subprocess.run(
                     start_cmd,
                     check=True,
                     env=my_env
                 )
             else:
-                proc = subprocess.Popen(
+                self.procs[replica_id] = subprocess.Popen(
                     start_cmd,
                     stdout=stdout_file,
                     stderr=stderr_file,
@@ -859,19 +845,13 @@ class BftTestNetwork:
 
                 if keep_logs:
                     self.verify_matching_replica_client_communication(replica_test_log_path)
-            # If we run with some debug tool, let the module process the triggered proc process, and set the process info
-            # according to the returned value. Some debug tools spawn multiple processes.
-            if self.debug_tool.name:
-                self.procs[replica_id] = self.debug_tool.process_pids_after_replica_started(proc, replica_id)
-            else:
-                self.procs[replica_id] = proc
 
         replica_for_perf = os.environ.get('PERF_REPLICA', "")
         if self.test_start_time and replica_for_perf and int(replica_for_perf) == replica_id:
             log.log_message(message_type=f"Profiling replica {replica_id} using perf")
             perf_samples = os.environ.get('PERF_SAMPLES', "1000")
             perf_cmd = ["perf", "record", "-F", perf_samples, "-p", f"{self.procs[replica_id].pid}",
-                        "-a", "-g", "-o", f"{self.current_test_case_path}perf.data"]
+                        "-a", "-g", "-o", f"{self.test_dir}perf.data"]
             self.perf_proc = subprocess.Popen(perf_cmd, close_fds=True)
 
     @staticmethod
@@ -968,27 +948,26 @@ class BftTestNetwork:
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
-        with trio.fail_after(seconds=10):
-            with log.start_action(action_type="stop_replica", replica=replica_id):
-                if replica_id not in self.procs.keys():
-                    raise AlreadyStoppedError(replica_id)
+        with log.start_action(action_type="stop_replica", replica=replica_id):
+            if replica_id not in self.procs.keys():
+                raise AlreadyStoppedError(replica_id)
 
-                if self.is_existing and self.config.stop_replica_cmd is not None:
-                    self._stop_external_replica(replica_id)
+            if self.is_existing and self.config.stop_replica_cmd is not None:
+                self._stop_external_replica(replica_id)
+            else:
+                p = self.procs[replica_id]
+                if force_kill:
+                    p.kill()
                 else:
-                    proc = self.procs[replica_id]
-                    if force_kill:
-                        proc.kill()
+                    if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                        p.terminate()
                     else:
-                        if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                            proc.terminate()
-                        else:
-                            proc.kill()
-                    for fd in self.open_fds.get(replica_id, ()):
-                        fd.close()
-                    proc.wait()
-                    self.debug_tool.process_output(replica_id, proc, self.testdir)
-                del self.procs[replica_id]
+                        p.kill()
+                for fd in self.open_fds.get(replica_id, ()):
+                    fd.close()
+                p.wait()
+
+            del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
         with log.start_action(action_type="_stop_external_replica", replica=replica_id):
@@ -1709,12 +1688,12 @@ class BftTestNetwork:
                             break
                 await trio.sleep(1)
 
-    async def check_initial_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[], check_master_key_publication=False):
+    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[], check_master_key_publication=False):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
-        with log.start_action(action_type="check_initial_key_exchange"):
+        with log.start_action(action_type="check_initital_key_exchange"):
             required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
             replicas_to_start = [r for r in range(self.config.n)] if replicas_to_start == [] else replicas_to_start
             self.start_replicas(replicas_to_start)
@@ -1754,7 +1733,6 @@ class BftTestNetwork:
                 await self.check_initial_master_key_publication(replicas_to_start)
             if stop_replicas:
                 self.stop_replicas(replicas_to_start)
-
             return lastExecutedVal
 
     async def assert_successful_pre_executions_count(self, replica_id, num_requests):
@@ -1975,8 +1953,3 @@ class BftTestNetwork:
                 log.log_message(
                     message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
             shutil.rmtree(temp_dir)
-
-    @staticmethod
-    def assert_dirs_exist(dirs):
-        for dir in dirs:
-            assert os.path.isdir(dir), f"{dir} must exist!"

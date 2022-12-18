@@ -24,7 +24,6 @@ option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing"
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 option(LEAKCHECK "Enable Address and Leak Sanitizers" OFF)
-option(HEAPTRACK "Enable Heaptrack - a heap memory profiler for Linux" OFF)
 option(THREADCHECK "Enable Thread Sanitizer" OFF)
 option(UNDEFINED_BEHAVIOR_CHECK "Enable Undefined Behavior Sanitizer" OFF)
 # Rocksdb is required for storage now. Consider removing this flag.
@@ -66,7 +65,7 @@ string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer")
 
 # At most, only one of the next options should be defined from below ONLY_ONE_OPT_RAISED_CHECK
 set(COUNTER 0)
-set(ONLY_ONE_OPT_RAISED_CHECK LEAKCHECK;THREADCHECK;UNDEFINED_BEHAVIOR_CHECK;CODECOVERAGE;HEAPTRACK)
+set(ONLY_ONE_OPT_RAISED_CHECK LEAKCHECK;THREADCHECK;UNDEFINED_BEHAVIOR_CHECK;CODECOVERAGE)
 foreach(option IN LISTS ONLY_ONE_OPT_RAISED_CHECK)
   if(${option})
     MATH(EXPR COUNTER "${COUNTER}+1")
@@ -77,28 +76,21 @@ if(${COUNTER} GREATER 1)
 LEAKCHECK=${LEAKCHECK} \
 THREADCHECK=${THREADCHECK} \
 UNDEFINED_BEHAVIOR_CHECK=${UNDEFINED_BEHAVIOR_CHECK} \
-CODECOVERAGE=${CODECOVERAGE} \
-HEAPTRACK=${HEAPTRACK} \
-")
+CODECOVERAGE=${CODECOVERAGE}")
 endif()
 
 if(LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address")
-    add_compile_definitions(RUN_WITH_LEAKCHECK=1)
     message("-- Address and Leak Sanitizers Enabled")
-elseif(THREADCHECK)
+endif()
+if(THREADCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
     message("-- Thread Sanitizer Enabled")
-elseif(UNDEFINED_BEHAVIOR_CHECK)
-    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=undefined")
-    message("-- Undefined Behavior Sanitizer Enabled")
-elseif(UNDEFINED_BEHAVIOR_CHECK)
-    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=undefined")
-    message("-- Undefined Behavior Sanitizer Enabled")
-elseif(HEAPTRACK)
-    message("-- Heaptrack Enabled")
 endif()
-
+if(UNDEFINED_BEHAVIOR_CHECK)
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=undefined")
+    message("-- Undefined Behavior Sanitizer Enabled")
+endif()
 
 if(OMIT_TEST_OUTPUT)
     message("-- OMIT_TEST_OUTPUT Enabled")

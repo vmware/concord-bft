@@ -77,7 +77,6 @@ install_third_party_libraries() {
         protobuf==3.15.8 \
         grpcio==1.37.1 \
         grpcio-tools==1.37.1 \
-        psutil==5.9.1 \
         cryptography==3.3.2
 }
 
@@ -127,6 +126,7 @@ install_HdrHistogram_lib() {
         rm -r HdrHistogram_c-0.9.12
 
 }
+
 
 install_googletest() {
     cd ${HOME}
@@ -207,7 +207,6 @@ install_rocksdb_lib() {
         rm -r rocksdb-6.8.1
 
 }
-
 install_rapidcheck() {
     cd ${HOME}
     git clone https://github.com/emil-e/rapidcheck.git && \
@@ -232,6 +231,7 @@ install_minio() {
     pip3 install minio
 
 }
+
 
 install_opentracing_lib() {
     cd ${HOME}
@@ -278,6 +278,7 @@ install_openssl() {
         make install && \
         echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
         rm -rf /usr/local/src/openssl-${OPENSSL_VER}
+
 }
 
 # gRPC
@@ -421,6 +422,7 @@ install_cppcheck(){
   cd ${HOME} && \
   rm -rf cppcheck-${CPPCHECK_VER}
 }
+
 
 install_ccache(){
   # ccache is used to accelerate C/C++ recompilation
