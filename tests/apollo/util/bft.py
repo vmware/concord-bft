@@ -281,9 +281,7 @@ class BftTestNetwork:
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
                  procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
         self.is_existing = is_existing
-        # An existing deployment might pass some of the folders paths as empty so we skip the next assertion.
-        if not is_existing:
-            self.assert_dirs_exist([origdir, testdir, certdir, builddir, toolsdir])
+        self.assert_dirs_exist([origdir, testdir, certdir, builddir, toolsdir])
 
         self.origdir = origdir
         self.config = config
