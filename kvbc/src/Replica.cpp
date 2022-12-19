@@ -63,7 +63,7 @@ Status Replica::initInternals() {
     LOG_INFO(logger,
              "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
-    
+
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(
         bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
         bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
