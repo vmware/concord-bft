@@ -53,7 +53,7 @@ make login
 Then, you can run the test using the following command:
 
 ```
-./build/bftengine/tests/simpleTest/scripts/testReplicasAndClient.sh
+./build/tests/simpleTest/scripts/testReplicasAndClient.sh
 ```
 
 You should see output like the following:
@@ -218,14 +218,14 @@ Once you have built Concord and are in the top-level directory, you can run the
 test with the following command:
 
 ```
-./build/bftengine/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
+./build/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 ```
 The command above is EQUAL to running the test via the shell script, as desribed above.
 
 Note: if you run the command as described above and experience Python related
  issues, please run it using
 
-    python3 build/bftengine/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
+    python3 build/tests/simpleTest/scripts/simpleTest.py -bft n=4,r=4,f=1,c=0,cl=1
 
 ### BFT Metadata with the simple test
 BFT metadata allows replica to recover from crash if the metadata has been written to the disk when replica is running.
