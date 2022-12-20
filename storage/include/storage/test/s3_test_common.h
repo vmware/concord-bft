@@ -95,6 +95,7 @@ class S3Test : public ::testing::Test {
   static void TearDownTestCase() {
     state.server->stop();
     fs::remove_all(state.test_dir);
+    state.client.reset();
   }
   void SetUp() override {}
 
