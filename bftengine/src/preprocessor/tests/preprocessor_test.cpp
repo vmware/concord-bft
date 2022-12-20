@@ -1154,5 +1154,6 @@ int main(int argc, char** argv) {
   setUpCommunication();
   memset(buf, bufLen, 5);
   int res = RUN_ALL_TESTS();
+  communicatorPtr.reset();
   return res;
 }
