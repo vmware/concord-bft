@@ -441,4 +441,7 @@ string computeSHA256Hash(const char* data, size_t length) {
   return hash;
 }
 
+// Unique_ptr custom deleter. OPENSSL_FREE macro should be wrapped because of CRYPTO_free's signature inside
+void _openssl_free(void* ptr) { OPENSSL_free(ptr); }
+
 }  // namespace concord::crypto::openssl
