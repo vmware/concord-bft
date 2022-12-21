@@ -44,6 +44,7 @@
 #include "EpochManager.hpp"
 #include "PerfMetrics.hpp"
 #include "ControlStateManager.hpp"
+#include "callback_registry.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -354,6 +355,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual ~ReplicaImp();
 
   void start() override;
+
+  // register a component's stop function to be run at the beginning of ReplicaImp's stop function.
+  // all components dependent of ReplicaImp running (and only those components) must register a stop func
+  void registerStopCallback(std::function<void(void)> stopCallback) override { stopCallbacks_.add(stopCallback); }
+
   void stop() override;
 
   std::shared_ptr<IInternalBFTClient> internalClient() const { return internalBFTClient_; }
@@ -619,6 +625,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onCarrierMessage(CarrierMesssage* msg);
 
  private:
+  // CallbackRegistry holding "stop" functions of components dependent on replicaImp that need to stop before the
+  // replica is stopped
+  concord::util::CallbackRegistry<> stopCallbacks_;
+
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isCreatedEarlier);
   void startConsensusProcess(PrePrepareMsg* pp);

@@ -44,11 +44,11 @@ Other build options, including passthrough options for CMake, are defined in the
 
 ### Native
 
-For native development environment, need to install some dependencies mentioned in [install_deps.sh](../install_deps.sh) script.
+For native development environment, need to install some dependencies mentioned in [install_deps_release.sh](../install_deps_release.sh) script.
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-sudo ./install_deps.sh    # Install all dependencies and 3rd parties
+sudo ./install_deps_release.sh    # Install all dependencies and 3rd parties
 mkdir build
 cd build
 cmake ..
