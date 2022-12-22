@@ -378,7 +378,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
 #endif
 
     LOG_INFO(logger_,
-             "Init BCStateTran object:" << KVLOG(
+             "Init BCStateTran object789:" << KVLOG(
                  maxNumOfStoredCheckpoints_, numberOfReservedPages_, config_.sizeOfReservedPage));
 
     if (psd_->initialized()) {
