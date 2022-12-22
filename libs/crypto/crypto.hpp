@@ -84,7 +84,7 @@ class AsymmetricPublicKey {
   AsymmetricPublicKey() {}
 };
 
-enum SignatureAlgorithm : uint32_t { Uninitialized = 0, BLS = 1, EdDSA = 2, RSA = 3 };
+enum SignatureAlgorithm : uint32_t { Uninitialized = 0, EdDSA = 2, RSA = 3 };
 
 enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
 enum class CurveType : uint16_t { secp256k1, secp384r1 };

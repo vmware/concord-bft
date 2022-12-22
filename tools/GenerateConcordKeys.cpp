@@ -102,12 +102,6 @@ int main(int argc, char** argv) {
     std::string defaultSysType = "UninitializedCryptoSystem";
     std::string defaultSubSysType = "UninitializedCryptoSubSystem";
 
-#ifdef USE_MULTISIG_BLS
-    defaultSysType = MULTISIG_BLS_SCHEME;
-    defaultSubSysType = "BN-P254";
-#endif
-
-// Note that if both USE_MULTISIG_BLS and MULTISIG_EDDSA_SCHEME macros are set, the last option is the one which will be taken
 #ifdef USE_MULTISIG_EDDSA
     defaultSysType = MULTISIG_EDDSA_SCHEME;
     defaultSubSysType = "ED25519";

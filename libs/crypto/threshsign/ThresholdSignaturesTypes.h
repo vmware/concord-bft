@@ -26,8 +26,6 @@ using ShareID = int;
 using NumSharesType = ShareID;
 
 constexpr int MAX_NUM_OF_SHARES = 2048;
-constexpr const char* MULTISIG_BLS_SCHEME = "multisig-bls";
-constexpr const char* THRESHOLD_BLS_SCHEME = "threshold-bls";
 constexpr const char* MULTISIG_EDDSA_SCHEME = "multisig-eddsa";
 
 class IThresholdFactory;
@@ -45,7 +43,6 @@ class Cryptosystem {
 
   uint16_t numSigners_{0};
   uint16_t threshold_{0};
-  bool forceMultisig_{false};  // is true if  signers == threshold
 
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys

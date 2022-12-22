@@ -1,14 +1,4 @@
-option(USE_MULTISIG_BLS   "Enable use of Relic   library BLS   implementation for multisignature generation and verification" OFF)
 option(USE_MULTISIG_EDDSA "Enable use of OpenSSL library EdDSA implementation for multisignature generation and verification" ON)
-
-if(NOT (USE_MULTISIG_EDDSA OR USE_MULTISIG_BLS))
-    message(FATAL_ERROR "At least one threshold/multisig implementation needs to be chosen, "
-            "Define at least one of the following cmake options: [USE_MULTISIG_EDDSA, USE_MULTISIG_BLS]")
-endif()
-
-if(USE_MULTISIG_EDDSA AND USE_MULTISIG_BLS)
-    message(FATAL_ERROR "only one option has to be chosen: [USE_MULTISIG_EDDSA, USE_MULTISIG_BLS]")
-endif()
 
 add_library(threshsign STATIC ThresholdSignaturesTypes.cpp)
 
@@ -23,12 +13,6 @@ if(USE_MULTISIG_EDDSA)
     target_include_directories(threshsign PUBLIC ${Boost_INCLUDE_DIR})
     add_subdirectory(eddsa)
     target_link_libraries(threshsign PUBLIC eddsa_multisig_lib OpenSSL::Crypto)
-endif()
-
-if(USE_MULTISIG_BLS)
-    message(STATUS "Using Relic BLS threshold signatures")
-    target_compile_definitions(threshsign PUBLIC USE_MULTISIG_BLS)
-    add_subdirectory(bls)
 endif()
 
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)

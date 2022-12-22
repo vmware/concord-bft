@@ -32,9 +32,6 @@
 #if defined(USE_MULTISIG_EDDSA)
 #include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "crypto/threshsign/eddsa/SingleEdDSASignature.h"
-#elif defined(USE_MULTISIG_BLS)
-#include "crypto/threshsign/bls/relic/BlsThresholdFactory.h"
-#include "crypto/threshsign/bls/relic/PublicParametersFactory.h"
 #endif
 static std::unique_ptr<std::vector<uint8_t>> s_data{nullptr};
 
@@ -66,14 +63,8 @@ std::unique_ptr<IThresholdFactory> getFactory(Algorithm alg) {
   if (alg == EdDSA) {
     return std::make_unique<EdDSAMultisigFactory>();
   }
-#elif defined(USE_MULTISIG_BLS)
-  if (alg == BlsThreshold || alg == BlsMultisig) {
-    bool multisig = alg == BlsMultisig;
-    return std::make_unique<BLS::Relic::BlsThresholdFactory>(
-        BLS::Relic::PublicParametersFactory::getByCurveType("BN-P254"), multisig);
-  }
 #endif
-  throw std::runtime_error("should be compiled with appropriate flags [USE_MULTISIG_EDDSA, USE_MULTISIG_BLS]");
+  throw std::runtime_error("should be compiled with appropriate flags [USE_MULTISIG_EDDSA]");
 }
 
 /// Used because of the interface of picobench

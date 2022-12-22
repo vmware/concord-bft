@@ -61,8 +61,6 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    */
   concord::crypto::SignatureAlgorithm getLatestSignatureAlgorithm() const {
     const std::unordered_map<std::string, concord::crypto::SignatureAlgorithm> typeToAlgorithm{
-        {MULTISIG_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
-        {THRESHOLD_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
         {MULTISIG_EDDSA_SCHEME, concord::crypto::SignatureAlgorithm::EdDSA},
     };
     auto currentType = getLatestCryptoSystem()->getType();

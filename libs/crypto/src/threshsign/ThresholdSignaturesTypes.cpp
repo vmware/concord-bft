@@ -11,15 +11,17 @@
 // LICENSE file.
 
 #include "crypto/threshsign/ThresholdSignaturesTypes.h"
-
-#include "log/logger.hpp"
 #include "crypto/threshsign/IThresholdSigner.h"
 #include "crypto/threshsign/IThresholdVerifier.h"
 #include "crypto/threshsign/IThresholdFactory.h"
-#include "crypto/threshsign/ThresholdSignaturesSchemes.h"
+#include "log/logger.hpp"
 #include "yaml_utils.hpp"
 #include "string.hpp"
 #include "crypto/crypto.hpp"
+
+#ifdef USE_MULTISIG_EDDSA
+#include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
+#endif
 
 using concord::crypto::isValidKey;
 
@@ -31,7 +33,6 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
       subtype_(sysSubtype),
       numSigners_(sysNumSigners),
       threshold_(sysThreshold),
-      forceMultisig_(numSigners_ == threshold_),
       signerID_(NID),
       publicKey_("uninitialized") {
   if (!isValidCryptosystemSelection(sysType, sysSubtype, sysNumSigners, sysThreshold)) {
@@ -45,15 +46,6 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
 
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
-#ifdef USE_MULTISIG_BLS
-  bool is_bls = type_ == MULTISIG_BLS_SCHEME || type_ == THRESHOLD_BLS_SCHEME;
-  if (is_bls) {
-    bool use_multisig = type_ == MULTISIG_BLS_SCHEME || (type_ == THRESHOLD_BLS_SCHEME && forceMultisig_);
-    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()),
-                                               use_multisig);
-  }
-#endif
-
 #ifdef USE_MULTISIG_EDDSA
   if (type_ == MULTISIG_EDDSA_SCHEME) {
     return new EdDSAMultisigFactory();
@@ -72,7 +64,6 @@ void Cryptosystem::generateNewPseudorandomKeys() {
   std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
 
   auto [signers, verifier] = factory->newRandomSigners(threshold_, numSigners_);
-  if (type_ == THRESHOLD_BLS_SCHEME) publicKey_ = verifier->getPublicKey().toString();
 
   verificationKeys_.clear();
   verificationKeys_.resize(static_cast<size_t>(numSigners_ + 1));
@@ -98,7 +89,7 @@ std::pair<std::string, std::string> Cryptosystem::generateNewKeyPair() {
 }
 
 std::string Cryptosystem::getSystemPublicKey() const {
-  if ((forceMultisig_ || type_ == THRESHOLD_BLS_SCHEME) && publicKey_.length() < 1) {
+  if (publicKey_.length() < 1) {
     throw std::runtime_error(
         "A public key has not been"
         " generated or loaded for this cryptosystem.");
@@ -258,25 +249,6 @@ void Cryptosystem::validatePrivateKey(const std::string& key) const {
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, [[maybe_unused]] const std::string& subtype) {
-#ifdef USE_MULTISIG_BLS
-  if (type == MULTISIG_BLS_SCHEME) {
-    try {
-      BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
-      return true;
-    } catch (std::exception& e) {
-      LOG_FATAL(THRESHSIGN_LOG, e.what());
-      return false;
-    }
-  }
-  if (type == THRESHOLD_BLS_SCHEME) {
-    try {
-      BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
-      return true;
-    } catch (std::exception& e) {
-      return false;
-    }
-  }
-#endif
 #ifdef USE_MULTISIG_EDDSA
   UNUSED(subtype);
   if (type == MULTISIG_EDDSA_SCHEME) {
@@ -304,10 +276,6 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
 
 const std::vector<std::pair<std::string, std::string>>& Cryptosystem::getAvailableCryptosystemTypes() {
   static const std::vector<std::pair<std::string, std::string>> cryptoSystems = {
-#ifdef USE_MULTISIG_BLS
-      {MULTISIG_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
-      {THRESHOLD_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
-#endif
 #ifdef USE_MULTISIG_EDDSA
       {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}
 #endif
@@ -320,8 +288,7 @@ void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& p
   output << prefix << "_cryptosystem_type: " << getType() << "\n";
   output << prefix << "_cryptosystem_subtype_parameter: " << getSubtype() << "\n";
   output << prefix << "_cryptosystem_num_signers: " << numReplicas << "\n";
-  if (getType() == THRESHOLD_BLS_SCHEME || getType() == MULTISIG_EDDSA_SCHEME)
-    output << prefix << "_cryptosystem_threshold: " << getThreshold() << "\n";
+  if (getType() == MULTISIG_EDDSA_SCHEME) output << prefix << "_cryptosystem_threshold: " << getThreshold() << "\n";
   output << prefix << "_cryptosystem_public_key: " << getSystemPublicKey() << "\n";
   std::vector<std::string> verificationKeys = getSystemVerificationKeys();
   output << prefix << "_cryptosystem_verification_keys:\n";
@@ -344,10 +311,8 @@ Cryptosystem* Cryptosystem::fromConfiguration(std::istream& input,
   subtype = yaml::readValue<std::string>(input, prefix + "_cryptosystem_subtype_parameter");
   std::uint16_t numSigners = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_num_signers");
   uint16_t threshold = 1;
-  if (type == THRESHOLD_BLS_SCHEME || type == MULTISIG_EDDSA_SCHEME)
+  if (type == MULTISIG_EDDSA_SCHEME)
     threshold = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_threshold");
-  else if (type == MULTISIG_BLS_SCHEME)
-    threshold = numSigners;
   thrPublicKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_public_key");
   thrVerificationKeys = yaml::readCollection<std::string>(input, prefix + "_cryptosystem_verification_keys");
   if (thrVerificationKeys.size() != numSigners)
