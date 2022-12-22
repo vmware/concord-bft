@@ -1299,8 +1299,8 @@ void PreProcessor::msgProcessingLoop() {
         }
         default:
           LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
-          delete msg;
       }
+      delete msg;
     }
   }
 }
