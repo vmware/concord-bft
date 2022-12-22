@@ -975,28 +975,27 @@ class BftTestNetwork:
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
-        with trio.fail_after(seconds=10):
-            with log.start_action(action_type="stop_replica", replica=replica_id):
-                if replica_id not in self.procs.keys():
-                    raise AlreadyStoppedError(replica_id)
+        with log.start_action(action_type="stop_replica", replica=replica_id):
+            if replica_id not in self.procs.keys():
+                raise AlreadyStoppedError(replica_id)
 
-                if self.is_existing and self.config.stop_replica_cmd is not None:
-                    self._stop_external_replica(replica_id)
+            if self.is_existing and self.config.stop_replica_cmd is not None:
+                self._stop_external_replica(replica_id)
+            else:
+                proc = self.procs[replica_id]
+                if force_kill:
+                    proc.kill()
                 else:
-                    proc = self.procs[replica_id]
-                    if force_kill:
-                        proc.kill()
+                    if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                        proc.terminate()
                     else:
-                        if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                            proc.terminate()
-                        else:
-                            proc.kill()
-                    for fd in self.open_fds.get(replica_id, ()):
-                        fd.close()
-                    proc.wait()
-                    if self.debug_tool:
-                        self.debug_tool.process_output(replica_id, proc, self.testdir)
-                del self.procs[replica_id]
+                        proc.kill()
+                for fd in self.open_fds.get(replica_id, ()):
+                    fd.close()
+                proc.wait(timeout=30)
+                if self.debug_tool:
+                    self.debug_tool.process_output(replica_id, proc, self.testdir)
+            del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
         with log.start_action(action_type="_stop_external_replica", replica=replica_id):
