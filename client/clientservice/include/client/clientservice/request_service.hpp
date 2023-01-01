@@ -48,6 +48,14 @@ class RequestServiceCallData {
   // Forward request to concord client
   void sendToConcordClient();
 
+  static void updateAggregator();
+  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+  static void setMetricDumpInterval(uint64_t metrics_dump_interval) {
+    metrics_dump_interval_ms_ = metrics_dump_interval;
+  }
+
  private:
   logging::Logger logger_;
 
@@ -66,6 +74,15 @@ class RequestServiceCallData {
   RpcState state_;
 
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+
+  static concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::AtomicCounterHandle num_completed_requests;
+    concordMetrics::AtomicCounterHandle num_incoming_requests;
+    concordMetrics::AtomicCounterHandle num_failed_requests;
+  };
+  static Metrics metrics_;
+  static uint64_t metrics_dump_interval_ms_;
 };
 
 }  // namespace requestservice

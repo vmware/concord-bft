@@ -11,7 +11,6 @@
 
 #include <chrono>
 #include <iostream>
-#include <chrono>
 
 #include <opentracing/tracer.h>
 
