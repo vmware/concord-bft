@@ -179,8 +179,10 @@ include(CTest)
 #
 # Subdirectories
 #
+# TODO [TK] uncomment when dependencies are compiled by this CMake
+#set (CMAKE_FIND_USE_CMAKE_SYSTEM_PATH FALSE)
 if(BUILD_THIRDPARTY)
-	add_subdirectory(thirdparty)
+    include(thirdparty/CMakeLists.txt)
 endif()
 
 #link all libraries against logging by default

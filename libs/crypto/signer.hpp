@@ -12,9 +12,8 @@
 // file.
 #pragma once
 
-#include "crypto.hpp"
-#include "types.hpp"
 #include <string>
+#include "types.hpp"
 
 namespace concord::crypto {
 

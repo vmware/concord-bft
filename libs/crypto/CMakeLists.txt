@@ -7,11 +7,14 @@ target_include_directories(concord-crypto PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRE
                                           )
 
 if(USE_OPENSSL)
-    find_package(OpenSSL REQUIRED)
+    find_package(Threads REQUIRED)
+    if(NOT BUILD_THIRDPARTY)
+        find_package(OpenSSL COMPONENTS Crypto REQUIRED)
+    endif()
     target_sources(concord-crypto PRIVATE src/openssl/crypto.cpp
                                           src/openssl/certificates.cpp
                                           )
-    target_link_libraries(concord-crypto PUBLIC OpenSSL::Crypto z)
+    target_link_libraries(concord-crypto PUBLIC OpenSSL::Crypto z ${CMAKE_DL_LIBS} Threads::Threads)
     target_compile_definitions(concord-crypto PUBLIC USE_OPENSSL)
 endif()
 

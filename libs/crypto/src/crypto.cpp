@@ -20,121 +20,26 @@
 #include "hex_tools.h"
 #include "string.hpp"
 #include "types.hpp"
+#ifdef USE_OPENSSL
 #include "crypto/openssl/EdDSA.hpp"
-#include "util/filesystem.hpp"
-
+#include "crypto/openssl/crypto.hpp"
+#endif
 namespace concord::crypto {
-using std::array;
-using std::pair;
-using std::string;
-using concord::Byte;
-using concord::crypto::KeyFormat;
-using concord::crypto::openssl::UniquePKEY;
-using concord::crypto::openssl::UniqueECKEY;
-using concord::crypto::openssl::UniquePKEYContext;
-using concord::crypto::openssl::UniqueBIO;
-using concord::crypto::openssl::OPENSSL_SUCCESS;
-using concord::crypto::Ed25519PrivateKeyByteSize;
-using concord::crypto::Ed25519PublicKeyByteSize;
 
-pair<string, string> generateECKeyPair(int id, const KeyFormat fmt) {
-  constexpr size_t maxKeySize = 2048;
-
-  UniqueBIO outbio;
-  openssl::UniqueECKEY myecc{EC_KEY_new_by_curve_name(id)};
-
-  ConcordAssertEQ(OPENSSL_SUCCESS, EC_KEY_generate_key(myecc.get()));
-  UniquePKEY pkey{EVP_PKEY_new()};
-  EVP_PKEY_assign_EC_KEY(pkey.get(), myecc.get());
-
-  array<Byte, maxKeySize> privKey;
-  array<Byte, maxKeySize> pubKey;
-  size_t privKeyLen{maxKeySize};
-  size_t pubKeyLen{maxKeySize};
-
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(pkey.get(), privKey.data(), &privKeyLen));
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(pkey.get(), pubKey.data(), &pubKeyLen));
-
-  pair<string, string> keyPair(boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), privKeyLen)),
-                               boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), pubKeyLen)));
-
-  if (KeyFormat::PemFormat == fmt) {
-    keyPair = EdDSAHexToPem(keyPair);
-  }
-  return keyPair;
+std::pair<std::string, std::string> generateEdDSAKeyPair(const KeyFormat fmt) {
+#ifdef USE_OPENSSL
+  return openssl::generateEdDSAKeyPair(fmt);
+#else
+#error "Openssl is the only implementation available. Use \"USE_OPENSSL\" flag"
+#endif
 }
 
-pair<string, string> generateEdDSAKeyPair(const KeyFormat fmt) {
-  UniquePKEY edPkey;
-  UniquePKEYContext edPkeyCtx(EVP_PKEY_CTX_new_id(NID_ED25519, nullptr));
-
-  ConcordAssertNE(edPkeyCtx, nullptr);
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen_init(edPkeyCtx.get()));
-  EVP_PKEY* keygenRet = nullptr;
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen(edPkeyCtx.get(), &keygenRet));
-  edPkey.reset(keygenRet);
-
-  array<Byte, Ed25519PrivateKeyByteSize> privKey;
-  array<Byte, Ed25519PublicKeyByteSize> pubKey;
-  size_t keyLen{Ed25519PrivateKeyByteSize};
-
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(edPkey.get(), privKey.data(), &keyLen));
-  ConcordAssertEQ(keyLen, Ed25519PrivateKeyByteSize);
-  keyLen = Ed25519PublicKeyByteSize;
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(edPkey.get(), pubKey.data(), &keyLen));
-  ConcordAssertEQ(keyLen, Ed25519PublicKeyByteSize);
-
-  pair<string, string> keyPair(
-      boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), Ed25519PrivateKeyByteSize)),
-      boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), Ed25519PublicKeyByteSize)));
-
-  if (KeyFormat::PemFormat == fmt) {
-    keyPair = EdDSAHexToPem(keyPair);
-  }
-  return keyPair;
-}
-
-pair<string, string> EdDSAHexToPem(const std::pair<std::string, std::string>& hex_key_pair) {
-  string privPemString;
-  string pubPemString;
-
-  if (!hex_key_pair.first.empty()) {  // Proceed with private key pem file generation.
-    const auto privKey = boost::algorithm::unhex(hex_key_pair.first);
-
-    UniquePKEY ed_privKey(EVP_PKEY_new_raw_private_key(
-        NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(privKey.data()), privKey.size()));
-    ConcordAssertNE(nullptr, ed_privKey);
-
-    UniqueBIO bio(BIO_new(BIO_s_mem()));
-    ConcordAssertNE(nullptr, bio);
-
-    ConcordAssertEQ(OPENSSL_SUCCESS,
-                    PEM_write_bio_PrivateKey(bio.get(), ed_privKey.get(), nullptr, nullptr, 0, nullptr, nullptr));
-
-    const auto lenToRead = BIO_pending(bio.get());
-    std::vector<uint8_t> output(lenToRead);
-    ConcordAssertGT(BIO_read(bio.get(), output.data(), lenToRead), 0);
-    privPemString = string(output.begin(), output.end());
-  }
-
-  if (!hex_key_pair.second.empty()) {  // Proceed with public key pem file generation.
-    const auto pubKey = boost::algorithm::unhex(hex_key_pair.second);
-
-    UniquePKEY ed_pubKey(EVP_PKEY_new_raw_public_key(
-        NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(pubKey.data()), pubKey.size()));
-    ConcordAssertNE(nullptr, ed_pubKey);
-
-    UniqueBIO bio(BIO_new(BIO_s_mem()));
-    ConcordAssertNE(nullptr, bio);
-
-    ConcordAssertEQ(OPENSSL_SUCCESS, PEM_write_bio_PUBKEY(bio.get(), ed_pubKey.get()));
-
-    const auto lenToRead = BIO_pending(bio.get());
-    std::vector<uint8_t> output(lenToRead);
-    ConcordAssertGT(BIO_read(bio.get(), output.data(), lenToRead), 0);
-    pubPemString = string(output.begin(), output.end());
-  }
-  return make_pair(privPemString, pubPemString);
+std::pair<std::string, std::string> EdDSAHexToPem(const std::pair<std::string, std::string>& hex_key_pair) {
+#ifdef USE_OPENSSL
+  return openssl::EdDSAHexToPem(hex_key_pair);
+#else
+#error "Openssl is the only implementation available. Use \"USE_OPENSSL\" flag"
+#endif
 }
 
 KeyFormat getFormat(const std::string& key) {

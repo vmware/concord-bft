@@ -21,7 +21,8 @@
 #include <optional>
 #include "string.hpp"
 #include "kvstream.h"
-#include "crypto/factory.hpp"
+#include "crypto/crypto.hpp"
+#include "Serializable.h"
 
 namespace bftEngine {
 

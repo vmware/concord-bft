@@ -14,6 +14,7 @@
 
 #pragma once
 
+#ifdef USE_OPENSSL
 #include "openssl/integer.hpp"
 
 namespace concord::crypto {
@@ -21,3 +22,4 @@ namespace concord::crypto {
 using Integer = openssl::Integer;
 
 }  // namespace concord::crypto
+#endif

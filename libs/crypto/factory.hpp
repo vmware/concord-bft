@@ -14,15 +14,20 @@
 #pragma once
 
 #include "log/logger.hpp"
-#include "crypto/openssl/EdDSASigner.hpp"
-#include "crypto/openssl/EdDSAVerifier.hpp"
+#include "crypto/crypto.hpp"
+#include "crypto/signer.hpp"
+#include "crypto/verifier.hpp"
 
 namespace concord::crypto {
+enum class Provider : uint16_t {
+#ifdef USE_OPENSSL
+  OpenSSL
+#endif
+};
 
-enum class Provider : uint16_t { OpenSSL };
-
+#ifdef USE_OPENSSL
 constexpr static const Provider DefaultProvider = Provider::OpenSSL;
-
+#endif
 /**
  * This class hides the implementation details from users of cryptographic algorithms
  * and allows the addition and removal of libraries in a single place

@@ -12,6 +12,10 @@
 // file.
 
 #include "crypto/factory.hpp"
+#ifdef USE_OPENSSL
+#include "crypto/openssl/EdDSASigner.hpp"
+#include "crypto/openssl/EdDSAVerifier.hpp"
+#endif
 
 namespace concord::crypto {
 
@@ -32,13 +36,16 @@ std::unique_ptr<ISigner> Factory::getSigner(const std::string& signingKey,
                                             concord::crypto::KeyFormat fmt,
                                             Provider provider) {
   using ImplInitializer = std::function<std::unique_ptr<ISigner>()>;
-  namespace openssl = concord::crypto::openssl;
 
   const std::unordered_map<AlgProvider, ImplInitializer, AlgProviderHash> providerAlgorithmToSigner = {
-      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL}, [&]() {
+#ifdef USE_OPENSSL
+      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL},
+       [&]() {
          const auto signingKeyObject = openssl::deserializeKey<openssl::EdDSAPrivateKey>(signingKey, fmt);
          return std::make_unique<openssl::EdDSASigner<openssl::EdDSAPrivateKey>>(signingKeyObject.getBytes());
-       }}};
+       }}
+#endif
+  };
 
   return providerAlgorithmToSigner.at({signingAlgo, provider})();
 }
@@ -48,13 +55,15 @@ std::unique_ptr<IVerifier> Factory::getVerifier(const std::string& verificationK
                                                 concord::crypto::KeyFormat fmt,
                                                 Provider provider) {
   using ImplInitializer = std::function<std::unique_ptr<IVerifier>()>;
-  namespace openssl = concord::crypto::openssl;
-
   const std::unordered_map<AlgProvider, ImplInitializer, AlgProviderHash> providerAlgorithmToVerifier = {
-      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL}, [&]() {
+#ifdef USE_OPENSSL
+      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL},
+       [&]() {
          const auto verifyingKeyObject = openssl::deserializeKey<openssl::EdDSAPublicKey>(verificationKey, fmt);
          return std::make_unique<openssl::EdDSAVerifier<openssl::EdDSAPublicKey>>(verifyingKeyObject.getBytes());
-       }}};
+       }}
+#endif
+  };
 
   return providerAlgorithmToVerifier.at({verifierAlgo, provider})();
 }

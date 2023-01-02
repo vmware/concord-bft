@@ -31,12 +31,8 @@
 #include "RawMemoryPool.hpp"
 #include "GlobalData.hpp"
 #include "PerfMetrics.hpp"
-
-// TODO[TK] till boost upgrade
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#include "Replica.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
-#pragma GCC diagnostic pop
 
 #include <mutex>
 #include <condition_variable>

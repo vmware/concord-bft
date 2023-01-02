@@ -1,7 +1,5 @@
 find_package(GTest REQUIRED)
 
-find_package(OpenSSL REQUIRED)
-
 add_executable(metric_tests metric_test.cpp)
 add_test(metric_tests metric_tests)
 target_link_libraries(metric_tests GTest::Main util)

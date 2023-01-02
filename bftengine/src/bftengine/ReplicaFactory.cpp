@@ -16,6 +16,7 @@
 #include "IncomingMsgsStorageImp.hpp"
 #include "MsgReceiver.hpp"
 #include "PreProcessor.hpp"
+#include "PersistentStorageImp.hpp"
 #include <util/filesystem.hpp>
 #include <ccron/ticks_generator.hpp>
 

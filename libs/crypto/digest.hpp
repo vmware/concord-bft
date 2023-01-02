@@ -12,12 +12,17 @@
 #pragma once
 
 #include "digest_holder.hpp"
+
+#ifdef USE_OPENSSL
 #include "crypto/openssl/digest_creator.hpp"
+#endif
 
 namespace concord::crypto {
 
+#ifdef USE_OPENSSL
 using SHA3_256 = openssl::SHA3_256;
 using SHA2_256 = openssl::SHA2_256;
+#endif
 
 using Digest = DigestHolder<DigestGenerator>;
 

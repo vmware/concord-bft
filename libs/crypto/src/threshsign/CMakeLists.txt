@@ -8,11 +8,10 @@ target_link_libraries(threshsign PUBLIC concord-crypto)
 
 if(USE_MULTISIG_EDDSA)
     message(STATUS "Using OpenSSL EdDSA threshold signatures")
-    find_package(OpenSSL REQUIRED)
     target_compile_definitions(threshsign PUBLIC USE_MULTISIG_EDDSA)
     target_include_directories(threshsign PUBLIC ${Boost_INCLUDE_DIR})
     add_subdirectory(eddsa)
-    target_link_libraries(threshsign PUBLIC eddsa_multisig_lib OpenSSL::Crypto)
+    target_link_libraries(threshsign PUBLIC eddsa_multisig_lib)
 endif()
 
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)

@@ -22,7 +22,6 @@
 #include "ControlStateManager.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "Replica.hpp"
 
 namespace preprocessor {
 

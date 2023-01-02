@@ -12,6 +12,7 @@
 // file.
 
 #include "crypto/openssl/certificates.hpp"
+#include "crypto/openssl/crypto.hpp"
 #include "util/filesystem.hpp"
 
 #include <regex>

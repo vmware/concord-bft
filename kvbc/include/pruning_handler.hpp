@@ -21,7 +21,7 @@
 #include <future>
 #include "bftengine/Reconfiguration.hpp"
 #include "bftengine/ReplicasInfo.hpp"
-
+#include "crypto/factory.hpp"
 #include "log/logger.hpp"
 namespace concord::kvbc::pruning {
 
