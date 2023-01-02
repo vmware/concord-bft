@@ -26,9 +26,20 @@ Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, c
 }
 
 Wallet::Connection Wallet::newConnection() {
-  std::string grpcServerAddr = "127.0.0.1:49001";
+  std::string grpcServerAddr;
+  auto serverAddr = std::getenv("GRPC_WALLET_SERVER_ADDR");
+  auto serverPort = std::getenv("PRIVACY_WALLET_APP_GRPC_PORT");
+  if (!serverAddr)
+    grpcServerAddr = "127.0.0.1";
+  else
+    grpcServerAddr = std::string(serverAddr);
+  grpcServerAddr += ":";
+  if (!serverPort)
+    grpcServerAddr += "49001";
+  else
+    grpcServerAddr += std::string(serverPort);
 
-  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... ";
+  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... " << std::endl;
 
   auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
 

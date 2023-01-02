@@ -18,9 +18,20 @@
 using namespace vmware::concord::utt::admin::api::v1;
 
 Admin::Connection Admin::newConnection() {
-  std::string grpcServerAddr = "127.0.0.1:49000";
+  std::string grpcServerAddr;
+  auto serverAddr = std::getenv("GRPC_ADMIN_SERVER_ADDR");
+  auto serverPort = std::getenv("PRIVACY_WALLET_ADMIN_GRPC_PORT");
+  if (!serverAddr)
+    grpcServerAddr = "127.0.0.1";
+  else
+    grpcServerAddr = std::string(serverAddr);
+  grpcServerAddr += ":";
+  if (!serverPort)
+    grpcServerAddr += "49000";
+  else
+    grpcServerAddr += std::string(serverPort);
 
-  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... ";
+  std::cout << "Connecting to gRPC server at " << grpcServerAddr << "... " << std::endl;
 
   auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
 
