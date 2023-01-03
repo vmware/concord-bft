@@ -177,7 +177,7 @@ void ReplicaImp::registerMsgHandlers() {
 template <typename T>
 void ReplicaImp::messageHandler(std::unique_ptr<MessageBase> msg) {
   auto trueTypeObj = std::make_unique<T>(msg.get());
-  delete msg.release();
+  msg.reset();
   if (isCollectingState()) {
     // Extract only required information and handover to ST thread
     if (validateMessage(trueTypeObj.get())) {
