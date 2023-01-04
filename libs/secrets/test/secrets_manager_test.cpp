@@ -123,6 +123,29 @@ TEST(SecretsManager, Internals_GCM) {
   ASSERT_EQ(plain_text, input);
 }
 
+TEST(SecretsManager, Internals_GCM_With_TagLength) {
+  const std::string input{"I would be encrypted"};
+  const std::string encrypted{"s54vIO4fPg0MVvmihQtpTtO2alQXHwwTVWkFbEH93TQ5Kg0E\n"};
+
+  auto secret_data = getSecretData_GCM();
+  concord::secretsmanager::KeyParams key_params(secret_data.key, secret_data.iv);
+
+  // Encrypt
+  concord::secretsmanager::AES_GCM e(key_params, "{\"TAG_LENGTH_BITS\" : 128}");
+  auto cipher_text = e.encrypt(input);
+  auto cipher_text_encoded = base64Enc(cipher_text);
+  ASSERT_EQ(cipher_text_encoded, encrypted);
+
+  // Decrypt
+  auto dec = base64Dec(cipher_text_encoded);
+
+  std::cout << std::endl;
+  ASSERT_EQ(dec, cipher_text);
+
+  auto plain_text = e.decrypt(cipher_text);
+  ASSERT_EQ(plain_text, input);
+}
+
 TEST(SecretsManager, Base64) {
   const std::vector<uint8_t> cipher_text{
       0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};

@@ -24,38 +24,32 @@
 
 namespace concord::secretsmanager {
 
-class iAES_Mode {
+class IAesMode {
  public:
-  iAES_Mode(const KeyParams& params,
-            concord::crypto::SignatureAlgorithm algo = concord::crypto::SignatureAlgorithm::EdDSA)
-      : params_{params}, algo_{algo} {}
+  IAesMode(const KeyParams& params, const std::string& a_info = "") : params_{params}, additional_info(a_info) {}
   virtual std::vector<uint8_t> encrypt(std::string_view input) = 0;
   virtual std::string decrypt(const std::vector<uint8_t>& cipher) = 0;
   const KeyParams getKeyParams() { return params_; }
-  const concord::crypto::SignatureAlgorithm getAlgorithm() { return algo_; }
+  const std::string getAdditionalInfo() { return additional_info; }
   // Not adding setters as these algo/modes must be set at construction time
-  virtual ~iAES_Mode() = default;
+  virtual ~IAesMode() = default;
 
  private:
   KeyParams params_;
-  concord::crypto::SignatureAlgorithm algo_;
+  std::string additional_info;
 };
 
-class AES_CBC : public iAES_Mode {
+class AES_CBC : public IAesMode {
  public:
-  AES_CBC(const KeyParams& params,
-          concord::crypto::SignatureAlgorithm algo = concord::crypto::SignatureAlgorithm::EdDSA)
-      : iAES_Mode(params, algo) {}
+  AES_CBC(const KeyParams& params, const std::string& a_info = "") : IAesMode(params, a_info) {}
   std::vector<uint8_t> encrypt(std::string_view input) override;
   std::string decrypt(const std::vector<uint8_t>& cipher) override;
   ~AES_CBC() = default;
 };
 
-class AES_GCM : public iAES_Mode {
+class AES_GCM : public IAesMode {
  public:
-  AES_GCM(const KeyParams& params,
-          concord::crypto::SignatureAlgorithm algo = concord::crypto::SignatureAlgorithm::EdDSA)
-      : iAES_Mode(params, algo) {}
+  AES_GCM(const KeyParams& params, const std::string& a_info = "") : IAesMode(params, a_info) {}
   std::vector<uint8_t> encrypt(std::string_view input) override;
   std::string decrypt(const std::vector<uint8_t>& cipher) override;
   ~AES_GCM() = default;

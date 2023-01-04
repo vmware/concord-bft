@@ -30,11 +30,11 @@ SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
     throw std::runtime_error("Unsupported encryption algorithm " + secrets.algo + "Supported encryptions: " + encs);
   }
 }
-std::unique_ptr<iAES_Mode> SecretsManagerEnc::getEncryptionMode() {
+std::unique_ptr<IAesMode> SecretsManagerEnc::getAESEncryptionMode() {
   if (initial_secret_data_.algo == "AES/GCM/NoPadding") {
-    return std::make_unique<AES_GCM>(*key_params_);
+    return std::make_unique<AES_GCM>(*key_params_, initial_secret_data_.additional_info);
   } else {
-    return std::make_unique<AES_CBC>(*key_params_);
+    return std::make_unique<AES_CBC>(*key_params_, initial_secret_data_.additional_info);
   }
 }
 bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::string& input) {
@@ -93,7 +93,7 @@ std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
   }
   try {
     // AES_CBC is created on each call for thread safety
-    auto aes = getEncryptionMode();
+    auto aes = getAESEncryptionMode();
     auto cipher_text = base64Dec(data);
     auto pt = aes->decrypt(cipher_text);
     return std::optional<std::string>{pt};
@@ -109,7 +109,7 @@ std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
   }
   try {
     // AES_CBC is created on each call fir thread safety
-    auto aes = getEncryptionMode();
+    auto aes = getAESEncryptionMode();
     auto cipher_text = aes->encrypt(data);
     return std::optional<std::string>{base64Enc(cipher_text)};
   } catch (std::exception& e) {
