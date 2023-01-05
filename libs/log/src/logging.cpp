@@ -61,17 +61,17 @@ bool Logger::config(const std::string& configFileName) {
       std::string levelStr = line.substr(pos + 1);
       LogLevel level;
       if (!levelStr.compare("TRACE"))
-        level = LogLevel::trace;
+        level = TRACE_LOG_LEVEL;
       else if (!levelStr.compare("DEBUG"))
-        level = LogLevel::debug;
+        level = DEBUG_LOG_LEVEL;
       else if (!levelStr.compare("INFO"))
-        level = LogLevel::info;
+        level = INFO_LOG_LEVEL;
       else if (!levelStr.compare("WARN"))
-        level = LogLevel::warn;
+        level = WARN_LOG_LEVEL;
       else if (!levelStr.compare("ERROR"))
-        level = LogLevel::error;
+        level = ERROR_LOG_LEVEL;
       else if (!levelStr.compare("FATAL"))
-        level = LogLevel::fatal;
+        level = FATAL_LOG_LEVEL;
       else {
         std::cerr << __PRETTY_FUNCTION__ << ": ignoring invalid log level " << levelStr << std::endl;
         continue;

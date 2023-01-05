@@ -23,6 +23,12 @@
 namespace logging {
 typedef log4cplus::LogLevel LogLevel;
 typedef log4cplus::Logger Logger;
+using log4cplus::TRACE_LOG_LEVEL;
+using log4cplus::DEBUG_LOG_LEVEL;
+using log4cplus::INFO_LOG_LEVEL;
+using log4cplus::WARN_LOG_LEVEL;
+using log4cplus::ERROR_LOG_LEVEL;
+using log4cplus::FATAL_LOG_LEVEL;
 
 std::string get(const std::string& key);
 

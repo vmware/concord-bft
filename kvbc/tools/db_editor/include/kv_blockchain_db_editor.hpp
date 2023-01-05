@@ -1342,6 +1342,8 @@ inline std::string usage() {
 }
 
 inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std::ostream &err) {
+  // Make sure the output is clean
+  logging::getLogger("concord").setLogLevel(logging::WARN_LOG_LEVEL);
   if (cmd_line_args.values.size() < kMinCmdLineArguments) {
     err << usage();
     return EXIT_FAILURE;

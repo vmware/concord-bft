@@ -23,7 +23,16 @@ namespace logging {
 /**
  *  Logging Levels
  */
-enum LogLevel { trace, debug, info, warn, error, fatal };
+typedef int LogLevel;
+
+/** mimic log4cplus loglevel values */
+const LogLevel LOG4CPLUS_LEVEL_COEFF = 10000;
+const LogLevel TRACE_LOG_LEVEL = 0;
+const LogLevel DEBUG_LOG_LEVEL = 10000;
+const LogLevel INFO_LOG_LEVEL = 20000;
+const LogLevel WARN_LOG_LEVEL = 30000;
+const LogLevel ERROR_LOG_LEVEL = 40000;
+const LogLevel FATAL_LOG_LEVEL = 50000;
 
 /**
  * Mapped Diagnostic Context
@@ -67,7 +76,7 @@ class LoggerImpl {
 
     // clang-format off
     std::cout << std::put_time(std::localtime(&cur_time.tv_sec), "%FT%T.") << (int)cur_time.tv_usec / 1000
-       << "|" << LoggerImpl::LEVELS_STRINGS[l]
+       << "|" << LoggerImpl::LEVELS_STRINGS[l/LOG4CPLUS_LEVEL_COEFF]
        << "|" << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY)
        << "|" << name_
        << "|" << getThreadContext().getMDC().get(MDC_THREAD_KEY)
@@ -88,7 +97,7 @@ class LoggerImpl {
   }
 
   std::string name_;
-  LogLevel level_ = LogLevel::info;
+  LogLevel level_ = WARN_LOG_LEVEL;
 
  public:
   static std::array<std::string, 6> LEVELS_STRINGS;
@@ -120,12 +129,12 @@ class Logger {
     }                                                               \
   } while (0)
 
-#define LOG_TRACE(l, s) LOG_COMMON(l, logging::LogLevel::trace, s)
-#define LOG_DEBUG(l, s) LOG_COMMON(l, logging::LogLevel::debug, s)
-#define LOG_INFO(l, s) LOG_COMMON(l, logging::LogLevel::info, s)
-#define LOG_WARN(l, s) LOG_COMMON(l, logging::LogLevel::warn, s)
-#define LOG_ERROR(l, s) LOG_COMMON(l, logging::LogLevel::error, s)
-#define LOG_FATAL(l, s) LOG_COMMON(l, logging::LogLevel::fatal, s)
+#define LOG_TRACE(l, s) LOG_COMMON(l, logging::TRACE_LOG_LEVEL, s)
+#define LOG_DEBUG(l, s) LOG_COMMON(l, logging::DEBUG_LOG_LEVEL, s)
+#define LOG_INFO(l, s) LOG_COMMON(l, logging::INFO_LOG_LEVEL, s)
+#define LOG_WARN(l, s) LOG_COMMON(l, logging::WARN_LOG_LEVEL, s)
+#define LOG_ERROR(l, s) LOG_COMMON(l, logging::ERROR_LOG_LEVEL, s)
+#define LOG_FATAL(l, s) LOG_COMMON(l, logging::FATAL_LOG_LEVEL, s)
 
 #define MDC_PUT(k, v) logging::Logger::getThreadContext().getMDC().put(k, v);
 #define MDC_REMOVE(k) logging::Logger::getThreadContext().getMDC().remove(k);
