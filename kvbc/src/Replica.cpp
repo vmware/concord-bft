@@ -33,7 +33,6 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "communication/StateControl.hpp"
 #include "bftengine/DbCheckpointManager.hpp"
-#include "IntervalMappingResourceManager.hpp"
 #include "kvbc_adapter/v4blockchain/blocks_utils.hpp"
 
 using bft::communication::ICommunication;
@@ -171,9 +170,7 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
                                                 bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
                                                 bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
                                                 *this,
-                                                *this,
-                                                this->AdaptivePruningManager_,
-                                                this->replicaResources_),
+                                                *this),
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(
@@ -184,9 +181,9 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
           m_stateSnapshotValueConverter,
           m_lastAppTxnCallback),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
-                                                *this, *this, this->AdaptivePruningManager_),
-                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
@@ -322,16 +319,8 @@ void Replica::createReplicaAndSyncState() {
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_,
-      requestHandler,
-      m_stateTransfer,
-      m_ptrComm.get(),
-      m_metadataStorage,
-      pm_,
-      secretsManager_,
-      std::bind(&AdaptivePruningManager::setPrimary, &AdaptivePruningManager_, std::placeholders::_1));
+      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
-  AdaptivePruningManager_.initBFTClient(m_replicaPtr->internalClient());
 
   // Make sure that when state transfer completes, we persist the last kvbc block ID in metadata.
   m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
@@ -411,16 +400,12 @@ BlockId Replica::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
     // We assume until > 0, see check above
     m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
   }
-  ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_, ISystemResourceEntity::type::pruning_utilization);
   return m_kvBlockchain->deleteBlocksUntil(until, delete_files_in_range);
 }
 
 void Replica::deleteLastReachableBlock() { return m_kvBlockchain->deleteLastReachableBlock(); }
 
-BlockId Replica::add(categorization::Updates &&updates) {
-  replicaResources_.addMeasurement({ISystemResourceEntity::type::add_blocks_accumulated, 1, 0, 0});
-  return m_kvBlockchain->add(std::move(updates));
-}
+BlockId Replica::add(categorization::Updates &&updates) { return m_kvBlockchain->add(std::move(updates)); }
 
 std::optional<categorization::Value> Replica::get(const std::string &category_id,
                                                   const std::string &key,
@@ -496,15 +481,7 @@ Replica::Replica(ICommunication *comm,
       secretsManager_{secretsManager},
       blocks_io_workers_pool("Replica::blocks_io_workers_pool",
                              (replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
-                                                                            : std::thread::hardware_concurrency()),
-      AdaptivePruningManager_{
-          concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
-              replicaResources_,
-              std::vector<std::pair<uint64_t, uint64_t>>{
-                  concord::performance::IntervalMappingResourceManager::default_mapping}),
-          bftEngine::ReplicaConfig::instance().adaptivePruningIntervalDuration,
-          aggregator_,
-          *this} {
+                                                                            : std::thread::hardware_concurrency()) {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
 
@@ -589,7 +566,7 @@ Replica::Replica(ICommunication *comm,
     op_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient),
                             linkStChain,
                             kvbc_categories,
-                            concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_, this->replicaResources_));
+                            concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_));
     m_kvBlockchain = &(op_kvBlockchain.value());
     bool isCategorized = replicaConfig.kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -621,8 +598,7 @@ Replica::Replica(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   if (!replicaConfig.isReadOnly) {
-    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(
-        *m_stateTransfer, *this, this->AdaptivePruningManager_, this->replicaResources_);
+    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
     m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   } else {
     m_metadataStorage =
@@ -632,6 +608,7 @@ Replica::Replica(ICommunication *comm,
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
   bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator);
+
 }  // namespace concord::kvbc
 
 Replica::~Replica() {

@@ -38,14 +38,7 @@ static const std::string blockchain_version(1, 0x50);
 static const std::string v4_snapshot_sequence(1, 0x51);
 static const std::string v4_snapshot_sequence_checkpoint(1, 0x52);
 
-enum PRUNING_COMMAND_TYPES : uint16_t {
-  PRUNING_START = 0x0,
-  BACKWARD_COMP = 0x1,
-  TICKS_CHANGE_REQUEST = 0x2,
-  SWITCH_MODE_REQUEST = 0x3,
-  STOP_REQUEST = 0x4,
-  PRUNING_END
-};
+enum PRUNING_COMMAND_TYPES : uint16_t { PRUNING_START = 0x0, BACKWARD_COMP = 0x1, PRUNING_END };
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
   PUBLIC_KEY_EXCHANGE = 0x1,             // identifier of public key exchange request by client

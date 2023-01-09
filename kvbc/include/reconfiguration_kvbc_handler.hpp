@@ -20,8 +20,6 @@
 #include "kvbc_key_types.hpp"
 #include "SigManager.hpp"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
-#include "AdaptivePruningManager.hpp"
-#include "IntervalMappingResourceManager.hpp"
 #include "newest_public_event_group_record_time.h"
 #include "bftengine/PersistentStorageImp.hpp"
 #include "Reconfiguration.hpp"
@@ -157,33 +155,9 @@ class ReconfigurationHandler : public concord::reconfiguration::OperatorCommands
   ReconfigurationHandler(const std::string& path_to_operator_pub_key,
                          concord::crypto::SignatureAlgorithm sig_type,
                          kvbc::IBlockAdder& block_adder,
-                         kvbc::IReader& ro_storage,
-                         concord::performance::AdaptivePruningManager& apm,
-                         concord::performance::ISystemResourceEntity& replicaResources)
+                         kvbc::IReader& ro_storage)
       : concord::reconfiguration::OperatorCommandsReconfigurationHandler{path_to_operator_pub_key, sig_type},
-        ReconfigurationBlockTools{block_adder, ro_storage},
-        apm_(apm),
-        replicaResources_(replicaResources) {
-    const auto& command = apm_.getLatestConfiguration();
-    if (command.sender_id != 0) {
-      if (command.mode == concord::performance::PruningMode::LEGACY) {
-        concord::messages::PruneLegacyConfiguration conf =
-            std::get<concord::messages::PruneLegacyConfiguration>(command.configuration);
-        LOG_INFO(getLogger(), "switching to legacy mode " << KVLOG(conf.tick_period_seconds, conf.batch_blocks_num));
-        // Handle legacy pruning configuration
-        apm_.switchMode(concord::performance::PruningMode::LEGACY);
-      } else if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
-        LOG_INFO(getLogger(), "switching to adaptive mode");
-        concord::messages::PruneConfigurationMap conf =
-            std::get<concord::messages::PruneConfigurationMap>(command.configuration);
-        apm_.setResourceManager(
-            concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
-                replicaResources_, std::move(conf.mapConsensusRateToPruningRate)),
-            false);
-        apm_.switchMode(concord::performance::PruningMode::ADAPTIVE);
-      }
-    }
-  }
+        ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               uint32_t,
@@ -294,17 +268,6 @@ class ReconfigurationHandler : public concord::reconfiguration::OperatorCommands
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::PruneSwitchModeRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
-
-  bool handle(const concord::messages::PruneStopRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::PruneStatusRequest&,
               uint64_t,
               uint32_t,
@@ -315,8 +278,6 @@ class ReconfigurationHandler : public concord::reconfiguration::OperatorCommands
   }
 
  private:
-  concord::performance::AdaptivePruningManager& apm_;
-  concord::performance::ISystemResourceEntity& replicaResources_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
 };
 /**
@@ -326,10 +287,8 @@ class ReconfigurationHandler : public concord::reconfiguration::OperatorCommands
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
-  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder,
-                                   kvbc::IReader& ro_storage,
-                                   concord::performance::AdaptivePruningManager& apm)
-      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_{apm} {}
+  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
   bool handle(const concord::messages::WedgeCommand& command,
@@ -347,13 +306,6 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::PruneTicksChangeRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
-
-  concord::performance::AdaptivePruningManager& apm_;
 };
 
 class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,

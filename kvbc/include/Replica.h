@@ -32,8 +32,6 @@
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
 #include "log/logger.hpp"
-#include "ReplicaResources.h"
-#include "AdaptivePruningManager.hpp"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
 #include "newest_public_event_group_record_time.h"
 
@@ -260,9 +258,7 @@ class Replica : public IReplica,
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry_{std::make_shared<cron::CronTableRegistry>()};
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
-  ReplicaResourceEntity replicaResources_;
   concord::util::ThreadPool blocks_io_workers_pool;
-  performance::AdaptivePruningManager AdaptivePruningManager_;
   struct Recorders {
     static constexpr uint64_t MAX_VALUE_MICROSECONDS = 2ULL * 1000ULL * 1000ULL;  // 2 seconds
     const std::string component_ = "iappstate";

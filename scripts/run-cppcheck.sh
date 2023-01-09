@@ -161,7 +161,7 @@ fi
 (cd "${CONCORD_BFT_BUILD_DIR}" && \
 echo 'Building Protocol Buffers/CMF/Concord message targets to support CMake project import...' && \
 make clientservice-proto concord-kvbc-proto replica-state-snapshot-proto thin-replica-proto &> /dev/null && \
-make categorized_kvbc_msgs ccron_msgs event_group_msgs pruning_msgs db_checkpoint_msg &> /dev/null && \
+make categorized_kvbc_msgs ccron_msgs event_group_msgs db_checkpoint_msg &> /dev/null && \
 make cmf_messages execution_data_cmf keys_and_signatures_cmf skvbc_messages_cmf &> /dev/null)
 
 #print_debug_info # uncomment to debug

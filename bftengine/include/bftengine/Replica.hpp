@@ -99,8 +99,7 @@ class IReplica {
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
-                                      const std::function<void(bool)> &);
+                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,

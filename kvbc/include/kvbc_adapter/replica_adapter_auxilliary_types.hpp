@@ -17,16 +17,12 @@
 #include <memory>
 
 #include "Metrics.hpp"
-#include "ISystemResourceEntity.hpp"
 
 namespace concord::kvbc::adapter::aux {
 
 struct AdapterAuxTypes {
-  explicit AdapterAuxTypes(std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                           concord::performance::ISystemResourceEntity& resource_entity)
-      : aggregator_(aggregator), resource_entity_(resource_entity) {}
+  explicit AdapterAuxTypes(std::shared_ptr<concordMetrics::Aggregator> aggregator) : aggregator_(aggregator) {}
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
-  concord::performance::ISystemResourceEntity& resource_entity_;
 };
 
 }  // namespace concord::kvbc::adapter::aux
