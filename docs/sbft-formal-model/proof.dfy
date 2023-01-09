@@ -29,6 +29,8 @@ module Proof {
   import opened SafetySpec
   import opened Library
 
+  type Message = Network.Message<Messages.Message>
+
   predicate IsHonestReplica(c:Constants, hostId:HostId) 
   {
     && c.WF()
@@ -283,6 +285,7 @@ module Proof {
   predicate Inv(c: Constants, v:Variables) {
     //&& PrePreparesCarrySameClientOpsForGivenSeqID(c, v)
     // Do not remove, lite invariant about internal honest Node invariants:
+    && v.WF(c)
     && AllReplicasLiteInv(c, v)
     && RecordedPreparesHaveValidSenderID(c, v)
     //&& SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
@@ -300,10 +303,11 @@ module Proof {
     && HonestReplicasLockOnCommitForGivenView(c, v)
     && CommitMsgsFromHonestSendersAgree(c, v)
     && RecordedCheckpointsRecvdCameFromNetwork(c, v)
+    && UnCommitableAgreesWithPrepare(c, v)
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
-                                  operationWrapper:Messages.OperationWrapper) : set<Network.Message<Messages.Message>> 
+                                  operationWrapper:Messages.OperationWrapper) : set<Message> 
     requires v.WF(c)
   {
     set msg | && msg in v.network.sentMsgs 
@@ -323,7 +327,7 @@ module Proof {
   }
 
   lemma WlogCommitAgreement(c: Constants, v:Variables, v':Variables, step:Step,
-                            msg1:Network.Message<Messages.Message>, msg2:Network.Message<Messages.Message>)
+                            msg1:Message, msg2:Message)
     requires Inv(c, v)
     requires NextStep(c, v, v', step)
     requires msg1 in v'.network.sentMsgs 
@@ -709,6 +713,130 @@ module Proof {
     h_v.workingWindow.reveal_Shift();
   }
 
+  lemma TriviallyPreserveUnCommitableAgreesWithPrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires || (&& HonestReplicaStepTaken(c, v, v', step, h_v, h_step) 
+                 && (|| h_step.SendPrePrepareStep?
+                     || h_step.RecvPrePrepareStep?
+                     || h_step.RecvPrepareStep?
+                     || h_step.RecvCommitStep?
+                     || h_step.DoCommitStep?
+                     || h_step.ExecuteStep?
+                     || h_step.SendCheckpointStep?
+                     || h_step.RecvCheckpointStep?
+                     || h_step.AdvanceWorkingWindowStep?
+                     || h_step.PerformStateTransferStep?
+                     || h_step.SendViewChangeMsgStep?
+                     || h_step.RecvViewChangeMsgStep?
+                     || h_step.SelectQuorumOfViewChangeMsgsStep?
+                     || h_step.SendNewViewMsgStep?
+                     || h_step.RecvNewViewMsgStep?
+                     || h_step.SendCommitStep?))
+             || (NextStep(c, v, v', step) && c.clusterConfig.IsFaultyReplica(step.id))
+             || (NextStep(c, v, v', step) &&  c.clusterConfig.IsClient(step.id))
+      ensures UnCommitableAgreesWithPrepare(c, v')
+    {
+      reveal_UnCommitableAgreesWithPrepare();
+      forall prepareMsg:Message,
+               priorView:nat,
+               priorOperationWrapper:Messages.OperationWrapper
+                    | && prepareMsg.payload.Prepare? 
+                      && priorView < prepareMsg.payload.view
+                      && c.clusterConfig.IsHonestReplica(prepareMsg.sender)
+                      && priorOperationWrapper != prepareMsg.payload.operationWrapper
+                      && prepareMsg in v'.network.sentMsgs
+                      ensures UnCommitableInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) {
+        assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
+            == ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        // assert |ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper)|
+        //     == |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)|;
+      }
+    }
+
+  lemma HonestLeaveViewStepPreservesUnCommitableAgreesWithPrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    requires h_step.LeaveViewStep?
+    ensures UnCommitableAgreesWithPrepare(c, v')
+  {
+    reveal_UnCommitableAgreesWithPrepare();
+    forall prepareMsg:Message,
+             priorView:nat,
+             priorOperationWrapper:Messages.OperationWrapper
+                  | && prepareMsg.payload.Prepare? 
+                    && priorView < prepareMsg.payload.view
+                    && c.clusterConfig.IsHonestReplica(prepareMsg.sender)
+                    && priorOperationWrapper != prepareMsg.payload.operationWrapper
+                    && prepareMsg in v'.network.sentMsgs
+                    ensures UnCommitableInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) {
+      assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      // assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
+      //     <= ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      // assert |ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper)|
+      //     <= |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)|;
+      Library.SubsetCardinality(ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper), 
+                                ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper));
+    }
+  }
+
+  lemma HonestSendPrepareStepPreservesUnCommitableAgreesWithPrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    requires h_step.SendPrepareStep?
+    ensures UnCommitableAgreesWithPrepare(c, v')
+  {
+    ///
+    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    reveal_AllReplicasLiteInv();
+    reveal_RecordedPreparesHaveValidSenderID();
+    reveal_RecordedPrePreparesRecvdCameFromNetwork();
+    reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    reveal_RecordedPreparesMatchHostView();
+    reveal_RecordedPreparesClientOpsMatchPrePrepare();
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+    reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    reveal_HonestReplicasLockOnPrepareForGivenView();
+    reveal_HonestReplicasLockOnCommitForGivenView();
+    reveal_CommitMsgsFromHonestSendersAgree();
+    reveal_RecordedCheckpointsRecvdCameFromNetwork();
+    reveal_HonestReplicasLockOnCommitForGivenView();
+    reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    h_v.workingWindow.reveal_Shift();
+    ///
+
+    // if (h_step.SendPrepareStep?) {
+    //   assume false;
+    // } else if (h_step.LeaveViewStep?) {
+    //   assume false;
+    // } else if (h_step.SendCommitStep?) {
+    //   assume false; 
+    // }
+
+    reveal_UnCommitableAgreesWithPrepare();
+    forall prepareMsg:Message,
+             priorView:nat,
+             priorOperationWrapper:Messages.OperationWrapper
+                  | && prepareMsg.payload.Prepare? 
+                    && priorView < prepareMsg.payload.view
+                    && c.clusterConfig.IsHonestReplica(prepareMsg.sender)
+                    && priorOperationWrapper != prepareMsg.payload.operationWrapper
+                    && prepareMsg in v'.network.sentMsgs
+                    ensures UnCommitableInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) {
+      assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
+          == ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      assert |ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper)|
+          == |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)|;
+      // assert |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)| < c.clusterConfig.AgreementQuorum();
+    }
+  }
+
+  /// End Of Case Splitting
+
   lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)
     requires NextStep(c, v, v', step)
     ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
@@ -721,6 +849,277 @@ module Proof {
       var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
       Library.SubsetCardinality(senders, senders');
     }
+  }
+
+  predicate AgreementQuorumOfMessages(c:Constants, msgs:set<Message>) {
+    && c.WF()
+    && |msgs| >= c.clusterConfig.AgreementQuorum()
+    && Messages.UniqueSenders(msgs)
+  }
+
+  predicate isCommitQuorum(c:Constants,
+                           v:Variables,
+                           view:nat,
+                           seqID:Messages.SequenceID,
+                           operationWrapper:Messages.OperationWrapper,
+                           sentCommits:set<Message>) 
+    requires v.WF(c)
+  {
+    && sentCommits <= v.network.sentMsgs
+    && AgreementQuorumOfMessages(c, sentCommits)
+    && (forall msg | msg in sentCommits
+                    :: && msg.payload.Commit?
+                       && msg.payload.view == view
+                       && msg.payload.seqID == seqID
+                       && msg.payload.operationWrapper == operationWrapper
+                       && msg.sender in getAllReplicas(c))
+  }
+
+  lemma UniqueSendersCardinality(msgs:set<Message>)
+    requires Messages.UniqueSenders(msgs)
+    ensures |Messages.sendersOf(msgs)| == |msgs|
+  {
+    Messages.reveal_UniqueSenders();
+    if |msgs| > 0 {
+      var m :| m in msgs;
+      var subMsgs := msgs - {m};
+      UniqueSendersCardinality(subMsgs);
+      assert Messages.sendersOf(msgs) == Messages.sendersOf(subMsgs) + {m.sender};
+    }
+  }
+
+  function ReplicasThatCanCommitInView(c:Constants,
+                               v:Variables,
+                               seqID:Messages.SequenceID,
+                               view:nat,
+                               operationWrapper:Messages.OperationWrapper)
+                               : set<HostIdentifiers.HostId>
+    requires v.WF(c)
+  {
+    var replicasSentCommit := set replica |
+                               && replica in getAllReplicas(c)
+                               && c.clusterConfig.IsHonestReplica(replica)
+                               && Network.Message(replica,
+                                                    Messages.Commit(view,
+                                                                    seqID,
+                                                                    operationWrapper)) in v.network.sentMsgs;
+    var inViewOrLower := set replica | && replica in getAllReplicas(c)
+                                       && c.clusterConfig.IsHonestReplica(replica)
+                                       && var h_c := c.hosts[replica].replicaConstants;
+                                       && var h_v := v.hosts[replica].replicaVariables;
+                                       && h_v.view <= view;
+    var faultyReplicas := set replica | && replica in getAllReplicas(c)
+                                        && c.clusterConfig.IsFaultyReplica(replica);
+    replicasSentCommit + inViewOrLower + faultyReplicas
+  }
+
+  predicate UnCommitableInView(c:Constants,
+                               v:Variables,
+                               seqID:Messages.SequenceID,
+                               view:nat,
+                               operationWrapper:Messages.OperationWrapper) {
+    && v.WF(c)
+    && |ReplicasThatCanCommitInView(c, v, seqID, view, operationWrapper)| < c.clusterConfig.AgreementQuorum()
+  }
+
+  // UnCommitable agrees with Prepares.
+  predicate {:opaque} UnCommitableAgreesWithPrepare(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall prepareMsg:Message,
+               priorView:nat,
+               priorOperationWrapper:Messages.OperationWrapper
+                    | && prepareMsg.payload.Prepare? 
+                      && priorView < prepareMsg.payload.view
+                      && c.clusterConfig.IsHonestReplica(prepareMsg.sender)
+                      && priorOperationWrapper != prepareMsg.payload.operationWrapper
+                      && prepareMsg in v.network.sentMsgs
+                         :: UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper))
+  }
+
+//TODO: write a predicate Prepare matches Commit
+  lemma GetPrepareFromHonestSenderForCommit(c:Constants, v:Variables, commitMsg:Message)
+    returns (prepare:Message)
+    requires Inv(c, v)
+    requires commitMsg.payload.Commit?
+    requires commitMsg in v.network.sentMsgs
+    requires c.clusterConfig.IsHonestReplica(commitMsg.sender)
+    ensures prepare.payload.Prepare?
+    ensures c.clusterConfig.IsHonestReplica(prepare.sender)
+    ensures prepare in v.network.sentMsgs
+    ensures prepare.payload.view == commitMsg.payload.view
+    ensures prepare.payload.seqID == commitMsg.payload.seqID
+    ensures prepare.payload.operationWrapper == commitMsg.payload.operationWrapper
+  {
+    reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    var prepares := sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
+    prepare := GetMsgFromHonestSender(c, v, prepares);
+  }
+
+  function FaultyReplicas(c: Constants) : (faulty:set<HostId>) 
+    requires c.WF()
+  {
+    set sender | 0 <= sender < c.clusterConfig.N() && !IsHonestReplica(c, sender)
+  }
+
+  lemma CountFaultyReplicas(c: Constants)
+    requires c.WF()
+    ensures |FaultyReplicas(c)| <= c.clusterConfig.F()
+  {
+    var count := 0;
+    var f := c.clusterConfig.F();
+    var n := c.clusterConfig.N();
+    while(count < n)
+      invariant count <= n
+      invariant |set sender | 0 <= sender < count && !IsHonestReplica(c, sender)| == if count <= f then count
+                                                                                      else f
+      {
+        var oldSet := set sender | 0 <= sender < count && !IsHonestReplica(c, sender);
+        var newSet := set sender | 0 <= sender < count + 1 && !IsHonestReplica(c, sender);
+        if(count + 1 <= f) {
+          assert newSet == oldSet + {count};
+        } else {
+          assert newSet == oldSet;
+        }
+        count := count + 1;
+      }
+  }
+
+  lemma FindHonestNode(c: Constants, replicas:set<HostIdentifiers.HostId>) 
+    returns (honest:HostIdentifiers.HostId)
+    requires c.WF()
+    requires |replicas| >= c.clusterConfig.ByzantineSafeQuorum()
+    requires replicas <= getAllReplicas(c)
+    ensures IsHonestReplica(c, honest)
+    ensures honest in replicas
+  {
+    var honestReplicas := replicas * HonestReplicas(c);
+    CountFaultyReplicas(c);
+    if(|honestReplicas| == 0) {
+      Library.SubsetCardinality(replicas, FaultyReplicas(c));
+      assert false; //Proof by contradiction
+    }
+
+    var result :| result in honestReplicas;
+    honest := result;
+  }
+
+  lemma GetMsgFromHonestSender(c:Constants, v:Variables, quorum:set<Message>)
+    returns (message:Message)
+    requires Inv(c, v)
+    requires |Messages.sendersOf(quorum)| >= c.clusterConfig.AgreementQuorum()
+    requires Messages.sendersOf(quorum) <= getAllReplicas(c)
+    ensures c.clusterConfig.IsHonestReplica(message.sender)
+    ensures message in quorum
+  {
+    var senders := Messages.sendersOf(quorum);
+    var honestSender := FindHonestNode(c, senders);
+    var honest :| honest in quorum && honest.sender == honestSender;
+    message := honest;
+  }
+
+  lemma FindHonestCommitInQuorum(c:Constants,
+                      v:Variables,
+                      seqID:Messages.SequenceID,
+                      view:nat,
+                      commits:set<Message>,
+                      operationWrapper:Messages.OperationWrapper)
+        returns (honestCommit:Message)
+    requires Inv(c, v)
+    requires isCommitQuorum(c, v, view, seqID, operationWrapper, commits)
+    ensures honestCommit in commits
+    ensures IsHonestReplica(c, honestCommit.sender)
+  {
+    var senders := Messages.sendersOf(commits);
+    UniqueSendersCardinality(commits);
+    var honestSender := FindHonestNode(c, senders);
+    var honest :| honest in commits && honest.sender == honestSender;
+    honestCommit := honest;
+  }
+
+  lemma CommitQuorumAgree(c:Constants, v:Variables)
+    requires Inv(c, v)
+    ensures CommitQuorumsAgreeOnOperation(c, v)
+  {
+    forall seqID:Messages.SequenceID,
+           view1:nat,
+           view2:nat,
+           commits1:set<Message>,
+           commits2:set<Message>,
+           operationWrapper1:Messages.OperationWrapper,
+           operationWrapper2:Messages.OperationWrapper
+                | && isCommitQuorum(c, v, view1, seqID, operationWrapper1, commits1)
+                  && isCommitQuorum(c, v, view2, seqID, operationWrapper2, commits2)
+    ensures (operationWrapper1 == operationWrapper2) {
+      if view1 == view2 {
+        // var honestCommit1 := FindHonestCommitInQuorum();
+        var commit1 := FindHonestCommitInQuorum(c, v, seqID, view1, commits1, operationWrapper1);
+        var commit2 := FindHonestCommitInQuorum(c, v, seqID, view2, commits2, operationWrapper2);
+        assert commit1 in v.network.sentMsgs; // Trigger for CommitMsgsFromHonestSendersAgree
+        assert commit2 in v.network.sentMsgs; // Trigger for CommitMsgsFromHonestSendersAgree
+        reveal_CommitMsgsFromHonestSendersAgree();
+        assert commit1.payload.operationWrapper == commit2.payload.operationWrapper;
+        assert operationWrapper1 == operationWrapper2;
+      } else if view1 < view2 {
+        CommitQuorumAgreeDifferentViews(c, v, seqID, view1, view2, commits1, commits2, operationWrapper1, operationWrapper2);
+      } else {
+        CommitQuorumAgreeDifferentViews(c, v, seqID, view2, view1, commits2, commits1, operationWrapper2, operationWrapper1);
+      }
+    }
+  }
+
+  lemma CommitQuorumAgreeDifferentViews(c:Constants, v:Variables,seqID:Messages.SequenceID,
+           view1:nat,
+           view2:nat,
+           commits1:set<Message>,
+           commits2:set<Message>,
+           operationWrapper1:Messages.OperationWrapper,
+           operationWrapper2:Messages.OperationWrapper)
+    requires Inv(c, v)
+    requires isCommitQuorum(c, v, view1, seqID, operationWrapper1, commits1)
+    requires isCommitQuorum(c, v, view2, seqID, operationWrapper2, commits2)
+    requires view1 < view2
+    ensures (operationWrapper1 == operationWrapper2)
+  {
+    reveal_UnCommitableAgreesWithPrepare();
+    if operationWrapper1 != operationWrapper2 {
+      UniqueSendersCardinality(commits2);
+      var commit := GetMsgFromHonestSender(c, v, commits2);
+      var prepare := GetPrepareFromHonestSenderForCommit(c, v, commit); // This term instantiates UnCommitableAgreesWithPrepare
+      UniqueSendersCardinality(commits1);
+      Library.SubsetCardinality(Messages.sendersOf(commits1), ReplicasThatCanCommitInView(c, v, seqID, view1, operationWrapper1));
+      assert !UnCommitableInView(c, v, seqID, view1, operationWrapper1); // We have proven both UnCommitableInView !UnCommitableInView
+      assert false; //proof by contradiction
+    }
+  }
+
+  // Quorum of commits >= 2F+1 agree on all views
+  predicate CommitQuorumsAgreeOnOperation(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall seqID:Messages.SequenceID,
+               view1:nat,
+               view2:nat,
+               commits1:set<Message>,
+               commits2:set<Message>,
+               operationWrapper1:Messages.OperationWrapper,
+               operationWrapper2:Messages.OperationWrapper
+                    | && isCommitQuorum(c, v, view1, seqID, operationWrapper1, commits1)
+                      && isCommitQuorum(c, v, view2, seqID, operationWrapper2, commits2)
+                         :: operationWrapper1 == operationWrapper2)
+  }
+
+  predicate HonestReplicasAgreeOnOperationsOrdering(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall replica1:HostId, 
+               replica2:HostId,
+               seqID:Messages.SequenceID | && IsHonestReplica(c, replica1)
+                                           && IsHonestReplica(c, replica2)
+                              :: && var r1_c := c.hosts[replica1].replicaConstants;
+                                 && var r2_c := c.hosts[replica2].replicaConstants;
+                                 && var r1_v := v.hosts[replica1].replicaVariables;
+                                 && var r2_v := v.hosts[replica2].replicaVariables;
+                                 && (&& Replica.IsCommitted(r1_c, r1_v, seqID)
+                                     && Replica.IsCommitted(r2_c, r2_v, seqID)) ==> Replica.GetCommittedOperation(r1_c, r1_v, seqID) == Replica.GetCommittedOperation(r2_c, r2_v, seqID))
+
   }
 
   lemma InvariantNext(c: Constants, v:Variables, v':Variables)
@@ -751,6 +1150,15 @@ module Proof {
       HonestPreservesHonestReplicasLockOnCommitForGivenView(c, v, v', step, h_v, h_step);
       HonestPreservesCommitMsgsFromHonestSendersAgree(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedCheckpointsRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
+      //TODO: extract into a lemma.
+      if(h_step.LeaveViewStep?) {
+        HonestLeaveViewStepPreservesUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
+      } else if(h_step.SendPrepareStep?) {
+        HonestSendPrepareStepPreservesUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
+      } else {
+        TriviallyPreserveUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
+      }
+      //END
     } else {
       InvNextFaultyOrClient(c, v, v', step);
     }
@@ -814,6 +1222,12 @@ module Proof {
     assert EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v') by {
       AlwaysPreservesEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
     }
+    assert UnCommitableAgreesWithPrepare(c, v') by {
+      var h_step :| true;
+      var h_v :| true;
+      TriviallyPreserveUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
+    }
+    
   }
 
   lemma InvariantInductive(c: Constants, v:Variables, v':Variables)

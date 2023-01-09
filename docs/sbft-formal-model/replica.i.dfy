@@ -698,6 +698,21 @@ module Replica {
               .(committedClientOperations := checkpointsQuorum.prototype().committedClientOperations)
   }
 
+  // All Checkpoints recorded are in network
+  // msgs in Checkpoints Quorum are also in network
+  // Wahtever a replica has written down agrees with 2F+1 other
+  // Quorum of commits agree on all views
+
+  predicate IsCommitted(c:Constants, v:Variables, seqID:SequenceID) {
+    && seqID in v.committedClientOperations
+  }
+
+  function GetCommittedOperation(c:Constants, v:Variables, seqID:SequenceID) : OperationWrapper 
+    requires IsCommitted(c, v, seqID)
+  {
+    v.committedClientOperations[seqID]
+  }
+
   predicate Init(c:Constants, v:Variables) {
     && v.WF(c)
     && v.view == 0
