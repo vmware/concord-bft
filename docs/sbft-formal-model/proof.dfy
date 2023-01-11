@@ -291,6 +291,7 @@ module Proof {
     //&& SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
     && RecordedPrePreparesRecvdCameFromNetwork(c, v)
     && RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v)
+    && RecordedPrePreparesMatchHostView(c, v)
     && RecordedPreparesMatchHostView(c, v)
     && EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v)
     && RecordedPreparesClientOpsMatchPrePrepare(c, v)
@@ -304,6 +305,7 @@ module Proof {
     && CommitMsgsFromHonestSendersAgree(c, v)
     && RecordedCheckpointsRecvdCameFromNetwork(c, v)
     && UnCommitableAgreesWithPrepare(c, v)
+    && UnCommitableAgreesWithRecordedPrePrepare(c, v)
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
@@ -787,25 +789,27 @@ module Proof {
     ensures UnCommitableAgreesWithPrepare(c, v')
   {
     ///
-    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-    reveal_AllReplicasLiteInv();
-    reveal_RecordedPreparesHaveValidSenderID();
-    reveal_RecordedPrePreparesRecvdCameFromNetwork();
-    reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
-    reveal_RecordedPreparesMatchHostView();
-    reveal_RecordedPreparesClientOpsMatchPrePrepare();
-    reveal_RecordedCommitsClientOpsMatchPrePrepare();
-    reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
-    reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
-    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
-    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-    reveal_HonestReplicasLockOnPrepareForGivenView();
-    reveal_HonestReplicasLockOnCommitForGivenView();
-    reveal_CommitMsgsFromHonestSendersAgree();
-    reveal_RecordedCheckpointsRecvdCameFromNetwork();
-    reveal_HonestReplicasLockOnCommitForGivenView();
-    reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
-    h_v.workingWindow.reveal_Shift();
+    // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    // reveal_AllReplicasLiteInv();
+    // reveal_RecordedPreparesHaveValidSenderID();
+    // reveal_RecordedPrePreparesRecvdCameFromNetwork();
+    // reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    // reveal_RecordedPreparesMatchHostView();
+    // reveal_RecordedPreparesClientOpsMatchPrePrepare();
+    // reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    // reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+    // reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    // reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    // reveal_HonestReplicasLockOnPrepareForGivenView();
+    // reveal_HonestReplicasLockOnCommitForGivenView();
+    // reveal_CommitMsgsFromHonestSendersAgree();
+    // reveal_RecordedCheckpointsRecvdCameFromNetwork();
+    // reveal_HonestReplicasLockOnCommitForGivenView();
+    // reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    // h_v.workingWindow.reveal_Shift();
+    reveal_UnCommitableAgreesWithRecordedPrePrepare();
+    reveal_RecordedPrePreparesMatchHostView();
     ///
 
     // if (h_step.SendPrepareStep?) {
@@ -826,11 +830,22 @@ module Proof {
                     && priorOperationWrapper != prepareMsg.payload.operationWrapper
                     && prepareMsg in v'.network.sentMsgs
                     ensures UnCommitableInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) {
-      assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
-      assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
-          == ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
-      assert |ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper)|
-          == |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)|;
+      if prepareMsg in v.network.sentMsgs {
+        assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
+            == ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      } else {
+        assert h_v.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID].Some?;
+        var prePrepareMsg := h_v.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID].value;
+        assert prePrepareMsg.payload.seqID == prepareMsg.payload.seqID;
+        assert UnCommitableInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        assert UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        assert ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper) 
+            == ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      }
+
+      // assert |ReplicasThatCanCommitInView(c, v', prepareMsg.payload.seqID, priorView, priorOperationWrapper)|
+      //     == |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)|;
       // assert |ReplicasThatCanCommitInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper)| < c.clusterConfig.AgreementQuorum();
     }
   }
@@ -888,29 +903,41 @@ module Proof {
     }
   }
 
+  predicate ReplicasThatSentCommit(c:Constants,
+                                   v:Variables,
+                                   seqID:Messages.SequenceID,
+                                   view:nat,
+                                   operationWrapper:Messages.OperationWrapper,
+                                   replica:HostIdentifiers.HostId) {  
+    && c.clusterConfig.IsHonestReplica(replica)
+    && Network.Message(replica,
+                         Messages.Commit(view,
+                                         seqID,
+                                         operationWrapper)) in v.network.sentMsgs
+  }
+
+  predicate ReplicasInViewOrLower(c:Constants,
+                                   v:Variables,
+                                   seqID:Messages.SequenceID,
+                                   view:nat,
+                                   operationWrapper:Messages.OperationWrapper,
+                                   replica:HostIdentifiers.HostId) {
+    && c.clusterConfig.IsHonestReplica(replica)
+    && v.hosts[replica].replicaVariables.view <= view
+  }
+
   function ReplicasThatCanCommitInView(c:Constants,
-                               v:Variables,
-                               seqID:Messages.SequenceID,
-                               view:nat,
-                               operationWrapper:Messages.OperationWrapper)
-                               : set<HostIdentifiers.HostId>
+                                       v:Variables,
+                                       seqID:Messages.SequenceID,
+                                       view:nat,
+                                       operationWrapper:Messages.OperationWrapper)
+                                       : set<HostIdentifiers.HostId>
     requires v.WF(c)
   {
-    var replicasSentCommit := set replica |
-                               && replica in getAllReplicas(c)
-                               && c.clusterConfig.IsHonestReplica(replica)
-                               && Network.Message(replica,
-                                                    Messages.Commit(view,
-                                                                    seqID,
-                                                                    operationWrapper)) in v.network.sentMsgs;
-    var inViewOrLower := set replica | && replica in getAllReplicas(c)
-                                       && c.clusterConfig.IsHonestReplica(replica)
-                                       && var h_c := c.hosts[replica].replicaConstants;
-                                       && var h_v := v.hosts[replica].replicaVariables;
-                                       && h_v.view <= view;
-    var faultyReplicas := set replica | && replica in getAllReplicas(c)
-                                        && c.clusterConfig.IsFaultyReplica(replica);
-    replicasSentCommit + inViewOrLower + faultyReplicas
+    set replica | replica in getAllReplicas(c) &&
+                   (|| ReplicasThatSentCommit(c, v, seqID, view, operationWrapper, replica)
+                    || ReplicasInViewOrLower(c, v, seqID, view, operationWrapper, replica)
+                    || c.clusterConfig.IsFaultyReplica(replica))
   }
 
   predicate UnCommitableInView(c:Constants,
@@ -935,6 +962,35 @@ module Proof {
                       && prepareMsg in v.network.sentMsgs
                          :: UnCommitableInView(c, v, prepareMsg.payload.seqID, priorView, priorOperationWrapper))
   }
+
+  predicate {:opaque} UnCommitableAgreesWithRecordedPrePrepare(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall replicaIdx, seqID, priorView:nat, priorOperationWrapper:Messages.OperationWrapper | 
+              && IsHonestReplica(c, replicaIdx)
+              && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+              && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
+              && seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+              && var prePrepareMsg := v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+              && replicaVariables.workingWindow.prePreparesRcvd[seqID].Some?
+              && priorOperationWrapper != prePrepareMsg.payload.operationWrapper
+              && priorView < prePrepareMsg.payload.view
+                :: && var prePrepareMsg := v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+                   && UnCommitableInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper))
+
+  }
+
+    predicate {:opaque} RecordedPrePreparesMatchHostView(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall observer, seqID, sender | 
+                           && IsHonestReplica(c, observer)
+                           && c.clusterConfig.IsReplica(sender)
+                           && var replicaVars := v.hosts[observer].replicaVariables;
+                           && seqID in replicaVars.workingWindow.preparesRcvd
+                           && replicaVars.workingWindow.prePreparesRcvd[seqID].Some?
+                :: && var replicaVars := v.hosts[observer].replicaVariables;
+                   && replicaVars.view == replicaVars.workingWindow.prePreparesRcvd[seqID].value.payload.view)
+  }
+
 
 //TODO: write a predicate Prepare matches Commit
   lemma GetPrepareFromHonestSenderForCommit(c:Constants, v:Variables, commitMsg:Message)
