@@ -1,8 +1,12 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 
+# Base Toolchain image
+CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN?=concord-bft
+CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN_VERSION?=toolchain-0.01
+CONCORD_BFT_DOCKERFILE_TOOLCHAIN?=DockerfileToolchain
 # Release (production) image
 CONCORD_BFT_DOCKER_IMAGE_RELEASE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE?=0.51
+CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE?=0.60
 CONCORD_BFT_DOCKERFILE_RELEASE?=Dockerfile
 
 # Debug (development) image
@@ -24,8 +28,8 @@ CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/thi
 CONCORD_BFT_KVBC_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/proto
 CONCORD_BFT_UTT_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/utt
 CONCORD_BFT_CONTAINER_SHELL?=/bin/bash
-CONCORD_BFT_CONTAINER_CC?=clang
-CONCORD_BFT_CONTAINER_CXX?=clang++
+CONCORD_BFT_CONTAINER_CC?=gcc
+CONCORD_BFT_CONTAINER_CXX?=g++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
 CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
 CONCORD_BFT_CLANG_TIDY_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
@@ -435,7 +439,20 @@ codecoverage: ## Generate Code Coverage report for Apollo tests
                 "./scripts/run-codecoverage.sh"
 	@echo "Completed make codecoverage"
 
-BUILD_IMAGE_MODE=ALL
+# base docker image with toolchain only
+GIT_BRANCH=$(shell git name-rev --name-only HEAD | sed "s/~.*//")
+GIT_COMMIT=$(shell git rev-parse HEAD)
+BUILD_CREATOR=$(shell git config user.email)
+build-toolchain-docker-image:
+	docker build --rm --no-cache=true \
+	-t ${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN}:toolchain-latest \
+	-f ./${CONCORD_BFT_DOCKERFILE_TOOLCHAIN} \
+	--build-arg GIT_BRANCH=${GIT_BRANCH} \
+	--build-arg GIT_COMMIT=${GIT_COMMIT} \
+	--build-arg BUILD_CREATOR=${BUILD_CREATOR} \
+	.
+
+BUILD_IMAGE_MODE?=ALL
 build-docker-images: SHELL:=/bin/bash
 .PHONY: build-docker-images
 build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest, then build a debug image based on the just-built release image, and tag it as ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest. By default, both images are built. To build only a release image set BUILD_IMAGE_MODE=RELEASE. to build only debug image set BUILD_IMAGE_MODE=DEBUG. When a debug image is built, it relys on an existing concord-bft:latest image. To have an output image being used (as default) by Makefile: tag it with docker, and then modify CONCORD_BFT_DOCKER_IMAGE_RELEASE + CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE in Makefile for a release image, and CONCORD_BFT_DOCKER_IMAGE_DEBUG + CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG for a debug image.
@@ -443,9 +460,17 @@ build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT
 		echo "Error: BUILD_IMAGE_MODE must be one of the values: ALL,DEBUG,RELEASE!"; \
 		exit 1; \
 	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
-			-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} . ; \
+	if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
+		docker build \
+		--rm --no-cache=true \
+		-t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
+		-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} \
+		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_REPO=${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN} \
+		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_TAG=${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN_VERSION} \
+		--build-arg GIT_BRANCH=${GIT_BRANCH} \
+		--build-arg GIT_COMMIT=${GIT_COMMIT} \
+		--build-arg BUILD_CREATOR=${BUILD_CREATOR} \
+		. ; \
 	fi
 	@if [ '${BUILD_IMAGE_MODE}' = 'DEBUG' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
 		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest \

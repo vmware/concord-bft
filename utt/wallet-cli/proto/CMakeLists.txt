@@ -1,5 +1,5 @@
 find_package(Protobuf REQUIRED)
-find_package(GRPC REQUIRED)
+find_package(gRPC REQUIRED)
 
 include_directories(${GRPC_INCLUDE_DIR})
 

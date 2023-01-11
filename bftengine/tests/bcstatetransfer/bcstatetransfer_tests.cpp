@@ -68,42 +68,6 @@ using random_bytes_engine = std::independent_bits_engine<std::default_random_eng
     []() {}                   \
   }
 
-// Extract user input from command line to override configuration and avoid the need for re-compilation for some of
-// the configuration parameters
-struct UserInput {
-  std::string loglevel_ = "";
-  const set<std::string> expectedInputArgs{"--log_level"};
-  static UserInput* getInstance() {
-    static UserInput inputConfig;
-    return &inputConfig;
-  }
-
-  void extractUserInput(int argc, char** argv) {
-    vector<string> tokens;
-
-    for (size_t i{1}; i < argc; ++i) {
-      std::string s(argv[i]);
-      char* token = std::strtok(const_cast<char*>(s.c_str()), "= ");
-      while (token) {
-        tokens.push_back(token);
-        token = std::strtok(nullptr, "= ");
-      }
-    }
-
-    set<std::string>::iterator iter = expectedInputArgs.end();
-    for (const auto& tok : tokens) {
-      if (iter == expectedInputArgs.end()) {
-        iter = std::find(expectedInputArgs.begin(), expectedInputArgs.end(), tok);
-      } else {
-        if (*iter == std::string("--log_level")) {
-          loglevel_ = tok;
-          iter = expectedInputArgs.end();
-        }
-      }
-    }
-  }
-};
-
 namespace bftEngine::bcst::impl::test {
 
 using FetchingState = BCStateTran::FetchingState;
@@ -596,7 +560,6 @@ class BcStTest : public ::testing::Test {
  private:
   // Infra initialize helpers
   void printConfiguration();
-  void configureLog();
   bool initialized_ = false;
 
  protected:
@@ -1313,7 +1276,6 @@ void BcStTest::TearDown() {
 // 2) targetConfig_
 void BcStTest::initialize() {
   Block::setMaxTotalBlockSize(targetConfig_.maxBlockSize);
-  ASSERT_NFF(configureLog());
   // Set starting test state - blocks and checkpoints
   testState_.init(testConfig_, appState_);
   printConfiguration();
@@ -1512,29 +1474,6 @@ void BcStTest::printConfiguration() {
   LOG_INFO(GL, "testState_:" << std::boolalpha << testState_);
 }
 
-void BcStTest::configureLog() {
-  // TODO [TK] - configure from file
-  //  std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
-  //  if (!UserInput::getInstance()->loglevel_.empty()) {
-  //    testConfig_.logLevel = UserInput::getInstance()->loglevel_;
-  //  }
-  //  auto logLevelStr = testConfig_.logLevel;
-  //  if (possibleLogLevels.find(logLevelStr) == possibleLogLevels.end()) {
-  //    std::cout << "\n===\n\n"
-  //              << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
-  //    exit(1);
-  //  }
-
-  // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
-  // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(logLevel);
-}
-
 void BcStTest::compareAppStateblocks(uint64_t minBlockId, uint64_t maxBlockId) const {
   const auto& srcAppState = fakeSrcReplica_->getAppState();
   for (size_t i = minBlockId; i <= maxBlockId; ++i) {
@@ -1714,7 +1653,7 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             BcStTestParamFixtureInput(256, 128, 16),
                             BcStTestParamFixtureInput(256, 100, 1024),
                             BcStTestParamFixtureInput(1024, 128, 16),
-                            BcStTestParamFixtureInput(2048, 512, 1024)), );
+                            BcStTestParamFixtureInput(2048, 512, 1024)));
 
 class BcStTestParamFixture2 : public BcStTest, public testing::WithParamInterface<tuple<bool, uint8_t>> {};
 
@@ -1756,7 +1695,7 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
 using BcStTestParamFixtureInput2 = tuple<bool, uint8_t>;
 INSTANTIATE_TEST_CASE_P(BcStTest,
                         BcStTestParamFixture2,
-                        ::testing::Values(BcStTestParamFixtureInput2(true, 2), BcStTestParamFixtureInput2(false, 1)), );
+                        ::testing::Values(BcStTestParamFixtureInput2(true, 2), BcStTestParamFixtureInput2(false, 1)));
 /**
  * Check that only actual resources are inserted into source selector's actualSources_
  * This is done by triggering multiple retransmissions and then  source replacements, and checking that only the sources
@@ -2074,7 +2013,7 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                                           RejectFetchingMsg::Reason::IN_ACTIVE_SESSION,
                                           RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED,
                                           RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE,
-                                          RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND), );
+                                          RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND));
 
 // Perform an ST cycle where nothing needed to be collected. This is very rare case, so we are not planning to optimize
 // it to completely avoid the cycle. It can happen when ST is triggered (for example) due to last execution time
@@ -2791,7 +2730,7 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                                           BcStTestParamFixtureInput4(false, true, false),
                                           BcStTestParamFixtureInput4(false, true, true),
                                           BcStTestParamFixtureInput4(true, true, false),
-                                          BcStTestParamFixtureInput4(true, false, false)), );
+                                          BcStTestParamFixtureInput4(true, false, false)));
 
 TEST_F(BcStTest, askChkptSummeriesFromStoppedNetwork) {
   ASSERT_NFF(initialize());
@@ -2922,7 +2861,7 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             // Prune blocks only and restart between checkpointing
                             BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
                             // Add blocks and Prune and restart between checkpointing
-                            BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
+                            BcStTestParamFixtureInput3(100, 100, 50, 100, true)));
 
 // This specific test reproduces a bug found on deployment. It Tests checkpointing with non-equal checkpoint window and
 // some pruning between, The last pruning delete almost the whole blockchain.
@@ -3066,7 +3005,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
 
 int main(int argc, char** argv) {
   srand(time(NULL));
-  UserInput::getInstance()->extractUserInput(argc, argv);
+  logging::initLogger("logging.properties");
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style =
       "threadsafe";  // mitigate the risks of testing in a possibly multithreaded environment

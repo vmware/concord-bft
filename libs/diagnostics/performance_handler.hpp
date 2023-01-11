@@ -18,7 +18,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <chrono>
-
+#include <optional>
 #include <hdr/hdr_interval_recorder.h>
 
 #include "log/logger.hpp"

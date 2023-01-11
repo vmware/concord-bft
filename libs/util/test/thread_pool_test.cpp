@@ -33,8 +33,8 @@ constexpr auto answer = AnswerType{42};
 const auto concurrency = std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1;
 
 auto func() { return answer; }
-auto (*func_ptr)() = func;
-auto (&func_ref)() = func;
+auto(*func_ptr)() = func;
+auto(&func_ref)() = func;
 
 auto identity(AnswerType v) { return v; }
 

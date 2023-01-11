@@ -111,9 +111,9 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   client_pool_config.client_batching_max_messages_nbr = config.topology.client_batching_max_messages_nbr;
   client_pool_config.client_batching_flush_timeout_ms = config.topology.client_batching_flush_timeout_ms;
 
-  client_pool_config.comm_to_use = config.transport.comm_type == TransportConfig::Invalid
-                                       ? "Invalid"
-                                       : config.transport.comm_type == TransportConfig::TlsTcp ? "tls" : "udp";
+  client_pool_config.comm_to_use = config.transport.comm_type == TransportConfig::Invalid  ? "Invalid"
+                                   : config.transport.comm_type == TransportConfig::TlsTcp ? "tls"
+                                                                                           : "udp";
   client_pool_config.tcpKeepAliveConfig = config.transport.tcpKeepAliveConfig;
   client_pool_config.enable_multiplex_channel = config.transport.enable_multiplex_channel;
   client_pool_config.use_unified_certificates = config.transport.use_unified_certs;

@@ -12,7 +12,7 @@
 #pragma once
 
 #include <memory>
-
+#include <optional>
 #include "DataStore.hpp"
 #include "util/Metrics.hpp"
 #include "SimpleBCStateTransfer.hpp"

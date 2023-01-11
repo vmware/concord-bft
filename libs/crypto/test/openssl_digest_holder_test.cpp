@@ -26,6 +26,8 @@ using concord::crypto::openssl::OpenSSLDigestCreator;
 using Digest256 = DigestHolder<OpenSSLDigestCreator<SHA2_256>>;
 using Digest3_256 = DigestHolder<OpenSSLDigestCreator<SHA3_256>>;
 
+const char dgst[DIGEST_SIZE] = "VMware.123456789012345678901234";
+
 // Hashes are generated via https://emn178.github.io/online-tools/sha256.html
 struct SHA_Hashes {
   std::string input;
@@ -61,10 +63,9 @@ TEST(openssl_digest_holder_test, test_constructors_sha256) {
     ASSERT_EQ(true, digest.isZero());
   }
   {
-    const char* cp = "VMware.";
-    Digest256 digest(cp);
+    Digest256 digest(dgst);
     ASSERT_EQ(false, digest.isZero());
-    ASSERT_EQ(0, memcmp(digest.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest.content(), dgst, strlen(dgst)));
 
     digest.makeZero();
     ASSERT_EQ(true, digest.isZero());
@@ -79,14 +80,13 @@ TEST(openssl_digest_holder_test, test_constructors_sha256) {
     ASSERT_EQ(true, digest.isZero());
   }
   {
-    const char* cp = "VMware.";
-    Digest256 digest(cp);
+    Digest256 digest(dgst);
     ASSERT_EQ(false, digest.isZero());
-    ASSERT_EQ(0, memcmp(digest.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest.content(), dgst, strlen(dgst)));
 
     Digest256 digest_1 = digest;  // Copy constructor test.
     ASSERT_EQ(false, digest_1.isZero());
-    ASSERT_EQ(0, memcmp(digest_1.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest_1.content(), dgst, strlen(dgst)));
 
     digest_1.makeZero();
     ASSERT_EQ(true, digest_1.isZero());
@@ -108,9 +108,8 @@ TEST(openssl_digest_holder_test, test_constructors_sha256) {
 
 TEST(openssl_digest_holder_test, test_overloaded_operators_sha256) {
   {
-    const char* cp = "VMware.";
-    Digest256 digest_1(cp);
-    Digest256 digest_2(cp);
+    Digest256 digest_1(dgst);
+    Digest256 digest_2(dgst);
 
     ASSERT_EQ(true, digest_1 == digest_2);
     ASSERT_EQ(false, digest_1 != digest_2);
@@ -119,16 +118,14 @@ TEST(openssl_digest_holder_test, test_overloaded_operators_sha256) {
     ASSERT_EQ(false, digest_2 != digest_1);
   }
   {
-    const char* cp = "VMware.";
-    Digest256 digest_1(cp);
+    Digest256 digest_1(dgst);
     Digest256 digest_2('c');
 
     ASSERT_EQ(false, digest_1 == digest_2);
     ASSERT_EQ(true, digest_1 != digest_2);
   }
   {
-    const char* cp = "VMware.";
-    Digest256 digest_1(cp);
+    Digest256 digest_1(dgst);
     Digest256 digest_2;
     digest_2 = digest_1;  // Assignment copy operator.
 
@@ -162,10 +159,9 @@ TEST(openssl_digest_holder_test, test_constructors_sha3_256) {
     ASSERT_EQ(true, digest.isZero());
   }
   {
-    const char* cp = "VMware.";
-    Digest3_256 digest(cp);
+    Digest3_256 digest(dgst);
     ASSERT_EQ(false, digest.isZero());
-    ASSERT_EQ(0, memcmp(digest.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest.content(), dgst, strlen(dgst)));
 
     digest.makeZero();
     ASSERT_EQ(true, digest.isZero());
@@ -180,14 +176,13 @@ TEST(openssl_digest_holder_test, test_constructors_sha3_256) {
     ASSERT_EQ(true, digest.isZero());
   }
   {
-    const char* cp = "VMware.";
-    Digest3_256 digest(cp);
+    Digest3_256 digest(dgst);
     ASSERT_EQ(false, digest.isZero());
-    ASSERT_EQ(0, memcmp(digest.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest.content(), dgst, strlen(dgst)));
 
     Digest3_256 digest_1 = digest;  // Copy constructor test.
     ASSERT_EQ(false, digest_1.isZero());
-    ASSERT_EQ(0, memcmp(digest_1.content(), "VMware.", strlen(cp)));
+    ASSERT_EQ(0, memcmp(digest_1.content(), dgst, strlen(dgst)));
 
     digest_1.makeZero();
     ASSERT_EQ(true, digest_1.isZero());
@@ -209,9 +204,8 @@ TEST(openssl_digest_holder_test, test_constructors_sha3_256) {
 
 TEST(openssl_digest_holder_test, test_overloaded_operators_sha3_256) {
   {
-    const char* cp = "VMware.";
-    Digest3_256 digest_1(cp);
-    Digest3_256 digest_2(cp);
+    Digest3_256 digest_1(dgst);
+    Digest3_256 digest_2(dgst);
 
     ASSERT_EQ(true, digest_1 == digest_2);
     ASSERT_EQ(false, digest_1 != digest_2);
@@ -220,16 +214,14 @@ TEST(openssl_digest_holder_test, test_overloaded_operators_sha3_256) {
     ASSERT_EQ(false, digest_2 != digest_1);
   }
   {
-    const char* cp = "VMware.";
-    Digest3_256 digest_1(cp);
+    Digest3_256 digest_1(dgst);
     Digest3_256 digest_2('c');
 
     ASSERT_EQ(false, digest_1 == digest_2);
     ASSERT_EQ(true, digest_1 != digest_2);
   }
   {
-    const char* cp = "VMware.";
-    Digest3_256 digest_1(cp);
+    Digest3_256 digest_1(dgst);
     Digest3_256 digest_2;
     digest_2 = digest_1;  // Assignment copy operator.
 

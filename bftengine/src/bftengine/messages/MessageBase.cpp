@@ -144,7 +144,7 @@ MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanCo
   ConcordAssert(size > 0);
   size = size + spanContextSize;
   msgBody_ = (MessageBase::Header *)std::malloc(size);
-  memset(msgBody_, 0, size);
+  memset((void *)msgBody_, 0, size);
   storageSize_ = size;
   msgSize_ = size;
   owner_ = true;

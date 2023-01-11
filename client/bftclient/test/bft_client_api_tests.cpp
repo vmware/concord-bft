@@ -18,8 +18,7 @@
 #include <iostream>
 #include <ctime>
 
-#include "gtest/gtest.h"
-
+#include <gtest/gtest.h>
 #include "log/logger.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftclient/bft_client.h"
@@ -212,12 +211,12 @@ TEST_P(ClientApiTestParametrizedFixture, print_received_messages_and_timeout) {
 // The comma at the end is due to a bug in gtest 3.09 - https://github.com/google/googletest/issues/2271 - see last
 // comment
 typedef tuple<bool, bool, string> ClientApiTestParametrizedFixtureInput;
-INSTANTIATE_TEST_CASE_P(ClientApiTest,
-                        ClientApiTestParametrizedFixture,
-                        ::testing::Values(ClientApiTestParametrizedFixtureInput(true, true, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(false, false, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(true, false, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(true, false, "corrupt_in_dest")), );
+INSTANTIATE_TEST_SUITE_P(ClientApiTest,
+                         ClientApiTestParametrizedFixture,
+                         ::testing::Values(ClientApiTestParametrizedFixtureInput(true, true, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(false, false, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(true, false, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(true, false, "corrupt_in_dest")));
 
 Msg replyFromRequest(const MsgFromClient& request) {
   const auto* req_header = reinterpret_cast<const ClientRequestMsgHeader*>(request.data.data());

@@ -23,6 +23,7 @@
 #include <string>
 #include <memory>
 #include <shared_mutex>
+#include <optional>
 
 using concordMetrics::AtomicCounterHandle;
 

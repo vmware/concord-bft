@@ -81,12 +81,14 @@ class IReplica {
   virtual ~IReplica() = default;
 
   enum class RepStatus  // status of the replica
-  { UnknownError = -1,
+  {
+    UnknownError = -1,
     Ready = 0,
     Starting,
     Running,
     Stopping,
-    Idle };
+    Idle
+  };
 
   // returns the current status of the replica
   virtual RepStatus getReplicaStatus() const = 0;
