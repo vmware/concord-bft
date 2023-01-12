@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include <asio/io_context.hpp>
+#include <boost/asio/io_context.hpp>
 #include <vector>
 #include <optional>
 
-#include <asio.hpp>
-#include <asio/ssl.hpp>
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 
 #include "log/logger.hpp"
 #include "util/filesystem.hpp"
@@ -30,7 +30,7 @@
 
 namespace bft::communication::tls {
 
-typedef asio::ssl::stream<asio::ip::tcp::socket> SSL_SOCKET;
+typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSL_SOCKET;
 
 class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnection> {
  public:
@@ -42,8 +42,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // In order to call shared_from_this(), there must already be a shared pointer wrapping `this`.
   // In this case, shared_from_this() is required for registering verification callbacks in the SSL context
   // initialization functions.
-  static std::shared_ptr<AsyncTlsConnection> create(asio::io_context& io_context,
-                                                    asio::ip::tcp::socket&& socket,
+  static std::shared_ptr<AsyncTlsConnection> create(boost::asio::io_context& io_context,
+                                                    boost::asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
                                                     ConnectionManager& conn_mgr,
                                                     TlsTcpConfig& config,
@@ -55,8 +55,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
     return conn;
   }
 
-  static std::shared_ptr<AsyncTlsConnection> create(asio::io_context& io_context,
-                                                    asio::ip::tcp::socket&& socket,
+  static std::shared_ptr<AsyncTlsConnection> create(boost::asio::io_context& io_context,
+                                                    boost::asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
                                                     ConnectionManager& conn_mgr,
                                                     NodeNum destination,
@@ -71,7 +71,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   }
 
   // Constructor for an accepting (server) connection.
-  AsyncTlsConnection(asio::io_context& io_context,
+  AsyncTlsConnection(boost::asio::io_context& io_context,
                      IReceiver* receiver,
                      ConnectionManager& conn_mgr,
                      TlsTcpConfig& config,
@@ -79,8 +79,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                      Recorders& histograms)
       : logger_(logging::getLogger("concord-bft.tls.conn")),
         io_context_(io_context),
-        strand_(asio::make_strand(io_context_)),
-        ssl_context_(asio::ssl::context::tlsv13_server),
+        strand_(boost::asio::make_strand(io_context_)),
+        ssl_context_(boost::asio::ssl::context::tlsv13_server),
         receiver_(receiver),
         connection_manager_(conn_mgr),
         read_timer_(io_context_),
@@ -92,7 +92,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         write_queue_(histograms_) {}
 
   // Constructor for a connecting (client) connection.
-  AsyncTlsConnection(asio::io_context& io_context,
+  AsyncTlsConnection(boost::asio::io_context& io_context,
                      IReceiver* receiver,
                      ConnectionManager& conn_mgr,
                      NodeNum peer_id,
@@ -101,8 +101,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                      Recorders& histograms)
       : logger_(logging::getLogger("concord-bft.tls.conn")),
         io_context_(io_context),
-        strand_(asio::make_strand(io_context_)),
-        ssl_context_(asio::ssl::context::tlsv13_client),
+        strand_(boost::asio::make_strand(io_context_)),
+        ssl_context_(boost::asio::ssl::context::tlsv13_client),
         peer_id_(peer_id),
         receiver_(receiver),
         connection_manager_(conn_mgr),
@@ -161,15 +161,15 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   void startReadTimer();
   void startWriteTimer();
 
-  void createSSLSocket(asio::ip::tcp::socket&&);
+  void createSSLSocket(boost::asio::ip::tcp::socket&&);
   void initClientSSLContext(NodeNum destination);
   void initServerSSLContext();
 
   // Callbacks triggered from asio for certificate validation
   // On the server side we don't know the identity of the accepted connection until we verify the certificate and read
   // the node id.
-  bool verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id);
-  bool verifyCertificateServer(asio::ssl::verify_context& ctx);
+  bool verifyCertificateClient(boost::asio::ssl::verify_context& ctx, NodeNum expected_dest_id);
+  bool verifyCertificateServer(boost::asio::ssl::verify_context& ctx);
 
   // Certificate pinning
   //
@@ -181,11 +181,11 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   const std::string decryptPrivateKey(const fs::path& path);
 
   logging::Logger logger_;
-  asio::io_context& io_context_;
+  boost::asio::io_context& io_context_;
 
   // All reads and writes are executed in this strand.
   // This strand is only used after a connection is authenticated, which occurs in the `ConnMgr` strand.
-  asio::strand<asio::io_context::executor_type> strand_;
+  boost::asio::strand<boost::asio::io_context::executor_type> strand_;
 
   // We can't rely on timer callbacks to actually be cancelled properly and return
   // `boost::asio::error::operation_aborted`. There is a race condition where a callback may already
@@ -197,7 +197,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // strand posting a message to close the connection.
   bool disposed_ = false;
 
-  asio::ssl::context ssl_context_;
+  boost::asio::ssl::context ssl_context_;
 
   std::unique_ptr<SSL_SOCKET> socket_;
   std::optional<NodeNum> peer_id_ = std::nullopt;
@@ -205,8 +205,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   IReceiver* receiver_ = nullptr;
   ConnectionManager& connection_manager_;
 
-  asio::steady_timer read_timer_;
-  asio::steady_timer write_timer_;
+  boost::asio::steady_timer read_timer_;
+  boost::asio::steady_timer write_timer_;
 
   // On every read, we must read the size of the incoming message first. This buffer stores that size.
   std::array<char, MSG_HEADER_SIZE> read_size_buf_;

@@ -9,7 +9,7 @@
 // terms. Your use of these subcomponents is subject to the terms and conditions of the
 // subcomponent's license, as noted in the LICENSE file.
 
-#include <asio.hpp>
+#include <boost/asio.hpp>
 #include <atomic>
 #include <thread>
 
@@ -34,7 +34,7 @@ class ConnectionManager {
   friend class AsyncTlsConnection;
 
  public:
-  ConnectionManager(const TlsTcpConfig &, asio::io_context &);
+  ConnectionManager(const TlsTcpConfig &, boost::asio::io_context &);
 
   //
   // Methods required by ICommunication
@@ -59,8 +59,8 @@ class ConnectionManager {
   // Perform synchronous DNS resolution. This really only works for the listen socket, since after that we want to do a
   // new lookup on every connect operation in case the underlying IP of the DNS address changes.
   //
-  // Throws an asio::system_error if it fails to resolve
-  asio::ip::tcp::endpoint syncResolve();
+  // Throws an boost::system::system_error if it fails to resolve
+  boost::asio::ip::tcp::endpoint syncResolve();
 
   // Starts async dns resolution on a tcp socket.
   //
@@ -72,18 +72,18 @@ class ConnectionManager {
   // Replicas only connect to replicas with smaller node ids.
   // This method is called at startup and also on a periodic timer tick.
   void connect();
-  void connect(NodeNum, const asio::ip::tcp::endpoint &);
+  void connect(NodeNum, const boost::asio::ip::tcp::endpoint &);
 
   // Start a steady_timer in order to trigger needed `connect` operations.
   void startConnectTimer();
 
   // Trigger the asio async_handshake calls.
-  void startServerSSLHandshake(asio::ip::tcp::socket &&);
-  void startClientSSLHandshake(asio::ip::tcp::socket &&socket, NodeNum destination);
+  void startServerSSLHandshake(boost::asio::ip::tcp::socket &&);
+  void startClientSSLHandshake(boost::asio::ip::tcp::socket &&socket, NodeNum destination);
 
   // Callbacks triggered when asio async_handshake completes for an incoming or outgoing connection.
-  void onServerHandshakeComplete(const asio::error_code &ec, size_t accepted_connection_id);
-  void onClientHandshakeComplete(const asio::error_code &ec, NodeNum destination);
+  void onServerHandshakeComplete(const boost::system::error_code &ec, size_t accepted_connection_id);
+  void onClientHandshakeComplete(const boost::system::error_code &ec, NodeNum destination);
 
   // If onServerHandshake completed successfully, this function will get called and add the AsyncTlsConnection to
   // `connections_`.
@@ -128,11 +128,11 @@ class ConnectionManager {
   // progress connections when cert validation completes
   size_t total_accepted_connections_ = 0;
 
-  asio::io_context &io_context_;
-  asio::strand<asio::io_context::executor_type> strand_;
-  asio::ip::tcp::acceptor acceptor_;
-  asio::ip::tcp::resolver resolver_;
-  asio::steady_timer connect_timer_;
+  boost::asio::io_context &io_context_;
+  boost::asio::strand<boost::asio::io_context::executor_type> strand_;
+  boost::asio::ip::tcp::acceptor acceptor_;
+  boost::asio::ip::tcp::resolver resolver_;
+  boost::asio::steady_timer connect_timer_;
 
   // This tracks outstanding attempts at DNS resolution for outgoing connections.
   std::set<NodeNum> resolving_;
@@ -140,7 +140,7 @@ class ConnectionManager {
   // Sockets that are in progress of connecting.
   // When these connections complete, an AsyncTlsConnection will be created and moved into
   // `connected_waiting_for_handshake_`.Each socket have a connection timeout.
-  std::unordered_map<NodeNum, std::pair<asio::ip::tcp::socket, asio::steady_timer>> connecting_;
+  std::unordered_map<NodeNum, std::pair<boost::asio::ip::tcp::socket, boost::asio::steady_timer>> connecting_;
 
   // Connections that are in progress of waiting for a handshake to complete.
   // When the handshake completes these will be moved into `connections_`.

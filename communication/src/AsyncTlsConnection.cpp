@@ -10,7 +10,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include <asio/bind_executor.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <boost/system/system_error.hpp>
 #include <fstream>
 #include <regex>
@@ -38,7 +38,7 @@ using concord::crypto::getFormat;
 
 void AsyncTlsConnection::startReading() {
   auto self = shared_from_this();
-  asio::post(strand_, [this, self] { readMsgSizeHeader(); });
+  boost::asio::post(strand_, [this, self] { readMsgSizeHeader(); });
 }
 
 void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_read) {
@@ -46,19 +46,19 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
   auto self = shared_from_this();
   const size_t offset = bytes_already_read ? bytes_already_read.value() : 0;
   const size_t bytes_remaining = MSG_HEADER_SIZE - offset;
-  auto buf = asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
+  auto buf = boost::asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
   status_.msg_size_header_read_attempts++;
   auto start = std::chrono::steady_clock::now();
   socket_->async_read_some(
       buf,
-      asio::bind_executor(
+      boost::asio::bind_executor(
           strand_,
           [this, self, bytes_already_read, bytes_remaining, start](const auto& error_code, auto bytes_transferred) {
             if (disposed_) {
               return;
             }
             if (error_code) {
-              if (error_code == asio::error::operation_aborted) {
+              if (error_code == boost::asio::error::operation_aborted) {
                 // The socket has already been cleaned up and any references are invalid. Just return.
                 LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
                 return;
@@ -108,39 +108,39 @@ void AsyncTlsConnection::readMsg() {
   auto self = shared_from_this();
   status_.msg_reads++;
   auto start = std::chrono::steady_clock::now();
-  async_read(
-      *socket_,
-      asio::buffer(read_msg_.data(), msg_size),
-      asio::bind_executor(strand_, [this, self, start](const asio::error_code& error_code, auto bytes_transferred) {
-        if (disposed_) {
-          return;
-        }
-        if (error_code) {
-          if (error_code == asio::error::operation_aborted) {
-            LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
-            // The socket has already been cleaned up and any references are invalid. Just return.
-            return;
-          }
-          // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing
-          // operations.
-          LOG_WARN(logger_,
-                   "Reading message of size <<" << getReadMsgSize() << " failed for node " << peer_id_.value() << ": "
-                                                << error_code.message());
-          return dispose();
-        }
+  async_read(*socket_,
+             boost::asio::buffer(read_msg_.data(), msg_size),
+             boost::asio::bind_executor(
+                 strand_, [this, self, start](const boost::system::error_code& error_code, auto bytes_transferred) {
+                   if (disposed_) {
+                     return;
+                   }
+                   if (error_code) {
+                     if (error_code == boost::asio::error::operation_aborted) {
+                       LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+                       // The socket has already been cleaned up and any references are invalid. Just return.
+                       return;
+                     }
+                     // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing
+                     // operations.
+                     LOG_WARN(logger_,
+                              "Reading message of size <<" << getReadMsgSize() << " failed for node "
+                                                           << peer_id_.value() << ": " << error_code.message());
+                     return dispose();
+                   }
 
-        // The Read succeeded.
-        histograms_.async_read_msg->recordAtomic(durationInMicros(start));
-        LOG_DEBUG(logger_, "Cancelling read timer: " << KVLOG(peer_id_.value(), (void*)read_msg_.data()));
-        read_timer_.cancel();
-        histograms_.received_msg_size->recordAtomic(bytes_transferred);
-        {
-          concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
-          NodeNum endpoint_num = getReadMsgEndpointNum();
-          receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred, endpoint_num);
-        }
-        readMsgSizeHeader();
-      }));
+                   // The Read succeeded.
+                   histograms_.async_read_msg->recordAtomic(durationInMicros(start));
+                   LOG_DEBUG(logger_, "Cancelling read timer: " << KVLOG(peer_id_.value(), (void*)read_msg_.data()));
+                   read_timer_.cancel();
+                   histograms_.received_msg_size->recordAtomic(bytes_transferred);
+                   {
+                     concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
+                     NodeNum endpoint_num = getReadMsgEndpointNum();
+                     receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred, endpoint_num);
+                   }
+                   readMsgSizeHeader();
+                 }));
 }
 
 void AsyncTlsConnection::startReadTimer() {
@@ -148,8 +148,8 @@ void AsyncTlsConnection::startReadTimer() {
   auto self = shared_from_this();
   read_timer_.expires_from_now(READ_TIMEOUT);
   status_.read_timer_started++;
-  read_timer_.async_wait(asio::bind_executor(strand_, [this, self](const asio::error_code& ec) {
-    if (ec == asio::error::operation_aborted || disposed_) {
+  read_timer_.async_wait(boost::asio::bind_executor(strand_, [this, self](const boost::system::error_code& ec) {
+    if (ec == boost::asio::error::operation_aborted || disposed_) {
       // The socket has already been cleaned up and any references are invalid. Just return.
       LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
       status_.read_timer_stopped++;
@@ -165,8 +165,8 @@ void AsyncTlsConnection::startWriteTimer() {
   auto self = shared_from_this();
   write_timer_.expires_from_now(WRITE_TIMEOUT);
   status_.write_timer_started++;
-  write_timer_.async_wait(asio::bind_executor(strand_, [this, self](const asio::error_code& ec) {
-    if (ec == asio::error::operation_aborted || disposed_) {
+  write_timer_.async_wait(boost::asio::bind_executor(strand_, [this, self](const boost::system::error_code& ec) {
+    if (ec == boost::asio::error::operation_aborted || disposed_) {
       // The socket has already been cleaned up and any references are invalid. Just return.
       LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
       status_.write_timer_stopped++;
@@ -198,7 +198,7 @@ NodeNum AsyncTlsConnection::getReadMsgEndpointNum() const {
 
 void AsyncTlsConnection::remoteDispose() {
   auto self = shared_from_this();
-  asio::post(strand_, [this, self] {
+  boost::asio::post(strand_, [this, self] {
     static constexpr bool close_connection = false;
     dispose(close_connection);
   });
@@ -223,7 +223,7 @@ void AsyncTlsConnection::dispose(bool close_connection) {
 void AsyncTlsConnection::send(std::shared_ptr<OutgoingMsg>&& msg) {
   concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_conn);
   auto self = shared_from_this();
-  asio::post(strand_, [this, self, msg{move(msg)}]() { write(msg); });
+  boost::asio::post(strand_, [this, self, msg{move(msg)}]() { write(msg); });
 }
 
 void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
@@ -250,43 +250,45 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
 
   auto self = shared_from_this();
   auto start = std::chrono::steady_clock::now();
-  asio::async_write(
+  boost::asio::async_write(
       *socket_,
-      asio::buffer(write_msg_->msg),
-      asio::bind_executor(strand_, [this, self, start](const asio::error_code& ec, auto /*bytes_written*/) {
-        if (disposed_) return;
-        if (ec) {
-          if (ec == asio::error::operation_aborted) {
-            // The socket has already been cleaned up and any references are invalid. Just return.
-            LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
-            return;
-          }
-          LOG_WARN(logger_,
-                   "Write failed to node " << peer_id_.value() << " for message with size " << write_msg_->msg.size()
-                                           << ": " << ec.message());
-          return dispose();
-        }
+      boost::asio::buffer(write_msg_->msg),
+      boost::asio::bind_executor(
+          strand_, [this, self, start](const boost::system::error_code& ec, auto /*bytes_written*/) {
+            if (disposed_) return;
+            if (ec) {
+              if (ec == boost::asio::error::operation_aborted) {
+                // The socket has already been cleaned up and any references are invalid. Just
+                // return.
+                LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+                return;
+              }
+              LOG_WARN(logger_,
+                       "Write failed to node " << peer_id_.value() << " for message with size "
+                                               << write_msg_->msg.size() << ": " << ec.message());
+              return dispose();
+            }
 
-        // The write succeeded.
-        histograms_.async_write->recordAtomic(durationInMicros(start));
-        write_timer_.cancel();
-        histograms_.sent_msg_size->recordAtomic(static_cast<int64_t>(write_msg_->msg.size()));
-        write_msg_ = nullptr;
-        write_msg_used_ = false;
-        write(write_queue_.pop());
-      }));
+            // The write succeeded.
+            histograms_.async_write->recordAtomic(durationInMicros(start));
+            write_timer_.cancel();
+            histograms_.sent_msg_size->recordAtomic(static_cast<int64_t>(write_msg_->msg.size()));
+            write_msg_ = nullptr;
+            write_msg_used_ = false;
+            write(write_queue_.pop());
+          }));
   LOG_DEBUG(logger_, "Write:" << KVLOG(peer_id_.value(), write_msg_->msg.size()));
   startWriteTimer();
 }
 
-void AsyncTlsConnection::createSSLSocket(asio::ip::tcp::socket&& socket) {
+void AsyncTlsConnection::createSSLSocket(boost::asio::ip::tcp::socket&& socket) {
   socket_ = std::make_unique<SSL_SOCKET>(io_context_, ssl_context_);
   socket_->lowest_layer() = std::move(socket);
 }
 
 void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   auto self = std::weak_ptr(shared_from_this());
-  ssl_context_.set_verify_mode(asio::ssl::verify_peer);
+  ssl_context_.set_verify_mode(boost::asio::ssl::verify_peer);
 
   fs::path path;
   fs::path cert_path;
@@ -298,7 +300,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
     ConcordAssert(false);
   }
 
-  asio::error_code ec;
+  boost::system::error_code ec;
   ssl_context_.set_verify_callback(
       [this, self, destination](auto /*preverified*/, auto& ctx) -> bool {
         if (self.expired()) return false;
@@ -316,7 +318,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
     LOG_INFO(logger_, "Certificates Path: " << cert_path);
     ssl_context_.use_certificate_chain_file(cert_path);
     const std::string pk = decryptPrivateKey(path);
-    ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
+    ssl_context_.use_private_key(boost::asio::const_buffer(pk.c_str(), pk.size()), boost::asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
     ConcordAssert(false);
@@ -334,13 +336,13 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
 void AsyncTlsConnection::initServerSSLContext() {
   auto self = std::weak_ptr(shared_from_this());
-  ssl_context_.set_verify_mode(asio::ssl::verify_peer | asio::ssl::verify_fail_if_no_peer_cert);
-  ssl_context_.set_options(asio::ssl::context::default_workarounds | asio::ssl::context::no_sslv2 |
-                           asio::ssl::context::no_sslv3 | asio::ssl::context::no_tlsv1 |
-                           asio::ssl::context::no_tlsv1_1 | asio::ssl::context::no_tlsv1_2 |
-                           asio::ssl::context::single_dh_use);
+  ssl_context_.set_verify_mode(boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert);
+  ssl_context_.set_options(boost::asio::ssl::context::default_workarounds | boost::asio::ssl::context::no_sslv2 |
+                           boost::asio::ssl::context::no_sslv3 | boost::asio::ssl::context::no_tlsv1 |
+                           boost::asio::ssl::context::no_tlsv1_1 | boost::asio::ssl::context::no_tlsv1_2 |
+                           boost::asio::ssl::context::single_dh_use);
 
-  asio::error_code ec;
+  boost::system::error_code ec;
   ssl_context_.set_verify_callback(
       [this, self](auto /*pre-verified*/, auto& ctx) -> bool {
         if (self.expired()) return false;
@@ -368,7 +370,7 @@ void AsyncTlsConnection::initServerSSLContext() {
     LOG_INFO(logger_, "Server Certificates Path: " << cert_path);
     ssl_context_.use_certificate_chain_file(cert_path);
     const std::string pk = decryptPrivateKey(path);
-    ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
+    ssl_context_.use_private_key(boost::asio::const_buffer(pk.c_str(), pk.size()), boost::asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
     ConcordAssert(false);
@@ -400,7 +402,7 @@ void AsyncTlsConnection::initServerSSLContext() {
   }
 }
 
-bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
+bool AsyncTlsConnection::verifyCertificateClient(boost::asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
   auto err = X509_STORE_CTX_get_error(ctx.native_handle());
   if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != err) {
     LOG_WARN(logger_, "The certificate has an error " << KVLOG(err));
@@ -417,7 +419,7 @@ bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx,
   return valid;
 }
 
-bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx) {
+bool AsyncTlsConnection::verifyCertificateServer(boost::asio::ssl::verify_context& ctx) {
   auto err = X509_STORE_CTX_get_error(ctx.native_handle());
   if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != err) {
     LOG_WARN(logger_, "The certificate has an error " << KVLOG(err));

@@ -250,21 +250,6 @@ install_opentracing_lib() {
 
 }
 
-# ASIO only (without boost). This allows us to upgrade ASIO independently.
-install_asio() {
-    cd ${HOME}
-    wget ${WGET_FLAGS} \
-    https://sourceforge.net/projects/asio/files/asio/1.18.1%20%28Stable%29/asio-1.18.1.tar.bz2 && \
-        tar -xf asio-1.18.1.tar.bz2 && \
-        cd asio-1.18.1 && \
-        ./configure && \
-        make -j$(nproc) && \
-        make install && \
-        cd ${HOME} && \
-        rm -rf asio*
-
-}
-
 # Get the newest openSSL installation (as of 9/2020)
 install_openssl() {
     OPENSSL_VER='1.1.1g'
@@ -451,7 +436,6 @@ install_rocksdb_lib
 install_rapidcheck
 install_minio
 install_opentracing_lib
-install_asio
 install_openssl
 install_grpc
 install_prometheus

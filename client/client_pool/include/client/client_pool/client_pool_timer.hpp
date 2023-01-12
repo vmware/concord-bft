@@ -16,8 +16,8 @@
 #include <chrono>
 #include <future>
 
-#include <asio/steady_timer.hpp>
-#include <asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/io_context.hpp>
 
 #include "log/logger.hpp"
 
@@ -86,8 +86,8 @@ class Timer {
       return;
     }
     client_ = client;
-    auto handler = [this](const asio::error_code& error) {
-      if (error != asio::error::operation_aborted) {
+    auto handler = [this](const boost::system::error_code& error) {
+      if (error != boost::asio::error::operation_aborted) {
         on_timeout_(std::move(client_));
       }
     };
@@ -120,7 +120,7 @@ class Timer {
  private:
   void work() {
     // Add a work guard so that io_context_.run() keeps running even if there is no work item
-    asio::executor_work_guard<asio::io_context::executor_type> work_guard(io_context_.get_executor());
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_guard(io_context_.get_executor());
     io_context_.run();
   }
 
@@ -130,8 +130,8 @@ class Timer {
 
   const std::chrono::milliseconds timeout_;
   std::function<void(ClientT&&)> on_timeout_;
-  asio::io_context io_context_;
-  asio::steady_timer timer_;
+  boost::asio::io_context io_context_;
+  boost::asio::steady_timer timer_;
   std::chrono::steady_clock::time_point start_timer_;
   logging::Logger logger_;
 };
