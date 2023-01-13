@@ -40,7 +40,7 @@
 #include "assertUtils.hpp"
 
 using namespace std;
-using namespace boost::asio;
+using namespace boost::asio::;
 using namespace boost::asio::ip;
 using namespace boost::posix_time;
 

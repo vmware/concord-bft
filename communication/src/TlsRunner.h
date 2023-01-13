@@ -9,7 +9,7 @@
 // terms. Your use of these subcomponents is subject to the terms and conditions of the
 // subcomponent's license, as noted in the LICENSE file.
 
-#include <asio.hpp>
+#include <boost/asio.hpp>
 #include <thread>
 
 #include "log/logger.hpp"
@@ -20,7 +20,7 @@
 
 namespace bft::communication::tls {
 
-// The runner creates an `asio::io_context` and a pool of threads to serve that context.
+// The runner creates an `boost::asio::io_context` and a pool of threads to serve that context.
 class Runner {
  public:
   Runner(const TlsTcpConfig& config, const size_t num_threads);
@@ -42,7 +42,7 @@ class Runner {
   mutable std::mutex start_stop_mutex_;
   // A pool of threads from which completion handlers may be invoked.
   std::vector<std::thread> io_threads_;
-  asio::io_context io_context_;
+  boost::asio::io_context io_context_;
   ConnectionManager connectionManager_;
 };
 

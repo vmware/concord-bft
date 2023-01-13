@@ -9,7 +9,7 @@
 // terms. Your use of these subcomponents is subject to the terms and conditions of the
 // subcomponent's license, as noted in the LICENSE file.
 
-#include <asio/bind_executor.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <cstdint>
 #include <future>
 #include <string>
@@ -23,13 +23,13 @@ using namespace std::placeholders;
 
 namespace bft::communication::tls {
 
-void setSocketOptions(asio::ip::tcp::socket& socket) { socket.set_option(asio::ip::tcp::no_delay(true)); }
+void setSocketOptions(boost::asio::ip::tcp::socket& socket) { socket.set_option(boost::asio::ip::tcp::no_delay(true)); }
 
-ConnectionManager::ConnectionManager(const TlsTcpConfig& config, asio::io_context& io_context)
+ConnectionManager::ConnectionManager(const TlsTcpConfig& config, boost::asio::io_context& io_context)
     : logger_(logging::getLogger("concord-bft.tls.connMgr")),
       config_(config),
       io_context_(io_context),
-      strand_(asio::make_strand(io_context_)),
+      strand_(boost::asio::make_strand(io_context_)),
       acceptor_(io_context_),
       resolver_(io_context_),
       connect_timer_(io_context_),
@@ -85,11 +85,11 @@ void ConnectionManager::listen() {
   try {
     auto endpoint = syncResolve();
     acceptor_.open(endpoint.protocol());
-    acceptor_.set_option(asio::socket_base::reuse_address(true));
+    acceptor_.set_option(boost::asio::socket_base::reuse_address(true));
     acceptor_.bind(endpoint);
     acceptor_.listen();
     LOG_INFO(logger_, "TLS server listening at " << endpoint << " for replica " << config_.selfId_);
-  } catch (const asio::system_error& e) {
+  } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_,
               "Failed to start TLS acceptor at " << config_.listenHost_ << ":" << config_.listenPort_ << " for replica"
                                                  << config_.selfId_ << ": " << e.what());
@@ -99,7 +99,7 @@ void ConnectionManager::listen() {
 
 void ConnectionManager::startConnectTimer() {
   connect_timer_.expires_from_now(CONNECT_TICK);
-  connect_timer_.async_wait(asio::bind_executor(strand_, [this](const asio::error_code& ec) {
+  connect_timer_.async_wait(boost::asio::bind_executor(strand_, [this](const boost::system::error_code& ec) {
     if (stopped_) {
       return;
     }
@@ -121,7 +121,7 @@ void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<Ou
   }
   {
     concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
-    asio::post(strand_, [this, destination, msg]() { handleSend(destination, msg); });
+    boost::asio::post(strand_, [this, destination, msg]() { handleSend(destination, msg); });
   }
 }
 
@@ -134,7 +134,7 @@ void ConnectionManager::send(const std::set<NodeNum>& destinations, const std::s
   }
   {
     concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
-    asio::post(strand_, [this, destinations, msg]() { handleSend(destinations, msg); });
+    boost::asio::post(strand_, [this, destinations, msg]() { handleSend(destinations, msg); });
   }
 }
 
@@ -166,7 +166,7 @@ void ConnectionManager::handleConnStatus(const NodeNum destination, std::promise
 }
 
 void ConnectionManager::remoteCloseConnection(NodeNum id) {
-  asio::post(strand_, [this, id]() {
+  boost::asio::post(strand_, [this, id]() {
     // This check is because of a race condition.
     // It's possible that the ConnMgr can call conn->remoteDispose() as a result of it destroying
     // the connection, but that the socket gets closed resulting in a simultaneous call here to
@@ -206,7 +206,7 @@ void ConnectionManager::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnec
   conn->startReading();
 }
 
-void ConnectionManager::onServerHandshakeComplete(const asio::error_code& ec, size_t accepted_connection_id) {
+void ConnectionManager::onServerHandshakeComplete(const boost::system::error_code& ec, size_t accepted_connection_id) {
   auto conn = std::move(accepted_waiting_for_handshake_.at(accepted_connection_id));
   accepted_waiting_for_handshake_.erase(accepted_connection_id);
   status_->num_accepted_waiting_for_handshake = accepted_waiting_for_handshake_.size();
@@ -221,7 +221,7 @@ void ConnectionManager::onServerHandshakeComplete(const asio::error_code& ec, si
   onConnectionAuthenticated(std::move(conn));
 }
 
-void ConnectionManager::onClientHandshakeComplete(const asio::error_code& ec, NodeNum destination) {
+void ConnectionManager::onClientHandshakeComplete(const boost::system::error_code& ec, NodeNum destination) {
   auto conn = std::move(connected_waiting_for_handshake_.at(destination));
   connected_waiting_for_handshake_.erase(destination);
   status_->num_connected_waiting_for_handshake = connected_waiting_for_handshake_.size();
@@ -236,55 +236,58 @@ void ConnectionManager::onClientHandshakeComplete(const asio::error_code& ec, No
   onConnectionAuthenticated(std::move(conn));
 }
 
-void ConnectionManager::startServerSSLHandshake(asio::ip::tcp::socket&& socket) {
+void ConnectionManager::startServerSSLHandshake(boost::asio::ip::tcp::socket&& socket) {
   auto connection_id = total_accepted_connections_;
   auto conn =
       AsyncTlsConnection::create(io_context_, std::move(socket), receiver_, *this, config_, *status_, histograms_);
   accepted_waiting_for_handshake_.insert({connection_id, conn});
   status_->num_accepted_waiting_for_handshake = accepted_waiting_for_handshake_.size();
-  conn->getSocket().async_handshake(asio::ssl::stream_base::server,
-                                    asio::bind_executor(strand_, [this, connection_id](const asio::error_code& ec) {
-                                      onServerHandshakeComplete(ec, connection_id);
-                                    }));
+  conn->getSocket().async_handshake(
+      boost::asio::ssl::stream_base::server,
+      boost::asio::bind_executor(strand_, [this, connection_id](const boost::system::error_code& ec) {
+        onServerHandshakeComplete(ec, connection_id);
+      }));
 }
 
-void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, NodeNum destination) {
+void ConnectionManager::startClientSSLHandshake(boost::asio::ip::tcp::socket&& socket, NodeNum destination) {
   auto conn = AsyncTlsConnection::create(
       io_context_, std::move(socket), receiver_, *this, destination, config_, *status_, histograms_);
   connected_waiting_for_handshake_.insert({destination, conn});
   status_->num_connected_waiting_for_handshake = connected_waiting_for_handshake_.size();
-  conn->getSocket().async_handshake(asio::ssl::stream_base::client,
-                                    asio::bind_executor(strand_, [this, destination](const asio::error_code& ec) {
-                                      onClientHandshakeComplete(ec, destination);
-                                    }));
+  conn->getSocket().async_handshake(
+      boost::asio::ssl::stream_base::client,
+      boost::asio::bind_executor(strand_, [this, destination](const boost::system::error_code& ec) {
+        onClientHandshakeComplete(ec, destination);
+      }));
 }
 
 void ConnectionManager::accept() {
-  acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
-    if (stopped_) return;
-    if (!StateControl::instance().tryLockComm()) {
-      LOG_WARN(logger_, "incoming comm is blocked");
-      return;
-    }
-    if (ec) {
-      LOG_WARN(logger_, "async_accept failed: " << ec.message());
-      // When io_service is stopped, the handlers are destroyed and when the
-      // io_service dtor runs they will be invoked with operation_aborted error.
-      // In this case we dont want to accept again.
-      if (ec == asio::error::operation_aborted) {
-        StateControl::instance().unlockComm();
-        return;
-      }
-    } else {
-      total_accepted_connections_++;
-      status_->total_accepted_connections = total_accepted_connections_;
-      setSocketOptions(sock);
-      LOG_INFO(logger_, "Accepted connection " << total_accepted_connections_);
-      startServerSSLHandshake(std::move(sock));
-      StateControl::instance().unlockComm();
-    }
-    accept();
-  }));
+  acceptor_.async_accept(
+      boost::asio::bind_executor(strand_, [this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (stopped_) return;
+        if (!StateControl::instance().tryLockComm()) {
+          LOG_WARN(logger_, "incoming comm is blocked");
+          return;
+        }
+        if (ec) {
+          LOG_WARN(logger_, "async_accept failed: " << ec.message());
+          // When io_service is stopped, the handlers are destroyed and when the
+          // io_service dtor runs they will be invoked with operation_aborted error.
+          // In this case we dont want to accept again.
+          if (ec == boost::asio::error::operation_aborted) {
+            StateControl::instance().unlockComm();
+            return;
+          }
+        } else {
+          total_accepted_connections_++;
+          status_->total_accepted_connections = total_accepted_connections_;
+          setSocketOptions(sock);
+          LOG_INFO(logger_, "Accepted connection " << total_accepted_connections_);
+          startServerSSLHandshake(std::move(sock));
+          StateControl::instance().unlockComm();
+        }
+        accept();
+      }));
 }
 
 void ConnectionManager::resolve(NodeNum i) {
@@ -292,10 +295,10 @@ void ConnectionManager::resolve(NodeNum i) {
   status_->num_resolving = resolving_.size();
   auto node = config_.nodes_.at(i);
   resolver_.async_resolve(
-      asio::ip::tcp::v4(),
+      boost::asio::ip::tcp::v4(),
       node.host,
       std::to_string(node.port),
-      asio::bind_executor(strand_, [this, node, i](const auto& error_code, auto results) {
+      boost::asio::bind_executor(strand_, [this, node, i](const auto& error_code, auto results) {
         if (error_code) {
           LOG_WARN(
               logger_,
@@ -304,7 +307,7 @@ void ConnectionManager::resolve(NodeNum i) {
           status_->num_resolving = resolving_.size();
           return;
         }
-        asio::ip::tcp::endpoint endpoint = *results;
+        boost::asio::ip::tcp::endpoint endpoint = *results;
         LOG_INFO(logger_, "Resolved node " << i << ": " << node.host << ":" << node.port << " to " << endpoint);
         resolving_.erase(i);
         status_->num_resolving = resolving_.size();
@@ -312,9 +315,9 @@ void ConnectionManager::resolve(NodeNum i) {
       }));
 }
 
-void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoint) {
-  auto [it, inserted] =
-      connecting_.emplace(i, std::make_pair(asio::ip::tcp::socket(io_context_), asio::steady_timer(io_context_)));
+void ConnectionManager::connect(NodeNum i, const boost::asio::ip::tcp::endpoint& endpoint) {
+  auto [it, inserted] = connecting_.emplace(
+      i, std::make_pair(boost::asio::ip::tcp::socket(io_context_), boost::asio::steady_timer(io_context_)));
   ConcordAssert(inserted);
   status_->num_connecting = connecting_.size();
   LOG_DEBUG(logger_, "connecting to node : " << i);
@@ -322,7 +325,7 @@ void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoi
   // the timeout will happen after given duration
   connecting_.at(i).second.expires_after(CONNECT_DEADLINE);
   it->second.first.async_connect(
-      endpoint, asio::bind_executor(strand_, [this, i, endpoint](const auto& error_code) {
+      endpoint, boost::asio::bind_executor(strand_, [this, i, endpoint](const auto& error_code) {
         if (error_code) {
           LOG_WARN(logger_, "Failed to connect to node " << i << ": " << endpoint << " : " << error_code.message());
           if (connecting_.find(i) != connecting_.end()) {
@@ -339,7 +342,7 @@ void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoi
         startClientSSLHandshake(std::move(connected_socket), i);
       }));
   connecting_.at(i).second.async_wait(
-      asio::bind_executor(strand_, std::bind(&ConnectionManager::handleConnectTimeout, this, i, _1)));
+      boost::asio::bind_executor(strand_, std::bind(&ConnectionManager::handleConnectTimeout, this, i, _1)));
 }
 
 void ConnectionManager::connect() {
@@ -353,8 +356,8 @@ void ConnectionManager::connect() {
 }
 
 void ConnectionManager::handleConnectTimeout(NodeNum i, const std::error_code& error_code) {
-  asio::steady_timer& deadline_timer = connecting_.at(i).second;
-  if (deadline_timer.expiry() <= asio::steady_timer::clock_type::now()) {
+  boost::asio::steady_timer& deadline_timer = connecting_.at(i).second;
+  if (deadline_timer.expiry() <= boost::asio::steady_timer::clock_type::now()) {
     LOG_WARN(logger_, "Timeout during connecting to node : " << i << ": " << error_code.message());
     connecting_.at(i).first.close();
   }
@@ -363,9 +366,10 @@ void ConnectionManager::handleConnectTimeout(NodeNum i, const std::error_code& e
   status_->num_connecting = connecting_.size();
 }
 
-asio::ip::tcp::endpoint ConnectionManager::syncResolve() {
-  auto results = resolver_.resolve(asio::ip::tcp::v4(), config_.listenHost_, std::to_string(config_.listenPort_));
-  asio::ip::tcp::endpoint endpoint = *results;
+boost::asio::ip::tcp::endpoint ConnectionManager::syncResolve() {
+  auto results =
+      resolver_.resolve(boost::asio::ip::tcp::v4(), config_.listenHost_, std::to_string(config_.listenPort_));
+  boost::asio::ip::tcp::endpoint endpoint = *results;
   LOG_INFO(logger_, "Resolved " << config_.listenHost_ << ":" << config_.listenPort_ << " to " << endpoint);
   return endpoint;
 }
@@ -375,7 +379,7 @@ int ConnectionManager::getMaxMessageSize() const { return static_cast<int>(confi
 ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id) const {
   std::promise<bool> connected;
   auto future = connected.get_future();
-  asio::post(strand_, [this, id, &connected]() { handleConnStatus(id, connected); });
+  boost::asio::post(strand_, [this, id, &connected]() { handleConnStatus(id, connected); });
   if (future.get()) {
     return ConnectionStatus::Connected;
   }
