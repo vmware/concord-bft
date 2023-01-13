@@ -80,7 +80,7 @@ module Messages {
     }
   }
 
-  predicate UniqueSenders(msgs:set<Network.Message<Message>>) {
+  predicate {:opaque} UniqueSenders(msgs:set<Network.Message<Message>>) {
     (forall m1, m2 | && m1 in msgs
                      && m2 in msgs
                      && m1 != m2
