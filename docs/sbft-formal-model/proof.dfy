@@ -309,6 +309,8 @@ module Proof {
     && RecordedCheckpointsRecvdCameFromNetwork(c, v)
     && UnCommitableAgreesWithPrepare(c, v)
     && UnCommitableAgreesWithRecordedPrePrepare(c, v)
+    && HonestReplicasLeaveViewsBehind(c, v)
+    && RecordedNewViewMsgsContainSentVCMsgs(c, v)
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
@@ -754,12 +756,17 @@ module Proof {
     requires match(info) {
            case HonestInfo(h_v, h_step) => (&& HonestReplicaStepTaken(c, v, v', step, h_v, h_step) 
                                             && !h_step.RecvPrePrepareStep?
-                                            && !h_step.LeaveViewStep?)
+                                            && !h_step.LeaveViewStep?
+                                            && !h_step.SendPrePrepareStep?)
            case NotHonest() => (|| (NextStep(c, v, v', step) && c.clusterConfig.IsFaultyReplica(step.id))
                                 || (NextStep(c, v, v', step) &&  c.clusterConfig.IsClient(step.id)))
          }
     ensures UnCommitableAgreesWithRecordedPrePrepare(c, v')
   {
+    if info.HonestInfo? 
+    {
+      info.h_v.workingWindow.reveal_Shift();
+    }
     reveal_UnCommitableAgreesWithRecordedPrePrepare();
     forall replicaIdx, seqID, priorView:nat, priorOperationWrapper:Messages.OperationWrapper | 
               && IsHonestReplica(c, replicaIdx)
@@ -964,17 +971,17 @@ module Proof {
   {
     && c.clusterConfig.IsHonestReplica(replica)
     && Network.Message(replica,
-                         Messages.Commit(view,
-                                         seqID,
-                                         operationWrapper)) in v.network.sentMsgs
+                       Messages.Commit(view,
+                                       seqID,
+                                       operationWrapper)) in v.network.sentMsgs
   }
 
   predicate ReplicasInViewOrLower(c:Constants,
-                                   v:Variables,
-                                   seqID:Messages.SequenceID,
-                                   view:nat,
-                                   operationWrapper:Messages.OperationWrapper,
-                                   replica:HostIdentifiers.HostId)
+                                  v:Variables,
+                                  seqID:Messages.SequenceID,
+                                  view:nat,
+                                  operationWrapper:Messages.OperationWrapper,
+                                  replica:HostIdentifiers.HostId)
     requires v.WF(c)
   {
     && c.clusterConfig.IsHonestReplica(replica)
@@ -1031,10 +1038,23 @@ module Proof {
               && priorView < prePrepareMsg.payload.view
                 :: && var prePrepareMsg := v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
                    && UnCommitableInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper))
-
   }
 
-    predicate {:opaque} RecordedPrePreparesMatchHostView(c:Constants, v:Variables) {
+  predicate {:opaque} HonestReplicasLeaveViewsBehind(c:Constants, v:Variables) {
+    && (forall viewChangeMsg | && viewChangeMsg in v.network.sentMsgs
+                               && IsHonestReplica(c, viewChangeMsg.sender)
+                                  :: && var replicaVariables := v.hosts[viewChangeMsg.sender].replicaVariables;
+                                     && replicaVariables.view >= viewChangeMsg.payload.newView)
+  }
+
+  predicate {:opaque} RecordedNewViewMsgsContainSentVCMsgs(c:Constants, v:Variables) {
+    && (forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
+                                        && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+                                        && newViewMsg in replicaVariables.newViewMsgsRecvd.msgs
+                                           :: newViewMsg.payload.vcMsgs.msgs <= v.network.sentMsgs)
+  }
+
+  predicate {:opaque} RecordedPrePreparesMatchHostView(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall observer, seqID, sender | 
                            && IsHonestReplica(c, observer)
@@ -1265,16 +1285,66 @@ module Proof {
     reveal_UnCommitableAgreesWithRecordedPrePrepare();
     forall replicaIdx, seqID, priorView:nat, priorOperationWrapper:Messages.OperationWrapper | 
     && IsHonestReplica(c, replicaIdx)
-    && var replicaVariables := v'.hosts[replicaIdx].replicaVariables;
-    && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
-    && seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
-    && replicaVariables.workingWindow.prePreparesRcvd[seqID].Some?
-    && var prePrepareMsg := replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+    && var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
+    && var replicaConstants' := c.hosts[replicaIdx].replicaConstants;
+    && seqID in replicaVariables'.workingWindow.getActiveSequenceIDs(replicaConstants')
+    && replicaVariables'.workingWindow.prePreparesRcvd[seqID].Some?
+    && var prePrepareMsg := replicaVariables'.workingWindow.prePreparesRcvd[seqID].value;
     && priorOperationWrapper != prePrepareMsg.payload.operationWrapper
     && priorView < prePrepareMsg.payload.view
       ensures && var prePrepareMsg := v'.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
               && UnCommitableInView(c, v', prePrepareMsg.payload.seqID, priorView, priorOperationWrapper) {
-      
+      var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+      var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
+      if replicaVariables.workingWindow.prePreparesRcvd[seqID].None? {
+        var newViewMsgs := set msg | && msg in h_v.newViewMsgsRecvd.msgs 
+                                     && msg.payload.newView == h_v.view;
+        if |newViewMsgs| == 0 {
+          assert h_v.view == 0;
+          assert false;
+        }
+        var newViewMsg :| newViewMsg in newViewMsgs;
+        var viewChangers := Messages.sendersOf(newViewMsg.payload.vcMsgs.msgs);
+        var troubleMakers := ReplicasThatCanCommitInView(c, v', seqID, priorView, priorOperationWrapper);
+        if |troubleMakers| >= c.clusterConfig.AgreementQuorum() {
+          // Contradiction hypothesis
+          UniqueSendersCardinality(newViewMsg.payload.vcMsgs.msgs);
+          assert viewChangers <= getAllReplicas(c) by {
+            reveal_RecordedNewViewMsgsContainSentVCMsgs();
+            assume false; // Need an invariant on the VC messages.
+          }
+          var doubleAgent := FindQuorumIntersection(c, viewChangers, troubleMakers);
+          assert !c.clusterConfig.IsFaultyReplica(doubleAgent);
+          assert doubleAgent in viewChangers;
+          var vcMsg:Message :| && vcMsg in newViewMsg.payload.vcMsgs.msgs 
+                               && vcMsg.sender == doubleAgent;
+          assert vcMsg.payload.ViewChangeMsg?;
+          assert vcMsg in v.network.sentMsgs by {
+            reveal_RecordedNewViewMsgsContainSentVCMsgs();
+            assume false;
+          }
+          assert !ReplicasThatSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+            // Need to finish this proof
+            // reveal_SentViewChangesMsgsComportWithSentCommits();
+            assume false;
+          }
+          assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+            reveal_HonestReplicasLeaveViewsBehind();
+            assert v.hosts[doubleAgent].replicaVariables.view >= vcMsg.payload.newView;
+          }
+          assert doubleAgent !in viewChangers;
+          assert false;
+        }
+        var prePrepareMsg := v'.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+        assert prePrepareMsg.payload.seqID == seqID;
+        assert |ReplicasThatCanCommitInView(c, v', seqID, priorView, priorOperationWrapper)| < c.clusterConfig.AgreementQuorum();
+        assert UnCommitableInView(c, v', prePrepareMsg.payload.seqID, priorView, priorOperationWrapper);
+      } else {
+        var prePrepareMsg := replicaVariables'.workingWindow.prePreparesRcvd[seqID].value;
+        assert UnCommitableInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        Library.SubsetCardinality(ReplicasThatCanCommitInView(c, v', prePrepareMsg.payload.seqID, priorView, priorOperationWrapper), 
+                                ReplicasThatCanCommitInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper));
+      }
     }
   }
 
