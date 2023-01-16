@@ -323,7 +323,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     ConcordAssertGT(config_.sourceSessionExpiryDurationMs, config_.fetchRetransmissionTimeoutMs);
   }
 
-  LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
+  LOG_INFO(logger_, "Creating BCStateTran object: " << config_ << " maxBlockSize=" << config_.maxBlockSize);
 
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
