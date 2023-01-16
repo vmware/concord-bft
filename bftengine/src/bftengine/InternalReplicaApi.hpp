@@ -31,6 +31,8 @@ class ReplicasInfo;
 class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
 {
  public:
+  virtual ~InternalReplicaApi() = default;
+
   virtual const ReplicasInfo& getReplicasInfo() const = 0;
   virtual bool isValidClient(NodeIdType clientId) const = 0;
   virtual bool isIdOfReplica(NodeIdType id) const = 0;
@@ -55,15 +57,11 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
     return std::make_pair(nullptr, false);
   }
-
+  virtual void stop() = 0;
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
   virtual concord::util::SimpleThreadPool& getInternalThreadPool() = 0;
-
   virtual bool isCollectingState() const = 0;
-
   virtual const ReplicaConfig& getReplicaConfig() const = 0;
-
-  virtual ~InternalReplicaApi() = default;
 };
 
 }  // namespace impl

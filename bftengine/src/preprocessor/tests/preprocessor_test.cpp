@@ -128,7 +128,8 @@ class DummyReplica : public InternalReplicaApi {
   SeqNum getPrimaryLastUsedSeqNum() const override { return 0; }
   uint64_t getRequestsInQueue() const override { return 0; }
   SeqNum getLastExecutedSeqNum() const override { return 0; }
-  void registerStopCallback(std::function<void(void)> stopCallback) override { (void)stopCallback; };
+  void registerStopCallback(std::function<void(void)> stopCallback) override { stopCallback_ = stopCallback; };
+  void stop() override { stopCallback_(); }
   void setPrimary(bool primary) { primary_ = primary; };
 
  private:
@@ -137,6 +138,7 @@ class DummyReplica : public InternalReplicaApi {
   concord::util::SimpleThreadPool pool_{""};
   bftEngine::impl::ReplicasInfo replicasInfo_;
   set<ReplicaId> replicaIds_;
+  std::function<void()> stopCallback_;
 };
 
 class DummyPreProcessor : public PreProcessor {
@@ -769,7 +771,7 @@ TEST(requestPreprocessingState_test, batchCancelledNoConsensusReached) {
   }
   auto clientBatchReqMsg = make_unique<ClientBatchRequestMsg>(clientId, reqBatch, batchSize, cid);
   // Call the PreProcessor callback to handle ClientBatchRequest message
-  reqMsgHandlerCallback(move(clientBatchReqMsg));
+  reqMsgHandlerCallback(std::move(clientBatchReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
   // Verify that the requests/batch have been registered
@@ -811,6 +813,7 @@ TEST(requestPreprocessingState_test, batchCancelledNoConsensusReached) {
 
   clearDiagnosticsHandlers();
   for (auto& req : reqBatch) delete req;
+  replica.stop();
 }
 
 TEST(requestPreprocessingState_test, requestTimedOut) {
@@ -823,12 +826,13 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto clientReqMsg = make_unique<ClientPreProcessRequestMsg>(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
-  msgHandlerCallback(move(clientReqMsg));
+  msgHandlerCallback(std::move(clientReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   timers.evaluate();
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
+  replica.stop();
   clearDiagnosticsHandlers();
 }
 
@@ -844,13 +848,14 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto clientReqMsg = make_unique<ClientPreProcessRequestMsg>(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
-  msgHandlerCallback(move(clientReqMsg));
+  msgHandlerCallback(std::move(clientReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
 
   usleep(reqWaitTimeoutMilli * 1000);
   timers.evaluate();
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
+  replica.stop();
   clearDiagnosticsHandlers();
 }
 
@@ -868,7 +873,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto clientReqMsg = make_unique<ClientPreProcessRequestMsg>(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
-  msgHandlerCallback(move(clientReqMsg));
+  msgHandlerCallback(std::move(clientReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
 
@@ -887,9 +892,10 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
                                                             replica.getCurrentView(),
                                                             span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
-  msgHandlerCallback(move(preProcessReqMsg));
+  msgHandlerCallback(std::move(preProcessReqMsg));
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
+  replica.stop();
   clearDiagnosticsHandlers();
 }
 
@@ -915,7 +921,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
     batchSize += clientReqMsg->size();
   }
   auto clientBatchReqMsg = make_unique<ClientBatchRequestMsg>(clientId, batch, batchSize, cid);
-  msgHandlerCallback(move(clientBatchReqMsg));
+  msgHandlerCallback(std::move(clientBatchReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
   // Verify that the requests and the batch have been registered
@@ -936,6 +942,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   for (auto& b : batch) {
     delete b;
   }
+  replica.stop();
 }
 
 // Verify that in case of timed out requests, the requests and the batch get properly released
@@ -960,7 +967,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
     batchSize += clientReqMsg->size();
   }
   auto clientBatchReqMsg = make_unique<ClientBatchRequestMsg>(clientId, batch, batchSize, cid);
-  msgHandlerCallback(move(clientBatchReqMsg));
+  msgHandlerCallback(std::move(clientBatchReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
   // Verify that the requests and the batch have been registered
@@ -981,6 +988,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   for (auto& b : batch) {
     delete b;
   }
+  replica.stop();
 }
 
 TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsgByNonPrimary) {
@@ -1018,7 +1026,7 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsgByNonPrimary
   auto preProcessBatchReqMsg = make_unique<PreProcessBatchRequestMsg>(
       REQ_TYPE_PRE_PROCESS, clientId, 1, batch, cid, overallReqSize, replica.getCurrentView());
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessBatchRequest);
-  msgHandlerCallback(move(preProcessBatchReqMsg));
+  msgHandlerCallback(std::move(preProcessBatchReqMsg));
   usleep(waitForExecTimerMillisec * 1000);
   const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
   // Verify that the requests and the batch have been released
@@ -1027,6 +1035,7 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsgByNonPrimary
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 3), 0);
+  replica.stop();
   clearDiagnosticsHandlers();
 }
 
@@ -1134,6 +1143,7 @@ TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
   SigManager::instance(sigManager[repInfo.myId()].get());
   ConcordAssert(preProcessor.validateBatchReplyMsgCorrectness(batchReplyValidView));
   ConcordAssert(!preProcessor.validateBatchReplyMsgCorrectness(batchReplyInvalidView));
+  replica.stop();
 }
 
 }  // end namespace
