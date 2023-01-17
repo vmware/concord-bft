@@ -1,5 +1,5 @@
 name: Debug build (gcc)
-on: [ push, pull_request ]
+on: [ pull_request ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -8,7 +8,7 @@ concurrency:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
     strategy:
@@ -58,7 +58,7 @@ jobs:
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
-                              -DRUN_APOLLO_TESTS=FALSE\
+                              -DRUN_APOLLO_TESTS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make simple-test" \
               && script -q -e -c "make test"

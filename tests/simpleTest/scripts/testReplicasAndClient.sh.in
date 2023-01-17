@@ -36,10 +36,3 @@ echo
 echo "Client is done, killing 'parallel' at PID $repl_pid"
 echo
 kill $repl_pid
-sleep 2
-kill $repl_pid
-
-# On Linux, we just have to kill them manually.
-echo
-echo "Killing server processes named '$scriptdir/../server'"
-killall "$scriptdir/../server" || :

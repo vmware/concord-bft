@@ -25,7 +25,7 @@
 #include <sys/time.h>
 
 #include "communication/CommDefs.hpp"
-#include "boost/bind.hpp"
+#include <boost/bind/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/move/unique_ptr.hpp>
@@ -40,19 +40,17 @@
 #include "util/assertUtils.hpp"
 
 using namespace std;
-using namespace boost::asio::;
+using namespace boost::asio;
 using namespace boost::asio::ip;
 using namespace boost::posix_time;
 
 using boost::asio::io_service;
-using boost::system::error_code;
 using boost::asio::ip::address;
 
 namespace bft::communication {
 
 class AsyncTcpConnection;
 
-typedef boost::system::error_code B_ERROR_CODE;
 typedef boost::shared_ptr<AsyncTcpConnection> ASYNC_CONN_PTR;
 typedef tcp::socket B_TCP_SOCKET;
 
@@ -152,7 +150,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     _connectTimer.cancel();
 
     try {
-      B_ERROR_CODE ec;
+      boost::system::error_code ec;
       socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
       socket.close();
     } catch (std::exception &e) {
@@ -168,13 +166,13 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     _fOnError(_destId);
   }
 
-  bool was_error(const B_ERROR_CODE &ec, string where) {
+  bool was_error(const boost::system::error_code &ec, string where) {
     if (ec)
       LOG_ERROR(_logger,
                 "where: " << where << ", node " << _selfId << ", dest: " << _destId << ", connected: " << connected
                           << ", ex: " << ec.message());
 
-    return (ec != 0);
+    return (ec != boost::system::errc::success);
   }
 
   void reconnect() {
@@ -199,7 +197,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
                             << "is_open: " << socket.is_open());
   }
 
-  void handle_error(B_ERROR_CODE ec) {
+  void handle_error(boost::system::error_code ec) {
     if (boost::asio::error::operation_aborted == ec) {
       return;
     }
@@ -223,7 +221,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     }
   }
 
-  void read_header_async_completed(const B_ERROR_CODE &ec, const uint32_t bytesRead) {
+  void read_header_async_completed(const boost::system::error_code &ec, const uint32_t bytesRead) {
     LOG_TRACE(_logger,
               "enter, node " << _selfId << ", dest: " << _destId << ", connected: " << connected
                              << "is_open: " << socket.is_open());
@@ -344,7 +342,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId);
   }
 
-  void write_async_completed(const B_ERROR_CODE &err, size_t bytesTransferred) {
+  void write_async_completed(const boost::system::error_code &err, size_t bytesTransferred) {
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId);
 
     if (_wasError) {
@@ -382,7 +380,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
 
   void setTimeOut() { _currentTimeout = _currentTimeout == _maxTimeout ? _minTimeout : _currentTimeout * 2; }
 
-  void connect_timer_tick(const B_ERROR_CODE &ec) {
+  void connect_timer_tick(const boost::system::error_code &ec) {
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId << ", ec: " << ec.message());
 
     if (_closed) {
@@ -405,7 +403,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     LOG_TRACE(_logger, "exit, node " << _selfId << ", dest: " << _destId << ", ec: " << ec.message());
   }
 
-  void connect_completed(const B_ERROR_CODE &err) {
+  void connect_completed(const boost::system::error_code &err) {
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId);
 
     lock_guard<recursive_mutex> lock(_connectionsGuard);
@@ -439,7 +437,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
   void write_async(const char *data, uint32_t length) {
     if (!connected) return;
 
-    B_ERROR_CODE ec;
+    boost::system::error_code ec;
     write(socket, buffer(data, length), ec);
     auto err = was_error(ec, __func__);
     if (err) {
@@ -612,7 +610,7 @@ class PlainTCPCommunication::PlainTcpImpl {
     conn->setReceiver(_pReceiver);
   }
 
-  void on_accept(ASYNC_CONN_PTR conn, const NodeMap &nodes, const B_ERROR_CODE &ec) {
+  void on_accept(ASYNC_CONN_PTR conn, const NodeMap &nodes, const boost::system::error_code &ec) {
     LOG_TRACE(_logger, "enter, node: " << _selfId << ", ec: " << ec.message());
 
     if (!ec) {

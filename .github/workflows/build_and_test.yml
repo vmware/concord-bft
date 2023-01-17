@@ -1,0 +1,47 @@
+name: Debug build container (gcc)
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    container: concordbft/concord-bft:0.60
+    strategy:
+      fail-fast: false
+      matrix:
+        ci_build_type: [Debug, Release]
+        comm_type: [BUILD_COMM_UDP] # TODO [TK], BUILD_COMM_TCP_TLS, BUILD_COMM_TCP_PLAIN]
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v3
+        - name: Build
+          run: |
+            mkdir build
+            cd build
+            cmake \
+              -D${{ matrix.comm_type }}=ON \
+              -DCMAKE_BUILD_TYPE=${{ matrix.ci_build_type }} \
+              -DBUILD_TESTING=ON \
+               ..
+               make -j$(nproc)
+        - name: Test
+          run: |
+            cd build
+            ctest --output-on-failure
+        - name: Prepare artifacts
+          if: ${{ failure() }}
+          run: |
+            mkdir -p artifact
+            sudo chown -R ${USER}:${GROUP} ${PWD}/build
+            tar -czvf artifact/logs.tar.gz ./build/tests/apollo/logs
+        - name: Upload artifacts
+          if: ${{ failure() }}
+          uses: actions/upload-artifact@v3
+          with:
+            name: artifacts-${{ matrix.ci_build_type }}-${{ matrix.comm_type }}-${{ github.sha }}
+            path: artifact/
+            retention-days: 1

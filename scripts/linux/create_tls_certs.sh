@@ -33,7 +33,7 @@ last_node_id=$((i + $1 - 1))
 
 use_unified_certificates=$4
 
-if [ $use_unified_certificates == 1 ]; then
+if [ "$use_unified_certificates" == "1" ]; then
    echo "Use Unified Certificates"
 
    dir=$2
