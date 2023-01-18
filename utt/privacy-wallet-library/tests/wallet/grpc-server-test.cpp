@@ -18,6 +18,7 @@
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
 #include "wallet.hpp"
+#include <thread>
 
 namespace {
 using namespace libutt::api;
@@ -30,8 +31,8 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     server_.StartServer(grpc_uri_);
   }
   void TearDown() override {
-    server_.Shutdown();
     server_.Wait();
+    std::cout << "tear down \n";
   }
 
  protected:
@@ -58,10 +59,14 @@ TEST_F(test_privacy_wallet_grpc_service, privacy_app_config) {
 
   // Act upon its status.
   if (!status.ok()) {
-    std::cout << "Failed to get config: " << status.error_details() << std::endl;
+    std::cout << "Failed to get config: " << status.error_message() << std::endl;
     ASSERT_TRUE(true);
   }
+
   std::cout << "test passed!\n";
+  std::cout << "Shutting down the grpc server...\n";
+  server_.Shutdown();
+  std::cout << "srv thread joined.. \n";
 }
 }  // namespace
 

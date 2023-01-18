@@ -22,45 +22,52 @@
 
 #include <utt-client-api/ClientApi.hpp>
 
-class PrivacyWalletServiceImpl : public vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Service {
+class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Service {
  public:
   PrivacyWalletServiceImpl() {}
-  ::grpc::Status PrivacyWalletService(::grpc::ServerContext* context,
-                                      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
-                                      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+  ::grpc::Status PrivacyWalletService(
+      ::grpc::ServerContext* context,
+      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) override;
 
  private:
 };
 class PrivacyWalletService {
  public:
-  PrivacyWalletService() {}
+  PrivacyWalletService() : privacy_wallet_service_(std::make_unique<PrivacyWalletServiceImpl>()) {
+    utt::client::Initialize();
+  }
 
   ~PrivacyWalletService() { std::cout << " Done.\n"; }
 
   void StartServer(const std::string& url) {
     std::string server_address(url);
-    PrivacyWalletServiceImpl service;
 
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
+    builder.RegisterService(privacy_wallet_service_.get());
     grpc_server_ = builder.BuildAndStart();
     std::cout << "Server listening on " << server_address << std::endl;
   }
 
   void Wait() {
     if (grpc_server_ != nullptr) {
+      std::cout << "wait for server to terminate" << std::endl;
       grpc_server_->Wait();
+      std::cout << "server wait terminated" << std::endl;
     }
   }
   void Shutdown() {
     if (grpc_server_ != nullptr) {
+      std::cout << "server shutdown" << std::endl;
       grpc_server_->Shutdown();
+      std::cout << "server shutdown complete.." << std::endl;
     }
   }
 
  private:
   std::unique_ptr<grpc::Server> grpc_server_;
+  std::unique_ptr<PrivacyWalletServiceImpl> privacy_wallet_service_;
 };
 
 class Wallet {

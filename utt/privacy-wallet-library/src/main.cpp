@@ -20,7 +20,6 @@
 int main() {
   PrivacyWalletService svc;
   try {
-    utt::client::Initialize();
     svc.StartServer("127.0.0.1:50051");
     svc.Wait();
   } catch (const std::runtime_error& e) {

@@ -21,7 +21,9 @@
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
+  std::cout << "Processing privacy wallet service message.....!" << std::endl;
   if (request->has_privacy_app_config()) {
+    std::cout << "Processing privacy app config request: " << request->DebugString() << std::endl;
     // Generate a privacy config for a N=4 replica system tolerating F=1 failures
     utt::client::ConfigInputParams params;
     for (auto i = 0; i < request->privacy_app_config().validatorpublickey_size(); i++) {
@@ -31,6 +33,7 @@
     params.useBudget = request->privacy_app_config().budget();  // F + 1
     auto config = utt::client::generateConfig(params);
     if (config.empty()) {
+      std::cout << "failed to generate config!" << std::endl;
       status = grpc::Status(grpc::StatusCode::INTERNAL, "Failed to create config");
     } else {
       auto configResp = response->mutable_privacy_app_config_response();
@@ -38,6 +41,7 @@
       std::cout << "Successfully send back application config!" << std::endl;
     }
   } else {
+    std::cout << "unknown request: " << request->DebugString() << std::endl;
     status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
   }
   return status;
