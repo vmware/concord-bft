@@ -22,8 +22,6 @@
 
 #include <utt-client-api/ClientApi.hpp>
 
-namespace PrivacyWalletApi = vmware::concord::privacy::wallet::api::v1;
-
 class PrivacyWalletServiceImpl : public vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Service {
  public:
   PrivacyWalletServiceImpl() {}
@@ -32,6 +30,37 @@ class PrivacyWalletServiceImpl : public vmware::concord::privacy::wallet::api::v
                                       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
 
  private:
+};
+class PrivacyWalletService {
+ public:
+  PrivacyWalletService() {}
+
+  ~PrivacyWalletService() { std::cout << " Done.\n"; }
+
+  void StartServer(const std::string& url) {
+    std::string server_address(url);
+    PrivacyWalletServiceImpl service;
+
+    grpc::ServerBuilder builder;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    grpc_server_ = builder.BuildAndStart();
+    std::cout << "Server listening on " << server_address << std::endl;
+  }
+
+  void Wait() {
+    if (grpc_server_ != nullptr) {
+      grpc_server_->Wait();
+    }
+  }
+  void Shutdown() {
+    if (grpc_server_ != nullptr) {
+      grpc_server_->Shutdown();
+    }
+  }
+
+ private:
+  std::unique_ptr<grpc::Server> grpc_server_;
 };
 
 class Wallet {

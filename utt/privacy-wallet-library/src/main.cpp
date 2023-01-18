@@ -17,30 +17,12 @@
 
 #include "wallet.hpp"
 
-class PrivacyWalletService {
- public:
-  PrivacyWalletService() {}
-
-  ~PrivacyWalletService() { std::cout << " Done.\n"; }
-
-  void RunServer() {
-    std::string server_address("0.0.0.0:50051");
-    PrivacyWalletServiceImpl service;
-
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    std::cout << "Server listening on " << server_address << std::endl;
-    server->Wait();
-  }
-};
-
 int main() {
   PrivacyWalletService svc;
   try {
     utt::client::Initialize();
-    svc.RunServer();
+    svc.StartServer("127.0.0.1:50051");
+    svc.Wait();
   } catch (const std::runtime_error& e) {
     std::cout << "Error (exception): " << e.what() << '\n';
     return 1;
