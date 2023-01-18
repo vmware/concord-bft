@@ -47,6 +47,11 @@ option(
   ON
 )
 
+option(
+  BUILD_PRIVACY_WALLET_LIBRARY
+  "Enable building of privacy wallet library service"
+  ON
+)
 #
 # Configure CCache if available
 #
@@ -198,7 +203,9 @@ endif()
 if(BUILD_WALLET_CLI AND BUILD_PRIVACY_ADMIN_CLI)
     add_subdirectory(e2e)
 endif()
-
+if(BUILD_PRIVACY_WALLET_LIBRARY)
+    add_subdirectory(privacy-wallet-library)
+endif()
 # [TODO-UTT] This improved api for libutt could go into its own subproject 
 set(newutt_src 
     libutt/src/api/UTTParams.cpp
