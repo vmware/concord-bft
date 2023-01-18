@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -34,11 +34,9 @@ void MsgReceiver::onNewMessage(NodeNum sourceNode,
     return;
   }
 
-  auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
-  memcpy(msgBody, message, messageLength);
-  auto pMsg = std::make_unique<MessageBase>(sourceNode, msgBody, messageLength, true);
-
-  incomingMsgsStorage_->pushExternalMsg(std::move(pMsg));
+  auto msgBody = std::make_unique<MESSAGE_BODY>(messageLength);
+  memcpy(msgBody->data(), message, messageLength);
+  incomingMsgsStorage_->pushExternalMsg(std::make_unique<MessageBase>(sourceNode, std::move(msgBody), messageLength));
 }
 
 void MsgReceiver::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}

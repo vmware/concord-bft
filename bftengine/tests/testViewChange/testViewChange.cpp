@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -113,7 +113,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
   // Generate the PrePrepare from the primary for the clientRequest
   auto* ppMsg =
       new PrePrepareMsg(primary, view, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, clientRequest->size());
-  ppMsg->addRequest(clientRequest->body(), clientRequest->size());
+  const auto reqSize = clientRequest->size();
+  ppMsg->addRequest(std::make_unique<ClientRequestMsg>(clientRequest), reqSize);
   ppMsg->finishAddingRequests();
 
   char buff[32]{};
@@ -186,7 +187,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   // Generate the PrePrepare from the primary for the clientRequest1
   auto* ppMsg1 = new PrePrepareMsg(
       pRepInfo->primaryOfView(view1), view1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, clientRequest1->size());
-  ppMsg1->addRequest(clientRequest1->body(), clientRequest1->size());
+  const auto reqSize1 = clientRequest1->size();
+  ppMsg1->addRequest(std::make_unique<ClientRequestMsg>(clientRequest1), reqSize1);
   ppMsg1->finishAddingRequests();
 
   // Here we generate a valid Prepare Certificate for clientRequest1 with
@@ -211,7 +213,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
   // Generate the PrePrepare from the primary for the clientRequest2
   auto* ppMsg2 = new PrePrepareMsg(
       pRepInfo->primaryOfView(view2), view2, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, clientRequest2->size());
-  ppMsg2->addRequest(clientRequest2->body(), clientRequest2->size());
+  const auto reqSize2 = clientRequest2->size();
+  ppMsg2->addRequest(std::make_unique<ClientRequestMsg>(clientRequest2), reqSize2);
   ppMsg2->finishAddingRequests();
   // Here we generate a valid Prepare Certificate for clientRequest2 with
   // View=1, this is going to be the Prepare Certificate that has to be
@@ -257,7 +260,7 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
     if (i == assignedSeqNum - min) {
       ConcordAssert(!restrictions[assignedSeqNum - min].isNull);
       ConcordAssert(ppMsg2->digestOfRequests().toString() != ppMsg1->digestOfRequests().toString());
-      // Assert the prepare certificate with higher view number is selected for assignedSeqNum
+      // Assert if prepare certificate with higher view number is selected for assignedSeqNum
       ConcordAssert(ppMsg2->digestOfRequests().toString() == restrictions[assignedSeqNum - min].digest.toString());
     } else {
       ConcordAssert(restrictions[i].isNull);
@@ -296,23 +299,23 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
   // ignored during the View Change.
   bftEngine::impl::SeqNum assignedSeqNumIgnored = lastStableSeqNum - (kWorkWindowSize / 2);
 
-  auto* clientRequest1 = new ClientRequestMsg((uint16_t)1,
-                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                              (uint64_t)1234567,
-                                              kRequestLength,
-                                              (const char*)requestBuffer1,
-                                              (uint64_t)1000000);
-
+  auto clientRequest1 = std::make_unique<ClientRequestMsg>((uint16_t)1,
+                                                           bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                                           (uint64_t)1234567,
+                                                           kRequestLength,
+                                                           (const char*)requestBuffer1,
+                                                           (uint64_t)1000000);
+  const auto reqSize1 = clientRequest1->size();
   // Generate the PrePrepare from the primary for the clientRequest1
   auto* ppMsg1 = new PrePrepareMsg(
-      pRepInfo->primaryOfView(view1), view1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, clientRequest1->size());
-  ppMsg1->addRequest(clientRequest1->body(), clientRequest1->size());
+      pRepInfo->primaryOfView(view1), view1, assignedSeqNum, bftEngine::impl::CommitPath::SLOW, reqSize1);
+  ppMsg1->addRequest(std::move(clientRequest1), reqSize1);
   ppMsg1->finishAddingRequests();
 
   // Here we generate a valid Prepare Certificate for clientRequest1 with
   // View=0 and a sequence number that is above the Last Stable Sequence
   // Number. This Prepare certificate has to be considered during a View
-  // change and it's associated PrePrepare message has to be in the propper
+  // change, and it's associated PrePrepare message has to be in the proper
   // position in the restrictions array generated by ViewChangeSafetyLogic::computeRestrictions
   PrepareFullMsg* pfMsg1 =
       PrepareFullMsg::create(view1, assignedSeqNum, pRepInfo->primaryOfView(view1), buff, sizeof(buff));
@@ -321,20 +324,17 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
   const uint64_t requestBuffer2[kRequestLength] = {(uint64_t)200, expectedLastValue2};
   ViewNum view2 = 1;
 
-  auto* clientRequest2 = new ClientRequestMsg((uint16_t)2,
-                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                              (uint64_t)1234567,
-                                              kRequestLength,
-                                              (const char*)requestBuffer2,
-                                              (uint64_t)1000000);
-
+  auto clientRequest2 = std::make_unique<ClientRequestMsg>((uint16_t)2,
+                                                           bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                                           (uint64_t)1234567,
+                                                           kRequestLength,
+                                                           (const char*)requestBuffer2,
+                                                           (uint64_t)1000000);
+  const auto reqSize2 = clientRequest2->size();
   // Generate the PrePrepare from the primary for the clientRequest2
-  auto* ppMsg2 = new PrePrepareMsg(pRepInfo->primaryOfView(view2),
-                                   view2,
-                                   assignedSeqNumIgnored,
-                                   bftEngine::impl::CommitPath::SLOW,
-                                   clientRequest2->size());
-  ppMsg2->addRequest(clientRequest2->body(), clientRequest2->size());
+  auto* ppMsg2 = new PrePrepareMsg(
+      pRepInfo->primaryOfView(view2), view2, assignedSeqNumIgnored, bftEngine::impl::CommitPath::SLOW, reqSize2);
+  ppMsg2->addRequest(std::move(clientRequest2), reqSize2);
   ppMsg2->finishAddingRequests();
 
   // Here we generate a valid Prepare Certificate for clientRequest2 with
@@ -399,10 +399,8 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
     viewChangeMsgs[i] = nullptr;
   }
   delete[] viewChangeMsgs;
-  delete clientRequest1;
   delete pfMsg1;
   delete ppMsg1;
-  delete clientRequest2;
   delete pfMsg2;
   delete ppMsg2;
 }

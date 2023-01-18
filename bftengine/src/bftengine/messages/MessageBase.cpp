@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -50,33 +50,24 @@ MessageBase::~MessageBase() {
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.erase(this);
 #endif
-  if (owner_) std::free((char *)msgBody_);
 }
 
 void MessageBase::shrinkToFit() {
-  ConcordAssert(owner_);
+  ConcordAssert(msgBody_.get() != nullptr);
 
-  // TODO(GG): need to verify more conditions??
-
-  void *p = (void *)msgBody_;
-  p = std::realloc(p, msgSize_);
-  // always shrinks allocated size, so no bytes should be 0'd
-
-  msgBody_ = (MessageBase::Header *)p;
+  msgBody_->resize(msgSize_);
+  msgBody_->shrink_to_fit();
   storageSize_ = msgSize_;
 }
 
 bool MessageBase::reallocSize(uint32_t size) {
-  ConcordAssert(owner_);
+  ConcordAssert(msgBody_.get() != nullptr);
   ConcordAssert(size >= msgSize_);
 
-  void *p = (void *)msgBody_;
-  p = std::realloc(p, size);
-
-  if (p == nullptr) {
+  msgBody_->resize(size);
+  if (msgBody_.get() == nullptr) {
     return false;
   } else {
-    msgBody_ = (MessageBase::Header *)p;
     storageSize_ = size;
     msgSize_ = size;
     return true;
@@ -88,26 +79,23 @@ MessageBase::MessageBase(NodeIdType sender, MsgType type, MsgSize size) : Messag
 MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size) {
   ConcordAssert(size > 0);
   size = size + spanContextSize;
-  msgBody_ = (MessageBase::Header *)std::malloc(size);
-  memset(msgBody_, 0, size);
+  msgBody_ = std::make_unique<MESSAGE_BODY>(size);
   storageSize_ = size;
   msgSize_ = size;
-  owner_ = true;
   sender_ = sender;
-  msgBody_->msgType = type;
-  msgBody_->spanContextSize = spanContextSize;
+  reinterpret_cast<Header *>(msgBody_->data())->msgType = type;
+  reinterpret_cast<Header *>(msgBody_->data())->spanContextSize = spanContextSize;
 
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);
 #endif
 }
 
-MessageBase::MessageBase(NodeIdType sender, MessageBase::Header *body, MsgSize size, bool ownerOfStorage) {
-  msgBody_ = body;
+MessageBase::MessageBase(NodeIdType sender, std::unique_ptr<MESSAGE_BODY> body, MsgSize size) {
+  msgBody_ = std::move(body);
   msgSize_ = size;
   storageSize_ = size;
   sender_ = sender;
-  owner_ = ownerOfStorage;
 
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);
@@ -120,30 +108,27 @@ void MessageBase::validate(const ReplicasInfo &) const {
 
 bool MessageBase::shouldValidateAsync() const { return false; }
 void MessageBase::setMsgSize(MsgSize size) {
-  ConcordAssert((msgBody_ != nullptr));
+  ConcordAssert(msgBody_.get() != nullptr);
   ConcordAssert(size <= storageSize_);
 
   msgSize_ = size;
 }
 
 MessageBase *MessageBase::cloneObjAndMsg() const {
-  ConcordAssert(owner_);
+  ConcordAssert(msgBody_.get() != nullptr);
   ConcordAssert(msgSize_ > 0);
 
-  void *msgBody = std::malloc(msgSize_);
-  memcpy(msgBody, msgBody_, msgSize_);
-
-  MessageBase *otherMsg = new MessageBase(sender_, (MessageBase::Header *)msgBody, msgSize_, true);
-
+  auto msgBody = std::make_unique<MESSAGE_BODY>(msgSize_);
+  *msgBody = *msgBody_;
+  MessageBase *otherMsg = new MessageBase(sender_, std::move(msgBody), msgSize_);
   return otherMsg;
 }
 
 void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const {
-  ConcordAssert(owner_);
+  ConcordAssert(msgBody_.get() != nullptr);
   ConcordAssert(msgSize_ > 0);
 
   const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
-
   ConcordAssert(sizeNeeded <= bufferLength);
 
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *)buffer;
@@ -152,23 +137,20 @@ void MessageBase::writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength,
   pHeader->sender = sender_;
 
   char *pRawMsg = buffer + sizeof(RawHeaderOfObjAndMsg);
-  memcpy(pRawMsg, msgBody_, msgSize_);
-
+  memcpy(pRawMsg, msgBody_->data(), msgSize_);
   if (actualSize) *actualSize = sizeNeeded;
 }
 
 size_t MessageBase::sizeNeededForObjAndMsgInLocalBuffer() const {
-  ConcordAssert(owner_);
+  ConcordAssert(msgBody_.get() != nullptr);
   ConcordAssert(msgSize_ > 0);
 
   const size_t sizeNeeded = sizeof(RawHeaderOfObjAndMsg) + msgSize_;
-
   return sizeNeeded;
 }
 
 MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) {
   if (actualSize) *actualSize = 0;
-
   if (bufferLength <= sizeof(RawHeaderOfObjAndMsg)) return nullptr;
 
   RawHeaderOfObjAndMsg *pHeader = (RawHeaderOfObjAndMsg *)buffer;
@@ -179,21 +161,19 @@ MessageBase *MessageBase::createObjAndMsgFromLocalBuffer(char *buffer, size_t bu
 
   char *pBodyInBuffer = buffer + sizeof(RawHeaderOfObjAndMsg);
 
-  void *msgBody = std::malloc(pHeader->msgSize);
-  memcpy(msgBody, pBodyInBuffer, pHeader->msgSize);
-
-  MessageBase *msgObj = new MessageBase(pHeader->sender, (MessageBase::Header *)msgBody, pHeader->msgSize, true);
+  auto msgBody = std::make_unique<MESSAGE_BODY>(pHeader->msgSize);
+  memcpy(msgBody->data(), pBodyInBuffer, pHeader->msgSize);
+  MessageBase *msgObj = new MessageBase(pHeader->sender, std::move(msgBody), pHeader->msgSize);
 
   if (actualSize) *actualSize = (pHeader->msgSize + sizeof(RawHeaderOfObjAndMsg));
-
   return msgObj;
 }
 
 bool MessageBase::equals(const MessageBase &other) const {
   bool equals = (other.msgSize_ == msgSize_ && other.storageSize_ == storageSize_ && other.sender_ == sender_ &&
-                 other.owner_ == owner_);
+                 ((other.msgBody_.get() && msgBody_.get()) || (!other.msgBody_.get() && !msgBody_.get())));
   if (!equals) return false;
-  return (memcmp(other.msgBody_, msgBody_, msgSize_) == 0);
+  return (memcmp(other.msgBody_->data(), msgBody_->data(), msgSize_) == 0);
 }
 
 size_t MessageBase::serializeMsg(char *&buf, char *msg) {

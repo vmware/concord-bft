@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -44,7 +44,7 @@ class ClientReplyMsg : public MessageBase {
 
   uint32_t replyLength() const { return b()->replyLength; }
 
-  char* replyBuf() const { return body() + sizeof(ClientReplyMsgHeader); }
+  char* replyBuf() const { return body().data() + sizeof(ClientReplyMsgHeader); }
 
   void setReplyLength(uint32_t replyLength);
 
@@ -58,7 +58,7 @@ class ClientReplyMsg : public MessageBase {
 
   void setMsgSize(MsgSize size) { MessageBase::setMsgSize(size); }
 
-  ClientReplyMsgHeader* b() const { return (ClientReplyMsgHeader*)msgBody_; }
+  ClientReplyMsgHeader* b() const { return (ClientReplyMsgHeader*)msgBody_->data(); }
 
  private:
   void setHeaderParameters(ReplicaId primaryId, ReqId reqSeqNum, uint32_t replyLength, uint32_t result);

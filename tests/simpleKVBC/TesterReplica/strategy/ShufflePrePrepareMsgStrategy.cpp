@@ -17,6 +17,7 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
+#include "messages/PreProcessResultMsg.hpp"
 
 #include "crypto/digest.hpp"
 
@@ -50,16 +51,16 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
     char* requestBody = nullptr;
 
     while (it.getAndGoToNext(requestBody)) {
-      ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+      preprocessor::PreProcessResultMsgView req((ClientRequestMsgHeader*)requestBody);
       if ((idx == swapIdx) || (idx == (swapIdx + 1))) {
         if (req.requestLength() > 0) {
           memcpy(req.requestBuf(),
                  StrategyUtils::getRandomStringOfLength(req.requestLength()).c_str(),
                  req.requestLength());
         }
-        auto cloned_req = std::make_unique<char[]>(req.size());
-        memcpy(cloned_req.get(), req.body(), req.size());
-        clientMsgs.push_back(std::make_tuple(req.body(), req.size(), std::move(cloned_req)));
+        auto cloned_req = std::make_unique<char[]>(req.getMsgSize());
+        memcpy(cloned_req.get(), req.getRawData(), req.getMsgSize());
+        clientMsgs.push_back(std::make_tuple((char*)req.getRawData(), req.getMsgSize(), std::move(cloned_req)));
       }
       char* sig = req.requestSignature();
       if (sig != nullptr) {
@@ -72,7 +73,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
         }
       } else {
         Digest d;
-        DigestGenerator().compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+        DigestGenerator().compute(req.getRawData(), req.getMsgSize(), reinterpret_cast<char*>(&d), sizeof(Digest));
         if (idx == swapIdx) {
           sigOrDigestOfRequest[idx + 1].append(d.content(), sizeof(Digest));
         } else if (idx == (swapIdx + 1)) {

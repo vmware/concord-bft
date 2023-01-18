@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -453,7 +453,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void messageHandler(std::unique_ptr<MessageBase> msg);
 
   template <typename T>
-  void validatedMessageHandler(CarrierMesssage* msg);
+  void validatedMessageHandler(CarrierMessage* msg);
 
   void send(MessageBase*, NodeIdType) override;
   void sendAndIncrementMetric(MessageBase*, NodeIdType, CounterHandle&);
@@ -619,7 +619,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                           const ViewNum relatedViewNumber,
                                           const std::forward_list<RetSuggestion>& suggestedRetransmissions);
 
-  void onCarrierMessage(CarrierMesssage* msg);
+  void onCarrierMessage(CarrierMessage* msg);
 
  private:
   // CallbackRegistry holding "stop" functions of components dependent on replicaImp that need to stop before the
@@ -640,7 +640,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
-  void setConflictDetectionBlockId(const ClientRequestMsg&, IRequestsHandler::ExecutionRequest&);
+  void setConflictDetectionBlockId(const ClientRequestMsgView&, IRequestsHandler::ExecutionRequest&);
   /**
    * Updates execution related metrics
    * @param isSlow - The consensus path type

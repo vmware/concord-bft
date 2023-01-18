@@ -75,7 +75,7 @@ class IStateTransfer : public IReservedPages {
   // timers and threads)
   virtual void onTimer() = 0;
 
-  // messsage that was send via the BFT engine
+  // message that was sent via the BFT engine
   // (a state transfer module may directly send messages).
   // Message msg should be released by using
   // IReplicaForStateTransfer::freeStateTransferMsg

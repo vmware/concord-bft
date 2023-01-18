@@ -1136,9 +1136,9 @@ struct VerifyDbCheckpoint {
       if (auto it = verifiers.find(msg.idOfGeneratedReplica()); it != verifiers.end()) {
         auto verifier = (it->second).get();
         if (verifier) {
-          is_check_point_signature_valid = verifySig(msg.body(),
+          is_check_point_signature_valid = verifySig(msg.body().data(),
                                                      msg.getHeaderLen(),
-                                                     msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
+                                                     msg.body().data() + msg.getHeaderLen() + msg.spanContextSize(),
                                                      msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
                                                      verifier);
         }

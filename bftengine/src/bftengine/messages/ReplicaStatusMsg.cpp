@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -91,11 +91,11 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   } else if (listOfMissingPPForVC) {
     b()->flags |= powersOf2[4];
   }
-  std::memcpy(body() + sizeof(ReplicaStatusMsg::Header), spanContext.data().data(), spanContext.data().size());
+  std::memcpy(body().data() + sizeof(ReplicaStatusMsg::Header), spanContext.data().data(), spanContext.data().size());
   if (size() > sizeof(ReplicaStatusMsg::Header) + spanContextSize()) {
     // write zero to all bits in list
     MsgSize listSize = size() - payloadShift();
-    char* p = body() + payloadShift();
+    char* p = body().data() + payloadShift();
     memset(p, 0, listSize);
   }
 }
@@ -149,7 +149,7 @@ bool ReplicaStatusMsg::isPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -160,7 +160,7 @@ bool ReplicaStatusMsg::isMissingViewChangeMsgForViewChange(ReplicaId replicaId) 
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -172,7 +172,7 @@ bool ReplicaStatusMsg::isMissingPrePrepareMsgForViewChange(SeqNum seqNum) const 
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -183,7 +183,7 @@ void ReplicaStatusMsg::setPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -193,7 +193,7 @@ void ReplicaStatusMsg::setMissingViewChangeMsgForViewChange(ReplicaId replicaId)
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -204,7 +204,7 @@ void ReplicaStatusMsg::setMissingPrePrepareMsgForViewChange(SeqNum seqNum) {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
+  uint8_t* p = (uint8_t*)body().data() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -214,7 +214,7 @@ bool ReplicaStatusMsg::hasComplaintFromReplica(ReplicaId replicaId) const {
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body().data() + payloadShift();
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -224,7 +224,7 @@ void ReplicaStatusMsg::setComplaintFromReplica(ReplicaId replicaId) {
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body().data() + payloadShift();
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 

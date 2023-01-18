@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -50,7 +50,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
             blockId,
             result,
             viewNum);
-  auto position = body() + sizeof(Header);
+  auto position = body().data() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
   memcpy(position, request, reqLength);
@@ -144,7 +144,7 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
 }
 
 std::string PreProcessRequestMsg::getCid() const {
-  return std::string(body() + sizeof(Header) + msgBody()->spanContextSize + msgBody()->requestLength,
+  return std::string(body().data() + sizeof(Header) + msgBody()->spanContextSize + msgBody()->requestLength,
                      msgBody()->cidLength);
 }
 

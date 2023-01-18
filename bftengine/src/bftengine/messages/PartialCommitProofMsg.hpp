@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -41,9 +41,9 @@ class PartialCommitProofMsg : public MessageBase {
 
   CommitPath commitPath() const { return b()->commitPath; }
 
-  uint16_t signatureLen() const { return b()->thresholSignatureLength; }
+  uint16_t signatureLen() const { return b()->thresholdSignatureLength; }
 
-  const char* signatureBody() const { return body() + sizeof(Header) + b()->header.spanContextSize; }
+  const char* signatureBody() const { return body().data() + sizeof(Header) + b()->header.spanContextSize; }
 
   void validate(const ReplicasInfo&) const override;
 
@@ -58,13 +58,13 @@ class PartialCommitProofMsg : public MessageBase {
     SeqNum seqNum;
     EpochNum epochNum;
     CommitPath commitPath;  // TODO(GG): can never be SLOW. Replace with a simple flag
-    uint16_t thresholSignatureLength;
+    uint16_t thresholdSignatureLength;
     // followed by a partial signature
   };
 #pragma pack(pop)
   static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + sizeof(CommitPath) + 2), "Header is 32B+sizeof(CommitPath)");
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 };
 
 }  // namespace impl

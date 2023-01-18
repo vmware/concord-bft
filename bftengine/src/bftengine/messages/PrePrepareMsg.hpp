@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -17,6 +17,7 @@
 #include "assertUtils.hpp"
 #include "crypto/digest.hpp"
 #include "MessageBase.hpp"
+#include "ClientRequestMsg.hpp"
 #include "ReplicaConfig.hpp"
 
 using concord::crypto::Digest;
@@ -89,7 +90,7 @@ class PrePrepareMsg : public MessageBase {
 
   uint32_t requestsSize() const;
 
-  void addRequest(const char* pRequest, uint32_t requestSize);
+  void addRequest(std::unique_ptr<ClientRequestMsg> request, uint32_t requestSize);
 
   void finishAddingRequests();
 
@@ -114,7 +115,6 @@ class PrePrepareMsg : public MessageBase {
   uint16_t numberOfRequests() const { return b()->numberOfRequests; }
 
   // update view and first path
-
   void updateView(ViewNum v, CommitPath firstPath = CommitPath::SLOW);
   const std::string getBatchCorrelationIdAsString() const;
 
@@ -127,7 +127,7 @@ class PrePrepareMsg : public MessageBase {
 
   bool checkRequests() const;
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 
   uint32_t payloadShift() const;
   friend class RequestsIterator;
@@ -138,18 +138,16 @@ class RequestsIterator {
   RequestsIterator(const PrePrepareMsg* const m);
 
   void restart();
-
-  bool getCurrent(char*& pRequest) const;
-
-  bool end() const;
-
-  void gotoNext();
-
   bool getAndGoToNext(char*& pRequest);
 
  protected:
-  const PrePrepareMsg* const msg;
-  uint32_t currLoc;
+  void gotoNext();
+  bool end() const;
+  bool getCurrent(char*& req) const;
+
+ protected:
+  const PrePrepareMsg* const msg_;
+  uint32_t currLoc_;
 };
 
 template <>

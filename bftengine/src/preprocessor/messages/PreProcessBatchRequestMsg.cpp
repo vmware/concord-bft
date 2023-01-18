@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -27,13 +27,13 @@ PreProcessBatchRequestMsg::PreProcessBatchRequestMsg(RequestType reqType,
   const uint32_t numOfMessagesInBatch = batch.size();
   setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize, viewNum);
   msgBody()->cidLength = cid.size();
-  auto position = body() + sizeof(Header);
+  auto position = body().data() + sizeof(Header);
   if (cid.size()) {
     memcpy(position, cid.c_str(), cid.size());
     position += cid.size();
   }
   for (auto const& req : batch) {
-    memcpy(position, req->body(), req->size());
+    memcpy(position, req->body().data(), req->size());
     position += req->size();
   }
   const uint64_t msgLength = sizeof(Header) + requestsSize + cid.size();
@@ -66,7 +66,7 @@ bool PreProcessBatchRequestMsg::checkElements() const {
     LOG_WARN(logger(), KVLOG(numOfMessagesInBatch));
     return false;
   }
-  char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
+  char* dataPosition = body().data() + sizeof(Header) + msgBody()->cidLength;
   const auto& sigManager = SigManager::instance();
   const auto& isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   for (auto i = 0u; i < numOfMessagesInBatch; i++) {
@@ -105,7 +105,9 @@ void PreProcessBatchRequestMsg::setParams(uint16_t clientId,
   header->viewNum = viewNum;
 }
 
-string PreProcessBatchRequestMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
+string PreProcessBatchRequestMsg::getCid() const {
+  return string(body().data() + sizeof(Header), msgBody()->cidLength);
+}
 
 PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
   if (!preProcessReqMsgsList_.empty()) return preProcessReqMsgsList_;
@@ -114,7 +116,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
   const string& batchCid = getCid();
   const auto& clientId = msgBody()->clientId;
   const auto& senderId = msgBody()->senderId;
-  char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
+  char* dataPosition = body().data() + sizeof(Header) + msgBody()->cidLength;
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(PreProcessRequestMsg::Header*)dataPosition;
     const char* spanDataPosition = dataPosition + sizeof(PreProcessRequestMsg::Header);
@@ -138,7 +140,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             singleMsgHeader.primaryBlockId,
                                                                             singleMsgHeader.viewNum,
                                                                             spanContext);
-    preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
+    preProcessReqMsgsList_.push_back(std::move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
                     singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }

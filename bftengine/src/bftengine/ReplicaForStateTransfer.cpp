@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -119,8 +119,8 @@ template <>
 void ReplicaForStateTransfer::onMessage(std::unique_ptr<StateTransferMsg> msg) {
   metric_received_state_transfers_++;
   const size_t h = sizeof(MessageBase::Header);
-  stateTransfer->handleStateTransferMessage(msg->body() + h, msg->size() - h, msg->senderId());
-  msg->releaseOwnership();
+  auto *msgBody = msg->releaseOwnership();
+  stateTransfer->handleStateTransferMessage(msgBody->data() + h, msg->size() - h, msg->senderId());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +137,7 @@ void ReplicaForStateTransfer::sendStateTransferMessage(char *m, uint32_t size, u
   // processing thread
 
   MessageBase *p = new MessageBase(config_.replicaId, MsgCode::StateTransfer, size + sizeof(MessageBase::Header));
-  char *x = p->body() + sizeof(MessageBase::Header);
+  char *x = p->body().data() + sizeof(MessageBase::Header);
   memcpy(x, m, size);
   send(p, replicaId);
   delete p;

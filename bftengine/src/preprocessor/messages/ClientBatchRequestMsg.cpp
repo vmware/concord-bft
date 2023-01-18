@@ -29,20 +29,20 @@ ClientBatchRequestMsg::ClientBatchRequestMsg(NodeIdType clientId,
   msgBody()->clientId = clientId;
   msgBody()->numOfMessagesInBatch = numOfMessagesInBatch;
   msgBody()->dataSize = batchBufSize;
-  char* data = body() + sizeof(ClientBatchRequestMsgHeader);
+  char* data = body().data() + sizeof(ClientBatchRequestMsgHeader);
   if (cid.size()) {
     memcpy(data, cid.c_str(), cid.size());
     data += cid.size();
   }
   for (auto const& msg : batch) {
-    memcpy(data, msg->body(), msg->size());
+    memcpy(data, msg->body().data(), msg->size());
     data += msg->size();
   }
   LOG_DEBUG(logger(), KVLOG(cid, clientId, numOfMessagesInBatch, batchBufSize));
 }
 
 const string& ClientBatchRequestMsg::getCid() {
-  if (cid_.empty()) cid_ = string(body() + sizeof(ClientBatchRequestMsgHeader), msgBody()->cidSize);
+  if (cid_.empty()) cid_ = string(body().data() + sizeof(ClientBatchRequestMsgHeader), msgBody()->cidSize);
   return cid_;
 }
 
@@ -73,7 +73,7 @@ bool ClientBatchRequestMsg::checkElements() const {
     LOG_WARN(logger(), KVLOG(numOfMessagesInBatch));
     return false;
   }
-  char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
+  char* dataPosition = body().data() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
   const auto& sigManager = SigManager::instance();
   const auto& isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   for (auto i = 0u; i < numOfMessagesInBatch; i++) {
@@ -102,7 +102,7 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   const string& batchCid = getCid();
-  char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
+  char* dataPosition = body().data() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
   auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
@@ -125,7 +125,7 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      singleMsgHeader.reqSignatureLength);
-    clientMsgsList_.push_back(move(msg));
+    clientMsgsList_.push_back(std::move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }

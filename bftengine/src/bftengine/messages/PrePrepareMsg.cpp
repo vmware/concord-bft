@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -14,7 +14,6 @@
 #include "OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
-#include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
 #include "RequestThreadPool.hpp"
 #include "EpochManager.hpp"
@@ -23,8 +22,6 @@ using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
-
-uint32_t getRequestSizeTemp(const char* request);  // TODO(GG): change - call directly to object
 
 static Digest nullDigest(0x18);
 
@@ -43,14 +40,12 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
   char* requestBody = nullptr;
   size_t local_id = 0;
 
-  // threadpool is initialized once and kept with this function.
-  // This function is called in a single thread as the queue
-  // by dispatcher will not allow multiple threads together.
+  // The thread pool is initialized once and kept in this function.
+  // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
     static auto& threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
-
     while (it.getAndGoToNext(requestBody)) {
-      ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
+      ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
       char* sig = req.requestSignature();
       if (sig != nullptr) {
         sigOrDigestOfRequest[local_id].first = sig;
@@ -63,8 +58,8 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
               sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
               sigOrDigestOfRequest[local_id].second = sizeof(Digest);
             },
-            req.body(),
-            req.size()));
+            requestBody,
+            req.getMsgSize()));
       }
       local_id++;
     }
@@ -91,7 +86,7 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
       !repInfo.isIdOfReplica(senderId()) || b()->epochNum != EpochManager::instance().getSelfEpochNumber())  // sender
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
-  // this message may sent by a non-primary replica to the primary replica).
+  // this message may be sent by a non-primary replica to the primary replica).
 
   // check flags
   const uint16_t flags = b()->flags;
@@ -119,7 +114,7 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
     // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
     // This might also include validating the request's client signature
     while (it.getAndGoToNext(requestBody)) {
-      ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+      ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
       req.validate(repInfo);
     }
   }
@@ -173,7 +168,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->viewNum = v;
   b()->time = 0;
 
-  char* position = body() + sizeof(Header);
+  char* position = body().data() + sizeof(Header);
   memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
   position += spanContext.data().size();
   memcpy(position, batchCid.data(), b()->batchCidLength);
@@ -189,15 +184,14 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
 
 uint32_t PrePrepareMsg::requestsSize() const { return (b()->endLocationOfLastRequest - prePrepareHeaderPrefix); }
 
-void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
-  ConcordAssert(getRequestSizeTemp(pRequest) == requestSize);
+void PrePrepareMsg::addRequest(std::unique_ptr<ClientRequestMsg> request, uint32_t requestSize) {
+  ConcordAssert(ClientRequestMsg::compRequestMsgSize((ClientRequestMsgHeader*)request->body().data()) == requestSize);
   ConcordAssert(!isNull());
   ConcordAssert(!isReady());
   ConcordAssert(remainingSizeForRequests() >= requestSize);
 
-  char* insertPtr = body() + b()->endLocationOfLastRequest;
-
-  memcpy(insertPtr, pRequest, requestSize);
+  char* insertPtr = body().data() + b()->endLocationOfLastRequest;
+  memcpy(insertPtr, request->body().data(), requestSize);
 
   b()->endLocationOfLastRequest += requestSize;
   b()->numberOfRequests++;
@@ -265,8 +259,8 @@ bool PrePrepareMsg::checkRequests() const {
   if (i >= b()->endLocationOfLastRequest) return false;
 
   while (true) {
-    const char* req = body() + i;
-    const uint32_t reqSize = getRequestSizeTemp(req);
+    const char* req = body().data() + i;
+    const uint32_t reqSize = ClientRequestMsg::compRequestMsgSize((ClientRequestMsgHeader*)req);
 
     remainReqs--;
     i += reqSize;
@@ -287,7 +281,7 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   auto it = RequestsIterator(this);
   char* requestBody = nullptr;
   while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
+    ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
     ret += req.getCid() + ";";
   }
   return ret;
@@ -297,60 +291,56 @@ uint32_t PrePrepareMsg::payloadShift() const {
   return sizeof(Header) + b()->batchCidLength + b()->header.spanContextSize;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// RequestsIterator
-///////////////////////////////////////////////////////////////////////////////
-
-RequestsIterator::RequestsIterator(const PrePrepareMsg* const m) : msg{m}, currLoc{m->payloadShift()} {
-  ConcordAssert(msg->isReady());
-}
-
-void RequestsIterator::restart() { currLoc = msg->payloadShift(); }
-
-bool RequestsIterator::getCurrent(char*& pRequest) const {
-  if (end()) return false;
-
-  char* p = msg->body() + currLoc;
-  pRequest = p;
-
-  return true;
-}
-
-bool RequestsIterator::end() const {
-  ConcordAssert(currLoc <= msg->b()->endLocationOfLastRequest);
-
-  return (currLoc == msg->b()->endLocationOfLastRequest);
-}
-
-void RequestsIterator::gotoNext() {
-  ConcordAssert(!end());
-  char* p = msg->body() + currLoc;
-  uint32_t size = getRequestSizeTemp(p);
-  currLoc += size;
-  ConcordAssert(currLoc <= msg->b()->endLocationOfLastRequest);
-}
-
-bool RequestsIterator::getAndGoToNext(char*& pRequest) {
-  bool atEnd = !getCurrent(pRequest);
-
-  if (atEnd) return false;
-
-  gotoNext();
-
-  return true;
-}
-
 std::string PrePrepareMsg::getCid() const {
-  return std::string(this->body() + this->payloadShift() - b()->batchCidLength, b()->batchCidLength);
+  return std::string(this->body().data() + this->payloadShift() - b()->batchCidLength, b()->batchCidLength);
 }
 
 void PrePrepareMsg::setCid(SeqNum s) {
   std::string cidStr = std::to_string(s);
   if (cidStr.size() >= b()->batchCidLength) {
-    memcpy(this->body() + this->payloadShift() - b()->batchCidLength, cidStr.data(), b()->batchCidLength);
+    memcpy(this->body().data() + this->payloadShift() - b()->batchCidLength, cidStr.data(), b()->batchCidLength);
   } else {
-    memcpy(this->body() + this->payloadShift() - b()->batchCidLength + 1, cidStr.data(), b()->batchCidLength - 1);
+    memcpy(
+        this->body().data() + this->payloadShift() - b()->batchCidLength + 1, cidStr.data(), b()->batchCidLength - 1);
   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// RequestsIterator
+///////////////////////////////////////////////////////////////////////////////
+
+RequestsIterator::RequestsIterator(const PrePrepareMsg* const m) : msg_{m}, currLoc_{m->payloadShift()} {
+  ConcordAssert(msg_->isReady());
+}
+
+void RequestsIterator::restart() { currLoc_ = msg_->payloadShift(); }
+
+bool RequestsIterator::getCurrent(char*& pRequest) const {
+  if (end()) return false;
+
+  pRequest = msg_->body().data() + currLoc_;
+  return true;
+}
+
+bool RequestsIterator::end() const {
+  ConcordAssert(currLoc_ <= msg_->b()->endLocationOfLastRequest);
+  return (currLoc_ == msg_->b()->endLocationOfLastRequest);
+}
+
+void RequestsIterator::gotoNext() {
+  ConcordAssert(!end());
+  char* p = msg_->body().data() + currLoc_;
+  uint32_t size = ClientRequestMsg::compRequestMsgSize((ClientRequestMsgHeader*)p);
+  currLoc_ += size;
+  ConcordAssert(currLoc_ <= msg_->b()->endLocationOfLastRequest);
+}
+
+bool RequestsIterator::getAndGoToNext(char*& pRequest) {
+  bool atEnd = !getCurrent(pRequest);
+  if (atEnd) return false;
+
+  gotoNext();
+  return true;
 }
 
 }  // namespace impl

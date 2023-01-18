@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -94,7 +94,7 @@ class ReplicaStatusMsg : public MessageBase {
                                             bool listOfMissingViewChangeMsgForViewChange,
                                             bool listOfMissingPrePrepareMsgForViewChange);
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 
   size_t payloadShift() const { return sizeof(Header) + spanContextSize(); }
 };

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -44,7 +44,7 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                        messageSignatureLen,
                        resultSignatures.size(),
                        indexInBatch) {
-  msgBody_->msgType = MsgCode::PreProcessResult;
+  reinterpret_cast<Header*>(msgBody_->data())->msgType = MsgCode::PreProcessResult;
   // ClientRequestMsg allocates additional memory for the signatures.
   // Get pointer to it here and assert if the buffer is not big enough.
   auto [pos, max_len] = getExtraBufPtr();
@@ -52,15 +52,18 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
   memcpy(pos, resultSignatures.data(), resultSignatures.size());
 }
 
-PreProcessResultMsg::PreProcessResultMsg(ClientRequestMsgHeader* body) : ClientRequestMsg(body) {}
-
-std::pair<char*, uint32_t> PreProcessResultMsg::getResultSignaturesBuf() { return getExtraBufPtr(); }
-
-std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatures(ReplicaId myReplicaId,
-                                                                                   int16_t fVal) {
+ErrorMessage PreProcessResultMsg::validatePreProcessResultSignatures(
+    const std::pair<char*, uint32_t> resultSignaturesBuf,
+    ReplicaId myReplicaId,
+    int16_t fVal,
+    uint16_t clientProxyId,
+    const std::string& cid,
+    uint64_t requestSeqNum,
+    char* requestBuf,
+    uint32_t requestLength) {
   auto sigManager_ = SigManager::instance();
-  const auto [buf, buf_len] = getResultSignaturesBuf();
-  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatures(buf, buf_len);
+  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatures(resultSignaturesBuf.first,
+                                                                                   resultSignaturesBuf.second);
 
   // f+1 signatures are required. Primary always sends exactly f+1 signatures so the signature count should always be
   // f+1. In theory more signatures can be accepted but this makes the non-primary replicas vulnerable to DoS attacks
@@ -70,13 +73,13 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   const auto expectedSignatureCount = fVal + 1;
   if (sigs.size() != static_cast<uint16_t>(expectedSignatureCount)) {
     err << "PreProcessResult signatures validation failure - unexpected number of signatures received"
-        << KVLOG(expectedSignatureCount, sigs.size(), clientProxyId(), getCid(), requestSeqNum());
+        << KVLOG(expectedSignatureCount, sigs.size(), clientProxyId, cid, requestSeqNum);
     return err.str();
   }
 
   // At this stage the pre_process_result field has to be the same for all senders.
   auto hash = PreProcessResultHashCreator::create(
-      requestBuf(), requestLength(), sigs.begin()->pre_process_result, clientProxyId(), requestSeqNum());
+      requestBuf, requestLength, sigs.begin()->pre_process_result, clientProxyId, requestSeqNum);
 
   for (const auto& sig : sigs) {
     bool verificationResult = false;
@@ -91,12 +94,18 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
 
     if (!verificationResult) {
       err << "PreProcessResult signatures validation failure - invalid signature received from replica"
-          << KVLOG(sig.sender_replica, clientProxyId(), getCid(), requestSeqNum());
+          << KVLOG(sig.sender_replica, clientProxyId, cid, requestSeqNum);
       return err.str();
     }
   }
 
   return {};
+}
+
+std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatures(ReplicaId myReplicaId,
+                                                                                   int16_t fVal) {
+  return validatePreProcessResultSignatures(
+      getExtraBufPtr(), myReplicaId, fVal, clientProxyId(), getCid(), requestSeqNum(), requestBuf(), requestLength());
 }
 
 std::string PreProcessResultSignature::serializeResultSignatures(const std::set<PreProcessResultSignature>& signatures,

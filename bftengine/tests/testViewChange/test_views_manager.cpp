@@ -232,7 +232,7 @@ TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
 }
 
 TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
-  // Two separate status messages are needed to validate the state of the views manager.
+  // Two separate status messages are needed to validate the state of the views' manager.
   // The first status message verifies that there is a missing Pre-Prepare message.
   bftEngine::impl::ReplicaStatusMsg replicaStatusMessage(
       rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, false, false, false, false, true);
@@ -245,18 +245,19 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   uint64_t expectedLastValue = 12345;
   const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
 
-  auto* clientRequest = new ClientRequestMsg((uint16_t)1,
-                                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                             (uint64_t)1234567,
-                                             kRequestLength,
-                                             (const char*)requestBuffer,
-                                             (uint64_t)1000000);
+  auto clientRequest = std::make_unique<ClientRequestMsg>((uint16_t)1,
+                                                          bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                                          (uint64_t)1234567,
+                                                          kRequestLength,
+                                                          (const char*)requestBuffer,
+                                                          (uint64_t)1000000);
 
   // Create a Pre-Prepare message and add the client request to it.
   PrePrepareMsg* prePrepareMsg =
       new PrePrepareMsg(rc.getreplicaId(), initialView, lastExecutedSeqNum, CommitPath::SLOW, clientRequest->size());
 
-  prePrepareMsg->addRequest(clientRequest->body(), clientRequest->size());
+  const auto reqSize = clientRequest->size();
+  prePrepareMsg->addRequest(std::move(clientRequest), reqSize);
   prePrepareMsg->finishAddingRequests();
 
   const auto primary = replicasInfo.primaryOfView(initialView);
@@ -432,19 +433,20 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
   for (uint8_t i = 0; i < 2; ++i) {
     senderId += i;
     requestBuffer[1] += i;
-    auto clientRequest = new ClientRequestMsg(senderId,
-                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
-                                              (uint64_t)1234567,
-                                              kRequestLength,
-                                              (const char*)requestBuffer,
-                                              (uint64_t)1000000);
+    auto clientRequest = std::make_unique<ClientRequestMsg>(senderId,
+                                                            bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                                            (uint64_t)1234567,
+                                                            kRequestLength,
+                                                            (const char*)requestBuffer,
+                                                            (uint64_t)1000000);
     // Create a Pre-Prepare message and add the client request to it.
     prePrepareMessages[i] = new PrePrepareMsg(replicasInfo.primaryOfView(viewsManagerInitialView),
                                               i ? preparedCertificateView : viewsManagerInitialView,
                                               lastExecutedSeqNum,
                                               i ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST,
                                               clientRequest->size());
-    prePrepareMessages[i]->addRequest(clientRequest->body(), clientRequest->size());
+    const auto reqSize = clientRequest->size();
+    prePrepareMessages[i]->addRequest(std::move(clientRequest), reqSize);
     prePrepareMessages[i]->finishAddingRequests();
   }
 
@@ -458,7 +460,6 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
                                                           replicasInfo.primaryOfView(viewsManagerInitialView),
                                                           buff,
                                                           sizeof(buff));
-
   ViewChangeMsg* viewChangeMsg = nullptr;
   Digest digest;
 
@@ -507,7 +508,7 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
   vector<PrePrepareMsg*> outPrePrepareMsgs;
   // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
-  // added to the views manager.
+  // added to the view manager.
   // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
   ASSERT_FALSE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
 

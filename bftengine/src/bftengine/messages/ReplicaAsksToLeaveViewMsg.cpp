@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -30,7 +30,7 @@ ReplicaAsksToLeaveViewMsg::ReplicaAsksToLeaveViewMsg(
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->reason = r;
   b()->sigLength = sigLen;
-  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  std::memcpy(body().data() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
@@ -42,12 +42,11 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
 
   ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, r, sigLen, spanContext);
 
-  auto position = m->body() + sizeof(Header);
+  auto position = m->body().data() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
 
-  sigManager->sign(m->body(), sizeof(Header), position);
-
+  sigManager->sign(m->body().data(), sizeof(Header), position);
   return m;
 }
 
@@ -62,8 +61,8 @@ void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < totalSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
   if (!sigManager->verifySig(idOfGeneratedReplica(),
-                             std::string_view{body(), sizeof(Header)},
-                             std::string_view{body() + totalSize, sigLen}))
+                             std::string_view{body().data(), sizeof(Header)},
+                             std::string_view{body().data() + totalSize, sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -59,7 +59,7 @@ class PreProcessBatchReplyMsg : public MessageBase {
   }
   void setParams(
       NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize, ViewNum viewNum);
-  Header* msgBody() const { return ((Header*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_->data()); }
 
  private:
   std::string cid_;

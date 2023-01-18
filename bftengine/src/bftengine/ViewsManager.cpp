@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -1136,18 +1136,16 @@ void ViewsManager::insertStoredComplaintsIntoVCMsg(ViewChangeMsg* pVC) {
 void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
                                                           const std::function<bool(MessageBase*)>& msgValidator) {
   ViewChangeMsg::ComplaintsIterator iter(msg);
-  char* complaint = nullptr;
   MsgSize size = 0;
   int numberOfProcessedComplaints = 0;
 
   // Complaints for higher view should aim to reach the view of the message.
   targetView = msg->newView();
-
+  MESSAGE_BODY complaint;
   while (targetView > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
          iter.getAndGoToNext(complaint, size) && numberOfProcessedComplaints <= F + 1) {
     numberOfProcessedComplaints++;
-
-    auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header*)complaint, size, true);
+    auto baseMsg = MessageBase(msg->senderId(), std::make_unique<MESSAGE_BODY>(complaint), size);
     auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
     LOG_INFO(VC_LOG,
              "Got complaint in ViewChangeMsg" << KVLOG(getCurrentView(),

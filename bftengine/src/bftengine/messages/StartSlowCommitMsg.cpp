@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -25,7 +25,7 @@ StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId,
   b()->viewNum = v;
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
-  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  std::memcpy(body().data() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) const {

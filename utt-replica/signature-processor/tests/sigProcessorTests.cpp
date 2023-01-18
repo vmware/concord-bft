@@ -104,13 +104,11 @@ class TestReceiver : public bft::communication::IReceiver {
                     size_t messageLength,
                     NodeNum endpointNum = MAX_ENDPOINT_NUM) override {
     if (!ims_->isRunning()) return;
-    auto* msgBody = (MessageBase::Header*)std::malloc(messageLength);
-    memcpy(msgBody, message, messageLength);
+    auto msgBody = std::make_unique<MESSAGE_BODY>(messageLength);
+    memcpy(msgBody->data(), message, messageLength);
 
     auto node = sourceNode;
-
-    std::unique_ptr<MessageBase> pMsg(new MessageBase(node, msgBody, messageLength, true));
-
+    auto pMsg = std::make_unique<MessageBase>(node, std::move(msgBody), messageLength);
     ims_->pushExternalMsg(std::move(pMsg));
   }
   void onConnectionStatusChanged(NodeNum, ConnectionStatus) override {}

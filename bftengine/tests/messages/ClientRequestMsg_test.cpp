@@ -132,77 +132,6 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
-TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
-  NodeIdType senderId = 1u;
-  uint64_t flags = 'F';
-  uint64_t reqSeqNum = 100u;
-  const char request[] = {"request body"};
-  const uint64_t requestTimeoutMilli = 0;
-  const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {""};
-  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg originalMsg(senderId,
-                               flags,
-                               reqSeqNum,
-                               sizeof(request),
-                               request,
-                               requestTimeoutMilli,
-                               correlationId,
-                               0,
-                               concordUtils::SpanContext{spanContext});
-
-  ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
-
-  EXPECT_EQ(originalMsg.clientProxyId(), copy_msg.clientProxyId());
-  EXPECT_EQ(originalMsg.flags(), copy_msg.flags());
-  EXPECT_EQ(originalMsg.requestSeqNum(), copy_msg.requestSeqNum());
-  EXPECT_EQ(originalMsg.requestLength(), copy_msg.requestLength());
-  EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
-  EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
-  EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
-  EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
-  EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
-}
-
-TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
-  NodeIdType senderId = 1u;
-  uint64_t flags = MsgFlag::EMPTY_FLAGS;
-  uint64_t reqSeqNum = 100u;
-  auto millis = std::chrono::system_clock::now().time_since_epoch();
-  auto request = concord::util::serialize(millis.count());
-  const uint64_t requestTimeoutMilli = 0;
-  const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {""};
-  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg originalMsg(senderId,
-                               flags,
-                               reqSeqNum,
-                               request.size(),
-                               request.data(),
-                               requestTimeoutMilli,
-                               correlationId,
-                               0,
-                               concordUtils::SpanContext{spanContext});
-
-  ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
-
-  EXPECT_EQ(originalMsg.clientProxyId(), copy_msg.clientProxyId());
-  EXPECT_EQ(originalMsg.flags(), copy_msg.flags());
-  EXPECT_EQ(originalMsg.requestSeqNum(), copy_msg.requestSeqNum());
-  EXPECT_EQ(originalMsg.requestLength(), copy_msg.requestLength());
-  EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
-  EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), request.size()) == 0u);
-  EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
-  EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
-
-  EXPECT_EQ(concord::util::deserialize<std::chrono::milliseconds::rep>(
-                originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()),
-            millis.count());
-  EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
-}
-
 TEST_F(ClientRequestMsgTestFixture, base_methods) {
   NodeIdType senderId = 1u;
   uint64_t flags = 'F';
@@ -280,7 +209,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
 
   size_t mainMsgSize = sizeof(ClientRequestMsgHeader) + sizeof(request) + correlationId.size() + spanContext.size();
   ASSERT_EQ(msg.size(), mainMsgSize + extraBufSize);
-  ASSERT_EQ(msg.getExtraBufPtr().first, msg.body() + mainMsgSize);
+  ASSERT_EQ(msg.getExtraBufPtr().first, msg.body().data() + mainMsgSize);
 }
 
 TEST_F(ClientRequestMsgTestFixture, validate_size) {

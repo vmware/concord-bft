@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -28,8 +28,8 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
   b()->viewNum = v;
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
-  b()->thresholSignatureLength = commitProofSigLength;
-  auto position = body() + sizeof(Header);
+  b()->thresholdSignatureLength = commitProofSigLength;
+  auto position = body().data() + sizeof(Header);
   memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
   memcpy(position, commitProofSig, commitProofSigLength);

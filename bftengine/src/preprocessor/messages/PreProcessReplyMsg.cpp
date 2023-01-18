@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -123,7 +123,7 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
 void PreProcessReplyMsg::setLeftMsgParams(const string& reqCid, uint16_t sigSize) {
   const uint16_t headerSize = sizeof(Header);
   msgBody()->cidLength = reqCid.size();
-  memcpy(body() + headerSize + sigSize, reqCid.c_str(), reqCid.size());
+  memcpy(body().data() + headerSize + sigSize, reqCid.c_str(), reqCid.size());
   msgBody()->replyLength = sigSize;
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
   LOG_DEBUG(logger(),
@@ -156,7 +156,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
     sigManager->sign(hash.data(),
                      concord::crypto::SHA3_256::SIZE_IN_BYTES,
-                     reinterpret_cast<concord::Byte*>(body() + sizeof(Header)));
+                     reinterpret_cast<concord::Byte*>(body().data() + sizeof(Header)));
   }
   setLeftMsgParams(reqCid, sigSize);
 }
@@ -165,12 +165,12 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
 void PreProcessReplyMsg::setupMsgBody(const uint8_t* resultsHash, const char* signature, const string& reqCid) {
   memcpy(msgBody()->resultsHash, resultsHash, concord::crypto::SHA3_256::SIZE_IN_BYTES);
   const uint16_t sigLen = SigManager::instance()->getMySigLength();
-  memcpy(body() + sizeof(Header), signature, sigLen);
+  memcpy(body().data() + sizeof(Header), signature, sigLen);
   setLeftMsgParams(reqCid, sigLen);
 }
 
 std::string PreProcessReplyMsg::getCid() const {
-  return std::string(body() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
+  return std::string(body().data() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor

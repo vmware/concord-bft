@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -39,20 +39,14 @@ class SeqNumInfo {
   void resetPrepareSignatures();
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
-
   bool addMsg(PrePrepareMsg* m, bool directAdd = false, bool isTimeCorrect = true);
   bool addSelfMsg(PrePrepareMsg* m, bool directAdd = false);
-
   bool addMsg(PreparePartialMsg* m);
   bool addSelfMsg(PreparePartialMsg* m, bool directAdd = false);
-
   bool addMsg(PrepareFullMsg* m, bool directAdd = false);
-
   bool addMsg(CommitPartialMsg* m);
   bool addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& commitDigest, bool directAdd = false);
-
   bool addMsg(CommitFullMsg* m, bool directAdd = false);
-
   void forceComplete();
 
   PrePrepareMsg* getPrePrepareMsg() const;
@@ -76,7 +70,7 @@ class SeqNumInfo {
 
   Time getTimeOfFirstRelevantInfoFromPrimary() const;
   Time getTimeOfLastInfoRequest() const;
-  Time lastUpdateTimeOfCommitMsgs() const { return commitUpdateTime; }  // TODO(GG): check usage....
+  Time lastUpdateTimeOfCommitMsgs() const { return commitUpdateTime_; }
 
   // Fast path methods
   bool hasFastPathFullCommitProof() const;
@@ -125,7 +119,7 @@ class SeqNumInfo {
                                                    bool isValid);
 
   uint64_t getCommitDurationMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(commitUpdateTime - firstSeenFromPrimary).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(commitUpdateTime_ - firstSeenFromPrimary_).count();
   }
 
  protected:
@@ -241,13 +235,12 @@ class SeqNumInfo {
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };
 
-  InternalReplicaApi* replica = nullptr;
-
-  PrePrepareMsg* prePrepareMsg;
+  InternalReplicaApi* replica_ = nullptr;
+  PrePrepareMsg* prePrepareMsg_;
 
   // Slow path
-  CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector;
-  CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
+  CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector_;
+  CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector_;
 
   // Fast path
   template <typename ExFunc>
@@ -255,28 +248,22 @@ class SeqNumInfo {
   using FastPathOptimisticCollector = FastPathCollector<ExFuncForFastPathOptimisticCollector>;
   using FastPathThresholdCollector = FastPathCollector<ExFuncForFastPathThresholdCollector>;
 
-  FastPathOptimisticCollector* fastPathOptimisticCollector;
-  FastPathThresholdCollector* fastPathThresholdCollector;
-  Time fastPathTimeOfSelfPartialProof;
+  FastPathOptimisticCollector* fastPathOptimisticCollector_;
+  FastPathThresholdCollector* fastPathThresholdCollector_;
+  Time fastPathTimeOfSelfPartialProof_;
 
-  bool primary;  // true iff PrePrepareMsg was added with addSelfMsg
-
-  bool forcedCompleted;
-
-  bool slowPathHasStarted;
-
+  bool primary_;  // true iff PrePrepareMsg was added with addSelfMsg
+  bool forcedCompleted_;
+  bool slowPathHasStarted_;
   bool isTimeCorrect_ = true;
-
-  Time firstSeenFromPrimary;
-  Time timeOfLastInfoRequest;
-  Time commitUpdateTime;
+  Time firstSeenFromPrimary_;
+  Time timeOfLastInfoRequest_;
+  Time commitUpdateTime_;
 
  public:
   // methods for SequenceWithActiveWindow
   static void init(SeqNumInfo& i, void* d);
-
   static void free(SeqNumInfo& i) { i.resetAndFree(); }
-
   static void reset(SeqNumInfo& i) { i.resetAndFree(); }
 };
 

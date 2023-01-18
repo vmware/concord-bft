@@ -22,7 +22,6 @@ namespace concord::kvbc::strategy {
 using bftEngine::impl::MessageBase;
 using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
-using preprocessor::PreProcessResultMsg;
 using concord::crypto::DigestGenerator;
 
 std::string concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getStrategyName() {
@@ -41,14 +40,14 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
   size_t idx = 0;
   auto it = RequestsIterator(&nmsg);
   char* requestBody = nullptr;
-  bool ischanged = false;
+  bool isChanged = false;
   while (it.getAndGoToNext(requestBody)) {
-    PreProcessResultMsg req((ClientRequestMsgHeader*)requestBody);
+    preprocessor::PreProcessResultMsgView req((ClientRequestMsgHeader*)requestBody);
     if (req.type() == MsgCode::PreProcessResult) {
       if (req.requestLength() > 0) {
         memcpy(
             req.requestBuf(), StrategyUtils::getRandomStringOfLength(req.requestLength()).c_str(), req.requestLength());
-        ischanged = true;
+        isChanged = true;
       }
     }
     char* sig = req.requestSignature();
@@ -56,13 +55,13 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
       sigOrDigestOfRequest[idx].append(sig, req.requestSignatureLength());
     } else {
       Digest d;
-      DigestGenerator().compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+      DigestGenerator().compute(req.getRawData(), req.getMsgSize(), reinterpret_cast<char*>(&d), sizeof(Digest));
       sigOrDigestOfRequest[idx].append(d.content(), sizeof(Digest));
     }
     idx++;
   }
 
-  if (ischanged) {
+  if (isChanged) {
     std::string sigOrDig;
     for (const auto& sod : sigOrDigestOfRequest) {
       sigOrDig.append(sod);
@@ -77,7 +76,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
                  << nmsg.numberOfRequests() << " in the view : " << nmsg.viewNumber() << " is changed.");
   }
 
-  return ischanged;
+  return isChanged;
 }
 
 }  // namespace concord::kvbc::strategy

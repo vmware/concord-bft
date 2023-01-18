@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -66,7 +66,7 @@ class PreProcessBatchRequestMsg : public MessageBase {
                  uint32_t numOfMessagesInBatch,
                  uint32_t requestsSize,
                  ViewNum viewNum);
-  Header* msgBody() const { return ((Header*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_->data()); }
 
  private:
   bool checkElements() const;

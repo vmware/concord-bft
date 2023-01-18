@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -213,7 +213,7 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
     unique_lock<mutex> lock(batchMutex_);
     resetBatchParams();
   }
-  preProcessor_.sendMsg(batchReplyMsg->body(), primaryId, batchReplyMsg->type(), batchReplyMsg->size());
+  preProcessor_.sendMsg(batchReplyMsg->body().data(), primaryId, batchReplyMsg->type(), batchReplyMsg->size());
   LOG_INFO(preProcessor_.logger(),
            "Pre-processing completed and the batched reply message sent to the primary replica"
                << KVLOG(senderId, clientId_, batchCid, batchSize, primaryId));
@@ -302,7 +302,7 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
   LOG_DEBUG(preProcessor_.logger(),
             "Sending PreProcessBatchRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId_, batchCid_, destId));
   preProcessor_.sendMsg(
-      preProcessBatchReqMsg->body(), destId, preProcessBatchReqMsg->type(), preProcessBatchReqMsg->size());
+      preProcessBatchReqMsg->body().data(), destId, preProcessBatchReqMsg->type(), preProcessBatchReqMsg->size());
 }
 
 //**************** Class PreProcessor ****************//
@@ -502,7 +502,7 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
     const auto &reqCid = preProcessReqMsg->getCid();
     for (const auto &destId : rejectedReplicasList) {
       LOG_DEBUG(logger(), "Resending PreProcessRequestMsg" << KVLOG(clientId, batchCid, reqSeqNum, reqCid, destId));
-      sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
+      sendMsg(preProcessReqMsg->body().data(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
     reqStatePtr->resetRejectedReplicasList();
   }
@@ -652,7 +652,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
       KVLOG(batchCid, reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
           << " Sending PreProcessReplyMsg with STATUS_REJECT as another PreProcessRequest from the same client is "
              "in progress");
-  sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
+  sendMsg(replyMsg->body().data(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
 }
 
 template <>
@@ -792,7 +792,7 @@ void PreProcessor::sendPreProcessBatchReqToAllReplicas(ClientBatchRequestMsgUniq
   for (auto destId : idsOfPeerReplicas) {
     if (destId != myReplicaId_)
       // sendMsg works asynchronously, so we can launch it sequentially here
-      sendMsg(preProcessBatchReqMsg->body(), destId, REQ_TYPE_PRE_PROCESS, preProcessBatchReqMsg->size());
+      sendMsg(preProcessBatchReqMsg->body().data(), destId, REQ_TYPE_PRE_PROCESS, preProcessBatchReqMsg->size());
   }
 }
 
@@ -863,7 +863,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsgUniqueP
       sendPreProcessBatchReqToAllReplicas(std::move(msg), preProcessReqMsgList, overallPreProcessReqMsgsSize);
   } else {
     LOG_DEBUG(logger(), "Pass ClientBatchRequestMsg to the current primary" << KVLOG(senderId, clientId, batchCid));
-    sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
+    sendMsg(msg->body().data(), myReplica_.currentPrimary(), msg->type(), msg->size());
   }
 }  // namespace preprocessor
 
@@ -1678,7 +1678,7 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(const string
   const auto &senderId = clientReqMsg->senderId();
   const auto &reqTimeoutMilli = clientReqMsg->requestTimeoutMilli();
   // Save parameters required for a message sending before being moved to registerRequest
-  const auto msgBody = clientReqMsg->body();
+  auto msgBody = clientReqMsg->body();
   const auto msgType = clientReqMsg->type();
   const auto msgSize = clientReqMsg->size();
   const auto reqCid = clientReqMsg->getCid();
@@ -1691,7 +1691,7 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(const string
                  batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli, msgSize, sigLen));
 
     if (arrivedInBatch) return;  // Need to pass the whole batch to the primary
-    sendMsg(msgBody, myReplica_.currentPrimary(), msgType, msgSize);
+    sendMsg(msgBody.data(), myReplica_.currentPrimary(), msgType, msgSize);
     LOG_DEBUG(logger(),
               "Sent ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch)
                                                 << " to the current primary");
@@ -1748,7 +1748,7 @@ void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsg
       LOG_DEBUG(logger(),
                 "Sending PreProcessRequestMsg to a non-primary replica" << KVLOG(
                     preProcessReqMsg->clientId(), preProcessReqMsg->reqSeqNum(), preProcessReqMsg->getCid(), destId));
-      sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
+      sendMsg(preProcessReqMsg->body().data(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
   }
 }
@@ -1879,7 +1879,7 @@ void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgShar
 void PreProcessor::releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg) {
   // Release the request before sending a reply message to the primary replica to be able accepting new messages
   releaseClientPreProcessRequestSafe(replyMsg->clientId(), replyMsg->reqOffsetInBatch(), COMPLETE);
-  sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
+  sendMsg(replyMsg->body().data(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_INFO(logger(),
            "Pre-processing completed by a non-primary replica and the reply message sent to the primary"
                << KVLOG(replyMsg->clientId(),

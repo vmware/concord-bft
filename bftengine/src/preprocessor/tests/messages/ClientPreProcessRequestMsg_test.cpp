@@ -1,4 +1,12 @@
-// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// Concord
+//
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
+// compliance with the Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
 #include <cstring>
@@ -73,9 +81,8 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, construct_from_msg_base_and_compar
                                  concordUtils::SpanContext{spanContext});
 
   MessageBase* original_base = &msg;
-  uint8_t* raw_msg = (uint8_t*)malloc(original_base->size());
-  memcpy(raw_msg, original_base->body(), original_base->size());
-  MessageBase m(senderId, (MessageBase::Header*)raw_msg, original_base->size(), true);
+  auto raw_msg = std::make_unique<MESSAGE_BODY>(original_base->body());
+  MessageBase m(senderId, std::move(raw_msg), original_base->size());
 
   ClientPreProcessRequestMsg recreated(&m);
   EXPECT_EQ(msg.clientProxyId(), recreated.clientProxyId());

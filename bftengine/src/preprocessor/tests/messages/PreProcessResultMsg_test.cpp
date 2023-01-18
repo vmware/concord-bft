@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -199,7 +199,7 @@ TEST_F(PreProcessResultMsgTestFixture, ClientRequestMsgSanityChecks) {
   messageSanityCheck(msg, params);
 
   // check message type
-  MessageBase::Header* hdr = (MessageBase::Header*)msg->body();
+  MessageBase::Header* hdr = (MessageBase::Header*)msg->body().data();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 }
 
@@ -236,12 +236,12 @@ TEST_F(PreProcessResultMsgTestFixture, ShrinkSignaturesToSize) {
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   MsgParams params;
   auto serialised = createMessage(params, replicaInfo.getNumberOfReplicas());
-  auto msg = std::make_unique<PreProcessResultMsg>((ClientRequestMsgHeader*)serialised->body());
+  auto msg = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.release());
 
   messageSanityCheck(msg, params);
 
   // check message type
-  MessageBase::Header* hdr = (MessageBase::Header*)msg->body();
+  MessageBase::Header* hdr = (MessageBase::Header*)msg->body().data();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 
   // check the result is correct
@@ -275,7 +275,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   messageSanityCheck(msg, params);
 
   // check message type
-  MessageBase::Header* hdr = (MessageBase::Header*)msg->body();
+  MessageBase::Header* hdr = (MessageBase::Header*)msg->body().data();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 
   // check the result is correct
@@ -321,7 +321,7 @@ TEST_F(PreProcessResultMsgTxSigningOffTestFixture, ClientRequestMsgSanityChecks)
   messageSanityCheck(msg, params);
 
   // check message type
-  MessageBase::Header* hdr = (MessageBase::Header*)msg->body();
+  MessageBase::Header* hdr = (MessageBase::Header*)msg->body().data();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 }
 }  // namespace

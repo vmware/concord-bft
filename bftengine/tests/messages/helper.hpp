@@ -100,17 +100,17 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
 
   std::unique_ptr<MessageBase> other{tested.cloneObjAndMsg()};
   EXPECT_TRUE(tested.equals(*other));
-  EXPECT_NE(tested.body(), other->body());
+  EXPECT_NE(tested.body().data(), other->body().data());
 
   std::vector<char> buffer(tested.sizeNeededForObjAndMsgInLocalBuffer() + /*null flag*/ 1);
   auto ptr = buffer.data();
   auto shifted_ptr = ptr;
   MessageBase::serializeMsg(shifted_ptr, &tested);
-  EXPECT_EQ(memcmp(tested.body(), ptr + 1 + 10, tested.size()), 0);
+  EXPECT_EQ(memcmp(tested.body().data(), ptr + 1 + 10, tested.size()), 0);
   size_t actualSize = 0u;
   std::unique_ptr<MessageBase> deserialized{MessageBase::deserializeMsg(ptr, buffer.size(), actualSize)};
   EXPECT_EQ(tested.size(), deserialized->size());
-  EXPECT_EQ(memcmp(tested.body(), deserialized->body(), deserialized->size()), 0);
+  EXPECT_EQ(memcmp(tested.body().data(), deserialized->body().data(), deserialized->size()), 0);
   EXPECT_TRUE(other->equals(*deserialized));
 }
 

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -32,9 +32,9 @@ class FullCommitProofMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  uint16_t signatureLen() const { return b()->thresholSignatureLength; }
+  uint16_t signatureLen() const { return b()->thresholdSignatureLength; }
 
-  const char* signatureBody() { return body() + sizeof(Header) + spanContextSize(); }
+  const char* signatureBody() { return body().data() + sizeof(Header) + spanContextSize(); }
 
   void validate(const ReplicasInfo&) const override;
 
@@ -48,12 +48,12 @@ class FullCommitProofMsg : public MessageBase {
     ViewNum viewNum;
     SeqNum seqNum;
     EpochNum epochNum;
-    uint16_t thresholSignatureLength;
+    uint16_t thresholdSignatureLength;
   };
 #pragma pack(pop)
   static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2), "Header is 32B");
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 };
 
 }  // namespace impl

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -42,7 +42,7 @@ class PreProcessRequestMsg : public MessageBase {
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessRequestMsg)
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
-  char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }
+  char* requestBuf() const { return body().data() + sizeof(Header) + spanContextSize(); }
   const RequestType reqType() const { return msgBody()->reqType; }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
@@ -56,7 +56,7 @@ class PreProcessRequestMsg : public MessageBase {
   inline char* requestSignature() const {
     auto* header = msgBody();
     if (header->reqSignatureLength > 0)
-      return body() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength;
+      return body().data() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength;
     return nullptr;
   }
   const uint32_t result() const { return msgBody()->result; }
@@ -103,7 +103,7 @@ class PreProcessRequestMsg : public MessageBase {
                  uint64_t blockId,
                  uint32_t result,
                  ViewNum viewNum);
-  Header* msgBody() const { return ((Header*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_->data()); }
 };
 
 using PreProcessRequestMsgUniquePtr = std::unique_ptr<PreProcessRequestMsg>;

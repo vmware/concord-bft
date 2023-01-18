@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -46,7 +46,7 @@ class ReplicaRestartReadyMsg : public MessageBase {
 
   Reason getReason() const { return b()->reason; }
 
-  char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
+  char* signatureBody() const { return body().data() + sizeof(Header) + spanContextSize(); }
 
   static ReplicaRestartReadyMsg* create(ReplicaId senderId,
                                         SeqNum s,
@@ -78,7 +78,7 @@ class ReplicaRestartReadyMsg : public MessageBase {
 #pragma pack(pop)
   static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 1 + 2), "Header is 28B");
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 };
 
 template <>

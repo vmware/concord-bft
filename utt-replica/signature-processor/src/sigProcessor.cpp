@@ -1,6 +1,6 @@
 // UTT
 //
-// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -30,14 +30,14 @@ class PartialSigMsg : public bftEngine::impl::MessageBase {
     b()->partialSigLength = (uint16_t)partialSig.size();
     b()->sig_id = sig_id;
     b()->genReplicaId = srcReplicaId;
-    char* position = body() + sizeof(Header);
+    char* position = body().data() + sizeof(Header);
     memcpy(position, partialSig.data(), partialSig.size());
   }
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PartialSigMsg)
 
   std::vector<uint8_t> getPartialSig() const {
-    char* position = body() + sizeof(Header);
+    char* position = body().data() + sizeof(Header);
     std::vector<uint8_t> ret(b()->partialSigLength);
     memcpy(ret.data(), position, b()->partialSigLength);
     return ret;
@@ -63,7 +63,7 @@ class PartialSigMsg : public bftEngine::impl::MessageBase {
 #pragma pack(pop)
   static_assert(sizeof(Header) == (6 + 2 + 8 + 2), "Header is 18B");
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 };
 }  // namespace messages
 const SigProcessor::GenerateAppClientRequestCb SigProcessor::default_client_app_request_generator =
@@ -151,7 +151,7 @@ void SigProcessor::processSignature(uint64_t sig_id,
   auto job_coordinator = get_job_coordinator_cb(sig_id);
   if (job_coordinator == repId_) return;
   messages::PartialSigMsg msg(repId_, sig, sig_id);
-  msgs_communicator_->sendAsyncMessage((uint64_t)job_coordinator, msg.body(), msg.size());
+  msgs_communicator_->sendAsyncMessage((uint64_t)job_coordinator, msg.body().data(), msg.size());
 }
 
 SigProcessor::~SigProcessor() { timers_.cancel(timeout_handler_); }
@@ -224,7 +224,7 @@ void SigProcessor::onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig
   for (uint16_t rid = 0; rid < n_; rid++) {
     if (rid == repId_) continue;
     messages::PartialSigMsg msg(repId_, sig, job_id);
-    msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg.body(), msg.size());
+    msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg.body().data(), msg.size());
   }
 }
 

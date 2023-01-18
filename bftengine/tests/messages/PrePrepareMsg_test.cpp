@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -32,7 +32,7 @@ using concord::crypto::DigestGenerator;
 
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
-ClientRequestMsg create_client_request() {
+std::unique_ptr<ClientRequestMsg> create_client_request() {
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
@@ -40,15 +40,15 @@ ClientRequestMsg create_client_request() {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
 
-  return ClientRequestMsg(1u,
-                          'F',
-                          reqSeqNum,
-                          sizeof(request),
-                          request,
-                          requestTimeoutMilli,
-                          correlationId,
-                          0,
-                          concordUtils::SpanContext{spanContext});
+  return std::make_unique<ClientRequestMsg>(1u,
+                                            'F',
+                                            reqSeqNum,
+                                            sizeof(request),
+                                            request,
+                                            requestTimeoutMilli,
+                                            correlationId,
+                                            0,
+                                            concordUtils::SpanContext{spanContext});
 }
 
 std::string getRandomStringOfLength(size_t len) {
@@ -67,7 +67,7 @@ std::string getRandomStringOfLength(size_t len) {
   return res;
 }
 
-void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>>& crmv, size_t numMsgs) {
+void create_random_client_requests(std::vector<std::unique_ptr<ClientRequestMsg>>& crmv, size_t numMsgs) {
   crmv.clear();
   std::mt19937_64 eng{std::random_device{}()};
   std::uniform_int_distribution<> dist{12, 10000};
@@ -80,15 +80,15 @@ void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>
     const std::string correlationId = "correlationId";
     const char rawSpanContext[] = {"span_\0context"};
     const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-    crmv.push_back(std::shared_ptr<ClientRequestMsg>{new ClientRequestMsg(1u,
-                                                                          'F',
-                                                                          reqSeqNum,
-                                                                          request.size(),
-                                                                          request.c_str(),
-                                                                          requestTimeoutMilli,
-                                                                          correlationId,
-                                                                          0,
-                                                                          concordUtils::SpanContext{spanContext})});
+    crmv.push_back(std::make_unique<ClientRequestMsg>(new ClientRequestMsg(1u,
+                                                                           'F',
+                                                                           reqSeqNum,
+                                                                           request.size(),
+                                                                           request.c_str(),
+                                                                           requestTimeoutMilli,
+                                                                           correlationId,
+                                                                           0,
+                                                                           concordUtils::SpanContext{spanContext})));
     numMsgs--;
   }
 }
@@ -119,7 +119,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  std::vector<std::shared_ptr<ClientRequestMsg>> crmv;
+  std::vector<std::unique_ptr<ClientRequestMsg>> crmv;
   create_random_client_requests(crmv, 200u);
   size_t req_size = 0;
   for (const auto& crm : crmv) {
@@ -136,10 +136,11 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
 
   std::vector<std::string> dv;
   for (const auto& crm : crmv) {
-    msg.addRequest(crm->body(), crm->size());
+    const auto reqSize = crm->size();
     Digest d;
-    DigestGenerator().compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
+    DigestGenerator().compute(crm->body().data(), reqSize, (char*)&d, sizeof(Digest));
     dv.push_back({d.content(), sizeof(Digest)});
+    msg.addRequest(std::make_unique<ClientRequestMsg>(crm.get()), reqSize);
   }
   EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
   EXPECT_EQ(msg.numberOfRequests(), 200u);
@@ -163,20 +164,25 @@ TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg client_request = create_client_request();
+  auto client_request1 = create_client_request();
+  auto client_request2 = create_client_request();
+  auto clone_request = create_client_request();
+  const auto client_request_size = client_request1->size();
+
   PrePrepareMsg msg(
-      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size() * 2);
+      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request_size * 2);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.firstPath(), commitPath);
   EXPECT_EQ(msg.isNull(), false);
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 
-  msg.addRequest(client_request.body(), client_request.size());
-  msg.addRequest(client_request.body(), client_request.size());
+  msg.addRequest(std::move(client_request1), client_request_size);
+  msg.addRequest(std::move(client_request2), client_request_size);
   msg.finishAddingRequests();
 
   EXPECT_EQ(msg.numberOfRequests(), 2u);
+
   EXPECT_NO_THROW(msg.updateView(msg.viewNumber() + 1));
   EXPECT_EQ(msg.viewNumber(), 3u);
   EXPECT_EQ(msg.firstPath(), CommitPath::SLOW);
@@ -186,10 +192,10 @@ TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   for (size_t i = 0; i < msg.numberOfRequests(); ++i) {
     char* request = nullptr;
     iterator.getAndGoToNext(request);
-    ClientRequestMsg msg((ClientRequestMsgHeader*)request);
-    EXPECT_EQ(memcmp(msg.body(), client_request.body(), msg.size()), 0);
+    ClientRequestMsgView message((ClientRequestMsgHeader*)request);
+    ClientRequestMsgView cloneMessage((ClientRequestMsgHeader*)(clone_request->body().data()));
+    EXPECT_EQ(memcmp(message.getRawData(), cloneMessage.getRawData(), message.getMsgSize()), 0);
   }
-  iterator.restart();
 }
 
 TEST_F(PrePrepareMsgTestFixture, create_null_message) {
@@ -220,10 +226,10 @@ TEST_F(PrePrepareMsgTestFixture, base_methods) {
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(
-      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size());
-  msg.addRequest(client_request.body(), client_request.size());
+  auto client_request = create_client_request();
+  const auto reqSize = client_request->size();
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, reqSize);
+  msg.addRequest(std::move(client_request), reqSize);
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
@@ -245,13 +251,13 @@ TEST_F(PrePrepareMsgTestFixture, test_prePrepare_size) {
                     commitPath,
                     concordUtils::SpanContext{spanContext},
                     config.getmaxExternalMessageSize());
-  std::vector<std::shared_ptr<ClientRequestMsg>> client_request;
-
+  std::vector<std::unique_ptr<ClientRequestMsg>> client_requests;
   while (true) {
-    client_request.clear();
-    create_random_client_requests(client_request, 1u);
-    if (client_request.front()->size() > msg.remainingSizeForRequests()) break;
-    msg.addRequest(client_request.front()->body(), client_request.front()->size());
+    client_requests.clear();
+    create_random_client_requests(client_requests, 1u);
+    if (client_requests.front()->size() > msg.remainingSizeForRequests()) break;
+    const auto reqSize = client_requests.front()->size();
+    msg.addRequest(std::move(client_requests.front()), reqSize);
   }
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));

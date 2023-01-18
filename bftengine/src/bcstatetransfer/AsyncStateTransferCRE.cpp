@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -30,7 +30,7 @@ class Communication : public ICommunication {
   Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
       : msgsCommunicator_{msgsCommunicator}, repId_{bftEngine::ReplicaConfig::instance().replicaId} {
     msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](std::unique_ptr<bftEngine::impl::MessageBase> message) {
-      if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
+      if (receiver_) receiver_->onNewMessage(message->senderId(), message->body().data(), message->size());
     });
   }
 

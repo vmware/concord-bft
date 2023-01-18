@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -236,7 +236,7 @@ void ReplicaImp::messageHandler(std::unique_ptr<MessageBase> msg) {
  * @return : returns nothing
  */
 template <typename T>
-void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
+void ReplicaImp::validatedMessageHandler(CarrierMessage *msg) {
   // The Carrier message is allocated by this replica and after validation its given back
   // to itself without going through the network stack (as an internal message).
   // So the carrier message is quickly reinterpreted and used instead of fresh memory allocation.
@@ -299,7 +299,7 @@ void ReplicaImp::asyncValidateMessage(std::unique_ptr<MSG> msg) {
         [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
           try {
             unValidatedMsg->validate(*replicaInfo);
-            CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+            CarrierMessage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
             incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
           } catch (std::exception &e) {
             onReportAboutInvalidMessage(unValidatedMsg, e.what());
@@ -721,22 +721,27 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
                                                             PrePrepareMsg &prePrepareMsg,
                                                             uint32_t maxStorageForRequests) {
-  if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
-    SCOPED_MDC_CID(nextRequest->getCid());
-    if (clientsManager->canBecomePending(nextRequest->clientProxyId(), nextRequest->requestSeqNum())) {
-      prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
-      clientsManager->addPendingRequest(
-          nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
-      metric_primary_batching_duration_.finishMeasurement(nextRequest->getCid());
+  auto requestSeqNum = nextRequest->requestSeqNum();
+  auto clientProxyId = nextRequest->clientProxyId();
+  auto cid = nextRequest->getCid();
+  uint32_t reqSize = nextRequest->size();
+  auto senderId = nextRequest->size();
+  auto clientReq = std::make_unique<ClientRequestMsg>(nextRequest);
+
+  if (reqSize <= prePrepareMsg.remainingSizeForRequests()) {
+    SCOPED_MDC_CID(cid);
+    if (clientsManager->canBecomePending(clientProxyId, requestSeqNum)) {
+      prePrepareMsg.addRequest(std::move(clientReq), reqSize);
+      clientsManager->addPendingRequest(clientProxyId, requestSeqNum, cid);
+      metric_primary_batching_duration_.finishMeasurement(cid);
     }
-  } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
+  } else if (reqSize > maxStorageForRequests) {  // The message is too big
     LOG_WARN(GL,
-             "Request was dropped because it exceeds maximum allowed size" << KVLOG(
-                 prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
+             "Request was dropped because it exceeds maximum allowed size"
+                 << KVLOG(prePrepareMsg.seqNumber(), senderId, reqSize, maxStorageForRequests));
   }
-  primaryCombinedReqSize -= nextRequest->size();
+  primaryCombinedReqSize -= reqSize;
   requestsQueueOfPrimary.pop();
-  delete nextRequest;
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
@@ -1024,13 +1029,12 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
   // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
     static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
-
     while (reqIter.getAndGoToNext(requestBody)) {
       const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
       if (hdr->msgType == MsgCode::PreProcessResult) {
         tasks.push_back(threadPool.async(
             [&errors, requestBody, error_id](auto replicaId, auto fVal) {
-              preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+              preprocessor::PreProcessResultMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
               errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
             },
             getReplicaConfig().replicaId,
@@ -1118,11 +1122,11 @@ void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message
     if (seqNumInfo.addMsg(msg, false, time_is_ok)) {
       msgAdded = true;
 
-      // Start tracking all client requests with in this pp message
+      // Start tracking all client requests within this pp message
       RequestsIterator reqIter(msg);
       char *requestBody = nullptr;
       while (reqIter.getAndGoToNext(requestBody)) {
-        ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
+        ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
@@ -1502,7 +1506,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(std::unique_ptr<FullCommitProofMs
  *
  * @return : returns nothing
  */
-void ReplicaImp::onCarrierMessage(CarrierMesssage *msg) {
+void ReplicaImp::onCarrierMessage(CarrierMessage *msg) {
   auto validatedMsgCallBack = msgHandlers_->getValidatedMsgCallback(msg->getMsgType());
   ConcordAssert(validatedMsgCallBack != nullptr);
   validatedMsgCallBack(msg);
@@ -1522,7 +1526,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   }
 
   // Handle vaidated messages
-  if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
+  if (auto *vldMsg = std::get_if<CarrierMessage *>(&msg)) {
     return onCarrierMessage(*vldMsg);
   }
 
@@ -2389,14 +2393,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
           static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
               config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
 
-          Time timeOfLastEcecution = MinTime;
+          Time timeOfLastExecution = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
-            timeOfLastEcecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
-          if ((getMonotonicTime() - timeOfLastEcecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
+            timeOfLastExecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
+          if ((getMonotonicTime() - timeOfLastExecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
             LOG_INFO(GL,
                      "Number of stable checkpoints in current window: "
                          << numRelevant << " time since last execution: "
-                         << (getMonotonicTime() - timeOfLastEcecution).count() << " ms");
+                         << (getMonotonicTime() - timeOfLastExecution).count() << " ms");
             askForStateTransfer = true;
             startStReason = "Too much time has passed since last execution";
           }
@@ -4758,11 +4762,11 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   }
 }
 
-void ReplicaImp::setConflictDetectionBlockId(const ClientRequestMsg &clientReqMsg,
+void ReplicaImp::setConflictDetectionBlockId(const ClientRequestMsgView &clientReqMsgView,
                                              IRequestsHandler::ExecutionRequest &execReq) {
-  ConcordAssertGT(clientReqMsg.requestLength(), sizeof(uint64_t));
-  auto requestSize = clientReqMsg.requestLength() - sizeof(uint64_t);
-  auto opt_block_id = *(reinterpret_cast<uint64_t *>(clientReqMsg.requestBuf() + requestSize));
+  ConcordAssertGT(clientReqMsgView.requestLength(), sizeof(uint64_t));
+  auto requestSize = clientReqMsgView.requestLength() - sizeof(uint64_t);
+  auto opt_block_id = *(reinterpret_cast<uint64_t *>(clientReqMsgView.requestBuf() + requestSize));
   LOG_DEBUG(GL, "Conflict detection optimization block id is " << opt_block_id);
   execReq.blockId = opt_block_id;
   execReq.requestSize = requestSize;
@@ -4876,7 +4880,7 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
       requestSet = mapOfRecoveredRequests;
       // count numOfSpecialReqs
       while (reqIter.getAndGoToNext(requestBody)) {
-        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG)) {
           numOfSpecialReqs++;
           reqIdx++;
@@ -4916,8 +4920,7 @@ void ReplicaImp::markSpecialRequests(RequestsIterator &reqIter,
                                      bool allowParallelExecution,
                                      bool &shouldRunRequestsInParallel) {
   while (reqIter.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    //        SCOPED_MDC_CID(req.getCid());
+    ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
     NodeIdType clientId = req.clientProxyId();
     if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
         (req.flags() & MsgFlag::CLIENTS_PUB_KEYS_FLAG)) {
@@ -5007,6 +5010,7 @@ void ReplicaImp::executeAllPrePreparedRequests(bool allowParallelExecution,
                     time);  // this method will send internal message that will call to finishExecutePrePrepareMsg
   }
 }
+
 // TODO(GG): explain "special requests" (TBD - mention that thier effect on the res pages should be idempotent)
 void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
                                         uint16_t numOfSpecialReqs,
@@ -5017,14 +5021,12 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
   while (reqIter.getAndGoToNext(requestBody) && numOfSpecialReqs > 0) {
-    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-
+    ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
     if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
         (req.flags() & MsgFlag::CLIENTS_PUB_KEYS_FLAG))  // TODO(GG): check how exactly the following will work
                                                          // when we try to recover
     {
       NodeIdType clientId = req.clientProxyId();
-
       accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
           clientId,
           static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -5077,8 +5079,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
-    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-
+    ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       InternalMessage im = RemovePendingForExecutionRequest{req.clientProxyId(), req.requestSeqNum()};
       getIncomingMsgsStorage().pushInternalMsg(std::move(im));
@@ -5448,7 +5449,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     //////////////////////////////////////////////////////////////////////
     if (!recoverFromErrorInRequestsExecution) {
       while (reqIter.getAndGoToNext(requestBody)) {
-        ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
+        ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
         const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
@@ -5633,7 +5634,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
-    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
+    ClientRequestMsgView req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
@@ -5776,7 +5777,7 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
   RequestsIterator reqIter(prePrepareMsg);
   char *requestBody = nullptr;
   while (reqIter.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    ClientRequestMsgView req((ClientRequestMsgHeader *)requestBody);
     if (!clientsManager->isValidClient(req.clientProxyId())) continue;
     auto clientId = req.clientProxyId();
     LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));

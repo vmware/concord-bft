@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -24,11 +24,11 @@ NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const concordUtils::
   b()->newViewNum = newView;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->elementsCount = 0;
-  memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  memcpy(body().data() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 NewViewMsg::NewViewElement* NewViewMsg::elementsArray() const {
-  return reinterpret_cast<NewViewElement*>(body() + sizeof(Header) + spanContextSize());
+  return reinterpret_cast<NewViewElement*>(body().data() + sizeof(Header) + spanContextSize());
 }
 
 void NewViewMsg::addElement(ReplicaId replicaId, Digest& viewChangeDigest) {

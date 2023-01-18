@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -71,7 +71,6 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
     char* p1 = r1->replyBuf();
     char* p2 = r2->replyBuf();
-
     return (memcmp(p1, p2, r1->replyLength()) == 0);
   }
 
@@ -449,7 +448,7 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
                                   req.flags,
                                   req.reqSeqNum,
                                   req.lengthOfRequest,
-                                  (char*)req.request.data(),
+                                  (const char*)req.request.data(),
                                   req.timeoutMilli,
                                   cid,
                                   0,
@@ -571,9 +570,9 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode,
     if (pendingRequests_.empty()) return;
 
     // create msg object
-    MessageBase::Header* msgBody = (MessageBase::Header*)std::malloc(messageLength);
-    memcpy(msgBody, message, messageLength);
-    MessageBase* pMsg = new MessageBase(senderId, msgBody, messageLength, true);
+    auto msgBody = MESSAGE_BODY(messageLength);
+    memcpy(msgBody.data(), message, messageLength);
+    MessageBase* pMsg = new MessageBase(senderId, std::make_unique<MESSAGE_BODY>(msgBody), messageLength);
 
     msgQueue_.push(pMsg);  // TODO(GG): handle overflow
   }
@@ -641,12 +640,13 @@ void SimpleClientImp::sendPendingRequest(bool isBatch, const std::string& cid) {
     replyCertificates_.clear();
   }
 
-  if (!isBatch) return sendRequestToAllOrToPrimary(sendToAll, pendingRequests_[0]->body(), pendingRequests_[0]->size());
+  if (!isBatch)
+    return sendRequestToAllOrToPrimary(sendToAll, pendingRequests_[0]->body().data(), pendingRequests_[0]->size());
 
   uint32_t batchBufSize = 0;
   for (auto const& msg : pendingRequests_) batchBufSize += msg->size();
   ClientBatchRequestMsg* batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequests_, batchBufSize, cid);
-  sendRequestToAllOrToPrimary(sendToAll, batchMsg->body(), batchMsg->size());
+  sendRequestToAllOrToPrimary(sendToAll, batchMsg->body().data(), batchMsg->size());
   delete batchMsg;
 }
 

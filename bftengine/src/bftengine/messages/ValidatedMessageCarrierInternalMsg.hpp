@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -19,12 +19,12 @@ namespace bftEngine {
 namespace impl {
 
 // Any Incoming message is external and can be translated into internal message.
-// CarrierMesssage class will contain the knowledge of type of the translated message that
+// CarrierMessage class will contain the knowledge of type of the translated message that
 // Carried from internal message into external message
-class CarrierMesssage {
+class CarrierMessage {
  public:
-  CarrierMesssage(MsgType msgType) : msgType_(msgType) {}
-  virtual ~CarrierMesssage() {}
+  CarrierMessage(MsgType msgType) : msgType_(msgType) {}
+  virtual ~CarrierMessage() {}
   MsgType getMsgType() const { return msgType_; }
 
  private:
@@ -36,11 +36,11 @@ class CarrierMesssage {
 // ValidatedMessageCarrierInternalMsg<T> class.
 // This class assumes that the translated message is a subclass of MessageBase
 template <typename MSG, typename = std::enable_if_t<std::is_base_of_v<MessageBase, MSG>>>
-class ValidatedMessageCarrierInternalMsg : public CarrierMesssage {
+class ValidatedMessageCarrierInternalMsg : public CarrierMessage {
  public:
-  // This ctor will get a ptr to message and it is not responsible to allocate or deallocation of the message
+  // This ctor will get a ptr to the message, and it is not responsible for allocation or deallocation of the message.
   // It just carries the message.
-  ValidatedMessageCarrierInternalMsg(MSG*& msg) : CarrierMesssage(msg->type()), msg_(std::move(msg)) {}
+  ValidatedMessageCarrierInternalMsg(MSG*& msg) : CarrierMessage(msg->type()), msg_(std::move(msg)) {}
 
   // Once the message is returned to the owner of the message, it will never be taken by anyone or
   // given to anyone.

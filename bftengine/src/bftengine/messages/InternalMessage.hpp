@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -72,7 +72,7 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
 
                                      // Add Carriers of messages which will encapsulate
                                      // Incoming External messages to Internal message.
-                                     CarrierMesssage*,
+                                     CarrierMessage*,
 
                                      // Retransmission manager related
                                      RetranProcResultInternalMsg,

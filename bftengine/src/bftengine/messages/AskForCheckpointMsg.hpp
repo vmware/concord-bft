@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -22,7 +22,7 @@ class AskForCheckpointMsg : public MessageBase {
  public:
   AskForCheckpointMsg(ReplicaId senderId, const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{})
       : MessageBase(senderId, MsgCode::AskForCheckpoint, spanContext.data().size(), sizeof(Header)) {
-    char* position = body() + sizeof(Header);
+    char* position = body().data() + sizeof(Header);
     memcpy(position, spanContext.data().data(), spanContext.data().size());
   }
 
@@ -48,7 +48,7 @@ class AskForCheckpointMsg : public MessageBase {
 #pragma pack(pop)
   static_assert(sizeof(Header) == sizeof(MessageBase::Header), "Header is 2B");
 
-  Header* b() const { return (Header*)msgBody_; }
+  Header* b() const { return (Header*)msgBody_->data(); }
 };
 
 }  // namespace bftEngine::impl

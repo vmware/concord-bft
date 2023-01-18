@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -51,7 +51,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   Digest tmpDigest;
   digest.calcCombination(v, s, tmpDigest);
 
-  auto position = m->body() + sizeof(Header);
+  auto position = m->body().data() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
 
@@ -76,7 +76,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   m->b()->thresSigLength = sigLen;
 
-  auto position = m->body() + sizeof(Header);
+  auto position = m->body().data() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
   memcpy(position, sig, sigLen);

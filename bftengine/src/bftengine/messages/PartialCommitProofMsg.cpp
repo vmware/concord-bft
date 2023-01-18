@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -29,19 +29,19 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
                   MsgCode::PartialCommitProof,
                   spanContext.data().size(),
                   sizeof(Header) + thresholdSigner->requiredLengthForSignedData()) {
-  uint16_t thresholSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
+  uint16_t thresholdSignatureLength = (uint16_t)thresholdSigner->requiredLengthForSignedData();
 
   b()->viewNum = v;
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->commitPath = commitPath;
-  b()->thresholSignatureLength = thresholSignatureLength;
+  b()->thresholdSignatureLength = thresholdSignatureLength;
 
-  char* position = body() + sizeof(Header);
+  char* position = body().data() + sizeof(Header);
   memcpy(position, spanContext.data().data(), spanContext.data().size());
 
   position = position + spanContext.data().size();
-  thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholSignatureLength);
+  thresholdSigner->signData((const char*)(&(digest)), sizeof(Digest), position, thresholdSignatureLength);
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {

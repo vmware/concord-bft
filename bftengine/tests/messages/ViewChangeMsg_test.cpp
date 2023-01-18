@@ -122,10 +122,10 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
   {
     uint32_t packedComplaints = 0;
     ViewChangeMsg::ComplaintsIterator iter(&msg);
-    char* complaint = nullptr;
+    MESSAGE_BODY complaint;
     MsgSize size = 0;
     while (iter.getAndGoToNext(complaint, size)) {
-      auto Msg = MessageBase(msg.senderId(), (MessageBase::Header*)complaint, size, false);
+      auto Msg = MessageBase(msg.senderId(), std::make_unique<MESSAGE_BODY>(complaint), size);
       auto msg_complaint = std::make_unique<ReplicaAsksToLeaveViewMsg>(&Msg);
       EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
       packedComplaints++;
@@ -251,10 +251,10 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
   auto checkComplaints = [&msg, &replicaInfo](int numberOfComplaints) {
     uint32_t packedComplaints = 0;
     ViewChangeMsg::ComplaintsIterator iter(&msg);
-    char* complaint = nullptr;
+    MESSAGE_BODY complaint;
     MsgSize size = 0;
     while (iter.getAndGoToNext(complaint, size)) {
-      auto Msg = MessageBase(msg.senderId(), (MessageBase::Header*)complaint, size, false);
+      auto Msg = MessageBase(msg.senderId(), std::make_unique<MESSAGE_BODY>(complaint), size);
       auto msg_complaint = std::make_unique<ReplicaAsksToLeaveViewMsg>(&Msg);
       EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
       packedComplaints++;

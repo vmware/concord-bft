@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -102,10 +102,10 @@ class ViewChangeMsg : public MessageBase {
     bool goToAtLeast(SeqNum lowerBound);
 
    protected:
-    const ViewChangeMsg* const msg;
-    uint32_t endLoc;
-    uint32_t currLoc;
-    uint16_t nextElementNum;  // used for debug
+    const ViewChangeMsg* const msg_;
+    uint32_t endLoc_;
+    uint32_t currLoc_;
+    uint16_t nextElementNum_;  // used for debug
   };
 
   class ComplaintsIterator {
@@ -113,19 +113,19 @@ class ViewChangeMsg : public MessageBase {
     // this ctor assumes that m is a legal ViewChangeMsg message (as defined by checkComplaints() )
     ComplaintsIterator(const ViewChangeMsg* const m);
 
-    bool getCurrent(char*& pComplaint, MsgSize& size);
+    bool getCurrent(MESSAGE_BODY& complaint, MsgSize& size);
 
     bool end();
 
     void gotoNext();
 
-    bool getAndGoToNext(char*& pComplaint, MsgSize& size);
+    bool getAndGoToNext(MESSAGE_BODY& complaint, MsgSize& size);
 
    protected:
-    const ViewChangeMsg* const msg;
-    uint32_t endLoc;
-    uint32_t currLoc;
-    uint16_t nextComplaintNum;  // used for debug
+    const ViewChangeMsg* const msg_;
+    uint32_t endLoc_;
+    uint32_t currLoc_;
+    uint16_t nextComplaintNum_;  // used for debug
   };
 
  protected:
@@ -150,7 +150,7 @@ class ViewChangeMsg : public MessageBase {
 #pragma pack(pop)
   static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 8 + 2 + 4 + 2 + 4), "Header is 44B");
 
-  Header* b() const { return ((Header*)msgBody_); }
+  Header* b() const { return ((Header*)msgBody_->data()); }
 
   uint32_t getBodySize() const;
 

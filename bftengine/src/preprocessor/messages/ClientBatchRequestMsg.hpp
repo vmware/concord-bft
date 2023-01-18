@@ -44,7 +44,7 @@ class ClientBatchRequestMsg : public MessageBase {
   void validate(const ReplicasInfo&) const override;
 
  protected:
-  ClientBatchRequestMsgHeader* msgBody() const { return ((ClientBatchRequestMsgHeader*)msgBody_); }
+  ClientBatchRequestMsgHeader* msgBody() const { return ((ClientBatchRequestMsgHeader*)msgBody_->data()); }
 
  private:
   static logging::Logger& logger() {

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -21,6 +21,8 @@
 namespace bftEngine {
 namespace impl {
 
+using MESSAGE_BODY = std::vector<char>;
+
 template <typename MessageT>
 size_t sizeOfHeader();
 
@@ -37,12 +39,11 @@ class MessageBase {
 
   MessageBase(NodeIdType sender, MsgType type, MsgSize size);
   MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanContextSize, MsgSize size);
-
-  MessageBase(NodeIdType sender, Header *body, MsgSize size, bool ownerOfStorage);
-
-  void releaseOwnership() { owner_ = false; }
+  MessageBase(NodeIdType sender, std::unique_ptr<MESSAGE_BODY> body, MsgSize size);
 
   virtual ~MessageBase();
+
+  MESSAGE_BODY *releaseOwnership() { return msgBody_.release(); }
 
   virtual void validate(const ReplicasInfo &) const;
 
@@ -52,24 +53,22 @@ class MessageBase {
   bool equals(const MessageBase &other) const;
 
   static size_t serializeMsg(char *&buf, const MessageBase *msg);
-
   static size_t serializeMsg(char *&buf, char *msg);
-
   static MessageBase *deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }
 
-  char *body() const { return reinterpret_cast<char *>(msgBody_); }
+  MESSAGE_BODY &body() const { return *msgBody_.get(); }
 
   NodeIdType senderId() const { return sender_; }
 
-  MsgType type() const { return msgBody_->msgType; }
-
-  SpanContextSize spanContextSize() const { return msgBody_->spanContextSize; }
+  MsgType type() const { return (reinterpret_cast<Header *>(msgBody_->data()))->msgType; }
+  SpanContextSize spanContextSize() const { return (reinterpret_cast<Header *>(msgBody_->data()))->spanContextSize; }
 
   template <typename MessageT>
   concordUtils::SpanContext spanContext() const {
-    return concordUtils::SpanContext{std::string(body() + sizeOfHeader<MessageT>(), spanContextSize())};
+    return concordUtils::SpanContext{
+        std::string(reinterpret_cast<char *>(msgBody_->data()) + sizeOfHeader<MessageT>(), spanContextSize())};
   }
 
   MessageBase *cloneObjAndMsg() const;
@@ -83,21 +82,17 @@ class MessageBase {
   void writeObjAndMsgToLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize) const;
   static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
   void shrinkToFit();
-
   bool reallocSize(uint32_t size);
-
   void setMsgSize(MsgSize size);
-
   MsgSize internalStorageSize() const { return storageSize_; }
 
  protected:
-  Header *msgBody_ = nullptr;
+  std::unique_ptr<MESSAGE_BODY> msgBody_;
   MsgSize msgSize_ = 0;
   MsgSize storageSize_ = 0;
   // This might be the direct sender, but not the originator
   NodeIdType sender_;
   // true IFF this instance is not responsible for de-allocating the body:
-  bool owner_ = true;
   static constexpr uint32_t magicNumOfRawFormat = 0x5555897BU;
 
   template <typename MessageT>
@@ -125,12 +120,10 @@ class MessageBase {
 // During de-serialization we first place the raw char array that we receive with the actual message into the msgBody_
 // of a MessageBase object to be able to get the msgType. Later during dispatch we need to create an object of the
 // actual message type from the MessageBase object holding the msgBody_ of the actual message.
-#define BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(TrueTypeName)                                                     \
-  TrueTypeName(MessageBase *msgBase)                                                                                \
-      : MessageBase(                                                                                                \
-            msgBase->senderId(), reinterpret_cast<MessageBase::Header *>(msgBase->body()), msgBase->size(), true) { \
-    msgBase->releaseOwnership();                                                                                    \
-  }
+#define BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(TrueTypeName) \
+  TrueTypeName(MessageBase *msgBase)                            \
+      : MessageBase(                                            \
+            msgBase->senderId(), std::make_unique<MESSAGE_BODY>(*msgBase->releaseOwnership()), msgBase->size()) {}
 
 template <typename MessageT>
 size_t sizeOfHeader() {

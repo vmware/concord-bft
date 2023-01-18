@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -27,7 +27,7 @@ ClientReplyMsg::ClientReplyMsg(
     ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength, uint32_t executionResult)
     : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
   setHeaderParameters(0, reqSeqNum, replyLength, executionResult);
-  memcpy(body() + sizeof(ClientReplyMsgHeader), reply, replyLength);
+  memcpy(body().data() + sizeof(ClientReplyMsgHeader), reply, replyLength);
 }
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength, uint32_t executionResult)

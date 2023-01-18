@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -38,12 +38,12 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
   b()->flags = 0;
   b()->genReplicaId = genReplica;
   if (stateIsStable) b()->flags |= 0x1;
-  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  std::memcpy(body().data() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void CheckpointMsg::sign() {
   auto sigManager = SigManager::instance();
-  sigManager->sign(body(), sizeof(Header), body() + sizeof(Header) + spanContextSize());
+  sigManager->sign(body().data(), sizeof(Header), body().data() + sizeof(Header) + spanContextSize());
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
@@ -65,8 +65,8 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   }
 
   if (!sigManager->verifySig(idOfGeneratedReplica(),
-                             std::string_view{body(), sizeof(Header)},
-                             std::string_view{body() + sizeof(Header) + spanContextSize(), sigLen}))
+                             std::string_view{body().data(), sizeof(Header)},
+                             std::string_view{body().data() + sizeof(Header) + spanContextSize(), sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
 }

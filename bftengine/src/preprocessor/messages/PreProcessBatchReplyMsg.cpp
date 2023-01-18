@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -29,13 +29,13 @@ PreProcessBatchReplyMsg::PreProcessBatchReplyMsg(uint16_t clientId,
   const uint32_t numOfMessagesInBatch = batch.size();
   setParams(senderId, clientId, numOfMessagesInBatch, repliesSize, viewNum);
   msgBody()->cidLength = cid.size();
-  auto position = body() + sizeof(Header);
+  auto position = body().data() + sizeof(Header);
   if (cid.size()) {
     memcpy(position, cid.c_str(), cid.size());
     position += cid.size();
   }
   for (auto const& reply : batch) {
-    memcpy(position, reply->body(), reply->size());
+    memcpy(position, reply->body().data(), reply->size());
     position += reply->size();
   }
   const uint64_t msgLength = sizeof(Header) + cid.size() + repliesSize;
@@ -77,7 +77,9 @@ void PreProcessBatchReplyMsg::setParams(
   msgBody()->viewNum = viewNum;
 }
 
-std::string PreProcessBatchReplyMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
+std::string PreProcessBatchReplyMsg::getCid() const {
+  return string(body().data() + sizeof(Header), msgBody()->cidLength);
+}
 
 PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
   if (!preProcessReplyMsgsList_.empty()) return preProcessReplyMsgsList_;
@@ -87,7 +89,7 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
   const auto& clientId = msgBody()->clientId;
   const auto& senderId = msgBody()->senderId;
   const auto sigLen = SigManager::instance()->getSigLength(msgBody()->senderId);
-  char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
+  char* dataPosition = body().data() + sizeof(Header) + msgBody()->cidLength;
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(PreProcessReplyMsg::Header*)dataPosition;
     const auto& reqSeqNum = singleMsgHeader.reqSeqNum;
@@ -106,7 +108,7 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       singleMsgHeader.status,
                                                       singleMsgHeader.preProcessResult,
                                                       singleMsgHeader.viewNum);
-    preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
+    preProcessReplyMsgsList_.push_back(std::move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }
   LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, numOfMessagesInBatch, preProcessReplyMsgsList_.size()));

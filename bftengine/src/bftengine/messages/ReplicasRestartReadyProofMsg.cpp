@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -32,7 +32,7 @@ ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->elementsCount = 0;
   b()->locationAfterLast = 0;
-  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  std::memcpy(body().data() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 const uint32_t ReplicasRestartReadyProofMsg::getBodySize() const {
   uint32_t bodySize = b()->locationAfterLast;
@@ -55,7 +55,7 @@ void ReplicasRestartReadyProofMsg::addElement(std::unique_ptr<ReplicaRestartRead
   }
   uint32_t requiredSpace = b()->locationAfterLast + restartMsg->size();
   ConcordAssertLE((size_t)(requiredSpace + SigManager::instance()->getMySigLength()), (size_t)internalStorageSize());
-  std::memcpy(body() + b()->locationAfterLast, restartMsg->body(), restartMsg->size());
+  std::memcpy(body().data() + b()->locationAfterLast, restartMsg->body().data(), restartMsg->size());
   b()->elementsCount += 1;
   b()->locationAfterLast = requiredSpace;
 }
@@ -94,7 +94,7 @@ bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, ui
   auto sigManager = SigManager::instance();
   uint16_t numOfActualElements = 0;
   uint32_t remainingBytes = size() - sizeof(Header) - spanContextSize();
-  char* currLoc = body() + sizeof(Header) + spanContextSize();
+  char* currLoc = body().data() + sizeof(Header) + spanContextSize();
   SeqNum seqNum = b()->seqNum;
   auto extraDataLen = 0u;
   while ((remainingBytes >= (sizeof(ReplicaRestartReadyMsg::Header) + extraDataLen + sigSize)) &&

@@ -123,7 +123,7 @@ they must have distinct names.
 
 All messages start with the token `Msg`, followed the message name, the message id, and opening
 brace, `{`. Each field is specified with the type name, followed by the field name. After all
-field definitions, a closing brace, `}` is added. All types must be *flat*. No nested messsage
+field definitions, a closing brace, `}` is added. All types must be *flat*. No nested message
 definitions are allowed. For nesting, use an existing message name as the type or multiple
 compound types.
 

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018, 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -80,7 +80,7 @@ void ReplicaBase::sendToAllOtherReplicas(MessageBase* m, bool includeRo) {
   if (includeRo) {
     replicas.insert(repsInfo->idsOfPeerROReplicas().begin(), repsInfo->idsOfPeerROReplicas().end());
   }
-  msgsCommunicator_->send(replicas, m->body(), m->size());
+  msgsCommunicator_->send(replicas, m->body().data(), m->size());
 }
 
 void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
@@ -88,7 +88,7 @@ void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
 
   LOG_DEBUG(CNSUS, "sending msg type: " << type << ", dest: " << dest);
-  if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
+  if (msgsCommunicator_->sendAsyncMessage(dest, m->body().data(), m->size())) {
     LOG_ERROR(CNSUS, "sendAsyncMessage failed: " << KVLOG(type, dest));
   }
 }

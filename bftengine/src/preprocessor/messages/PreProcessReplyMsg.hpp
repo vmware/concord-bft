@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -105,7 +105,7 @@ class PreProcessReplyMsg : public MessageBase {
   void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& reqCid);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
 
-  Header* msgBody() const { return ((Header*)msgBody_); }
+  Header* msgBody() const { return ((Header*)msgBody_->data()); }
 
  private:
   static uint16_t maxReplyMsgSize_;

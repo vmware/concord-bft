@@ -53,7 +53,7 @@ class WrapCommunication : public ICommunication {
   virtual ~WrapCommunication() override {}
 
  private:
-  bool changeMesssage(std::vector<uint8_t> const &msg, std::shared_ptr<bftEngine::impl::MessageBase> &newMsg);
+  bool changeMessage(std::vector<uint8_t> const &msg, std::shared_ptr<bftEngine::impl::MessageBase> &newMsg);
   static void addStrategy(uint16_t msgCode,
                           std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy> byzantineStrategy);
 

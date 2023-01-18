@@ -131,7 +131,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Wrapper function to be called from the ConnMgr.
   void startReading();
 
-  // Every messsage is preceded by a 4 byte message header that we must read.
+  // Every message is preceded by a 4 byte message header that we must read.
   // `bytes_already_read` == `std::nullopt` if this is the first read call.
   void readMsgSizeHeader();
   void readMsgSizeHeader(std::optional<size_t> bytes_already_read);

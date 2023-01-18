@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -35,7 +35,7 @@ ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
   b()->sigLength = sigLen;
   b()->reason = r;
   b()->extraDataLen = extraData.size();
-  auto position = body() + sizeof(Header);
+  auto position = body().data() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
   std::memcpy(position, extraData.data(), extraData.size());
@@ -51,8 +51,8 @@ ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
 
   ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, r, extraData, spanContext);
   auto dataSize = sizeof(Header) + m->getExtraDataLength() + spanContext.data().size();
-  auto position = m->body() + dataSize;
-  sigManager->sign(reinterpret_cast<const uint8_t*>(m->body()), dataSize, reinterpret_cast<uint8_t*>(position));
+  auto position = m->body().data() + dataSize;
+  sigManager->sign(reinterpret_cast<const uint8_t*>(m->body().data()), dataSize, reinterpret_cast<uint8_t*>(position));
   //+-----------+-----------+----------+
   //| Header    | extraData | Signature|
   //+-----------+-----------+----------+
@@ -60,7 +60,7 @@ ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
 }
 std::string ReplicaRestartReadyMsg::getExtraData() const {
   if (getReason() == Reason::Scale) return std::string{};
-  return std::string(body() + sizeof(Header) + spanContextSize(), getExtraDataLength());
+  return std::string(body().data() + sizeof(Header) + spanContextSize(), getExtraDataLength());
 }
 
 void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
@@ -75,8 +75,9 @@ void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);
   if (size() < dataSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!sigManager->verifySig(
-          idOfSenderReplica, std::string_view{body(), dataSize}, std::string_view{body() + dataSize, sigLen}))
+  if (!sigManager->verifySig(idOfSenderReplica,
+                             std::string_view{body().data(), dataSize},
+                             std::string_view{body().data() + dataSize, sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

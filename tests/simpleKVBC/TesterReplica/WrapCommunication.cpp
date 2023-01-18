@@ -27,8 +27,8 @@ std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> WrapCommunication::chang
 
 int WrapCommunication::send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum) {
   std::shared_ptr<MessageBase> newMsg;
-  if (changeMesssage(msg, newMsg) && newMsg) {
-    std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
+  if (changeMessage(msg, newMsg) && newMsg) {
+    std::vector<uint8_t> chgMsg(newMsg->body().data(), newMsg->body().data() + newMsg->size());
     LOG_INFO(logger_, "Sending the changed message to destNode : " << destNode);
     return communication_->send(destNode, std::move(chgMsg), endpointNum);
   } else {
@@ -48,8 +48,8 @@ std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<u
     return failedNodes;
   } else {
     std::shared_ptr<MessageBase> newMsg;
-    if (changeMesssage(msg, newMsg) && newMsg) {
-      std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
+    if (changeMessage(msg, newMsg) && newMsg) {
+      std::vector<uint8_t> chgMsg(newMsg->body().data(), newMsg->body().data() + newMsg->size());
       LOG_INFO(logger_, "Sending the changed message to all replicas");
       return communication_->send(dests, std::move(chgMsg));
     }
@@ -61,14 +61,17 @@ void WrapCommunication::addStrategy(uint16_t msgCode, std::shared_ptr<IByzantine
   WrapCommunication::changeStrategy.insert(std::make_pair(msgCode, byzantineStrategy));
 }
 
-bool WrapCommunication::changeMesssage(std::vector<uint8_t> const& msg, std::shared_ptr<MessageBase>& newMsg) {
+bool WrapCommunication::changeMessage(std::vector<uint8_t> const& msg, std::shared_ptr<MessageBase>& newMsg) {
   bool is_strategy_changed = false;
   if (msg.size() <= ReplicaConfig::instance().getmaxExternalMessageSize() &&
       msg.size() >= sizeof(MessageBase::Header)) {
-    auto* msgBody = (MessageBase::Header*)std::malloc(msg.size());
-    memcpy(msgBody, msg.data(), msg.size());
+    std::unique_ptr<std::vector<char>> dataVector;
+    dataVector->reserve(msg.size());
+    for (auto const& elem : msg) {
+      dataVector->push_back(elem);
+    }
     auto node = ReplicaConfig::instance().getreplicaId();
-    newMsg = std::make_shared<MessageBase>(node, msgBody, msg.size(), true);
+    newMsg = std::make_shared<MessageBase>(node, std::move(dataVector), msg.size());
     if (newMsg) {
       auto it = changeStrategy.find(static_cast<uint16_t>(newMsg->type()));
       if (it != changeStrategy.end()) {

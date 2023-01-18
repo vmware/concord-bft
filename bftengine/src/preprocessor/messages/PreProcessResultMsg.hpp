@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -35,10 +35,11 @@ namespace preprocessor {
 //
 // Ideally PrePrepare message should be reworked to bundle ClientRequestMsg and PreProcessResultMsg messages. Then the
 // inheritance for this message won't be needed. For the moment (Jun 2021) this change is not implemented though.
+
+using ErrorMessage = std::optional<std::string>;
+
 class PreProcessResultMsg : public ClientRequestMsg {
  public:
-  using ErrorMessage = std::optional<std::string>;
-
   PreProcessResultMsg(NodeIdType sender,
                       uint32_t preProcessResult,
                       uint64_t reqSeqNum,
@@ -52,12 +53,37 @@ class PreProcessResultMsg : public ClientRequestMsg {
                       const std::string& resultSignatures = "",
                       uint16_t indexInBatch = 0);
 
-  PreProcessResultMsg(bftEngine::ClientRequestMsgHeader* body);
-
   PreProcessResultMsg(MessageBase* msgBase) : ClientRequestMsg(msgBase) {}
 
-  std::pair<char*, uint32_t> getResultSignaturesBuf();
+  std::pair<char*, uint32_t> getResultSignaturesBuf() { return getExtraBufPtr(); }
   ErrorMessage validatePreProcessResultSignatures(ReplicaId myReplicaId, int16_t fVal);
+
+  static ErrorMessage validatePreProcessResultSignatures(const std::pair<char*, uint32_t> resultSignaturesBuf,
+                                                         ReplicaId myReplicaId,
+                                                         int16_t fVal,
+                                                         uint16_t clientProxyId,
+                                                         const std::string& cid,
+                                                         uint64_t requestSeqNum,
+                                                         char* requestBuf,
+                                                         uint32_t requestLength);
+};
+
+// Helper class to retrieve info from the PreProcessResultMsgs stored internally in PrePrepareMsg.
+class PreProcessResultMsgView : public ClientRequestMsgView {
+ public:
+  PreProcessResultMsgView(bftEngine::ClientRequestMsgHeader* msg) : ClientRequestMsgView(msg) {}
+
+  ErrorMessage validatePreProcessResultSignatures(ReplicaId myReplicaId, int16_t fVal) {
+    return PreProcessResultMsg::validatePreProcessResultSignatures(getExtraBufPtr(),
+                                                                   myReplicaId,
+                                                                   fVal,
+                                                                   msg_->idOfClientProxy,
+                                                                   getCid(),
+                                                                   msg_->reqSeqNum,
+                                                                   requestBuf(),
+                                                                   msg_->requestLength);
+  }
+  const MsgCode::Type type() const { return MsgCode::PreProcessResult; }
 };
 
 struct PreProcessResultSignature {

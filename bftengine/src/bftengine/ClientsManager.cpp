@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -368,7 +368,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
   // write reply message to reserved pages
   const uint32_t firstPageId = getReplyFirstPageId(clientId) + requestOffset;
   for (uint32_t i = 0; i < numOfPages; i++) {
-    const char* ptrPage = r->body() + i * sizeOfReservedPage();
+    const char* ptrPage = r->body().data() + i * sizeOfReservedPage();
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
@@ -426,7 +426,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
-    char* const ptrPage = r->body() + i * sizeOfReservedPage();
+    char* const ptrPage = r->body().data() + i * sizeOfReservedPage();
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     loadReservedPage(firstPageId + i, sizePage, ptrPage);
   }
