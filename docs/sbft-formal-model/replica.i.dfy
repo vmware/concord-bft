@@ -258,7 +258,7 @@ module Replica {
   }
 
   function CalculateRestrictionForSeqID(c:Constants, v:Variables, seqID:SequenceID, newViewMsg:Network.Message<Message>) 
-    : Option<OperationWrapper>
+    : Option<OperationWrapper> // returns None if any operation is allowed
       requires v.WF(c)
       requires newViewMsg.payload.NewViewMsg?
       requires newViewMsg.payload.vcMsgs.valid(v.view, c.clusterConfig.AgreementQuorum())
@@ -309,11 +309,8 @@ module Replica {
     && v.WF(c)
     && msgOps.IsSend()
     && CurrentPrimary(c, v) == c.myId
-    && seqID in v.workingWindow.getActiveSequenceIDs(c)
-    && msgOps.send == Some(Network.Message(c.myId,
-                                           PrePrepare(v.view, 
-                                                      seqID,
-                                                      v.workingWindow.prePreparesRcvd[seqID].value.payload.operationWrapper)))
+    && IsValidPrePrepare(c, v, msgOps.send.value)
+    && msgOps.send.value.payload.seqID == seqID
     && v.workingWindow.prePreparesRcvd[seqID].None?
     && v' == v.(workingWindow :=
                 v.workingWindow.(prePreparesRcvd :=
@@ -330,8 +327,31 @@ module Replica {
                && PrimaryForView(c, newViewMsg.payload.newView) == newViewMsg.sender)
   }
 
+  predicate IsValidOperationWrapper(c:Constants,
+                                    v:Variables,
+                                    seqID:SequenceID,
+                                    newViewMsg:Network.Message<Message>,
+                                    operation:OperationWrapper)
+    requires v.WF(c)
+    requires newViewMsg.payload.NewViewMsg?
+    requires newViewMsg.payload.vcMsgs.valid(v.view, c.clusterConfig.AgreementQuorum())
+    requires newViewMsg in v.newViewMsgsRecvd.msgs
+    // readability:
+    requires newViewMsg.payload.newView == v.view
+    requires CurrentPrimary(c, v) == newViewMsg.sender
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
+    requires LiteInv(c, v)
+  {
+    && var restriction := CalculateRestrictionForSeqID(c, 
+                                                       v,
+                                                       seqID, 
+                                                       newViewMsg);
+    && restriction.Some? ==> restriction.value == operation
+  }
+
+
   // For clarity here we have extracted all preconditions that must hold for a Replica to accept a PrePrepare
-  predicate IsValidPrePrepareToAccept(c:Constants, v:Variables, msg:Network.Message<Message>)
+  predicate IsValidPrePrepare(c:Constants, v:Variables, msg:Network.Message<Message>)
   {
     && v.WF(c)
     && LiteInv(c, v)
@@ -348,11 +368,7 @@ module Replica {
         then true
         else && |newViewMsgs| == 1
              && var newViewMsg :| newViewMsg in newViewMsgs;
-             && Some(msg.payload.operationWrapper) == CalculateRestrictionForSeqID(c, 
-                                                                                   v,
-                                                                                   msg.payload.seqID, 
-                                                                                   newViewMsg))
-
+             && IsValidOperationWrapper(c, v, msg.payload.seqID, newViewMsg, msg.payload.operationWrapper))
   }
 
   // Predicate that describes what is needed and how we mutate the state v into v' when RecvPrePrepare
@@ -363,7 +379,7 @@ module Replica {
     && v.WF(c)
     && msgOps.IsRecv()
     && var msg := msgOps.recv.value;
-    && IsValidPrePrepareToAccept(c, v, msg)
+    && IsValidPrePrepare(c, v, msg)
     && v' == v.(workingWindow := 
                 v.workingWindow.(prePreparesRcvd := 
                                  v.workingWindow.prePreparesRcvd[msg.payload.seqID := Some(msg)]))
