@@ -26,22 +26,23 @@ namespace concord::secretsmanager {
 
 class IAesMode {
  public:
-  IAesMode(const KeyParams& params, const std::string& a_info = "") : params_{params}, additional_info(a_info) {}
+  IAesMode(const KeyParams& params, const uint32_t tagLengthBits = 128)
+      : params_{params}, tag_length_in_bits(tagLengthBits) {}
   virtual std::vector<uint8_t> encrypt(std::string_view input) = 0;
   virtual std::string decrypt(const std::vector<uint8_t>& cipher) = 0;
   const KeyParams getKeyParams() { return params_; }
-  const std::string getAdditionalInfo() { return additional_info; }
+  const uint32_t getTagLengthInBits() { return tag_length_in_bits; }
   // Not adding setters as these algo/modes must be set at construction time
   virtual ~IAesMode() = default;
 
  private:
   KeyParams params_;
-  std::string additional_info;
+  uint32_t tag_length_in_bits;
 };
 
 class AES_CBC : public IAesMode {
  public:
-  AES_CBC(const KeyParams& params, const std::string& a_info = "") : IAesMode(params, a_info) {}
+  AES_CBC(const KeyParams& params, const uint32_t tagLengthBits = 128) : IAesMode(params, tagLengthBits) {}
   std::vector<uint8_t> encrypt(std::string_view input) override;
   std::string decrypt(const std::vector<uint8_t>& cipher) override;
   ~AES_CBC() = default;
@@ -49,7 +50,7 @@ class AES_CBC : public IAesMode {
 
 class AES_GCM : public IAesMode {
  public:
-  AES_GCM(const KeyParams& params, const std::string& a_info = "") : IAesMode(params, a_info) {}
+  AES_GCM(const KeyParams& params, const uint32_t tagLengthBits = 128) : IAesMode(params, tagLengthBits) {}
   std::vector<uint8_t> encrypt(std::string_view input) override;
   std::string decrypt(const std::vector<uint8_t>& cipher) override;
   ~AES_GCM() = default;

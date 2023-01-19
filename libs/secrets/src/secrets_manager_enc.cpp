@@ -32,9 +32,9 @@ SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
 }
 std::unique_ptr<IAesMode> SecretsManagerEnc::getAESEncryptionMode() {
   if (initial_secret_data_.algo == "AES/GCM/NoPadding") {
-    return std::make_unique<AES_GCM>(*key_params_, initial_secret_data_.additional_info);
+    return std::make_unique<AES_GCM>(*key_params_, initial_secret_data_.tag_length);
   } else {
-    return std::make_unique<AES_CBC>(*key_params_, initial_secret_data_.additional_info);
+    return std::make_unique<AES_CBC>(*key_params_);
   }
 }
 bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::string& input) {

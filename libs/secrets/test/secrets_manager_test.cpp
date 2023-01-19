@@ -131,7 +131,7 @@ TEST(SecretsManager, Internals_GCM_With_TagLength) {
   concord::secretsmanager::KeyParams key_params(secret_data.key, secret_data.iv);
 
   // Encrypt
-  concord::secretsmanager::AES_GCM e(key_params, "{\"TAG_LENGTH_BITS\" : 128}");
+  concord::secretsmanager::AES_GCM e(key_params, 128);
   auto cipher_text = e.encrypt(input);
   auto cipher_text_encoded = base64Enc(cipher_text);
   ASSERT_EQ(cipher_text_encoded, encrypted);
