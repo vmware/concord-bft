@@ -49,19 +49,15 @@ class NetworkPartitioningAdversary(ABC):
         pass
 
     def _init_bft_network_rule_chain(self):
-        subprocess.run(
-            ["iptables", "-N", self.BFT_NETWORK_PARTITIONING_RULE_CHAIN],
-            check=True)
-        subprocess.run(
-            ["iptables", "-A", "INPUT",
-             "-s", "localhost", "-d", "localhost",
-             "-j", self.BFT_NETWORK_PARTITIONING_RULE_CHAIN],
-            check=True)
+        subprocess.run(["iptables", "-F"])
+        subprocess.run(["iptables", "-X"])
+        subprocess.check_output(["iptables", "-N", self.BFT_NETWORK_PARTITIONING_RULE_CHAIN], stderr=subprocess.STDOUT)
+        subprocess.check_output(["iptables", "-A", "INPUT", "-s", "localhost", "-d", "localhost","-j", self.BFT_NETWORK_PARTITIONING_RULE_CHAIN])
 
     def _remove_bft_network_rule_chain(self):
         """ Flush all customize rules and chains, accept anything """
-        subprocess.run(["iptables", "-F"], check=True)
-        subprocess.run(["iptables", "-X"], check=True)
+        subprocess.check_output(["iptables", "-F"])
+        subprocess.check_output(["iptables", "-X"])
 
     def _port_to_node_id(self, port, other_port, pid=None):
         """

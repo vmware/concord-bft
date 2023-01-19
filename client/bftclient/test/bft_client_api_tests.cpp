@@ -47,8 +47,7 @@ constexpr char PUB_KEY_NAME[] = "pubkey.pem";
 constexpr char ENC_PRIV_KEY_NAME[] = "privkey.enc";
 constexpr char ENC_SYMM_KEY[] = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
 constexpr char ENC_IV[] = "38106509f6528ff859c366747aa04f21";
-constexpr char KEYS_GEN_SCRIPT_PATH[] =
-    "/concord-bft//scripts/linux/create_concord_clients_transaction_signing_keys.sh";
+constexpr char KEYS_GEN_SCRIPT_PATH[] = "../../../../scripts/linux/create_concord_clients_transaction_signing_keys.sh";
 
 class ClientApiTestFixture : public ::testing::Test {
  public:

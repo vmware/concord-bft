@@ -148,6 +148,6 @@ struct LocalWriteBatch {
   std::queue<uint8_t> operations_;
   const uint8_t delete_op_{0};
   const uint8_t put_op_{1};
-};  // namespace concord::kvbc::categorization::detail
+};
 
 }  // namespace concord::kvbc::categorization::detail

@@ -46,6 +46,7 @@ install_boost() {
     mkdir build
     cd build
     cmake -DBOOST_INCLUDE_LIBRARIES="program_options;thread;locale;asio;lockfree;bimap;histogram" ..
+    cmake ..
     make install
     cd ${HOME}
     rm -rf boost
@@ -119,12 +120,11 @@ install_rapidcheck() {
 # In order to be compatible with the native build
 install_minio() {
     cd ${HOME}
-    wget ${WGET_FLAGS} \
-        https://dl.min.io/server/minio/release/linux-amd64/minio && \
-        chmod 755 ${HOME}/minio
+    wget ${WGET_FLAGS} https://dl.min.io/server/minio/release/linux-amd64/minio
+    mv minio /usr/local/bin
+    chmod 755 /usr/local/bin/minio
 
     pip3 install minio
-
 }
 
 install_openssl() {

@@ -31,18 +31,6 @@ class MinioS3Server : public IS3Server {
   MinioS3Server(const fs::path &base_dir) : data_dir{base_dir / "minio_data_dir"} {}
 
   void start(const concord::storage::s3::StoreConfig &config) override {
-    if (!std::getenv("MINIO_BINARY_PATH")) {
-      LOG_FATAL(GL, "MINIO_BINARY_PATH environment not set");
-      ConcordAssert(false && "MINIO_BINARY_PATH environment not set");
-    }
-
-    binary_path = std::getenv("MINIO_BINARY_PATH");
-    ;
-    std::error_code ec;
-    if (!fs::exists(binary_path, ec)) {
-      LOG_FATAL(GL, binary_path << " doesn't exist: " << ec.message());
-      ConcordAssert(false && "minio executable not found");
-    }
     LOG_INFO(GL, "starting s3 server");
     if ((pid = fork()) == 0) {
       auto access = std::string("MINIO_ROOT_USER=" + config.accessKey);
@@ -50,9 +38,9 @@ class MinioS3Server : public IS3Server {
       putenv((char *)access.c_str());
       putenv((char *)secret.c_str());
       putenv((char *)"CI=on");
-      int status = execl(binary_path.c_str(), "minio", "server", data_dir.c_str(), NULL);
+      int status = execlp("minio", "minio", "server", data_dir.c_str(), NULL);
       // returns only on failure
-      LOG_FATAL(GL, "execl failed: " << strerror(errno));
+      LOG_FATAL(GL, "execlp failed: " << strerror(errno));
       ASSERT_EQ(status, 0);
     } else {
       // give the server time to start
@@ -73,7 +61,6 @@ class MinioS3Server : public IS3Server {
 
  protected:
   fs::path data_dir;
-  fs::path binary_path;
   int pid = 0;
 };
 

@@ -45,7 +45,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
     ReadOnlyReplicaTest has got two modes of operation:
         - using external S3 object store (minio)
         - using internal RocksDB store
-    Setting CONCORD_BFT_MINIO_BINARY_PATH env variable will triger S3 mode.
     """
 
     @classmethod
@@ -162,8 +161,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         After 5 secs start S3 server.
         Wait for State Transfer in ReadOnlyReplica to complete. This test is executed only in S3 mode.
         """
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
 
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -194,9 +191,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         After 5 secs start S3 server.
         Wait for State Transfer in ReadOnlyReplica to complete. This test is executed only in S3 mode.
         """
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
-
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -225,8 +219,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         Wait for another state transfer.
         This test is executed only in S3 mode.
         """
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
 
         #self.__class__._clear_s3_storage()
 

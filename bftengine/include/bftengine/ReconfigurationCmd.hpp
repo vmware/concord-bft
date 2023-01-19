@@ -134,5 +134,5 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
   logging::Logger logger_;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle reconfiguration_cmd_blockid_gauge_;
-};  // namespace bftEngine
+};
 }  // namespace bftEngine

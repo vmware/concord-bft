@@ -86,7 +86,7 @@ PATH_TYPE_TO_METRIC_PARAMS = {
 KEY_FILE_PREFIX = "replica_keys_"
 # bft_client.py  implement 2 types of clients currently:
 # UdpClient for UDP communication and TcpTlsClient for for TCP/TLS communication
-BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true" \
+BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() == "on" \
                                           else bft_client.UdpClient
 
 # For better performance, we Would like to keep the next constant as minimal as possible.
@@ -124,7 +124,7 @@ def skip_for_tls(async_fn):
     """ Decorator for skipping the test for TCP/TLS. """
     @wraps(async_fn)
     def wrapper(*args, **kwargs):
-        if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() != "true":
+        if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() != "on":
             return async_fn(*args, **kwargs)
         else:
             pass
@@ -642,7 +642,7 @@ class BftTestNetwork:
 
     def generate_txn_signing_keys(self, keys_path):
         """ Generates num_participants number of key pairs """
-        script_path = "../../scripts/linux/create_concord_clients_transaction_signing_keys.sh"
+        script_path = os.path.join(self.builddir, "../scripts/linux/create_concord_clients_transaction_signing_keys.sh")
         args = [script_path, "-n", str(self.num_participants), "-o", keys_path]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -802,7 +802,7 @@ class BftTestNetwork:
 
         if keep_logs:
             test_name = os.environ.get('TEST_NAME')
-            if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+            if os.environ.get('BLOCKCHAIN_VERSION', default="1") == "4" :
                 test_name = test_name + "_v4"
 
             if not test_name:

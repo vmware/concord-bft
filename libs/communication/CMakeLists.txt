@@ -1,5 +1,9 @@
 project (libbftcommunication LANGUAGES CXX)
 
+option(BUILD_COMM_TCP_PLAIN "Enable plain TCP communication" ON)
+option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
+option(BUILD_COMM_UDP "Enable plain UDP communication" OFF)
+
 if(BUILD_COMM_TCP_PLAIN AND BUILD_COMM_TCP_TLS)
     message(FATAL_ERROR "Both BUILD_COMM_TCP_PLAIN and BUILD_COMM_TCP_TLS are enabled, while only one can be chosen.")
 endif()
@@ -7,9 +11,11 @@ endif()
 add_library(bftcommunication src/CommFactory.cpp) 
 
 if(BUILD_COMM_TCP_PLAIN)
+	message(STATUS BUILD_COMM_TCP_PLAIN)
     target_sources(bftcommunication PRIVATE src/PlainTcpCommunication.cpp)
-target_compile_definitions(bftcommunication PUBLIC USE_COMM_PLAIN_TCP)
+	target_compile_definitions(bftcommunication PUBLIC USE_COMM_PLAIN_TCP)
 elseif(BUILD_COMM_TCP_TLS)
+	message(STATUS BUILD_COMM_TCP_TLS)
     target_sources(bftcommunication PRIVATE src/TlsTCPCommunication.cpp
                                             src/TlsMultiplexCommunication.cpp
                                             src/TlsRunner.cpp
@@ -26,11 +32,14 @@ elseif(BUILD_COMM_TCP_TLS)
     endif()
     target_link_libraries(bftcommunication PUBLIC OpenSSL::SSL diagnostics)
     
-else()
+elseif(BUILD_COMM_UDP)
+	message(STATUS BUILD_COMM_UDP)
     # UDP module is not part of the CMake configuration, it will be used by default
     # if neither of plain TCP or TLS will be chosen
     target_sources(bftcommunication PRIVATE src/PlainUDPCommunication.cpp)
     target_compile_definitions(bftcommunication PUBLIC USE_COMM_UDP)
+else()
+	message(FATAL_ERROR "At least one build option should be chosen for libbftcommunication library [BUILD_COMM_TCP_TLS, BUILD_COMM_TCP_PLAIN, BUILD_COMM_UDP]")
 endif()
 
 target_link_libraries(bftcommunication PUBLIC util concord-crypto)

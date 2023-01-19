@@ -9,12 +9,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-22.04
-    container: concordbft/concord-bft:0.60
+    container:
+      image: concordbft/concord-bft:0.60
+      options: --cap-add=NET_ADMIN
     strategy:
       fail-fast: false
       matrix:
         ci_build_type: [Debug, Release]
-        comm_type: [BUILD_COMM_UDP] # TODO [TK], BUILD_COMM_TCP_TLS, BUILD_COMM_TCP_PLAIN]
+        comm_type: 
+          - "-DBUILD_COMM_UDP=ON -DBUILD_COMM_TCP_TLS=OFF -DBUILD_COMM_TCP_PLAIN=OFF"
+          - "-DBUILD_COMM_UDP=OFF -DBUILD_COMM_TCP_TLS=ON -DBUILD_COMM_TCP_PLAIN=OFF"
     steps:
         - name: Checkout
           uses: actions/checkout@v3
@@ -23,7 +27,7 @@ jobs:
             mkdir build
             cd build
             cmake \
-              -D${{ matrix.comm_type }}=ON \
+              ${{ matrix.comm_type }} \
               -DCMAKE_BUILD_TYPE=${{ matrix.ci_build_type }} \
               -DBUILD_TESTING=ON \
                ..
@@ -31,7 +35,8 @@ jobs:
         - name: Test
           run: |
             cd build
-            ctest --output-on-failure
+            # many tests require administrative priviliges for running iptables or nc
+            sudo ctest --output-on-failure
         - name: Prepare artifacts
           if: ${{ failure() }}
           run: |

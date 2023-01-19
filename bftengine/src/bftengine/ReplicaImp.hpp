@@ -770,6 +770,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 #else
   std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 #endif
-};  // namespace bftEngine::impl
+};
 
 }  // namespace bftEngine::impl

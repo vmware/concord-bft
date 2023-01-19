@@ -289,7 +289,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;
   std::unique_ptr<RsiDataManager> rsiManager_;
-};  // namespace impl
+};
 
 }  // namespace impl
 }  // namespace bftEngine

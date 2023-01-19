@@ -58,9 +58,6 @@ class SkvbcS3IntegrityCheckTest(ApolloTest):
         check that integrity was verified
         This test is executed only in S3 mode.
         """
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
-
         bft_network.start_all_replicas()
         ro_replica_id = bft_network.config.n
 
@@ -92,9 +89,6 @@ class SkvbcS3IntegrityCheckTest(ApolloTest):
         verify that integrity check failed
         This test is executed only in S3 mode.
         """
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
-
         bft_network.start_all_replicas()
         ro_replica_id = bft_network.config.n
 
