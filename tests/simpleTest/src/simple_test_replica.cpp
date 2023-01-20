@@ -13,6 +13,7 @@
 
 #include "simple_test_replica.hpp"
 #include "test_comm_config.hpp"
+#include "ReplicaFactory.hpp"
 
 // NOLINTNEXTLINE(misc-definitions-in-headers)
 
@@ -24,13 +25,14 @@ SimpleTestReplica::SimpleTestReplica(ICommunication *commObject,
                                      MetadataStorage *metaDataStorage)
     : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state) {
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
-  replica = IReplica::createNewReplica(rc,
-                                       std::shared_ptr<bftEngine::IRequestsHandler>(state),
-                                       inMemoryST,
-                                       comm,
-                                       metaDataStorage,
-                                       std::make_shared<concord::performance::PerformanceManager>(),
-                                       nullptr); /*SecretsManagerEnc*/
+  replica = bftEngine::ReplicaFactory::createReplica(rc,
+                                                     std::shared_ptr<bftEngine::IRequestsHandler>(state),
+                                                     inMemoryST,
+                                                     comm,
+                                                     metaDataStorage,
+                                                     std::make_shared<concord::performance::PerformanceManager>(),
+                                                     nullptr); /*SecretsManagerEnc*/
+
   replica->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
 }
 

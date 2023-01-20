@@ -60,19 +60,9 @@ class DebugStatistics {
     DebugStatDesc() : initialized(false) {}
   };
 
-#ifdef USE_TLS
-  static DebugStatDesc& getDebugStatDesc() {
-    ThreadLocalData* l = ThreadLocalData::Get();
-    DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
-    return *(dsd);
-  }
-#else
-
   static DebugStatDesc globalDebugStatDesc;
 
   static DebugStatDesc& getDebugStatDesc() { return globalDebugStatDesc; }
-
-#endif
 
   static void clearCounters(DebugStatDesc& d);
 };
