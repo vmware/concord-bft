@@ -311,6 +311,7 @@ module Proof {
     && UnCommitableAgreesWithRecordedPrePrepare(c, v)
     && HonestReplicasLeaveViewsBehind(c, v)
     && RecordedNewViewMsgsContainSentVCMsgs(c, v)
+    && RecordedViewChangeMsgsCameFromNetwork(c, v)
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
@@ -1041,13 +1042,16 @@ module Proof {
   }
 
   predicate {:opaque} HonestReplicasLeaveViewsBehind(c:Constants, v:Variables) {
+    && v.WF(c)
     && (forall viewChangeMsg | && viewChangeMsg in v.network.sentMsgs
+                               && viewChangeMsg.payload.ViewChangeMsg?
                                && IsHonestReplica(c, viewChangeMsg.sender)
                                   :: && var replicaVariables := v.hosts[viewChangeMsg.sender].replicaVariables;
                                      && replicaVariables.view >= viewChangeMsg.payload.newView)
   }
 
   predicate {:opaque} RecordedNewViewMsgsContainSentVCMsgs(c:Constants, v:Variables) {
+    && v.WF(c)
     && (forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
                                         && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
                                         && newViewMsg in replicaVariables.newViewMsgsRecvd.msgs
@@ -1066,6 +1070,14 @@ module Proof {
                    && replicaVars.view == replicaVars.workingWindow.prePreparesRcvd[seqID].value.payload.view)
   }
 
+  predicate {:opaque} RecordedViewChangeMsgsCameFromNetwork(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall replicaIdx, viewChangeMsg | 
+                              && IsHonestReplica(c, replicaIdx)
+                              && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+                              && viewChangeMsg in replicaVariables.viewChangeMsgsRecvd.msgs
+                                 :: viewChangeMsg in v.network.sentMsgs)
+  }
 
 //TODO: write a predicate Prepare matches Commit
   lemma GetPrepareFromHonestSenderForCommit(c:Constants, v:Variables, commitMsg:Message)
@@ -1276,6 +1288,71 @@ module Proof {
     }
   }
 
+  lemma HonestPreservesHonestReplicasLeaveViewsBehind(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures HonestReplicasLeaveViewsBehind(c, v')
+  {
+    reveal_HonestReplicasLeaveViewsBehind();
+  }
+
+  lemma HonestPreservesRecordedNewViewMsgsContainSentVCMsgs(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedNewViewMsgsContainSentVCMsgs(c, v')
+  {
+    if(h_step.SelectQuorumOfViewChangeMsgsStep?) {
+      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+      reveal_RecordedViewChangeMsgsCameFromNetwork();
+      forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
+                                        && var replicaVariables := v'.hosts[replicaIdx].replicaVariables;
+                                        && newViewMsg in replicaVariables.newViewMsgsRecvd.msgs
+                                           ensures newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs {
+
+        if newViewMsg in v.hosts[replicaIdx].replicaVariables.newViewMsgsRecvd.msgs {
+          assert newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs;
+        } else {
+          assert newViewMsg.payload.vcMsgs.msgs <= step.msgOps.signedMsgsToCheck;
+          assert step.msgOps.signedMsgsToCheck <= v.network.sentMsgs;
+          assert newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs;
+        }
+      }
+
+      assert RecordedNewViewMsgsContainSentVCMsgs(c, v');
+    } else if(h_step.RecvNewViewMsgStep?) {
+      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+      assert RecordedNewViewMsgsContainSentVCMsgs(c, v');
+    } else {
+      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+      assert RecordedNewViewMsgsContainSentVCMsgs(c, v');
+    }
+
+    
+  }
+
+  lemma HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedViewChangeMsgsCameFromNetwork(c, v')
+  {
+    reveal_RecordedViewChangeMsgsCameFromNetwork();
+    forall replicaIdx, viewChangeMsg | 
+                              && IsHonestReplica(c, replicaIdx)
+                              && var replicaVariables := v'.hosts[replicaIdx].replicaVariables;
+                              && viewChangeMsg in replicaVariables.viewChangeMsgsRecvd.msgs
+                                 ensures viewChangeMsg in v'.network.sentMsgs {
+      if viewChangeMsg !in v.network.sentMsgs {
+        if(h_step.RecvViewChangeMsgStep?) {
+          assert viewChangeMsg in v'.network.sentMsgs;
+        } else if(h_step.LeaveViewStep?){
+          assert viewChangeMsg in v'.network.sentMsgs;
+        } else {
+          assert false;
+        }
+      }
+    }
+  }
+
   lemma HonestRecvPrePrepareStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -1357,6 +1434,8 @@ module Proof {
       HonestLeaveViewStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c, v, v', step, h_v, h_step);
     } else if(h_step.RecvPrePrepareStep?) {
       HonestRecvPrePrepareStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c, v, v', step, h_v, h_step);
+    } else if(h_step.SendPrePrepareStep?) {
+      assume false;
     } else {
       TriviallyPreserveUnCommitableAgreesWithRecordedPrePrepare(c, v, v', step, HonestInfo(h_v, h_step));
     }
@@ -1393,6 +1472,9 @@ module Proof {
       HonestPreservesRecordedPrePreparesMatchHostView(c, v, v', step, h_v, h_step);
       HonestPreservesUnCommitableAgreesWithRecordedPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
+      HonestPreservesHonestReplicasLeaveViewsBehind(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedNewViewMsgsContainSentVCMsgs(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c, v, v', step, h_v, h_step);
     } else {
       InvNextFaultyOrClient(c, v, v', step);
     }
@@ -1465,7 +1547,15 @@ module Proof {
     assert UnCommitableAgreesWithPrepare(c, v') by {
       TriviallyPreserveUnCommitableAgreesWithPrepare(c, v, v', step, NotHonest());
     }
-    
+    assert HonestReplicasLeaveViewsBehind(c, v') by {
+      reveal_HonestReplicasLeaveViewsBehind();
+    }
+    assert RecordedNewViewMsgsContainSentVCMsgs(c, v') by {
+      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+    }
+    assert RecordedViewChangeMsgsCameFromNetwork(c, v') by {
+      reveal_RecordedViewChangeMsgsCameFromNetwork();
+    }
   }
 
   lemma InitEstablishesInv(c: Constants, v:Variables)
@@ -1492,6 +1582,9 @@ module Proof {
       reveal_RecordedPrePreparesMatchHostView();
       reveal_UnCommitableAgreesWithPrepare();
       reveal_UnCommitableAgreesWithRecordedPrePrepare();
+      reveal_HonestReplicasLeaveViewsBehind();
+      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+      reveal_RecordedViewChangeMsgsCameFromNetwork();
     }
   }
 
