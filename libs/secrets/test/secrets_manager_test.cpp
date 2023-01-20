@@ -58,7 +58,7 @@ SecretData getSecretData_GCM() {
   ret.key = "71df1518bb2330201985cfddbf3fb1f30c6f63b0a953b1ce633e48387b5093eb";
   ret.iv = "3d75354384953730b9701019f5d7a2e0";
   ret.key_length = 256;
-
+  ret.tag_length = 128;
   return ret;
 }
 
