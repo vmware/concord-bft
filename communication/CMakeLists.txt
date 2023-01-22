@@ -7,9 +7,11 @@ endif()
 add_library(bftcommunication src/CommFactory.cpp) 
 
 if(BUILD_COMM_TCP_PLAIN)
+    message(STATUS BUILD_COMM_TCP_PLAIN)
     target_sources(bftcommunication PRIVATE src/PlainTcpCommunication.cpp)
 target_compile_definitions(bftcommunication PUBLIC USE_COMM_PLAIN_TCP)
 elseif(BUILD_COMM_TCP_TLS)
+    message(STATUS BUILD_COMM_TCP_TLS)
     target_sources(bftcommunication PRIVATE src/TlsTCPCommunication.cpp
                                             src/TlsMultiplexCommunication.cpp
                                             src/TlsRunner.cpp
@@ -25,6 +27,7 @@ elseif(BUILD_COMM_TCP_TLS)
     target_link_libraries(bftcommunication PUBLIC OpenSSL::SSL diagnostics)
     
 else()
+    message(STATUS BUILD_COMM_UDP)
     # UDP module is not part of the CMake configuration, it will be used by default
     # if neither of plain TCP or TLS will be chosen
     target_sources(bftcommunication PRIVATE src/PlainUDPCommunication.cpp)
