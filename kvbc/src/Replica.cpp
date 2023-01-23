@@ -66,7 +66,7 @@ Status Replica::initInternals() {
         bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
         bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
         *this));
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
+    m_replicaPtr = bftEngine::ReplicaFactory::createRoReplica(
         replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
@@ -318,7 +318,7 @@ void Replica::createReplicaAndSyncState() {
   ConcordAssertNE(m_kvBlockchain, nullptr);
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
-  m_replicaPtr = bftEngine::IReplica::createNewReplica(
+  m_replicaPtr = bftEngine::ReplicaFactory::createReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
 

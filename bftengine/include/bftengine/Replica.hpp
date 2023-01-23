@@ -90,32 +90,14 @@ class IControlHandler {
   virtual ~IControlHandler() = default;
 };
 
+class IExternalObject {
+ public:
+  virtual ~IExternalObject() = default;
+  virtual void setAggregator(const std::shared_ptr<concordMetrics::Aggregator> &a) = 0;
+};
+
 class IReplica {
  public:
-  using IReplicaPtr = std::unique_ptr<IReplica>;
-  static IReplicaPtr createNewReplica(const ReplicaConfig &,
-                                      std::shared_ptr<IRequestsHandler>,
-                                      IStateTransfer *,
-                                      bft::communication::ICommunication *,
-                                      MetadataStorage *,
-                                      std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
-  static IReplicaPtr createNewReplica(const ReplicaConfig &,
-                                      std::shared_ptr<IRequestsHandler>,
-                                      IStateTransfer *,
-                                      bft::communication::ICommunication *,
-                                      MetadataStorage *,
-                                      bool &erasedMetadata,
-                                      std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
-                                      const std::function<void(bool)> &);
-
-  static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
-                                        std::shared_ptr<IRequestsHandler>,
-                                        IStateTransfer *,
-                                        bft::communication::ICommunication *,
-                                        MetadataStorage *);
-
   virtual ~IReplica() = default;
 
   virtual bool isRunning() const = 0;
