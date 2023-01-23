@@ -51,11 +51,11 @@ class PrivacyWalletService {
   }
 
   void Wait() {
-    if (grpc_server_ != nullptr) {
-      std::cout << "wait for server to terminate" << std::endl;
-      grpc_server_->Wait();
-      std::cout << "server wait terminated" << std::endl;
-    }
+    // if (grpc_server_ != nullptr) {
+    std::cout << "wait for server to terminate" << std::endl;
+    grpc_server_->Wait();
+    std::cout << "server wait terminated" << std::endl;
+    //}
   }
   void Shutdown() {
     if (grpc_server_ != nullptr) {

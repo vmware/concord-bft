@@ -17,10 +17,18 @@
 
 #include "wallet.hpp"
 
-int main() {
-  PrivacyWalletService svc;
+int main(int argc, char* argv[]) {
+  (void)argc;
+  (void)argv;
+
+  if (argc != 2) {
+    std::cout << "Provide GRPC server host:port\n";
+    return 0;
+  }
+  std::cout << "Privacy library service grpc server starting at : " << argv[1] << std::endl;
   try {
-    svc.StartServer("127.0.0.1:50051");
+    PrivacyWalletService svc;
+    svc.StartServer(argv[1]);
     svc.Wait();
   } catch (const std::runtime_error& e) {
     std::cout << "Error (exception): " << e.what() << '\n';
