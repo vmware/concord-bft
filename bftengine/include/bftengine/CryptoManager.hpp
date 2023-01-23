@@ -75,9 +75,9 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   // This abstraction is broken to allow using the consensus key as the replica's main key (In SigManager), thus
   // enabling an operator to change it (key rotation).
   // This code will need to be refactored if a different cryptosystem is used.
-  IThresholdSigner* getSigner(SeqNum seq) const;
-  IThresholdVerifier* getMultisigVerifier(SeqNum seq) const;
-  std::array<std::shared_ptr<IThresholdVerifier>, 2> getLatestVerifiers() const;
+  std::shared_ptr<IThresholdSigner> getSigner(SeqNum seq) const;
+  std::shared_ptr<IThresholdVerifier> getMultisigVerifier(SeqNum seq) const;
+  std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> getLatestVerifiers() const;
   std::array<std::shared_ptr<IThresholdSigner>, 2> getLatestSigners() const;
 
  private:
@@ -108,7 +108,6 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
 
   // create CryptoSys for sn if still doesn't exist
   std::shared_ptr<CryptoSystemWrapper> create(const SeqNum& sn);
-
 
   CryptoManager(std::unique_ptr<Cryptosystem>&& cryptoSys);
   logging::Logger& logger() const;

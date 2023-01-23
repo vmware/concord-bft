@@ -162,7 +162,9 @@ void ViewChangeMsg::finalizeMessage() {
   // |               Message Body               |
   // +------------------------------------------+
 
-  sigManager->sign(body(), bodySize, body() + bodySize);
+  // TODO: since there are multiple message with different sequences, make sure that lastStable()
+  // is the correct value
+  sigManager->sign(lastStable(), body(), bodySize, body() + bodySize);
 
   bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);
 
@@ -181,7 +183,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
   if (!sigManager->verifySig(
           idOfGeneratedReplica(), std::string_view{body(), dataLength}, std::string_view{body() + dataLength, sigLen}))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig(replica)"));
   if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
   if (!checkComplaints(sigLen))  // check list of complaints

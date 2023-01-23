@@ -33,13 +33,16 @@ struct DummyKeyGen : public IMultiSigKeyGenerator, public IKeyExchanger {
   std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() {
     return std::make_tuple(prv, pub, concord::crypto::SignatureAlgorithm::Uninitialized);
   }
+
   void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) {
     selfpub = verificationKey;
     selfprv = secretKey;
   }
+
   void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) {
     pubs[signerIndex] = verificationKey;
   }
+
   DummyKeyGen(uint32_t cs) : pubs{cs, ""} {}
   std::string prv;
   std::string pub;

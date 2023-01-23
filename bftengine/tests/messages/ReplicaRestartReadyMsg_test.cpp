@@ -34,7 +34,7 @@ TEST(ReplicaRestartReadyMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+  std::shared_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
                                                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
@@ -58,7 +58,7 @@ TEST(ReplicaRestartReadyMsg, with_extraData) {
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
   auto version = "latest";
-  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+  std::shared_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
                                                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,

@@ -35,6 +35,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
       auto res = keys.insert(std::make_pair(sn, pub));
       if (!res.second) ConcordAssert(pub == res.first->second)  // if existed expect same key
     }
+    void remove(const SeqNum sn) { ConcordAssertEQ(keys.erase(sn), 1);}
     void serializeDataMembers(std::ostream& outStream) const { serialize(outStream, keys); }
     void deserializeDataMembers(std::istream& inStream) { deserialize(inStream, keys); }
     std::map<SeqNum, std::string> keys;

@@ -396,7 +396,7 @@ class CollectorOfThresholdSignatures {
           // if verification failed again
           // signer index starts with 1, therefore shareId-1
           std::set<uint16_t> replicasWithBadSigs;
-          for (const auto& shareId : acc->getInvalidShareIds()) replicasWithBadSigs.insert((uint16_t)shareId - 1);
+          for (const auto& shareId : acc->getInvalidShareIds()) replicasWithBadSigs.insert((uint16_t)shareId);
           // send failed message
           auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
           repMsgsStorage->pushInternalMsg(std::move(iMsg));

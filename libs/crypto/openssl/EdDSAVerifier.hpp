@@ -38,7 +38,9 @@ class EdDSAVerifier : public IVerifier {
         EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, publicKey_.getBytes().data(), publicKey_.getBytes().size())};
     UniqueContext ctx{EVP_MD_CTX_new()};
     ConcordAssertEQ(EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()), OPENSSL_SUCCESS);
-    return (OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen));
+    auto result = OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen);
+    LOG_INFO(GL, "Verification complete" << KVLOG(getPubKey(), result));
+    return result;
   }
 
   uint32_t signatureLength() const override { return Ed25519SignatureByteSize; }

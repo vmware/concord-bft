@@ -85,7 +85,7 @@ void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
   if (size() < dataLength) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
-  if (elementsCount() < (repInfo.numberOfReplicas() - repInfo.fVal()))
+  if (elementsCount() < (repInfo.getNumberOfReplicas() - repInfo.fVal()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": quorum"));
   if (!checkElements(repInfo, sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));

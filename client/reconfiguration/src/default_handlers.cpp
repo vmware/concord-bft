@@ -44,6 +44,7 @@ bool ReplicaMainKeyPublicationHandler::validate(const State& state) const {
   return validateInputState<concord::messages::ReplicaMainKeyUpdate>(state);
 }
 bool ReplicaMainKeyPublicationHandler::execute(const State& state, WriteState&) {
+  LOG_INFO(getLogger(), "In ReplicaMainKeyPublicationHandler");
   auto cmd = getCmdFromInputState<concord::messages::ReplicaMainKeyUpdate>(state);
   fs::path path = fs::path(output_dir_) / std::to_string(cmd.sender_id);
   auto curr_key = file_handler_.decryptFile((path / "pub_key").string()).value_or("");

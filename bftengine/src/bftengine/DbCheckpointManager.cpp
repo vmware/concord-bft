@@ -341,16 +341,16 @@ void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum
   req.sender = replica_id;
   req.seqNum = seqNum;
   req.noop = noop;
-  std::vector<uint8_t> data_vec;
+  std::vector<concord::Byte> data_vec;
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
-  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  // TODO: this signature does not appear to be validated anywhere in the codebase
+  req.signature.resize(SigManager::instance()->getMySigLength());
+  SigManager::instance()->sign(seqNum, data_vec.data(), data_vec.size(), req.signature.data());
   data_vec.clear();
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string strMsg(data_vec.begin(), data_vec.end());
   std::string cid = "replicaDbCheckpoint_" + std::to_string(seqNum) + "_" + std::to_string(replica_id);
-  if (client_) client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  if (client_)
+    client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, data_vec.size(), reinterpret_cast<char*>(data_vec.data()), cid);
 }
 
 void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum) {

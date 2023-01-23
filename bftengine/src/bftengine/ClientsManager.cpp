@@ -148,6 +148,7 @@ void ClientsManager::RepliesInfo::deleteReplyIfNeededSafe(NodeIdType clientId,
   if (repliesBiMap_.right.find(reqIndex) != repliesBiMap_.right.end()) {
     savedReplyId = repliesBiMap_.right.at(reqIndex);
     if (savedReplyId > reqSeqNum) {
+      printCallStack();
       LOG_WARN(CL_MNGR, "A newer reply was already saved" << KVLOG(clientId, reqSeqNum, savedReplyId, reqIndex));
     }
   }
@@ -177,6 +178,7 @@ uint16_t ClientsManager::RepliesInfo::getIndex(ReqId reqSeqNum) const {
   const auto& replyIt = repliesBiMap_.left.find(reqSeqNum);
   return (replyIt != repliesBiMap_.left.end()) ? replyIt->second : 0;
 }
+
 
 /*************************** Class ClientsManager ***************************/
 

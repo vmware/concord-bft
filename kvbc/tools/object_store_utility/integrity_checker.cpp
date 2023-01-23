@@ -16,7 +16,7 @@
 #include "s3/config_parser.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/ReplicasInfo.hpp"
-#include "bftengine/SigManager.hpp"
+#include "bftengine/ValidationOnlyIdentityManager.hpp"
 #include "bftengine/CheckpointInfo.hpp"
 #include "bcstatetransfer/BCStateTran.hpp"
 #include "direct_kv_storage_factory.h"
@@ -52,13 +52,7 @@ void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
 
   repsInfo_ = new ReplicasInfo(config, true, false);
 
-  bftEngine::impl::SigManager::init(config.replicaId,
-                                    "", /*private key*/
-                                    config.publicKeysOfReplicas,
-                                    KeyFormat::HexaDecimalStrippedFormat,
-                                    nullptr /*publicKeysOfClients*/,
-                                    KeyFormat::PemFormat,
-                                    *repsInfo_);
+  bftEngine::impl::ValidationOnlyIdentityManager::init(config.replicaId, config.publicKeysOfReplicas, *repsInfo_);
 }
 
 void IntegrityChecker::initS3Config(const fs::path& s3_file) {

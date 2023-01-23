@@ -62,8 +62,8 @@ TEST_F(EdDSAMultisigTest, TestSingleVerificationUsingFactory) {
   auto eddsaPrivateKey = dynamic_cast<EdDSAThreshsignPrivateKey*>(privateKey.get());
   auto eddsaPublicKey = dynamic_cast<EdDSAThreshsignPublicKey*>(publicKey.get());
 
-  auto* signer = factory_.newSigner(1, eddsaPrivateKey->toString().c_str());
-  auto* verifier = factory_.newVerifier(1, 1, "", {"", eddsaPublicKey->toString()});
+  auto* signer = factory_.newSigner(0, eddsaPrivateKey->toString().c_str());
+  auto* verifier = factory_.newVerifier(1, 1, "", {eddsaPublicKey->toString()});
   auto accumulator = verifier->newAccumulator(false);
 
   auto msg = testMsgDigest();
@@ -88,9 +88,9 @@ TEST_F(EdDSAMultisigTest, TestSignatureAccumulation) {
   const std::string digest = testMsgDigest();
 
   accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
-  std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
+  std::vector<SingleEdDSASignature> signatures(signers.size());
   for (size_t i = 0; i < signatures.size(); i++) {
-    signers[i + 1]->signData(
+    signers[i]->signData(
         digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
   }
 
@@ -122,12 +122,12 @@ TEST_F(EdDSAMultisigTest, TestValidMultiSignatureSmallThreshold) {
     auto accumulator = verifier->newAccumulator(false);
 
     accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
-    std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
+    std::vector<SingleEdDSASignature> signatures(signers.size());
     for (size_t i = 0; i < signatures.size(); i++) {
-      signers[i + 1]->signData(digest.data(),
-                               static_cast<int>(digest.size()),
-                               reinterpret_cast<char*>(&signatures[i]),
-                               sizeof(SingleEdDSASignature));
+      signers[i]->signData(digest.data(),
+                           static_cast<int>(digest.size()),
+                           reinterpret_cast<char*>(&signatures[i]),
+                           sizeof(SingleEdDSASignature));
     }
     // Make sure that verification does not depend on order, as signatures do not arrive in order
     std::random_shuffle(signatures.begin(), signatures.end());

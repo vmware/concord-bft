@@ -55,6 +55,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
     : _myId{config.replicaId},
+      _isRoReplica{(_myId >= config.numReplicas) && (_myId < config.numReplicas + config.numRoReplicas)},
       _numberOfReplicas{config.numReplicas},
       _numberOfRoReplicas{config.numRoReplicas},
       _numOfClientProxies{config.numOfClientProxies},

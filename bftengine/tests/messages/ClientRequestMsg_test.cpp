@@ -37,7 +37,7 @@ class ClientRequestMsgTestFixture : public ::testing::Test {
 
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;
-  std::unique_ptr<SigManager> sigManager;
+  std::shared_ptr<SigManager> sigManager;
 };
 
 TEST_F(ClientRequestMsgTestFixture, create_and_compare) {

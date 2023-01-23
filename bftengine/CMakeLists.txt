@@ -19,6 +19,7 @@ set(corebft_source_files
     src/bftengine/IncomingMsgsStorageImp.cpp
     src/bftengine/RetransmissionsManager.cpp
     src/bftengine/SigManager.cpp
+    src/bftengine/ValidationOnlyIdentityManager.cpp
     src/bftengine/ReplicasInfo.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp
     src/bftengine/ViewsManager.cpp

@@ -35,7 +35,8 @@ class EdDSASigner : public ISigner {
    */
   explicit EdDSASigner(const PrivateKeyType &privateKey) : privateKey_(privateKey) {}
 
-  size_t signBuffer(const concord::Byte *msg, size_t len, concord::Byte *signature) override {
+  size_t signBuffer(const concord::Byte *msg, size_t len, concord::Byte *signature) const override {
+    LOG_INFO(GL, "Signing with key " << getPrivKey());
     UniquePKEY pkey(EVP_PKEY_new_raw_private_key(
         NID_ED25519, nullptr, privateKey_.getBytes().data(), privateKey_.getBytes().size()));
     ConcordAssertNE(pkey, nullptr);

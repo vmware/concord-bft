@@ -26,10 +26,10 @@ class ReplicasInfo {
   ReplicasInfo() {}
   ReplicaId myId() const { return _myId; }
 
-  int16_t numberOfReplicas() const { return _numberOfReplicas; }
   int16_t fVal() const { return _fVal; }
   int16_t cVal() const { return _cVal; }
 
+  bool isRoReplica() const { return _isRoReplica; }
   bool isIdOfReplica(NodeIdType id) const { return (id < _numberOfReplicas); }
   bool isIdOfPeerReplica(NodeIdType id) const { return (id < _numberOfReplicas) && (id != _myId); }
   bool isIdOfPeerRoReplica(NodeIdType id) const { return _idsOfPeerROReplicas.find(id) != _idsOfPeerROReplicas.end(); }
@@ -40,7 +40,7 @@ class ReplicasInfo {
   bool isIdOfInternalClient(PrincipalId id) const {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
-  bool isIdOfClientService(NodeIdType id) { return _idsOfClientServices.find(id) != _idsOfClientServices.end(); }
+  bool isIdOfClientService(NodeIdType id) const { return _idsOfClientServices.find(id) != _idsOfClientServices.end(); }
   bool isValidPrincipalId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
@@ -79,15 +79,16 @@ class ReplicasInfo {
     return getExecutionCollectors(v, n, nullptr, nullptr);
   }
 
-  uint16_t getNumberOfReplicas() { return _numberOfReplicas; }
-  uint16_t getNumberOfRoReplicas() { return _numberOfRoReplicas; }
-  uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
-  uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
-  uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
-  uint16_t getNumberOfClientServices() { return _numberOfClientServices; }
+  uint16_t getNumberOfReplicas() const { return _numberOfReplicas; }
+  uint16_t getNumberOfRoReplicas() const { return _numberOfRoReplicas; }
+  uint16_t getNumOfClientProxies() const { return _numOfClientProxies; }
+  uint16_t getNumberOfExternalClients() const { return _numberOfExternalClients; }
+  uint16_t getNumberOfInternalClients() const { return _numberOfInternalClients; }
+  uint16_t getNumberOfClientServices() const { return _numberOfClientServices; }
 
  protected:
   const ReplicaId _myId = 0;
+  bool _isRoReplica = false;
   const uint16_t _numberOfReplicas = 0;
   const uint16_t _numberOfRoReplicas = 0;
   const uint16_t _numOfClientProxies = 0;

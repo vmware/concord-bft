@@ -123,7 +123,6 @@ class MofNQuorum:
     def __str__(self):
         return f"n: {self.replicas}, m: {self.required}"
 
-
 class BftClient(ABC):
     COUNTER = WriteCounter(val=int(1e6))
 
@@ -299,7 +298,7 @@ class BftClient(ABC):
                 self.client_id, msg_seq_num, False, self.config.req_timeout_milli, batch_cid, msg, 0, True,
                 reconfiguration=False, span_context=b'', signature=signature, batch_index=n)])
 
-        data = bft_msgs.pack_batch_request(self.client_id, batch_size, msg_data, batch_cid)
+        data = bft_msgs.pack_batch_request(self.client_id, batch_size, msg_data, batch_batch_cid)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
@@ -311,7 +310,7 @@ class BftClient(ABC):
                 return await self._send_receive_loop(data, False, m_of_n_quorum,
                     batch_size * self.config.retry_timeout_milli / 1000, no_retries=no_retries)
         except trio.TooSlowError:
-            raise trio.TooSlowError(f"client_id {self.client_id}, for batch msg {batch_cid} {batch_seq_nums}")
+            raise trio.TooSlowError(f"client_id {self.client_id}, for batch msg {batch_batch_cid} {batch_seq_nums}")
         finally:
             pass
 

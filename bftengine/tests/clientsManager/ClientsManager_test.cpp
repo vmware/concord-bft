@@ -133,7 +133,7 @@ shared_ptr<MockSecretsManagerImpl> mock_secrets_manager_impl_for_key_exchange_ma
 unique_ptr<MockClientPublicKeyStore> mock_client_public_key_store_for_key_exchange_manager(
     new MockClientPublicKeyStore());
 unique_ptr<Timers> timers_for_key_exchange_manager(new Timers());
-unique_ptr<SigManager> sig_manager_for_key_exchange_manager;
+std::shared_ptr<SigManager> sig_manager_for_key_exchange_manager;
 
 // Helper functions for managing and checking global objects and/or singletons the ClientsManager uses.
 static void resetMockReservedPages() {
@@ -146,13 +146,13 @@ static void resetSigManager() {
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     kReplicaPrivateKeyForTesting = generateEdDSAKeyPair().first;
   }
-  sig_manager_for_key_exchange_manager.reset(SigManager::init(kReplicaIdForTesting,
-                                                              kReplicaPrivateKeyForTesting,
-                                                              kPublicKeysOfReplicasForTesting,
-                                                              kKeyFormatForTesting,
-                                                              &kInitialPublicKeysOfClientsForTesting,
-                                                              kKeyFormatForTesting,
-                                                              *sigManagerReplicasInfoForTesting));
+  sig_manager_for_key_exchange_manager = SigManager::init(kReplicaIdForTesting,
+                                                          kReplicaPrivateKeyForTesting,
+                                                          kPublicKeysOfReplicasForTesting,
+                                                          kKeyFormatForTesting,
+                                                          &kInitialPublicKeysOfClientsForTesting,
+                                                          kKeyFormatForTesting,
+                                                          *sigManagerReplicasInfoForTesting);
 }
 
 static void initializeKeyExchangeManagerForClientsManagerTesting() {

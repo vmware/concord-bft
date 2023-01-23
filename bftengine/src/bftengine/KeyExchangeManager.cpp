@@ -114,12 +114,17 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= liveQuorumSize))
     LOG_INFO(KEY_EX_LOG,
              "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]"
-                           << KVLOG(kemsg.repID));
+                           << KVLOG(kemsg.repID,
+                                    initial_exchange_,
+                                    exchanged(),
+                                    ReplicaConfig::instance().publishReplicasMasterKeyOnStartup));
   if (!initial_exchange_ && exchanged()) {
     initial_exchange_ = true;
-    if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
-        ReplicaConfig::instance().publishReplicasMasterKeyOnStartup)
+    if (ReplicaConfig::instance().getkeyExchangeOnStart()
+        /*&&ReplicaConfig::instance().publishReplicasMasterKeyOnStartup*/
+        ) {
       sendMainPublicKey();
+    }
   }
   return "ok";
 }
@@ -149,7 +154,7 @@ void KeyExchangeManager::loadPublicKeys() {
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && exchanged()) {
     ConcordAssertGE(num_loaded, liveQuorumSize);
   }
-  LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
+  LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer" << KVLOG(num_loaded));
   notifyRegistry();
 }
 
@@ -201,7 +206,10 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& 
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
+  SigManager::instance()->sign(SigManager::instance()->getReplicaLastExecutedSeq(),
+                               reinterpret_cast<char*>(data_vec.data()),
+                               data_vec.size(),
+                               sig.data());
   req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   data_vec.clear();
   concord::messages::serialize(data_vec, req);
@@ -214,22 +222,28 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   exchangeTlsKeys("server", bft_sn);
   exchangeTlsKeys("client", bft_sn);
   metrics_->tls_key_exchange_requests_++;
-  bft::communication::StateControl::instance().restartComm(repID_);
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
+  bft::communication::StateControl::instance().restartComm(repID_);
+  LOG_INFO(KEY_EX_LOG, "Replica communication restarted after tls exchange");
 }
 void KeyExchangeManager::sendMainPublicKey() {
+  auto [seq, latestPublicKey] = SigManager::instance()->getMyLatestPublicKey();
   concord::messages::ReconfigurationRequest req;
   req.sender = repID_;
   req.command =
       concord::messages::ReplicaMainKeyUpdate{repID_,
-                                              SigManager::instance()->getPublicKeyOfVerifier(repID_),
+                                              latestPublicKey,
                                               "hex",
-                                              static_cast<uint8_t>(SigManager::instance()->getMainKeyAlgorithm())};
+                                              static_cast<uint8_t>(SigManager::instance()->getMainKeyAlgorithm()),
+                                              static_cast<uint64_t>(seq)};
   // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
+  SigManager::instance()->sign(SigManager::instance()->getReplicaLastExecutedSeq(),
+                               reinterpret_cast<char*>(data_vec.data()),
+                               data_vec.size(),
+                               sig.data());
   req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   data_vec.clear();
   concord::messages::serialize(data_vec, req);
@@ -276,6 +290,7 @@ void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqN
   msg.algorithm = candidate.algorithm;
   LOG_INFO(KEY_EX_LOG, "Sending consensus key exchange :" << KVLOG(candidate.cid, msg.pubkey, msg.algorithm));
   client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, msg, candidate.cid);
+  sendMainPublicKey();
   metrics_->sent_key_exchange_counter++;
 }
 
@@ -430,7 +445,7 @@ bool KeyExchangeManager::PrivateKeys::load() {
     LOG_INFO(
         KEY_EX_LOG,
         "loaded generated private key for: " << KVLOG(data_.generated.sn, data_.generated.cid, data_.generated.pub));
-  for (const auto& it : data_.keys) LOG_INFO(KEY_EX_LOG, "loaded private key for sn: " << it.first);
+  for (const auto& it : data_.keys) LOG_INFO(KEY_EX_LOG, "loaded private key for sn: " << it.first << KVLOG(it.second));
   return true;
 }
 

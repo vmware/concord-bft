@@ -49,6 +49,8 @@ class Blockchain {
   }
 
   void addBlock(const Block& new_block, storage::rocksdb::NativeWriteBatch& wb) {
+    LOG_INFO(GL, "Adding block_id: " << new_block.id() << " to the database");
+    printCallStack();
     wb.put(detail::BLOCKS_CF, Block::generateKey(new_block.id()), Block::serialize(new_block));
   }
 

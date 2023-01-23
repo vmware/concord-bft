@@ -24,6 +24,8 @@
 #include "KeyStore.h"
 #include "bcstatetransfer/AsyncStateTransferCRE.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
+#include "KeyExchangeManager.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -70,12 +72,25 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 }
 
 void ReplicaForStateTransfer::start() {
-  cre_ = bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator_, msgHandlers_);
+  /* TODO: Transaction signing needs to be disabled for replicas, as state transfer may change
+   * the a replica's consensus (and therefore main) key. Apollo tests currently run with transaction signing enabled,
+   * we therefore use the latest key published by this replica.
+   * If a key exchange consensus was reached by this replica, the other replicas are guaranteed to be able to use
+   * its latest key upon honest execution of the exchange */
+  cre_ = bftEngine::bcst::asyncCRE::CreFactory::create(
+      msgsCommunicator_, msgHandlers_, std::make_unique<bftEngine::bcst::asyncCRE::ReplicaCRESigner>());
   stateTransfer->setReconfigurationEngine(cre_);
   stateTransfer->addOnTransferringCompleteCallback(
-      [this](std::uint64_t) {
+      [this](std::uint64_t sequence_number) {
         // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - consider refactor or move outside
         if (!config_.isReadOnly) {
+          // Load the public keys of the other replicas from reserved pages
+          // so that their responses can be validated
+          KeyExchangeManager::instance().loadPublicKeys();
+          // Make sure to sign the reconfiguration client messages using the key
+          // other replicas expect
+          SigManager::instance()->setReplicaLastExecutedSeq(sequence_number * checkpointWindowSize);
+
           // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
           // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
           // scaling) then CRE probably won't work as well.
@@ -163,6 +178,10 @@ Timers::Handle ReplicaForStateTransfer::addOneShotTimer(uint32_t timeoutMilli) {
   return timers_.add(std::chrono::milliseconds(timeoutMilli),
                      concordUtil::Timers::Timer::ONESHOT,
                      [this](concordUtil::Timers::Handle h) { stateTransfer->onTimer(); });
+}
+
+void ReplicaForStateTransfer::resumeCRE() {
+  cre_->resume();
 }
 
 }  // namespace bftEngine::impl

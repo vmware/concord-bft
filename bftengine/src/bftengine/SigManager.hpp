@@ -1,3 +1,4 @@
+
 // Concord
 //
 // Copyright (c) 2022 VMware, Inc. All Rights Reserved.
@@ -16,8 +17,8 @@
 #include "crypto/crypto.hpp"
 #include "crypto/signer.hpp"
 #include "crypto/verifier.hpp"
-#include "memory.hpp"
-
+#include "util/memory.hpp"
+#include "SysConsts.hpp"
 #include <utility>
 #include <vector>
 #include <map>
@@ -35,8 +36,8 @@ class ReplicasInfo;
 
 class SigManager {
  public:
-  typedef std::string Key;
-  typedef uint16_t KeyIndex;
+  using Key = std::string;
+  using KeyIndex = uint16_t;
 
   virtual ~SigManager() = default;
   static SigManager* instance();
@@ -44,14 +45,15 @@ class SigManager {
 
   // It is the caller responsibility to deallocate (delete) the object
   // This method is assumed to be called by a single thread
-  static std::shared_ptr<SigManager> init(PrincipalId myId,
-                                          const Key& mySigPrivateKey,
-                                          const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                                          concord::crypto::KeyFormat replicasKeysFormat,
-                                          const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                                          concord::crypto::KeyFormat clientsKeysFormat,
-                                          const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
-                                          const ReplicasInfo& replicasInfo);
+  static std::shared_ptr<SigManager> init(
+      PrincipalId myId,
+      const Key& mySigPrivateKey,
+      const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+      concord::crypto::KeyFormat replicasKeysFormat,
+      const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+      concord::crypto::KeyFormat clientsKeysFormat,
+      const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
+      const ReplicasInfo& replicasInfo);
 
   // returns 0 if pid is invalid - caller might consider throwing an exception
   uint16_t getSigLength(PrincipalId pid) const;
@@ -70,10 +72,10 @@ class SigManager {
     static_assert(sizeof(typename SignatureContainer::value_type) == sizeof(concord::Byte),
                   "signature elements are not byte-sized");
     return verifySig(replicaID,
-                            reinterpret_cast<const concord::Byte*>(data.data()),
-                            data.size(),
-                            reinterpret_cast<const concord::Byte*>(sig.data()),
-                            static_cast<uint16_t>(sig.size()));
+                     reinterpret_cast<const concord::Byte*>(data.data()),
+                     data.size(),
+                     reinterpret_cast<const concord::Byte*>(sig.data()),
+                     static_cast<uint16_t>(sig.size()));
   }
 
   // A replica may change (key rotation) its private key starting from a certain sequence number
@@ -100,24 +102,26 @@ class SigManager {
   SigManager& operator=(SigManager&&) = delete;
 
   concord::crypto::SignatureAlgorithm getMainKeyAlgorithm() const;
-  concord::crypto::ISigner* getLatestReplicaSigner() const;
+  std::shared_ptr<concord::crypto::ISigner> getCurrentReplicaSigner() const;
+  std::shared_ptr<concord::crypto::ISigner> getLastReplicaSigner() const;
   const concord::crypto::IVerifier& getVerifier(PrincipalId otherPrincipal) const;
 
   std::string getClientsPublicKeys();
-  std::string getPublicKeyOfVerifier(uint32_t id) const {
-    if (!verifiers_.count(id)) return std::string();
-    return verifiers_.at(id)->getPubKey();
-  }
+
+  // Hex format
+  std::pair<SeqNum, std::string> getMyLatestPublicKey() const;
+
+  // Used by AsyncTLSConnection to verify tls certificates which replicas sign using their main key
+  // Up to replicaIdentityHistoryCount keys are returned by replicas
+  std::array<std::string, replicaIdentityHistoryCount> getPublicKeyOfVerifier(uint32_t id) const;
 
   // Used only by replicas
   std::string getSelfPrivKey() const;
 
   void setReplicaLastExecutedSeq(SeqNum seq);
-  SeqNum getReplicaLastExecutedSeq();
+  SeqNum getReplicaLastExecutedSeq() const;
 
-  bool verifyOwnSignature(const concord::Byte* data,
-                                 size_t dataLength,
-                                 const concord::Byte* expectedSignature) const;
+  bool verifyOwnSignature(const concord::Byte* data, size_t dataLength, const concord::Byte* expectedSignature) const;
 
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
@@ -143,6 +147,7 @@ class SigManager {
   bool clientTransactionSigningEnabled_ = true;
   const ReplicasInfo& replicasInfo_;
 
+  // The ownership model of a SigManager object depends on its use
   static std::shared_ptr<SigManager> s_sm;
 
   struct Metrics {

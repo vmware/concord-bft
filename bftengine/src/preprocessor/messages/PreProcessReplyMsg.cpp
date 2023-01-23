@@ -87,7 +87,7 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
                                concord::crypto::SHA3_256::SIZE_IN_BYTES,
                                reinterpret_cast<concord::Byte*>(msgBody()) + headerSize,
                                sigLen))
-      throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig failed"));
+      throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig(replica) failed"));
   }
 }  // namespace preprocessor
 
@@ -144,6 +144,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
                                       const string& reqCid) {
   uint16_t sigSize = 0;
   auto sigManager = SigManager::instance();
+
   sigSize = sigManager->getMySigLength();
   // Calculate pre-process result hash
   auto hash = PreProcessResultHashCreator::create(preProcessResultBuf,
@@ -154,8 +155,9 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
   memcpy(msgBody()->resultsHash, hash.data(), concord::crypto::SHA3_256::SIZE_IN_BYTES);
   {
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
-    sigManager->sign(hash.data(),
-                     concord::crypto::SHA3_256::SIZE_IN_BYTES,
+    sigManager->sign(sigManager->getReplicaLastExecutedSeq(),
+                     hash.data(),
+                     concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES,
                      reinterpret_cast<concord::Byte*>(body() + sizeof(Header)));
   }
   setLeftMsgParams(reqCid, sigSize);

@@ -595,6 +595,9 @@ class SkvbcDbSnapshotTest(ApolloTest):
         op = operator.Operator(
             bft_network.config, client, bft_network.builddir)
         await op.wedge()
+        #from time import sleep
+        #sleep(1)
+        #return
         await bft_network.wait_for_stable_checkpoint( bft_network.all_replicas(), stable_seqnum = (checkpoint_before + 2) * 150)
         await self.validate_stop_on_wedge_point(bft_network, skvbc=skvbc, fullWedge=True)
         # verify that snapshot is created on wedge point

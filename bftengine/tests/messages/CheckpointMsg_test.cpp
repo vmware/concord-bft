@@ -39,7 +39,7 @@ class CheckpointMsgTestsFixture : public ::testing::Test {
   {}
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;
-  std::unique_ptr<SigManager> sigManager;
+  std::shared_ptr<SigManager> sigManager;
 
   static const char rawSpanContext[];
   static const std::string spanContext;

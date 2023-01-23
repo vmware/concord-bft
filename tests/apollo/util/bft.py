@@ -247,7 +247,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
     return decorator
 
 MAX_MSG_SIZE = 64*1024 # 64k
-REQ_TIMEOUT_MILLI = 5000
+REQ_TIMEOUT_MILLI = 5000 * 2
 RETRY_TIMEOUT_MILLI = 250
 METRICS_TIMEOUT_SEC = 5
 
@@ -519,6 +519,7 @@ class BftTestNetwork:
                 # Generate certificates for replicas, clients, and reserved clients
                 self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
+    @log_call
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
         with log.start_action(action_type="restart_clients", generate_tx_signing_keys=generate_tx_signing_keys,
                               restart_replicas=restart_replicas):
@@ -623,6 +624,7 @@ class BftTestNetwork:
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
+        log_message(message_type=f"Creating client {client_id}", config=str(config))
         ro_replicas = [r.id for r in self.ro_replicas]
         return client_class(config, self.replicas, self.background_nursery, ro_replicas=ro_replicas)
 

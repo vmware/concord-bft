@@ -280,7 +280,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
 }
 
 bool StateSnapshotReconfigurationHandler::handle(const concord::messages::SignedPublicStateHashRequest& req,
-                                                 uint64_t,
+                                                 uint64_t bft_seq_num,
                                                  uint32_t,
                                                  const std::optional<bftEngine::Timestamp>&,
                                                  concord::messages::ReconfigurationResponse& reconf_resp) {
@@ -325,7 +325,8 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::Signed
           resp.data.hash = public_state_hash.hash;
           resp.signature.assign(SigManager::instance()->getMySigLength(), 0);
           const auto data_ser = serialize(resp.data);
-          SigManager::instance()->sign(reinterpret_cast<const char*>(data_ser.data()),
+          SigManager::instance()->sign(bft_seq_num,
+                                       reinterpret_cast<const char*>(data_ser.data()),
                                        data_ser.size(),
                                        reinterpret_cast<char*>(resp.signature.data()));
           LOG_INFO(getLogger(),
@@ -422,6 +423,8 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
   creply.block_id = 0;
   auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                    command_type + std::to_string(clientid));
+  LOG_INFO(GL, "Building state reply" << KVLOG(clientid, command_type, res.has_value()));
+  printCallStack();
   if (res.has_value()) {
     std::visit(
         [&](auto&& arg) {
@@ -465,6 +468,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
   uint16_t first_client_id = ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas;
+  LOG_INFO(GL, KVLOG(first_client_id, sender_id));
   if (sender_id > first_client_id) {
     for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
          i++) {
@@ -477,23 +481,28 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
     }
   } else {
-    auto scaling_key_prefix =
+    static const std::vector<std::string> non_external_client_update_types = {
+        // TLS key exchange update
+        std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key},
+        // Scaling command
         std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
-                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
+                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)},
+        // Scaling status update
+        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)},
+        // Main key update
+        std::string{kvbc::keyTypes::reconfiguration_rep_main_key}};
+
+    // Query latest state changes for replicas other than the sender
     for (uint16_t i = 0; i < first_client_id; i++) {
       if (i == sender_id) continue;
-      // 1. Handle TLS key exchange update
-      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
-      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
-      // 2. Handle scaling command
-      auto scale_csrep = buildReplicaStateReply(scaling_key_prefix, i);
-      if (scale_csrep.block_id > 0) rep.states.push_back(scale_csrep);
-      // 3. Handler scaling status update
-      auto scale_status_csrep = buildReplicaStateReply(
-          std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
-                      static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)},
-          i);
-      if (scale_status_csrep.block_id > 0) rep.states.push_back(scale_csrep);
+      for (auto& update_type : non_external_client_update_types) {
+        auto state_reply = buildReplicaStateReply(update_type, i);
+        if (state_reply.block_id > 0) {
+          LOG_INFO(GL, "Got State reply for replica id" << i);
+          rep.states.push_back(state_reply);
+        }
+      }
     }
   }
   concord::messages::serialize(rres.additional_data, rep);
@@ -1034,7 +1043,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
 }
 
 bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
-                                    uint64_t,
+                                    uint64_t bft_seq_num,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
@@ -1050,13 +1059,13 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
     }
   }
   auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  // TODO: serialize this data using a struct instead of string concatenation
   std::string sig_data = std::to_string(ReplicaConfig::instance().getreplicaId()) + std::to_string(curr_epoch);
   auto sig_manager = bftEngine::impl::SigManager::instance();
-  std::string sig(sig_manager->getMySigLength(), '\0');
-  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data());
+  response.signature.resize(sig_manager->getMySigLength());
+  sig_manager->sign(bft_seq_num, sig_data.c_str(), sig_data.size(), reinterpret_cast<char*>(response.signature.data()));
   response.can_unwedge = true;
   response.curr_epoch = curr_epoch;
-  response.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   LOG_INFO(getLogger(), "Replica is ready to unwedge " << KVLOG(curr_epoch));
   rres.response = response;
   return true;

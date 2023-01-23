@@ -31,6 +31,7 @@
 #include "util/json_output.hpp"
 #include "SharedTypes.hpp"
 #include "communication/StateControl.hpp"
+#include "CryptoManager.hpp"
 
 using concordUtil::Timers;
 
@@ -59,6 +60,12 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StateTransfer,
+      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StateTransfer,
+      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
   SigManager::init(config_.replicaId,
@@ -71,6 +78,15 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                      ReplicaConfig::instance().getOperatorPublicKey(),
                      concord::crypto::KeyFormat::PemFormat}},
                    *repsInfo);
+  std::vector<std::string> replicaHexPublicKeys(config_.publicKeysOfReplicas.size());
+  for (auto &[i, hexKey] : config_.publicKeysOfReplicas) {
+    replicaHexPublicKeys[i] = hexKey;
+  }
+  auto system = std::make_unique<Cryptosystem>(MULTISIG_EDDSA_SCHEME, "", replicaHexPublicKeys.size(), config.fVal);
+  system->loadKeys("Stub", replicaHexPublicKeys);
+  // The private key is also assumed to be in KeyFormat::HexaDecimalStrippedFormat
+  system->loadPrivateKey(config_.replicaId, config_.replicaPrivateKey);
+  CryptoManager::init(std::move(system));
 
   // Register status handler for Read-Only replica
   registerStatusHandlers();

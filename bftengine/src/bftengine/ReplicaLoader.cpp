@@ -65,8 +65,8 @@ ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
                                                                            ld.repConfig.numReplicas,
                                                                            ld.repConfig.numReplicas);
   cryptoSys->loadKeys(ld.repConfig.thresholdPublicKey_, ld.repConfig.thresholdVerificationKeys_);
-  cryptoSys->loadPrivateKey(ld.repConfig.replicaId + 1, ld.repConfig.thresholdPrivateKey_);
-  bftEngine::CryptoManager::instance(std::move(cryptoSys));
+  cryptoSys->loadPrivateKey(ld.repConfig.replicaId, ld.repConfig.thresholdPrivateKey_);
+  bftEngine::CryptoManager::init(std::move(cryptoSys));
 
   return Succ;
 }

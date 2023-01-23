@@ -43,10 +43,16 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
 
 void CheckpointMsg::sign() {
   auto sigManager = SigManager::instance();
-  sigManager->sign(body(), sizeof(Header), body() + sizeof(Header) + spanContextSize());
+  sigManager->sign(b()->seqNum, body(), sizeof(Header), body() + sizeof(Header) + spanContextSize());
 }
 
-void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
+std::string_view CheckpointMsg::getDataBytes() const { return std::string_view{body(), sizeof(Header)}; }
+std::string_view CheckpointMsg::getSignatureBytes() const {
+  auto sigLen = SigManager::instance()->getSigLength(idOfGeneratedReplica());
+  return std::string_view{body() + sizeof(Header) + spanContextSize(), sigLen};
+}
+
+void CheckpointMsg::validateSize(const ReplicasInfo& repInfo) const {
   ConcordAssert(type() == MsgCode::Checkpoint);
   ConcordAssert(senderId() != repInfo.myId());
 
@@ -63,12 +69,19 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) + spanContextSize() + sigLen) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
   }
-
-  if (!sigManager->verifySig(idOfGeneratedReplica(),
-                             std::string_view{body(), sizeof(Header)},
-                             std::string_view{body() + sizeof(Header) + spanContextSize(), sigLen}))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
+}
+
+void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
+  constexpr bool validateSignature = true;
+  validate(repInfo, validateSignature);
+}
+
+void CheckpointMsg::validate(const ReplicasInfo& repInfo, bool validateSignature) const {
+  validateSize(repInfo);
+  if (validateSignature && !SigManager::instance()->verifySig(idOfGeneratedReplica(), getDataBytes(), getSignatureBytes())) {
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig(replica)"));
+  }
 }
 
 bool CheckpointMsg::equivalent(const CheckpointMsg* a, const CheckpointMsg* b) {

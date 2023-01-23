@@ -70,6 +70,7 @@ std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
+  LOG_INFO(getLogger(), "sending reconfig request" << KVLOG(sn));
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   if (!rres.success) {
     LOG_WARN(getLogger(), "invalid response from replicas");
@@ -112,6 +113,7 @@ PollBasedStateClient::~PollBasedStateClient() {
 void PollBasedStateClient::start() {
   stopped = false;
   consumer_ = std::thread([&]() {
+    LOG_INFO(getLogger(), "Client started" << KVLOG(interval_timeout_ms_));
     while (!stopped) {
       {
         std::unique_lock<std::mutex> lk(resume_lock_);
@@ -120,10 +122,12 @@ void PollBasedStateClient::start() {
         }
       }
 
+      LOG_INFO(getLogger(), "Sleeping for" << KVLOG(interval_timeout_ms_));
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
-      if (stopped) return;
+      if (stopped) break;
       std::lock_guard<std::mutex> lk(lock_);
       bool succ;
+      LOG_INFO(getLogger(), "Getting state update");
       auto new_state = getStateUpdate(succ);
       uint64_t max_update_block{0};
       for (const auto& s : new_state) {
@@ -135,6 +139,7 @@ void PollBasedStateClient::start() {
       new_updates_.notify_one();
       if (max_update_block > last_known_block_) last_known_block_ = max_update_block;
     }
+    LOG_INFO(getLogger(), "Client stopped");
   });
 }
 void PollBasedStateClient::stop() {
@@ -161,10 +166,12 @@ bool PollBasedStateClient::updateState(const WriteState& state) {
   return rres.success;
 }
 void PollBasedStateClient::halt() {
+  LOG_INFO(getLogger(), "Halting client");
   std::unique_lock<std::mutex> lk(resume_lock_);
   halted_ = true;
 }
 void PollBasedStateClient::resume() {
+  LOG_INFO(getLogger(), "Resuming client");
   std::unique_lock<std::mutex> lk(resume_lock_);
   halted_ = false;
   resume_cond_.notify_one();

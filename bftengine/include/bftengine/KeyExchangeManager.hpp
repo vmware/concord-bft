@@ -20,6 +20,7 @@
 #include "SysConsts.hpp"
 #include "crypto/crypto.hpp"
 #include <future>
+#include "util/filesystem.hpp"
 
 namespace bftEngine::impl {
 
@@ -132,7 +133,7 @@ class KeyExchangeManager {
     }
     // save to secure store
     void save() {
-      LOG_INFO(KEY_EX_LOG, "Save key");
+      LOG_INFO(KEY_EX_LOG, "Save keys to " << fs::absolute(secrets_file_));
       std::stringstream ss;
       concord::serialize::Serializable::serialize(ss, data_);
       secretsMgr_->encryptFile(secrets_file_, ss.str());

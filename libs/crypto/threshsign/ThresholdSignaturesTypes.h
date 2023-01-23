@@ -44,14 +44,13 @@ class Cryptosystem {
   uint16_t numSigners_{0};
   uint16_t threshold_{0};
 
+  static constexpr const uint16_t INVALID_SIGNER_ID = UINT16_MAX;
+
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys
   // are known to this cryptosystem), this field stores Cryptosystem::NID to
   // represent it is inapplicable.
-  uint16_t signerID_{0};
-
-  // Note that 0 is not a valid signer ID because signer IDs are 1-indexed.
-  static const uint16_t NID = 0;
+  uint16_t signerID_{INVALID_SIGNER_ID};
 
   std::string publicKey_{""};
   std::vector<std::string> verificationKeys_;

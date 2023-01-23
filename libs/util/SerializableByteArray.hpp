@@ -15,12 +15,13 @@
 #include <boost/algorithm/hex.hpp>
 #include "util/assertUtils.hpp"
 #include "util/serializable.hpp"
+#include "util/types.hpp"
 
 template <size_t ByteCount>
 class SerializableByteArray : concord::serialize::IStringSerializable {
  public:
   static constexpr const size_t ByteSize = ByteCount;
-  using ByteArray = std::array<uint8_t, ByteSize>;
+  using ByteArray = std::array<concord::Byte, ByteSize>;
 
   SerializableByteArray(const ByteArray& bytes) : bytes_(bytes) {}
   virtual ~SerializableByteArray() = default;

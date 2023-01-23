@@ -85,27 +85,32 @@ void CryptoManager::onPublicKeyExchange(const std::string& verificationKey,
                                         const SeqNum& sn) {
   LOG_INFO(logger(), "Public key exchange:" << KVLOG(sn, signerIndex, verificationKey));
   auto sys = create(sn);
-  // the +1 is due to Crypto system starts counting from 1
-  sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex + 1);
+  sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex);
   sys->init();
 }
 
 void CryptoManager::onCheckpoint(uint64_t newCheckpoint) {
   std::lock_guard<std::mutex> guard(mutex_);
-  LOG_INFO(logger(),
-           "Checkpoint " << newCheckpoint << " reached, removing stale keys" << KVLOG(getSeqToSystem().size()));
   std::vector<SeqNum> checkpointsToRemove;
   for (auto& [checkpoint, _] : getSeqToSystem()) {
+    if (getSeqToSystem().size() - checkpointsToRemove.size() == 1) {
+      break;
+    }
+
     if (checkpoint + 2 < newCheckpoint) {
       checkpointsToRemove.push_back(checkpoint);
     }
   }
 
+  LOG_INFO(logger(),
+           "Checkpoint " << newCheckpoint << " reached, removing " << checkpointsToRemove.size() << " stale keys"
+                         << KVLOG(getSeqToSystem().size()));
+
   if (!checkpointsToRemove.empty()) {
     for (auto checkpointToRemove : checkpointsToRemove) {
-      LOG_INFO(logger(),
-               "Removing stale cryptosystem " << KVLOG(checkpointToRemove, newCheckpoint, getSeqToSystem().size()));
       cryptoSystems_.erase(checkpointToRemove);
+      LOG_INFO(logger(),
+               "Removed stale cryptosystem " << KVLOG(checkpointToRemove, newCheckpoint, getSeqToSystem().size()));
       assertMapSizeValid();
       // TODO: persist key store
     }
@@ -114,25 +119,24 @@ void CryptoManager::onCheckpoint(uint64_t newCheckpoint) {
   // clearOldKeys();
 }
 
-IThresholdSigner* CryptoManager::getSigner(SeqNum seq) const {
-  auto signer = get(seq)->thresholdSigner_.get();
+std::shared_ptr<IThresholdSigner> CryptoManager::getSigner(SeqNum seq) const {
+  auto signer = get(seq)->thresholdSigner_;
   return signer;
 }
 
-IThresholdVerifier* CryptoManager::getMultisigVerifier(SeqNum seq) const {
-  auto verifier = get(seq)->thresholdVerifierForOptimisticCommit_.get();
+std::shared_ptr<IThresholdVerifier> CryptoManager::getMultisigVerifier(SeqNum seq) const {
+  auto verifier = get(seq)->thresholdVerifierForOptimisticCommit_;
   return verifier;
 }
 
-
-std::array<std::shared_ptr<IThresholdVerifier>, 2> CryptoManager::getLatestVerifiers() const {
+std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> CryptoManager::getLatestVerifiers() const {
   std::lock_guard<std::mutex> guard(mutex_);
   auto riter = getSeqToSystem().rbegin();
-  std::array<std::shared_ptr<IThresholdVerifier>, 2> result;
-  result[0] = riter->second->thresholdVerifierForOptimisticCommit_;
+  std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> result;
+  result[0] = {riter->first, riter->second->thresholdVerifierForOptimisticCommit_};
   riter++;
-  if (riter->second != nullptr) {
-    result[1] = riter->second->thresholdVerifierForOptimisticCommit_;
+  if (riter != getSeqToSystem().rend() && riter->second != nullptr) {
+    result[1] = {riter->first, riter->second->thresholdVerifierForOptimisticCommit_};
   }
   return result;
 }
@@ -142,13 +146,12 @@ std::array<std::shared_ptr<IThresholdSigner>, 2> CryptoManager::getLatestSigners
   auto riter = getSeqToSystem().rbegin();
   std::array<std::shared_ptr<IThresholdSigner>, 2> result;
   result[0] = riter->second->thresholdSigner_;
-  riter++;
-  if (riter->second != nullptr) {
+  ++riter;
+  if (riter != getSeqToSystem().rend() && riter->second != nullptr) {
     result[1] = riter->second->thresholdSigner_;
   }
   return result;
 }
-
 
 CryptoManager::CryptoSystemWrapper::CryptoSystemWrapper(std::unique_ptr<Cryptosystem>&& cs)
     : cryptosys_(std::move(cs)) {}
@@ -181,7 +184,6 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::get(const Seq
     }
   }
 
-
   LOG_FATAL(
       logger(),
       "Cryptosystem not found " << KVLOG(sn, checkpointUpperBound, getSeqToSystem().size(), checkpointWindowSize));
@@ -189,6 +191,7 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::get(const Seq
 }
 
 std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const SeqNum& sn) {
+  std::lock_guard<std::mutex> guard(mutex_);
   assertMapSizeValid();
   // Cryptosystem for this sn will be activated upon reaching a second checkpoint from now
   uint64_t chckp = (sn / checkpointWindowSize) + 2;
@@ -196,9 +199,16 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const 
   // copy construct new Cryptosystem from a last one as we want it to include all the existing keys
   std::unique_ptr<Cryptosystem> cs =
       std::make_unique<Cryptosystem>(*getSeqToSystem().rbegin()->second->cryptosys_.get());
-  LOG_INFO(logger(), "created new Cryptosytem for checkpoint: " << chckp);
-  auto ret =
-      cryptoSystems_.insert(std::make_pair(chckp, std::make_shared<CryptoSystemWrapper>(std::move(cs)))).first->second;
+
+  while (cryptoSystems_.size() > 2) {
+    auto currentSystem = cryptoSystems_.begin();
+    cryptoSystems_.erase(currentSystem);
+    LOG_INFO(logger(), "Removed stale cryptosystem with checkpoint " << currentSystem->first);
+  }
+
+  auto insert_result = cryptoSystems_.insert(std::make_pair(chckp, std::make_shared<CryptoSystemWrapper>(std::move(cs))));
+  auto ret = insert_result.first->second;
+  LOG_INFO(logger(), "created new cryptosystem for checkpoint: " << chckp << ", insertion success: " << insert_result.second);
   assertMapSizeValid();
   return ret;
 }
@@ -224,8 +234,6 @@ const CryptoManager::SeqToSystemMap& CryptoManager::getSeqToSystem() const {
   return cryptoSystems_;
 }
 
-void CryptoManager::reset(std::shared_ptr<CryptoManager> other) {
-  s_cm = other;
-}
+void CryptoManager::reset(std::shared_ptr<CryptoManager> other) { s_cm = other; }
 
 }  // namespace bftEngine

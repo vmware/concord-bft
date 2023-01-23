@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "CryptoManager.hpp"
+#include "tests/messages/helper.hpp"
 #include "tests/config/test_comm_config.hpp"
 #include "bftengine/MsgsCommunicator.hpp"
 
@@ -166,7 +167,7 @@ class DummyPreProcessor : public PreProcessor {
 };
 
 // clang-format off
-unordered_map<NodeIdType, string> replicaPrivKeys = {
+const unordered_map<NodeIdType, string> replicaPrivKeys = {
     {replica_0, "61498efe1764b89357a02e2887d224154006ceacf26269f8695a4af561453eef"},
     {replica_1, "247a74ab3620ec6b9f5feab9ee1f86521da3fa2804ad45bb5bf2c5b21ef105bc"},
     {replica_2, "fb539bc3d66deda55524d903da26dbec1f4b6abf41ec5db521e617c64eb2c341"},
@@ -174,7 +175,7 @@ unordered_map<NodeIdType, string> replicaPrivKeys = {
     {replica_4, "f2f3d43da68329bfe31419636072e27cfd1a8fff259be4bfada667080eb00556"}
 };
 
-unordered_map<NodeIdType, string> replicaPubKeys = {
+const unordered_map<NodeIdType, string> replicaPubKeys = {
     {replica_0, "386f4fb049a5d8bb0706d3793096c8f91842ce380dfc342a2001d50dfbc901f4"},
     {replica_1, "3f9e7dbde90477c24c1bacf14e073a356c1eca482d352d9cc0b16560a4e7e469"},
     {replica_2, "2311c6013ff657844669d8b803b2e1ed33fe06eed445f966a800a8fbb8d790e8"},
@@ -182,25 +183,6 @@ unordered_map<NodeIdType, string> replicaPubKeys = {
     {replica_4, "c426c524c92ad9d0b740f68ee312abf0298051a7e0364a867b940e9693ae6095"}
 };
 // clang-format on
-
-
-class PPCryptoSystem : public Cryptosystem {
- public:
-  PPCryptoSystem(NodeIdType id) : id_{id} {}
-  IThresholdVerifier *createThresholdVerifier(uint16_t threshold = 0) override {
-    vector<std::string> publicKeys;
-    for (int i = 0; i < static_cast<int>(replicaPubKeys.size()); i++) {
-      publicKeys.push_back(replicaPubKeys.at(i));
-    }
-    return factory_.newVerifier(threshold, publicKeys.size(), "", publicKeys);
-  }
-  IThresholdSigner *createThresholdSigner() override { return factory_.newSigner(id_ + 1, replicaPrivKeys.at(id_).c_str()); }
-
- private:
-  NodeIdType id_;
-  EdDSAMultisigFactory factory_;
-};
-
 
 void switchReplicaContext(NodeIdType id) {
   LOG_INFO(GL, "Switching replica context to replica " << id);
@@ -219,22 +201,25 @@ void setUpConfiguration_4() {
   replicaConfig.numOfExternalClients = 15;
   replicaConfig.clientBatchingEnabled = true;
 
-  for (NodeIdType i = replica_0; i <= replica_3; ++i) {
-    replicaConfig.publicKeysOfReplicas.insert(pair<NodeIdType, const string>(i, replicaPubKeys[i]));
+  std::vector<std::string> publicKeysVector;
+  for (NodeIdType i = replica_0; i < replica_4; ++i) {
+    replicaConfig.publicKeysOfReplicas.emplace(i, replicaPubKeys.at(i));
+    publicKeysVector.push_back(replicaPubKeys.at(i));
   }
-  replicaConfig.replicaPrivateKey = replicaPrivKeys[replica_0];
+  replicaConfig.replicaPrivateKey = replicaPrivKeys.at(replica_0);
 
   for (auto i = 0; i < replicaConfig.numReplicas; i++) {
     replicaConfig.replicaId = i;
     replicasInfo[i] = std::make_unique<ReplicasInfo>(replicaConfig, true, true);
     sigManager[i] = SigManager::init(i,
-                                     replicaPrivKeys[i],
+                                     replicaPrivKeys.at(i),
                                      replicaConfig.publicKeysOfReplicas,
                                      concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      nullptr,
                                      concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      *replicasInfo[i].get());
-    cryptoManager[i] = CryptoManager::init(std::make_unique<PPCryptoSystem>(i));
+    cryptoManager[i] =
+        CryptoManager::init(std::make_unique<TestMultisigCryptoSystem>(i, publicKeysVector, replicaPrivKeys.at(i)));
   }
   replicaConfig.replicaId = replica_0;
 }
@@ -244,8 +229,8 @@ void setUpConfiguration_7() {
   replicaConfig.numReplicas = numOfReplicas_7;
   replicaConfig.fVal = fVal_7;
 
-  replicaConfig.publicKeysOfReplicas.insert(pair<NodeIdType, const string>(replica_4, replicaPubKeys[replica_4]));
-  replicaConfig.replicaPrivateKey = replicaPrivKeys[replica_4];
+  replicaConfig.publicKeysOfReplicas.insert(pair<NodeIdType, const string>(replica_4, replicaPubKeys.at(replica_4)));
+  replicaConfig.replicaPrivateKey = replicaPrivKeys.at(replica_4);
 }
 
 void setUpCommunication() {
@@ -290,10 +275,7 @@ void clearDiagnosticsHandlers() {
 
 class PreprocessingStateTest : public testing::Test {
  public:
-  void SetUp() override {
-    switchReplicaContext(replica_0);
-  }
-
+  void SetUp() override { switchReplicaContext(replica_0); }
 };
 
 TEST_F(PreprocessingStateTest, notEnoughRepliesReceived) {
@@ -1025,7 +1007,7 @@ TEST_F(PreprocessingStateTest, rejectMsgWithInvalidView) {
 
   replica.setPrimary(true);
   switchReplicaContext(repInfo.myId());
- ConcordAssert(preProcessor.validateBatchReplyMsgCorrectness(batchReplyValidView));
+  ConcordAssert(preProcessor.validateBatchReplyMsgCorrectness(batchReplyValidView));
   ConcordAssert(!preProcessor.validateBatchReplyMsgCorrectness(batchReplyInvalidView));
   replica.stop();
 }

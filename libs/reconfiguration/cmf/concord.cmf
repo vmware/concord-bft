@@ -230,6 +230,7 @@ Msg ReplicaMainKeyUpdate 64 {
     string key
     string format
     uint8 algorithm
+    uint64 seq_num
 }
 
 Msg ClientStateReply 39 {

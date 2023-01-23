@@ -26,6 +26,7 @@ using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 template <typename CREATOR, typename = std::enable_if_t<std::is_base_of_v<DigestCreator, CREATOR>>>
 class DigestHolder {
  public:
+  static size_t constexpr size() { return DIGEST_SIZE; }
   DigestHolder() { std::memset(d, 0, DIGEST_SIZE); }
   DigestHolder(unsigned char initVal) { std::memset(d, initVal, DIGEST_SIZE); }
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }

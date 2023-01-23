@@ -30,6 +30,7 @@ uint16_t ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
 
 std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(
     const uint16_t& repID) {
+  LOG_INFO(KEY_EX_LOG, "Loading replica keystore from reserved pages" << KVLOG(repID));
   if (!loadReservedPage(repID, buffer_.size(), buffer_.data())) {
     LOG_INFO(KEY_EX_LOG, "Failed to load reserved page for replica " << repID << ", first start?");
     return {};
@@ -38,7 +39,19 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
     std::istringstream iss(buffer_);
     PublicKeys ks;
     PublicKeys::deserialize(iss, ks);
-    for (auto [sn, pk] : ks.keys) LOG_DEBUG(KEY_EX_LOG, "rid: " << repID << " seqnum: " << sn << " pubkey: " << pk);
+    //std::vector<SeqNum> keysToRemove;
+    for (auto [sn, pk] : ks.keys) {
+      /*if (ks.keys.size() - keysToRemove.size() > 2) {
+        keysToRemove.push_back(sn);
+      }*/
+      LOG_INFO(KEY_EX_LOG, "Deserialized public key from reserved pages: " << KVLOG(repID, sn, pk));
+    }
+
+    /*for (auto sn : keysToRemove) {
+      LOG_INFO(KEY_EX_LOG, "Removing stale key from keystore" << KVLOG(sn, ks.keys[sn]));
+      ks.remove(sn);
+    }*/
+
     return ks;
   } catch (const std::exception& e) {
     LOG_FATAL(KEY_EX_LOG,
@@ -48,6 +61,7 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
 }
 
 void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID) {
+  LOG_INFO(KEY_EX_LOG, "Saving keystore to reserved pages" << KVLOG(repID));
   PublicKeys clusterKey;
   try {
     clusterKey = clusterKeys_.at(repID);

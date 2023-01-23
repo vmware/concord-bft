@@ -448,8 +448,8 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
 }
 
 void BCStateTran::startRunningImpl(IReplicaForStateTransfer *r) {
-  LOG_INFO(logger_, "Starting");
   FetchingState fs = getFetchingState();
+  LOG_INFO(logger_, "Starting" << KVLOG(fs));
 
   // TODO - The next lines up to comment 'XXX' do not belong here (CRE) - move outside
   if (!config_.isReadOnly && cre_) {
@@ -3431,9 +3431,9 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           LOG_ERROR(logger_, "Setting RVB digests into RVB manager failed!");
           badDataFromCurrentSourceReplica = true;
         } else {
-#ifdef ENABLE_ALL_METRICS
+    #ifdef ENABLE_ALL_METRICS
           metrics_.overall_rvb_digest_groups_validated_++;
-#endif
+    #endif
         }
       }
 
