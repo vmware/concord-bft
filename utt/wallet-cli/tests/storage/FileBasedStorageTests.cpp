@@ -23,7 +23,7 @@ namespace fs = std::experimental::filesystem;
 #endif
 #include "../../../tests/testUtils.hpp"
 #include "mint.hpp"
-#include "fileBasedUserStorage.hpp"
+#include <storage/FileBasedUserStorage.hpp>
 #include "gtest/gtest.h"
 namespace {
 using namespace utt::client;

@@ -12,7 +12,7 @@
 // file.
 
 #include "wallet.hpp"
-#include "fileBasedUserStorage.hpp"
+#include <storage/FileBasedUserStorage.hpp>
 #include <iostream>
 
 using namespace vmware::concord::utt::wallet::api::v1;
