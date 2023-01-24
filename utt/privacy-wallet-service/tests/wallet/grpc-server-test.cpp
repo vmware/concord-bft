@@ -17,7 +17,8 @@
 
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
-#include "wallet.hpp"
+#include "PrivacyService.hpp"
+#include "Wallet.hpp"
 #include <thread>
 
 namespace {

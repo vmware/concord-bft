@@ -24,7 +24,7 @@ namespace fs = std::experimental::filesystem;
 #include <fstream>
 #include <sstream>
 #include <xutils/Log.h>
-#include "fileBasedUserStorage.hpp"
+#include "FileBasedUserStorage.hpp"
 #include "serialization.hpp"
 
 namespace utt::client {

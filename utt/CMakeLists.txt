@@ -48,8 +48,8 @@ option(
 )
 
 option(
-  BUILD_PRIVACY_WALLET_LIBRARY
-  "Enable building of privacy wallet library service"
+  BUILD_PRIVACY_WALLET_SERVICE
+  "Enable building of privacy wallet service"
   ON
 )
 #
@@ -203,8 +203,8 @@ endif()
 if(BUILD_WALLET_CLI AND BUILD_PRIVACY_ADMIN_CLI)
     add_subdirectory(e2e)
 endif()
-if(BUILD_PRIVACY_WALLET_LIBRARY)
-    add_subdirectory(privacy-wallet-library)
+if(BUILD_PRIVACY_WALLET_SERVICE)
+    add_subdirectory(privacy-wallet-service)
 endif()
 # [TODO-UTT] This improved api for libutt could go into its own subproject 
 set(newutt_src 

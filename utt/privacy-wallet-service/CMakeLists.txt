@@ -2,8 +2,9 @@ add_subdirectory("proto")
 
 set(privacy-wallet-library-src
     src/main.cpp
-    src/wallet.cpp
-    src/fileBasedUserStorage.cpp
+    src/Wallet.cpp
+    src/PrivacyService.cpp
+    src/FileBasedUserStorage.cpp
 )
 find_package(nlohmann_json REQUIRED)
 add_executable(privacy-wallet-library-service ${privacy-wallet-library-src})

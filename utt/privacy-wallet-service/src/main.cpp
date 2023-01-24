@@ -15,7 +15,7 @@
 #include <string>
 #include <sstream>
 
-#include "wallet.hpp"
+#include "PrivacyService.hpp"
 
 int main(int argc, char* argv[]) {
   (void)argc;
