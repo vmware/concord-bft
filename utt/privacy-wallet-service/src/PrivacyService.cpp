@@ -12,7 +12,7 @@
 // file.
 
 #include "PrivacyService.hpp"
-#include "FileBasedUserStorage.hpp"
+#include <storage/FileBasedUserStorage.hpp>
 #include <iostream>
 #include <utt-client-api/ClientApi.hpp>
 

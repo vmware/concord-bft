@@ -10,6 +10,6 @@ grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${CMAKE_CURRENT_BINARY_DIR}
   api/v1/wallet-api.proto
 )
 
-add_library(privacy-wallet-library-proto STATIC ${PROTO_SRCS} ${GRPC_SRCS})
-target_link_libraries(privacy-wallet-library-proto PRIVATE protobuf::libprotobuf gRPC::grpc++)
-target_include_directories(privacy-wallet-library-proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+add_library(privacy-wallet-service-proto STATIC ${PROTO_SRCS} ${GRPC_SRCS})
+target_link_libraries(privacy-wallet-service-proto PRIVATE protobuf::libprotobuf gRPC::grpc++)
+target_include_directories(privacy-wallet-service-proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
