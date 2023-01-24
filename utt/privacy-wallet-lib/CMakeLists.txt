@@ -10,4 +10,4 @@ target_include_directories(privacy_wallet_lib PUBLIC
 
 target_link_libraries(privacy_wallet_lib PUBLIC utt_api)
 
-#add_subdirectory(tests)
+add_subdirectory(tests)
