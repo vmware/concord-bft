@@ -94,6 +94,14 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
     LOG_WARN(KEY_EX_LOG, "Generated sequence number is outside working window, ignore..." << KVLOG(sn, req_sn));
     return "gen_seq_num_ouside_workingwindow";
   }
+
+  // reject key exchange message if already one key-exchange message is present in working window
+  if (private_keys_.lastGeneratedSeqnum() && (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
+    LOG_INFO(KEY_EX_LOG,
+             "ignore request - already exchanged consensus keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+    return "already exchanged consensus keys in same working window";
+  }
+
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
