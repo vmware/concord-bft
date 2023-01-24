@@ -58,7 +58,7 @@ SecretData getSecretData_GCM() {
   ret.key = "71df1518bb2330201985cfddbf3fb1f30c6f63b0a953b1ce633e48387b5093eb";
   ret.iv = "3d75354384953730b9701019f5d7a2e0";
   ret.key_length = 256;
-
+  ret.tag_length = 128;
   return ret;
 }
 
@@ -131,7 +131,7 @@ TEST(SecretsManager, Internals_GCM_With_TagLength) {
   concord::secretsmanager::KeyParams key_params(secret_data.key, secret_data.iv);
 
   // Encrypt
-  concord::secretsmanager::AES_GCM e(key_params, "{\"TAG_LENGTH_BITS\" : 128}");
+  concord::secretsmanager::AES_GCM e(key_params, 128);
   auto cipher_text = e.encrypt(input);
   auto cipher_text_encoded = base64Enc(cipher_text);
   ASSERT_EQ(cipher_text_encoded, encrypted);

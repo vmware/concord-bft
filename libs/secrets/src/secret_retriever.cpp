@@ -42,8 +42,9 @@ SecretData parseJson(json j) {
     auto iv = j["iv"].get<std::string>();
     auto algorithm = j["algorithm"].get<std::string>();
     auto key_length = j["key_length"].get<uint32_t>();
-
-    return SecretData{key, iv, algorithm, key_length, additional_info};
+    uint32_t tag_length = 128;
+    if (j.contains("tag_length")) tag_length = j["tag_length"].get<uint32_t>();
+    return SecretData{key, iv, algorithm, key_length, additional_info, tag_length};
 
   } catch (const std::exception &e) {
     LOG_ERROR(logger, "Failed to read JSON content '" << additional_info << "'");

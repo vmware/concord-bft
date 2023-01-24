@@ -87,11 +87,7 @@ std::vector<uint8_t> AES_GCM::encrypt(std::string_view input) {
   if (input.empty()) {
     return {};
   }
-  int tagLength = 16;
-  if (!getAdditionalInfo().empty()) {
-    auto j = json::parse(getAdditionalInfo());
-    tagLength = (j["TAG_LENGTH_BITS"].get<int>()) / 8;  // from bits to bytes
-  }
+  int tagLength = static_cast<int>(getTagLengthInBits() / 8);  // cast to int to avoid warning in openssl api's
 
   auto ciphertext = std::make_unique<unsigned char[]>(input.size() + AES_BLOCK_SIZE);
   auto plaintext = std::make_unique<unsigned char[]>(input.size());
@@ -142,11 +138,8 @@ string AES_GCM::decrypt(const vector<uint8_t>& cipher) {
   if (cipher.capacity() == 0) {
     return {};
   }
-  int tagLength = 16;
-  if (!getAdditionalInfo().empty()) {
-    auto j = json::parse(getAdditionalInfo());
-    tagLength = (j["TAG_LENGTH_BITS"].get<int>()) / 8;  // from bits to bytes
-  }
+  int tagLength = static_cast<int>(getTagLengthInBits() / 8);  // cast to int to avoid warning in openssl api's
+
   const unsigned int cipherLength = cipher.size() - tagLength;
   std::vector<uint8_t> cipherText(cipher.begin(), cipher.end() - tagLength);
   std::vector<uint8_t> tag(cipher.begin() + cipherLength, cipher.end());

@@ -26,6 +26,7 @@ struct SecretData {
   uint32_t key_length;          // key size in bytes
   std::string additional_info;  // contains extra information needed
                                 // including error reasons when get API errors out
+  uint32_t tag_length;          // contains tag length in bits for GCM mode
 };
 
 }  // namespace concord::secretsmanager
