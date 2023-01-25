@@ -18,7 +18,7 @@
 #include <tuple>
 
 #include <grpcpp/grpcpp.h>
-#include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
+#include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-service/proto/api
 
 #include <utt-client-api/ClientApi.hpp>
 
