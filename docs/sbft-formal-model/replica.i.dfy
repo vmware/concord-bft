@@ -521,7 +521,7 @@ module Replica {
   predicate LeaveView(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, newView:ViewNum) {
     // TODO: Clear all Working Window after we leave a View.
     && v.WF(c)
-    && msgOps.NoSendRecv()
+    && msgOps.IsSend()
     // We can only leave a view we have collected at least 2F+1 View 
     // Change messages for in viewChangeMsgsRecvd or View is 0.
     && (|| (HasCollectedProofMyViewIsAgreed(c, v) && newView == v.view + 1)
@@ -538,6 +538,7 @@ module Replica {
     && v' == v.(view := newView)
               .(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {vcMsg}))
               .(workingWindow := v.workingWindow.EmptyWorkingWindow(c))
+    && msgOps.send.value == vcMsg
   }
 
   function ExtractStableCheckpointProof(c:Constants, v:Variables) : set<Network.Message<Message>>
@@ -550,6 +551,32 @@ module Replica {
               && msg.payload.committedClientOperations == stateUpToSeqID
   }
 
+  predicate IsRecordedViewChangeMsgForView(c:Constants, v:Variables, view:ViewNum, viewChangeMsg:Network.Message<Message>)
+  {
+    && v.WF(c)
+    && viewChangeMsg.payload.ViewChangeMsg?
+    && viewChangeMsg in v.viewChangeMsgsRecvd.msgs
+    && viewChangeMsg.payload.newView == view
+    && viewChangeMsg.sender == c.myId
+  }
+
+  function GetViewChangeMsgForView(c:Constants, v:Variables, view:ViewNum) : Network.Message<Message>
+    requires v.WF(c)
+    requires exists viewChangeMsg :: IsRecordedViewChangeMsgForView(c, v, view, viewChangeMsg)
+  {
+    var viewChangeMsg :| IsRecordedViewChangeMsgForView(c, v, view, viewChangeMsg);
+    viewChangeMsg
+  }
+
+  function ExtractPreparedCertificateFromLatestViewChangeMsg(c:Constants, v:Variables, seqID:SequenceID) : PreparedCertificate
+  {
+    if !exists vcMsg :: IsRecordedViewChangeMsgForView(c, v, v.view, vcMsg)
+      then PreparedCertificate({})
+    else if seqID !in GetViewChangeMsgForView(c, v, v.view).payload.certificates
+      then PreparedCertificate({})
+    else GetViewChangeMsgForView(c, v, v.view).payload.certificates[seqID]
+  }
+
   function ExtractCertificatesFromWorkingWindow(c:Constants, v:Variables) : map<SequenceID, PreparedCertificate>
     requires v.WF(c)
   {
@@ -560,10 +587,13 @@ module Replica {
     requires v.WF(c)
     requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    var preparesRecvd := set msg | msg in v.workingWindow.preparesRcvd[seqID].Values && msg.payload.Prepare?;
-    if |preparesRecvd| < c.clusterConfig.AgreementQuorum() 
-    then PreparedCertificate({})
-    else PreparedCertificate(preparesRecvd)
+    var workingWindowPreparesRecvd := v.workingWindow.preparesRcvd[seqID].Values;
+    var viewChangeMsgPreparesRecvd := ExtractPreparedCertificateFromLatestViewChangeMsg(c, v, seqID).votes;
+    if |workingWindowPreparesRecvd| >= c.clusterConfig.AgreementQuorum()
+    then PreparedCertificate(workingWindowPreparesRecvd)
+    else if |viewChangeMsgPreparesRecvd| >= c.clusterConfig.AgreementQuorum()
+    then PreparedCertificate(viewChangeMsgPreparesRecvd)
+    else PreparedCertificate({})
   }
 
   predicate SendViewChangeMsg(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>)
@@ -584,7 +614,7 @@ module Replica {
                                          msgOps:Network.MessageOps<Message>,
                                          viewChangeMsgsSelectedByPrimary:ViewChangeMsgsSelectedByPrimary) {
     && v.WF(c)
-    && msgOps.NoSendRecv()
+    && msgOps.IsSend()
     && CurrentPrimary(c, v) == c.myId
     && (forall msg | && msg in v.newViewMsgsRecvd.msgs 
                      && msg.sender == c.myId
@@ -595,6 +625,7 @@ module Replica {
     && var newViewMsg := Network.Message(c.myId, 
                                          NewViewMsg(v.view, viewChangeMsgsSelectedByPrimary));
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {newViewMsg}))
+    && msgOps.send.value == newViewMsg
   }
 
   predicate SendNewViewMsg(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>)
@@ -609,6 +640,21 @@ module Replica {
     && v' == v
   }
 
+  predicate ValidViewChangeMsg(msg:Network.Message<Message>,
+                               networkMsgs:set<Network.Message<Message>>,
+                               agreementQuorum:nat)
+  {
+    && msg.payload.ViewChangeMsg?
+    // Check Checkpoint msg-s signatures:
+    && var checkpointMsgs := set c | c in msg.payload.proofForLastStable.msgs;
+    && checkpointMsgs <= networkMsgs
+    // Check Signatures for the Prepared Certificates:
+    && (forall seqID | seqID in msg.payload.certificates
+            :: && msg.payload.certificates[seqID].votes <= networkMsgs
+               && msg.payload.certificates[seqID].valid(agreementQuorum, seqID)) // TODO: refactor to put this in msg.payload.valid(agreementQuorum)
+    && msg.payload.valid(agreementQuorum)
+  }
+
   predicate RecvViewChangeMsg(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>)
   {
     && v.WF(c)
@@ -621,7 +667,7 @@ module Replica {
     // Check Signatures for the Prepared Certificates:
     && (forall seqID | seqID in msg.payload.certificates
             :: && msg.payload.certificates[seqID].votes <= msgOps.signedMsgsToCheck
-               && msg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum()))
+               && msg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum(), seqID))
     && msg.payload.valid(c.clusterConfig.AgreementQuorum())
     && v' == v.(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {msg}))
   }

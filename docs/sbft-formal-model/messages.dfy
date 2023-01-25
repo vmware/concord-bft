@@ -40,10 +40,11 @@ module Messages {
     predicate WF() {
       (forall v | v in votes :: v.payload.Prepare?)
     }
-    predicate valid(quorumSize:nat) {
+    predicate valid(quorumSize:nat, seqID:SequenceID) {
       || empty()
       || (&& |votes| == quorumSize
           && WF()
+          && prototype().seqID == seqID
           && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
           && UniqueSenders(votes))
     }
