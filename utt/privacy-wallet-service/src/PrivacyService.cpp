@@ -23,13 +23,11 @@ PrivacyWalletService::PrivacyWalletService() : privacy_wallet_service_(std::make
 PrivacyWalletService::~PrivacyWalletService() { std::cout << " Destroying privacy wallet service...\n"; }
 
 void PrivacyWalletService::StartServer(const std::string& url) {
-  std::string server_address(url);
-
   grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.AddListeningPort(url, grpc::InsecureServerCredentials());
   builder.RegisterService(privacy_wallet_service_.get());
   grpc_server_ = builder.BuildAndStart();
-  std::cout << "Server listening on " << server_address << std::endl;
+  std::cout << "Server listening on " << url << std::endl;
 }
 
 void PrivacyWalletService::Wait() {
