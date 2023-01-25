@@ -230,7 +230,7 @@ class Handoff {
    public:
     ThreadCanceledException(const std::string& log_prefix) : std::runtime_error(log_prefix + "thread cancelled") {}
     const char* what() const noexcept override { return std::runtime_error::what(); }
-  };  // namespace concord::util
+  };
 
   HandoffElement pop() {
     while (true) {

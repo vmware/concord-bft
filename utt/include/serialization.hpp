@@ -32,4 +32,4 @@ T deserialize(const std::vector<uint8_t>& data) {
   ss >> ret;
   return ret;
 }
-};  // namespace libutt::api
+}  // namespace libutt::api

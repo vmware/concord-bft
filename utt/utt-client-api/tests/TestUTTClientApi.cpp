@@ -116,6 +116,7 @@ struct ServerMock {
       // We ignore s2 from the result because it's simply returned back to us from signRCM
       // without anything useful happening to it.
       auto [_, share] = registrar.signRCM(pidHash, s2, rcm1);
+      (void)_;
       shares.emplace_back(std::move(share));
     }
 
@@ -287,7 +288,10 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
   std::vector<libutt::api::Coin> getCoins() override {
     std::vector<libutt::api::Coin> coins;
-    for (const auto& [_, c] : coins_) coins.push_back(c);
+    for (const auto& [_, c] : coins_) {
+      (void)_;
+      coins.push_back(c);
+    }
     return coins;
   }
   std::pair<std::string, std::string> getKeyPair() override { return keyPair_; }
