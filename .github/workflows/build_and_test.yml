@@ -1,4 +1,4 @@
-name: Debug build container (gcc)
+name: Build and Test
 on: [ push, pull_request ]
 
 concurrency:
@@ -15,6 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        compiler: [g++]
         ci_build_type: [Debug, Release]
         comm_type: 
           - "-DBUILD_COMM_UDP=ON -DBUILD_COMM_TCP_TLS=OFF -DBUILD_COMM_TCP_PLAIN=OFF"
@@ -28,6 +29,7 @@ jobs:
             cd build
             cmake \
               ${{ matrix.comm_type }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
               -DCMAKE_BUILD_TYPE=${{ matrix.ci_build_type }} \
               -DBUILD_TESTING=ON \
                ..
