@@ -1,0 +1,44 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// Privacy Wallet's api
+
+syntax = "proto3";
+package vmware.concord.privacy.wallet.api.v1; 
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
+
+// Privacy Wallet Service Interface
+service PrivacyWalletService {
+    rpc PrivacyWalletService(PrivacyWalletRequest) returns (PrivacyWalletResponse);
+}
+
+message PrivacyAppConfigRequest {
+    bool budget = 1;
+    uint32 numValidators = 2; // The number of validator shares required to reconstruct a signature
+    // These are public keys for replicas to encrypt their secret shares
+    // TODO: needs to get integrated with encrypting shares currently shares on UTT configuration are clear
+    repeated string validatorPublicKey = 3;
+}
+
+message PrivacyAppConfigResponse {
+    bytes configuration = 1; // Blob of privacy configuration data
+}
+
+message PrivacyWalletRequest {
+    oneof req {
+        PrivacyAppConfigRequest privacy_app_config=1;
+    }
+    // Required timeout which defines the maximum amount of time the caller is
+     // willing to wait for the request to be processed by a quorum of replicas.
+    // Returns DEADLINE_EXCEEDED if the request times out.
+    // Returns INVALID_ARGUMENT if the timeout is zero.
+    google.protobuf.Duration timeout = 2;    
+}
+
+message PrivacyWalletResponse {
+    optional string err = 1;
+    oneof resp {
+        PrivacyAppConfigResponse privacy_app_config_response = 2;
+    }
+}

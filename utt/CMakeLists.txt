@@ -47,6 +47,11 @@ option(
   ON
 )
 
+option(
+  BUILD_PRIVACY_WALLET_SERVICE
+  "Enable building of privacy wallet service"
+  ON
+)
 #
 # Configure CCache if available
 #
@@ -189,6 +194,7 @@ include(dependencies.cmake)
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
 add_subdirectory(libxutils)
+
 if(BUILD_WALLET_CLI)
     add_subdirectory(wallet-cli) 
 endif()
@@ -219,6 +225,12 @@ target_link_libraries(utt_api PUBLIC utt)
 target_include_directories(utt_api PUBLIC include)
 
 add_subdirectory(utt-client-api)
+
+add_subdirectory(privacy-wallet-lib)
+
+if(BUILD_PRIVACY_WALLET_SERVICE)
+    add_subdirectory(privacy-wallet-service)
+endif()
 
 add_subdirectory(tests)
 
