@@ -44,9 +44,7 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
 
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      if (!registrar.perf.isRegisteredComponent(component_)) {
-        registrar.perf.registerComponent(component_, {delete_batch_blocks_duration});
-      }
+      registrar.perf.registerComponent(component_, {delete_batch_blocks_duration});
     }
 
     ~Recorders() {}
