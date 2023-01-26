@@ -370,8 +370,10 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
     if (correctReply->replyLength() <= lenOfReplyBuffer) {
       memcpy(replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
       actualReplyLength = correctReply->replyLength();
-    } else
+    } else {
+      LOG_ERROR(logger_, "Insufficient buffer size!" << KVLOG(correctReply->replyLength(), lenOfReplyBuffer));
       res = OperationResult::EXEC_DATA_TOO_LARGE;
+    }
     reset();
     return res;
   } else if (requestTimedOut) {

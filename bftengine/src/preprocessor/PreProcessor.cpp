@@ -317,6 +317,16 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
   }
 }
 
+bool PreProcessor::validateSubpoolsConfig() {
+  for (const auto &spConfig : subpoolsConfig_) {
+    if ((spConfig.bufferSize == 0) || (spConfig.bufferSize > kMaxSubpoolBuffersize_)) {
+      LOG_ERROR(logger(), "Invalid configuration:" << KVLOG(spConfig.bufferSize, kMaxSubpoolBuffersize_));
+      return false;
+    }
+  }
+  return true;
+}
+
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
@@ -331,12 +341,50 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
       maxExternalMsgSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
-      maxPreExecResultSize_(maxExternalMsgSize_ - sizeof(uint64_t)),
+      responseSizeInternalOverhead_{/* for conflict detection BlockId */ sizeof(uint64_t)},
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClientProxies_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
       threadPool_("PreProcessor::threadPool"),
-      memoryPool_(maxExternalMsgSize_, timers),
+      timers_{timers},
+      // TODO - this is a temporary in-place configuration - should be replaced with a future task to take it from
+      // replica config
+      subpoolsConfig_{
+          {1 << 16, 0, 1400},  // 64KB
+          {1 << 17, 0, 1400},  // 128KB
+          {1 << 18, 0, 1400},  // 256KB
+          {1 << 19, 0, 1400},  // 512KB
+          {1 << 20, 0, 1400},  // 1MB
+          {1 << 21, 0, 1400},  // 2MB
+          {1 << 22, 0, 700},   // 4MB
+          {1 << 23, 0, 700},   // 8MB
+          {1 << 24, 0, 80},    // 16MB
+          {1 << 25, 0, 80},    // 32MB
+      },
+      // TODO - this is a temporary in-place configuration - should be replaced with a future task to take it from
+      // replica config
+      bufferPool_{myReplica_.getReplicaConfig().enablePreProcessorMemoryPool
+                      ? std::make_unique<concordUtil::MultiSizeBufferPool>(
+                            "PreProcessor::memoryPool",
+                            timers_,
+                            subpoolsConfig_,
+                            concordUtil::MultiSizeBufferPool::Config{// maxAllocatedBytes
+                                                                     10ULL * (1 << 30),
+                                                                     // purgeEvaluationFrequency
+                                                                     0,
+                                                                     // statusReportFrequency
+                                                                     60,
+                                                                     // histogramsReportFrequency
+                                                                     60,
+                                                                     // metricsReportFrequency
+                                                                     5,
+                                                                     // enableStatusReportChangesOnly
+                                                                     true,
+                                                                     // subpoolSelectorEvaluationNumRetriesMinThreshold
+                                                                     3,
+                                                                     // subpoolSelectorEvaluationNumRetriesMaxThreshold
+                                                                     10})
+                      : nullptr},
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -356,14 +404,18 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       totalPreProcessingTime_(true),
       launchAsyncJobTimeAvg_(true),
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      timers_{timers},
       totalPreExecDurationRecorder_{histograms_.totalPreExecutionDuration},
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
-      pm_{pm},
-      memoryPoolEnabled_(myReplica_.getReplicaConfig().enablePreProcessorMemoryPool) {
+      pm_{pm} {
+  // Validate subpoolsConfig_
+  if (!validateSubpoolsConfig()) {
+    string err{
+        "Invalid subpools Configuration! Check buffer sizes, they might be 0 or exceeding maximal supported size!"};
+    LOG_ERROR(logger(), err);
+    throw std::invalid_argument(__PRETTY_FUNCTION__ + err);
+  }
   // register a stop call back for the new preprocessor in order to stop it before replica is destroyed
   myReplica_.registerStopCallback([this]() { this->stop(); });
-
   clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
   registerMsgHandlers();
   metricsComponent_.Register();
@@ -372,10 +424,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     preProcessResultBuffers_.emplace_back(make_shared<SafeResultBuffer>());
-  }
-  if (memoryPoolEnabled_) {
-    // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
-    memoryPool_.allocatePool(clientMaxBatchSize_, numOfReqEntries);
   }
   const uint16_t firstClientId = numOfReplicas_ + numOfClientProxies_;
   for (uint16_t i = 0; i < numOfExternalClients; i++) {
@@ -402,7 +450,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                                    firstClientId,
                                                    clientBatchingEnabled_,
                                                    clientMaxBatchSize_,
-                                                   maxPreExecResultSize_,
+                                                   kMaxSubpoolBuffersize_,
+                                                   responseSizeInternalOverhead_,
                                                    preExecReqStatusCheckPeriodMilli_,
                                                    numOfThreads,
                                                    ReplicaConfig::instance().preExecutionResultAuthEnabled));
@@ -432,7 +481,7 @@ void PreProcessor::stop() {
 
 PreProcessor::~PreProcessor() {
   LOG_DEBUG(logger(), "~PreProcessor start");
-  if (!memoryPoolEnabled_) {
+  if (!bufferPool_) {
     for (const auto &result : preProcessResultBuffers_) {
       delete[] result->buffer;
     }
@@ -603,17 +652,18 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 uint64_t reqRetryId,
                                                 const string &cid,
                                                 const string &ongoingCid) {
-  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
-                                                  clientId,
-                                                  reqOffsetInBatch,
-                                                  reqSeqNum,
-                                                  reqRetryId,
-                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
-                                                  0,
-                                                  cid,
-                                                  STATUS_REJECT,
-                                                  OperationResult::NOT_READY,
-                                                  myReplica_.getCurrentView());
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(myReplicaId_,
+                                      clientId,
+                                      reqOffsetInBatch,
+                                      reqSeqNum,
+                                      reqRetryId,
+                                      getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch).buffer,
+                                      0,
+                                      cid,
+                                      STATUS_REJECT,
+                                      OperationResult::NOT_READY,
+                                      myReplica_.getCurrentView());
   const auto &batchCid = ongoingReqBatches_[clientId]->getBatchCid();
   LOG_DEBUG(
       logger(),
@@ -1553,7 +1603,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
     if (!myReplica_.isCurrentPrimary() && (preProcessorMetrics_.preProcInFlyRequestsNum.Get().Get() > 0)) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
-    if (memoryPoolEnabled_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
+    if (bufferPool_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   }
 }
 
@@ -1682,7 +1732,10 @@ uint32_t PreProcessor::getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint1
   return reqOffset;
 }
 
-const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
+SafeResultBuffer &PreProcessor::getPreProcessResultBufferEntry(uint16_t clientId,
+                                                               ReqId reqSeqNum,
+                                                               uint16_t reqOffsetInBatch,
+                                                               uint32_t minBufferSize) {
   // Buffers structure scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
@@ -1690,27 +1743,34 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId req
   // First buffer offset = numOfReplicas_ * batchSize_
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
   const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
-  std::unique_lock lock(preProcessResultBuffers_[bufferOffset]->mutex);
-  if (!preProcessResultBuffers_[bufferOffset]->buffer) {
-    if (memoryPoolEnabled_) {
-      preProcessResultBuffers_[bufferOffset]->buffer = memoryPool_.getChunk();
-      LOG_TRACE(logger(),
-                "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
+  std::unique_lock lock(resultBuffEntry->mutex);
+  if (!resultBuffEntry->buffer) {
+    if (bufferPool_) {
+      std::tie(resultBuffEntry->buffer, resultBuffEntry->size) =
+          (minBufferSize == 0) ? bufferPool_->getBufferBySubpoolSelector()
+                               : bufferPool_->getBufferByMinBufferSize(minBufferSize);
+      LOG_TRACE(
+          logger(),
+          "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, minBufferSize));
     } else {
       preProcessResultBuffers_[bufferOffset]->buffer = new char[maxExternalMsgSize_];
+      resultBuffEntry->size = maxExternalMsgSize_;
       LOG_INFO(logger(), "Allocate raw memory" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
     }
   }
-  return preProcessResultBuffers_[bufferOffset]->buffer;
+  return *resultBuffEntry.get();
 }
 
 void PreProcessor::releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
   const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
-  std::unique_lock lock(preProcessResultBuffers_[bufferOffset]->mutex);
-  if (preProcessResultBuffers_[bufferOffset]->buffer) {
-    memoryPool_.returnChunk(preProcessResultBuffers_[bufferOffset]->buffer);
-    preProcessResultBuffers_[bufferOffset]->buffer = nullptr;
-    LOG_TRACE(logger(), "Returned memory to the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
+  std::unique_lock lock(resultBuffEntry->mutex);
+  if (resultBuffEntry->buffer) {
+    bufferPool_->returnBuffer(resultBuffEntry->buffer);
+    resultBuffEntry->buffer = nullptr;
+    resultBuffEntry->size = 0;
+    LOG_TRACE(logger(), "Returned a buffer to the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   }
 }
 
@@ -1772,31 +1832,98 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
                                << GlobalData::current_block_id << "] delta [" << GlobalData::block_delta << "]");
     GlobalData::increment_step = true;
   }
-  auto preProcessResultBuffer = (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
-  IRequestsHandler::ExecutionRequest request = bftEngine::IRequestsHandler::ExecutionRequest{
-      clientId,
-      reqSeqNum,
-      reqCid,
-      PRE_PROCESS_FLAG,
-      preProcessReqMsg->requestLength(),
-      preProcessReqMsg->requestBuf(),
-      std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
-      maxPreExecResultSize_,
-      preProcessResultBuffer,
-      reqSeqNum,
-      reqOffsetInBatch,
-      preProcessReqMsg->result()};
-  requestsHandler_.preExecute(request, std::nullopt, reqCid, span);
-  auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
-  resultLen = request.outActualReplySize;
-  if (preProcessResult != OperationResult::SUCCESS) {
+  auto resultBufferEntry = std::ref(getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch));
+  OperationResult preProcessResult{OperationResult::UNKNOWN};
+  IRequestsHandler::ExecutionRequest request;
+
+  // Try to send the request to execution twice - 1st time with default size. If it fails (e.g buffer size is
+  // insufficient), send with a buffer size that must fit.
+  for (size_t i{}; i < 2; ++i) {
+    // reduce internal overheads from buffer size for execution engine response
+    const auto maxReplySize = resultBufferEntry.get().size - responseSizeInternalOverhead_;
+    request = bftEngine::IRequestsHandler::ExecutionRequest{
+        clientId,
+        reqSeqNum,
+        reqCid,
+        PRE_PROCESS_FLAG,
+        preProcessReqMsg->requestLength(),
+        preProcessReqMsg->requestBuf(),
+        std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
+        maxReplySize,
+        resultBufferEntry.get().buffer,
+        reqSeqNum,
+        reqOffsetInBatch,
+        preProcessReqMsg->result()};
+    requestsHandler_.preExecute(request, std::nullopt, reqCid, span);
+    preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
+    resultLen = request.outActualReplySize;
+
+    if (preProcessResult == OperationResult::SUCCESS) {
+      break;
+    }
     LOG_ERROR(logger(),
-              "Pre-execution failed" << KVLOG(
-                  clientId, reqSeqNum, batchCid, reqCid, reqOffsetInBatch, (uint32_t)preProcessResult, resultLen));
-  }
+              "Pre-execution failed" << KVLOG(clientId,
+                                              reqSeqNum,
+                                              batchCid,
+                                              reqCid,
+                                              reqOffsetInBatch,
+                                              (uint32_t)preProcessResult,
+                                              resultLen,
+                                              request.outActualReplySize,
+                                              request.outRequiredReplySize,
+                                              maxReplySize,
+                                              resultBufferEntry.get().buffer,
+                                              request.maxReplySize,
+                                              request.requestSize));
+    if (!bufferPool_ || (OperationResult::EXEC_DATA_TOO_LARGE != preProcessResult)) {
+      // do not retry pre-execute if not using a memory pool OR if error is not due to response buffer size
+      break;
+    }
+
+    // If we are here: using memory pool and the error is due to insufficient buffer size
+    const auto maxSupportedBufferSize = subpoolsConfig_.back().bufferSize;
+    auto args = KVLOG(i,
+                      reqSeqNum,
+                      request.maxReplySize,
+                      request.outRequiredReplySize,
+                      request.outActualReplySize,
+                      maxSupportedBufferSize);
+    if (i == 0) {  // 1st attempt
+      if (request.outRequiredReplySize <= request.maxReplySize) {
+        // break since this is an unexpected error - we can't handle it and there is no use to retry, since buffer size
+        // was sufficient
+        LOG_ERROR(logger(), "Won't retry to pre-execute:" << args);
+        break;
+      }
+      if (request.outRequiredReplySize > maxSupportedBufferSize) {
+        // Largest buffer in queue cannot support the request output!
+        LOG_ERROR(logger(), "Won't retry to pre-execute, since this buffer size is not supported!" << args);
+        break;
+      }
+
+      // we can assume that request.outRequiredReplySize <= maxSupportedBufferSize (supported buffer size)
+      LOG_INFO(logger(), "Retry pre-execution with a larger buffer:" << args);
+      bufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outRequiredReplySize);
+      releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
+      // buffer returned from pool should be at least of size as required by execution engine + the response internal
+      // overhead
+      resultBufferEntry = getPreProcessResultBufferEntry(
+          clientId, reqSeqNum, reqOffsetInBatch, request.outRequiredReplySize + responseSizeInternalOverhead_);
+    }  // end 1st attempt
+    else if (i == 1) {
+      // 2nd attempt: Failure on second attempt due to buffer size should not happen, since we always expect the
+      // execution engine to produce the same results
+      LOG_FATAL(
+          logger(),
+          "Unexpected failure on retry due to insufficient buffer size (this error should never happen)!" << args);
+      ConcordAssert(false);
+    }
+  }  // for
+
+  // Done with pre-execution - result might be success or failure
   if (request.outActualReplySize == 0) {
     const string err{"Executed data is empty"};
-    strcpy(preProcessResultBuffer, err.c_str());
+    strcpy(resultBufferEntry.get().buffer, err.c_str());
     resultLen = err.size();
     preProcessResult = OperationResult::EXEC_DATA_EMPTY;
     LOG_ERROR(logger(),
@@ -1804,11 +1931,19 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
                   clientId, batchCid, reqSeqNum, reqCid, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
   }
   // Append the conflict detection block id and add its size to the resulting length.
-  memcpy(preProcessResultBuffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  memcpy(resultBufferEntry.get().buffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  bufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outActualReplySize);
   resultLen += sizeof(uint64_t);
   LOG_INFO(logger(),
-           "Pre-execution operation has been successfully completed by Execution engine"
-               << KVLOG(clientId, batchCid, reqSeqNum, reqCid, reqOffsetInBatch, blockId));
+           "Pre-execution operation has been completed by Execution engine" << KVLOG(clientId,
+                                                                                     batchCid,
+                                                                                     reqSeqNum,
+                                                                                     reqCid,
+                                                                                     reqOffsetInBatch,
+                                                                                     blockId,
+                                                                                     (uint32_t)preProcessResult,
+                                                                                     resultLen,
+                                                                                     request.outActualReplySize));
   return preProcessResult;
 }
 
@@ -1840,7 +1975,9 @@ void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgShar
     lock_guard<mutex> lock(reqEntry->mutex);
     if (reqEntry->reqProcessingStatePtr) {
       reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(
-          getPreProcessResultBuffer(clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch),
+          getPreProcessResultBufferEntry(
+              clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch, resultBufLen)
+              .buffer,
           resultBufLen,
           preProcessResult);
       result = reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
@@ -1876,17 +2013,18 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                      OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   const auto status = (preProcessResult == OperationResult::SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
-  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
-                                                  clientId,
-                                                  reqOffsetInBatch,
-                                                  reqSeqNum,
-                                                  reqRetryId,
-                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
-                                                  resBufLen,
-                                                  reqCid,
-                                                  status,
-                                                  preProcessResult,
-                                                  myReplica_.getCurrentView());
+  auto replyMsg = make_shared<PreProcessReplyMsg>(
+      myReplicaId_,
+      clientId,
+      reqOffsetInBatch,
+      reqSeqNum,
+      reqRetryId,
+      getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch, resBufLen).buffer,
+      resBufLen,
+      reqCid,
+      status,
+      preProcessResult,
+      myReplica_.getCurrentView());
   const auto &batchEntry = ongoingReqBatches_[clientId];
   if (batchEntry->isBatchInProcess()) {
     batchEntry->releaseReqsAndSendBatchedReplyIfCompleted(replyMsg);
