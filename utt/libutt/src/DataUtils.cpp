@@ -34,16 +34,14 @@ std::vector<uint8_t> IBEDecryptor::decrypt(const std::vector<uint8_t>& data) con
 RSAEncryptor::RSAEncryptor(const std::map<std::string, std::string>& rsa_public_keys_map) {
   for (const auto& [id, pub_key_str] : rsa_public_keys_map) {
     ManagedBIO key_bio{nullptr, bio_deleter};
-    key_bio.reset(BIO_new_mem_buf(pub_key_str.c_str(), -1));
-    if (!key_bio) {
-      throw std::runtime_error("Failed to create key BIO");
-    }
-    RSA* pb_key = NULL;
-    if (!PEM_read_bio_RSA_PUBKEY(key_bio.get(), &pb_key, nullptr, nullptr)) {
+    key_bio.reset(BIO_new(BIO_s_mem()));
+    EVP_PKEY* pub_key = NULL;
+    BIO_write(key_bio.get(), pub_key_str.c_str(), (int)pub_key_str.size());
+    pub_key = PEM_read_bio_PUBKEY(key_bio.get(), NULL, NULL, NULL);
+    if (!pub_key) {
       throw std::runtime_error("Failed to create rsa public key");
     }
-    encryptors_[id] = EVP_PKEY_new();
-    EVP_PKEY_assign_RSA(encryptors_[id], pb_key);
+    encryptors_[id] = pub_key;
   }
 }
 RSAEncryptor::~RSAEncryptor() {
@@ -70,16 +68,14 @@ std::vector<uint8_t> RSAEncryptor::encrypt(const std::string& id, const std::vec
 
 RSADecryptor::RSADecryptor(const std::string& rsa_private_key) {
   ManagedBIO key_bio{nullptr, bio_deleter};
-  key_bio.reset(BIO_new_mem_buf(rsa_private_key.c_str(), -1));
-  if (!key_bio) {
-    throw std::runtime_error("Failed to create key BIO");
+  key_bio.reset(BIO_new(BIO_s_mem()));
+  EVP_PKEY* pkey = NULL;
+  BIO_write(key_bio.get(), rsa_private_key.c_str(), (int)rsa_private_key.size());
+  pkey = PEM_read_bio_PrivateKey(key_bio.get(), NULL, NULL, NULL);
+  if (!pkey) {
+    throw std::runtime_error("Failed to create rsa private key");
   }
-  RSA* priv_key = NULL;
-  if (!PEM_read_bio_RSAPrivateKey(key_bio.get(), &priv_key, nullptr, nullptr)) {
-    throw std::runtime_error("Failed to create rsa public key");
-  }
-  pkey_ = EVP_PKEY_new();
-  EVP_PKEY_assign_RSA(pkey_, priv_key);
+  pkey_ = pkey;
 }
 
 RSADecryptor::~RSADecryptor() { EVP_PKEY_free(pkey_); }

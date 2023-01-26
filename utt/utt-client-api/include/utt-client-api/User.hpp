@@ -20,7 +20,6 @@
 #include <memory>
 
 #include <utt-common-api/CommonApi.hpp>
-#include "utt-client-api/UserPKI.hpp"
 #include "storage/IStorage.hpp"
 namespace utt::client {
 
@@ -133,14 +132,16 @@ class User {
   // Users can be created only by the top-level ClientApi functions
   friend std::unique_ptr<User> createUser(const std::string& userId,
                                           const utt::PublicConfig& config,
-                                          IUserPKInfrastructure& pki,
+                                          const std::string& private_key,
+                                          const std::string& public_key,
                                           std::unique_ptr<IStorage> storage);
 
   friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
                                              const utt::PublicConfig& config,
-                                             IUserPKInfrastructure& pki,
+                                             const std::string& private_key,
+                                             const std::string& public_key,
                                              std::unique_ptr<IStorage> storage);
 
   void recoverFromStorage(IStorage& storage);

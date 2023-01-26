@@ -42,7 +42,8 @@ class E2eTestScenarioTransferAboveBudget : public E2eTestScenario {
 
     logdbg << "Attempting to transfer " << TRANSFER_VALUE << " from user-1..." << std::endl;
 
-    context.wallet1->transfer(context.chanWallet, TRANSFER_VALUE, "user-2");
+    context.wallet1->transfer(
+        context.chanWallet, TRANSFER_VALUE, "user-2", E2eTestKeys::k_TestKeys.at("user-2").second);
 
     const uint64_t EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before;
     const uint64_t EXPECTED_PRIVATE_BALANCE_1_AFTER = privateBalance1Before;

@@ -18,7 +18,6 @@ class E2eTestSuite {
   grpc::ClientContext ctxWallet;
   grpc::ClientContext ctxAdmin;
   utt::Configuration config;
-  utt::client::TestUserPKInfrastructure pki;
   E2eTestContext context;
 
   std::list<std::unique_ptr<E2eTestScenario>> testScenarios;
@@ -72,7 +71,8 @@ class E2eTestSuite {
 
  private:
   void configureWallet(std::unique_ptr<Wallet> &wallet, const std::string &userId) {
-    wallet = std::make_unique<Wallet>(userId, pki, config);
+    wallet = std::make_unique<Wallet>(
+        userId, E2eTestKeys::k_TestKeys.at(userId).first, E2eTestKeys::k_TestKeys.at(userId).second, config);
     wallet->registerUser(context.chanWallet);
   }
 

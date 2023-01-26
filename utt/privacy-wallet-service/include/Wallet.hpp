@@ -24,12 +24,14 @@
 
 class Wallet {
  public:
-  Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
+  Wallet(std::string userId,
+         const std::string& private_key,
+         const std::string& publick_key,
+         const utt::PublicConfig& config);
 
  private:
   std::unique_ptr<utt::client::IStorage> storage_;
   std::string userId_;
-  utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
   bool registered_ = false;
 };

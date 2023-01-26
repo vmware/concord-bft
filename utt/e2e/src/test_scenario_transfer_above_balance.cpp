@@ -28,7 +28,10 @@ class E2eTestScenarioTransferAboveBalance : public E2eTestScenario {
            << ", privacyBudget2 before: " << privacyBudget2Before << std::endl;
 
     if (privateBalance1Before > privacyBudget1Before) return E2eTestResult::PREREQUISITES_NOT_MET;
-    context.wallet1->transfer(context.chanWallet, privateBalance1Before + TRANSFER_OVERFLOW, "user-2");
+    context.wallet1->transfer(context.chanWallet,
+                              privateBalance1Before + TRANSFER_OVERFLOW,
+                              "user-2",
+                              E2eTestKeys::k_TestKeys.at("user-2").second);
 
     const uint64_t EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before;
     const uint64_t EXPECTED_PRIVATE_BALANCE_1_AFTER = privateBalance1Before;

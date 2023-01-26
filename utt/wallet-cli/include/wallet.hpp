@@ -37,7 +37,10 @@ class Wallet {
 
   bool isRegistered() const;
 
-  Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
+  Wallet(std::string userId,
+         const std::string& private_key,
+         const std::string& publick_key,
+         const utt::PublicConfig& config);
 
   void showInfo(Channel& chan);
 
@@ -59,7 +62,7 @@ class Wallet {
   /// @brief Transfers the desired amount anonymously to the recipient
   /// @param amount The amount to transfer
   /// @param recipient The user id of the recipient
-  void transfer(Channel& chan, uint64_t amount, const std::string& recipient);
+  void transfer(Channel& chan, uint64_t amount, const std::string& recipient, const std::string& recipient_public_key);
 
   /// @brief  Transfer public (ERC20) funds from wallet to address.
   /// @param amount The amount of public funds to transfer
@@ -83,8 +86,9 @@ class Wallet {
 
   std::unique_ptr<utt::client::IStorage> storage_;
   std::string userId_;
-  utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
   uint64_t publicBalance_ = 0;
   bool registered_ = false;
+  std::string public_key_;
+  std::string private_key_;
 };

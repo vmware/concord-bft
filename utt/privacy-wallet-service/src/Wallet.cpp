@@ -16,10 +16,13 @@
 #include <iostream>
 #include <utt-client-api/ClientApi.hpp>
 
-Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config)
-    : userId_{std::move(userId)}, pki_{pki} {
+Wallet::Wallet(std::string userId,
+               const std::string& private_key,
+               const std::string& public_key,
+               const utt::PublicConfig& config)
+    : userId_{std::move(userId)} {
   storage_ = std::make_unique<utt::client::FileBasedUserStorage>("state/" + userId_);
-  user_ = utt::client::createUser(userId_, config, pki_, std::move(storage_));
+  user_ = utt::client::createUser(userId_, config, private_key, public_key, std::move(storage_));
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }

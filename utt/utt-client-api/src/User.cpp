@@ -250,40 +250,30 @@ libutt::RSAEncryptor User::Impl::createRsaEncryptorForTransferToOther(const std:
 
 std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
-                                          IUserPKInfrastructure& pki,
+                                          const std::string& private_key,
+                                          const std::string& public_key,
                                           std::unique_ptr<IStorage> storage) {
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
+  if (private_key.empty()) throw std::runtime_error("User private key cannot be empty!");
+  if (public_key.empty()) throw std::runtime_error("User public key cannot be empty!");
 
-  // - Ask pki to create a new public/private key pair?
   bool isNewStorage = storage->isNewStorage();
-  utt::client::IUserPKInfrastructure::KeyPair userKeys;
   if (isNewStorage) {
-    userKeys = pki.generateKeys(userId);
-    {
-      IStorage::tx_guard g(*storage);
-      storage->setKeyPair({userKeys.sk_, userKeys.pk_});
-    }
-  } else {
-    logdbg << "loading key pair from storage" << endl;
-    userKeys.sk_ = storage->getKeyPair().first;
-    userKeys.pk_ = storage->getKeyPair().second;
+    IStorage::tx_guard g(*storage);
+    storage->setKeyPair({private_key, public_key});
   }
-
-  if (userKeys.sk_.empty()) throw std::runtime_error("User public key not generated!");
-  if (userKeys.pk_.empty()) throw std::runtime_error("User private key not generated!");
-
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
 
   auto user = std::make_unique<User>();
-  user->pImpl_->pk_ = userKeys.pk_;
+  user->pImpl_->pk_ = public_key;
   user->pImpl_->params_ = uttConfig.getParams();
   user->pImpl_->storage_ = std::move(storage);
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
-      userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
+      userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), private_key));
 
-  std::map<std::string, std::string> selfTxCredentials{{userId, userKeys.pk_}};
+  std::map<std::string, std::string> selfTxCredentials{{userId, public_key}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
   if (!isNewStorage) {
     logdbg << "loading user data from storage" << endl;
@@ -313,7 +303,6 @@ void User::recoverFromStorage(IStorage& storage) {
     return;
   }
   auto rcm_sig = storage.getRcmSignature();
-  logdbg_user << rcm_sig.size() << endl;
   if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
   pImpl_->is_registered_ = true;

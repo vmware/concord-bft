@@ -53,7 +53,8 @@ PublicConfig getPublicConfig(const Configuration& config);
 /// @return Newly created user object
 std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
-                                 IUserPKInfrastructure& pki,
+                                 const std::string& private_key,
+                                 const std::string& public_key,
                                  std::unique_ptr<IStorage> storage);
 
 // Load an existing user from storage

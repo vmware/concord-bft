@@ -74,10 +74,11 @@ PublicConfig getPublicConfig(const Configuration& config) {
 
 std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
-                                 IUserPKInfrastructure& pki,
+                                 const std::string& private_key,
+                                 const std::string& public_key,
                                  std::unique_ptr<IStorage> storage) {
   if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
-  return User::createInitial(userId, config, pki, std::move(storage));
+  return User::createInitial(userId, config, private_key, public_key, std::move(storage));
 }
 
 }  // namespace utt::client
