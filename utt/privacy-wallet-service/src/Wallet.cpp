@@ -14,15 +14,32 @@
 #include "Wallet.hpp"
 #include <storage/FileBasedUserStorage.hpp>
 #include <iostream>
+#include <xutils/Log.h>
 #include <utt-client-api/ClientApi.hpp>
-
+#include <utils/crypto.hpp>
+namespace utt::walletservice {
+using namespace utt::client::utils::crypto;
 Wallet::Wallet(std::string userId,
                const std::string& private_key,
                const std::string& public_key,
+               const std::string& storage_path,
+               const std::string& cert,
                const utt::PublicConfig& config)
-    : userId_{std::move(userId)} {
-  storage_ = std::make_unique<utt::client::FileBasedUserStorage>("state/" + userId_);
+    : userId_{std::move(userId)}, cert_{cert}, private_key_{private_key} {
+  storage_ = std::make_unique<utt::client::FileBasedUserStorage>(storage_path);
   user_ = utt::client::createUser(userId_, config, private_key, public_key, std::move(storage_));
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }
+std::optional<Wallet::RegistrationInput> Wallet::registerUser() {
+  if (registered_) return std::nullopt;
+  Wallet::RegistrationInput ret;
+  ret.rcm1 = user_->getRegistrationInput();
+  if (ret.rcm1.empty()) {
+    std::cout << "failed to generate rcm1" << std::endl;
+    return std::nullopt;
+  }
+  ret.rcm1_sig = signData(ret.rcm1, private_key_);
+  return ret;
+}
+}  // namespace utt::walletservice

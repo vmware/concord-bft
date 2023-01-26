@@ -15,6 +15,8 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
+#include <openssl/sha.h>
+#include <xutils/Utils.h>
 #include <cstdio>
 #include "utils/crypto.hpp"
 
@@ -58,5 +60,14 @@ std::vector<uint8_t> signData(const std::vector<uint8_t>& data, const std::strin
   BIO_free(key_bio);
   EVP_PKEY_free(pkey);
   return sig;
+}
+
+std::string sha256(const std::vector<uint8_t>& data) {
+  uint8_t hash[SHA256_DIGEST_LENGTH];
+  SHA256_CTX sha256;
+  SHA256_Init(&sha256);
+  SHA256_Update(&sha256, data.data(), data.size());
+  SHA256_Final(hash, &sha256);
+  return libutt::Utils::bin2hex(hash, SHA256_DIGEST_LENGTH);
 }
 }  // namespace utt::client::utils::crypto

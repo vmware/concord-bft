@@ -19,9 +19,10 @@
 
 #include <grpcpp/grpcpp.h>
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-service/proto/api
-
+#include "Wallet.hpp"
 #include <utt-client-api/ClientApi.hpp>
 
+namespace utt::walletservice {
 //@TODO hide on its own file..
 class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Service {
  public:
@@ -36,6 +37,19 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       ::grpc::ServerContext* context,
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+  ::grpc::Status handleWalletConfigRequest(
+      ::grpc::ServerContext* context,
+      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+  ::grpc::Status handleUserRegistrationRequest(
+      ::grpc::ServerContext* context,
+      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+ private:
+  std::unique_ptr<Wallet> wallet_;
 };
 
 class PrivacyWalletService {
@@ -50,3 +64,4 @@ class PrivacyWalletService {
   std::unique_ptr<grpc::Server> grpc_server_;
   std::unique_ptr<PrivacyWalletServiceImpl> privacy_wallet_service_;
 };
+}  // namespace utt::walletservice

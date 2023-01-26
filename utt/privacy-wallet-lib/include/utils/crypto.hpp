@@ -32,4 +32,12 @@ std::string getCertificatePublicKey(const std::string& cert);
  * @return std::vector<uint8_t>
  */
 std::vector<uint8_t> signData(const std::vector<uint8_t>& data, const std::string& pem_private_key);
+
+/**
+ * @brief generate a hex string that represents a hash256 on a given string
+ *
+ * @param data the data to hash
+ * @return std::string hex string of the hashed data
+ */
+std::string sha256(const std::vector<uint8_t>& data);
 }  // namespace utt::client::utils::crypto
