@@ -14,8 +14,11 @@
 #include "crypto/openssl/certificates.hpp"
 #include "crypto/openssl/crypto.hpp"
 #include "util/filesystem.hpp"
-
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
 #include <regex>
+#include <optional>
+#include <stdexcept>
 #include "log/logger.hpp"
 
 namespace concord::crypto {
@@ -257,6 +260,108 @@ std::vector<std::string> getSubjectFieldListByName(const std::string& cert_bundl
   }
   X509_STORE_free(store);
   return attribute_list;
+}
+
+int verify_cb(int ok, X509_STORE_CTX* ctx) {
+  if (!ok) {
+    int certError = X509_STORE_CTX_get_error(ctx);
+    int depth = X509_STORE_CTX_get_error_depth(ctx);
+    LOG_INFO(GL, KVLOG(depth, certError));
+    if (certError == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
+      return 1;
+    }
+  }
+
+  return (ok);
+}
+
+X509* PEM_string_bundle_to_X509(const std::string& cert_data, uint64_t index) {
+  BIO* cert_bio = BIO_new(BIO_s_mem());
+  BIO_puts(cert_bio, cert_data.c_str());
+  X509* cert = nullptr;
+  uint64_t iter{0};
+  while ((cert = PEM_read_bio_X509(cert_bio, nullptr, nullptr, nullptr))) {
+    if (iter == index) {
+      BIO_free(cert_bio);
+      return cert;
+    }
+    iter++;
+  }
+  throw std::out_of_range("certificates in bundle: " + std::to_string(iter) +
+                          " requested index is: " + std::to_string(index));
+}
+
+EVP_PKEY* extract_public_key(X509* cert) {
+  EVP_PKEY* pubkey = X509_get_pubkey(cert);
+  if (!pubkey) return NULL;
+  return pubkey;
+}
+
+bool verify_certificate(X509* cert, EVP_PKEY* pubkey) {
+  int result = X509_verify(cert, pubkey);
+  if (result != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool verifyCertificatesChain(const std::string& certificates_bundle) {
+  std::vector<X509*> certs;
+  BIO* bio = BIO_new_mem_buf(certificates_bundle.c_str(), -1);
+  X509* cert = nullptr;
+  while ((cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr))) certs.push_back(cert);
+  BIO_free(bio);
+  if (certs.size() == 1) {
+    X509* cert = certs.front();
+    EVP_PKEY* cert_key = extract_public_key(cert);
+    bool res = verify_certificate(cert, cert_key);
+    X509_free(cert);
+    EVP_PKEY_free(cert_key);
+    return res;
+  }
+  bool res = true;
+  for (size_t i = certs.size() - 1; i > 0; i--) {
+    X509* issuer = certs[i];
+    X509* signed_cert = certs[i - 1];
+    EVP_PKEY* cert_key = extract_public_key(issuer);
+    res = verify_certificate(signed_cert, cert_key);
+    EVP_PKEY_free(cert_key);
+    if (!res) break;
+  }
+  for (size_t i = 0; i < certs.size(); i++) X509_free(certs[i]);
+  return res;
+}
+
+std::string getCertificatePublicKey(const std::string& cert_str, uint64_t index) {
+  X509* cert = PEM_string_bundle_to_X509(cert_str, index);
+  EVP_PKEY* public_key = X509_get_pubkey(cert);
+  X509_free(cert);
+
+  BIO* bio = BIO_new(BIO_s_mem());
+  PEM_write_bio_PUBKEY(bio, public_key);
+  BUF_MEM* buf;
+  BIO_get_mem_ptr(bio, &buf);
+  std::string public_key_pem(buf->data, buf->length - 1);
+  BIO_free(bio);
+
+  EVP_PKEY_free(public_key);
+  return public_key_pem;
+}
+
+std::map<std::string, std::string> getSubjectFields(const std::string& cert_data, uint64_t index) {
+  X509* cert = PEM_string_bundle_to_X509(cert_data, index);
+  std::map<std::string, std::string> ret;
+  X509_NAME* name = X509_get_subject_name(cert);
+  for (const auto& [attr, nid] : name_to_id_map) {
+    char buf[1024];
+    auto name_len = X509_NAME_get_text_by_NID(name, nid, buf, sizeof(buf));
+    if (name_len == -1 || name_len == -2) {
+      continue;
+    }
+    ret[attr] = std::string(buf);
+  }
+  X509_free(cert);
+  return ret;
 }
 
 }  // namespace concord::crypto

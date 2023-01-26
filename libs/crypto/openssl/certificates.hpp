@@ -56,4 +56,36 @@ std::string getSubjectFieldByName(const std::string& cert_path, const std::strin
 // This function accepts path to a cert bundle
 std::vector<std::string> getSubjectFieldListByName(const std::string& cert_bundle_path,
                                                    const std::string& attribute_name);
+
+/**
+ * @brief Validates a certificate bundle chain. The certificate is composed of chained certificated in the following
+ * form "-----BEGIN CERTIFICATE-----MIIC...-----END CERTIFICATE-----/n-----BEGIN CERTIFICATE-----MIIC...-----END
+ * CERTIFICATE-----...-----BEGIN CERTIFICATE-----MIIC...-----END CERTIFICATE-----". The first certificate in the bundle
+ * is the user certificate and the reset are the ordered chain such that cert1 <- cert2 <- ... <- ca_cert, where "<-"
+ * represent a signature.
+ *
+ * @param x509_certs_chain_pem a certificate bundle
+ * @return true if valid
+ * @return false if not valid
+ */
+bool verifyCertificatesChain(const std::string& certificates_bundle);
+
+/**
+ * @brief Get the Certificate Public Key object
+ *
+ * @param cert_str a certificate bundle.
+ * @param index the index of the certificate in the certificate bundle
+ * @return std::string the encoded public key in pem format of the first certificate in the bundle
+ */
+std::string getCertificatePublicKey(const std::string& cert_str, uint64_t index);
+
+/**
+ * @brief Get the Subject Fields object
+ *
+ * @param cert_data a certificates bundle.
+ * @param index the certificate index in the bundle
+ * @return std::map<std::string, std::string>
+ */
+std::map<std::string, std::string> getSubjectFields(const std::string& cert_data, uint64_t index);
+
 }  // namespace concord::crypto
