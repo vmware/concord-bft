@@ -1,6 +1,8 @@
 find_package(GTest REQUIRED)
+
 set(privacy_wallet_lib_storage_tests_src
     storage/FileBasedStorageTests.cpp
+    utils/crypto_tests.cpp
 )
 
 foreach(appSrc ${privacy_wallet_lib_storage_tests_src})
