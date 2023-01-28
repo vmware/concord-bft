@@ -42,6 +42,7 @@ class PublicConfig {
 
   std::string getCommitVerificationKey() const;
   std::string getRegistrationVerificationKey() const;
+
   const UTTParams& getParams() const;
 
   // [TODO-UTT] More getters if needed
@@ -83,6 +84,7 @@ class Configuration {
 
   std::string getCommitVerificationKeyShare(uint16_t idx) const;
   std::string getRegistrationVerificationKeyShare(uint16_t idx) const;
+  std::string getIbeMsk() const;
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Configuration& config);

@@ -48,6 +48,11 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
 
+  ::grpc::Status handleUserRegistrationUpdateRequest(
+      ::grpc::ServerContext* context,
+      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
  private:
   std::unique_ptr<Wallet> wallet_;
 };

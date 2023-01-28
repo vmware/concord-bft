@@ -26,8 +26,8 @@ message PrivacyAppConfigResponse {
 }
 
 message PrivacyWalletConfigRequest {
-    string cert = 1;
-    string private_key = 2;
+    string private_key = 1;
+    string public_key = 2;
     bytes public_application_config = 3;
     string storage_path = 4;
 }
@@ -44,17 +44,27 @@ message UserRegistrationResponse {
     bytes rcm1_sig = 2;
 }
 
+message UserRegistrationUpdateRequest {
+    bytes rcm_sig = 1;
+    repeated uint64 s2 = 2;
+}
+
+message UserRegistrationUpdateResponse {
+    bool succ = 1;
+}
+
 message PrivacyWalletRequest {
     oneof req {
         PrivacyAppConfigRequest privacy_app_config = 1;
         PrivacyWalletConfigRequest privacy_wallet_config_request = 2;
         UserRegistrationRequest user_registration_request = 3;
+        UserRegistrationUpdateRequest user_registration_update_request = 4;
     }
     // Required timeout which defines the maximum amount of time the caller is
      // willing to wait for the request to be processed by a quorum of replicas.
     // Returns DEADLINE_EXCEEDED if the request times out.
     // Returns INVALID_ARGUMENT if the timeout is zero.
-    google.protobuf.Duration timeout = 4;    
+    google.protobuf.Duration timeout = 5;    
 }
 
 message PrivacyWalletResponse {
@@ -63,5 +73,6 @@ message PrivacyWalletResponse {
         PrivacyAppConfigResponse privacy_app_config_response = 2;
         PrivacyWalletConfigResponse privacy_wallet_config_response = 3;
         UserRegistrationResponse user_registration_response = 4;
+        UserRegistrationUpdateResponse user_registration_update_response = 5;
     }
 }

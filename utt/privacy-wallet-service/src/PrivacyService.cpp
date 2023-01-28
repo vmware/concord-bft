@@ -60,6 +60,8 @@ void PrivacyWalletService::Shutdown() {
     return handleWalletConfigRequest(context, request, response);
   } else if (request->has_user_registration_request()) {
     return handleUserRegistrationRequest(context, request, response);
+  } else if (request->has_user_registration_update_request()) {
+    return handleUserRegistrationUpdateRequest(context, request, response);
   } else {
     std::cout << "unknown request: " << request->DebugString() << std::endl;
     status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
@@ -99,13 +101,11 @@ void PrivacyWalletService::Shutdown() {
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
-  std::cout << "Processing privacy wallet config request:" << std::endl;
   auto req = request->privacy_wallet_config_request();
-  auto public_key = getCertificatePublicKey(req.cert());
+  auto public_key = req.public_key();
   auto userId = sha256({public_key.begin(), public_key.end()});
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
-  wallet_ =
-      std::make_unique<Wallet>(userId, req.private_key(), public_key, req.storage_path(), req.cert(), publicConfig);
+  wallet_ = std::make_unique<Wallet>(userId, req.private_key(), public_key, req.storage_path(), publicConfig);
   auto resp = response->mutable_privacy_wallet_config_response();
   resp->set_succ(true);
   return grpc::Status::OK;
@@ -121,7 +121,7 @@ void PrivacyWalletService::Shutdown() {
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
-  auto registration_input = wallet_->registerUser();
+  auto registration_input = wallet_->generateRegistrationInput();
   if (!registration_input.has_value()) {
     std::string err_msg = "error while generating registration input";
     std::cout << err_msg << std::endl;
@@ -131,6 +131,30 @@ void PrivacyWalletService::Shutdown() {
   auto reg_response = response->mutable_user_registration_response();
   reg_response->set_rcm1(registration_input->rcm1.data(), registration_input->rcm1.size());
   reg_response->set_rcm1_sig(registration_input->rcm1_sig.data(), registration_input->rcm1_sig.size());
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleUserRegistrationUpdateRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  auto req = request->user_registration_update_request();
+  auto res = wallet_->updateRegistrationCommitment({req.rcm_sig().begin(), req.rcm_sig().end()},
+                                                   {req.s2().begin(), req.s2().end()});
+  if (!res) {
+    std::string err_msg = "user is already registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, err_msg);
+  }
+  auto resp = response->mutable_user_registration_update_response();
+  resp->set_succ(true);
   return grpc::Status::OK;
 }
 }  // namespace utt::walletservice

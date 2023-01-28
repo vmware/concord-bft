@@ -382,7 +382,9 @@ TEST_F(ibe_based_test_system_minted, test_serialization_tx_op) {
   const auto& client2 = clients[1];
   auto coin = coins[client1.getPid()].front();
   auto bcoin = bcoins[client1.getPid()].front();
-  auto encryptor = std::make_shared<libutt::IBEEncryptor>(rsk.toPK().mpk);
+  libutt::IBE::MSK msk = libutt::deserialize<libutt::IBE::MSK>(config->getIbeMsk());
+  auto mpk = msk.toMPK(config->getPublicConfig().getParams().getImpl()->p.ibe);
+  auto encryptor = std::make_shared<libutt::IBEEncryptor>(mpk);
   Transaction tx(d, client1, {coin}, {bcoin}, {{client1.getPid(), 50}, {client2.getPid(), 50}}, *(encryptor));
 
   // Test Transaction de/serialization
@@ -395,8 +397,10 @@ TEST_F(ibe_based_test_system_minted, test_serialization_tx_op) {
 
 TEST_F(ibe_based_test_system_minted, test_transaction) {
   std::unordered_map<size_t, std::shared_ptr<libutt::IBEEncryptor>> encryptors_;
+  libutt::IBE::MSK msk = libutt::deserialize<libutt::IBE::MSK>(config->getIbeMsk());
+  auto mpk = msk.toMPK(config->getPublicConfig().getParams().getImpl()->p.ibe);
   for (size_t i = 0; i < clients.size(); i++) {
-    encryptors_[i] = std::make_shared<libutt::IBEEncryptor>(rsk.toPK().mpk);
+    encryptors_[i] = std::make_shared<libutt::IBEEncryptor>(mpk);
   }
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];

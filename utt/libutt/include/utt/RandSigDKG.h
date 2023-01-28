@@ -36,6 +36,7 @@ class RandSigDKG {
    * ell = number of messages that can be committed to and signed
    */
   RandSigDKG(size_t t, size_t n, size_t ell);
+  RandSigDKG() = default;
 
  public:
   const RandSigSK& getSK() const { return sk; }
