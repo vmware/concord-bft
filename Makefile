@@ -345,7 +345,10 @@ test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test 
 	exit $${num_failures}
 
 .PHONY: test-single-apollo-case
-test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
+## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. 
+## Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. 
+## Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
+test-single-apollo-case: 
 	@if [ -z ${TEST_FILE_NAME} ]; then echo "Error: please set the TEST_FILE_NAME environment variable!"; exit 1; fi
 	@if [ -z ${TEST_CASE_NAME} ]; then echo "Error: please set the TEST_CASE_NAME environment variable!"; exit 1; fi
 	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
@@ -409,16 +412,13 @@ codecoverage: ## Generate Code Coverage report for Apollo tests
 	@echo "Completed make codecoverage"
 
 # base docker image with toolchain only
-GIT_BRANCH=$(shell git name-rev --name-only HEAD | sed "s/~.*//")
-GIT_COMMIT=$(shell git rev-parse HEAD)
-BUILD_CREATOR=$(shell git config user.email)
 build-toolchain-docker-image:
 	docker build --rm --no-cache=true \
 	-t ${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN}:toolchain-latest \
 	-f ./${CONCORD_BFT_DOCKERFILE_TOOLCHAIN} \
-	--build-arg GIT_BRANCH=${GIT_BRANCH} \
-	--build-arg GIT_COMMIT=${GIT_COMMIT} \
-	--build-arg BUILD_CREATOR=${BUILD_CREATOR} \
+	--build-arg GIT_BRANCH="$(shell git name-rev --name-only HEAD | sed "s/~.*//")" \
+	--build-arg GIT_COMMIT="$(shell git rev-parse HEAD)" \
+	--build-arg BUILD_CREATOR="$(shell git config user.email)" \
 	.
 
 BUILD_IMAGE_MODE?=ALL
@@ -436,9 +436,9 @@ build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT
 		-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} \
 		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_REPO=${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN} \
 		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_TAG=${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN_VERSION} \
-		--build-arg GIT_BRANCH=${GIT_BRANCH} \
-		--build-arg GIT_COMMIT=${GIT_COMMIT} \
-		--build-arg BUILD_CREATOR=${BUILD_CREATOR} \
+		--build-arg GIT_BRANCH="$(shell git name-rev --name-only HEAD | sed "s/~.*//")" \
+		--build-arg GIT_COMMIT="$(shell git rev-parse HEAD)" \
+		--build-arg BUILD_CREATOR="$(shell git config user.email)" \
 		. ; \
 	fi
 	@if [ '${BUILD_IMAGE_MODE}' = 'DEBUG' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
