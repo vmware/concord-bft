@@ -18,6 +18,7 @@
 #include <utt/RandSig.h>
 #include <utt/RegAuth.h>
 #include <utt/Serialization.h>
+#include <utt/Params.h>
 
 namespace libutt::api {
 
