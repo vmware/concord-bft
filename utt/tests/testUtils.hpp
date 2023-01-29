@@ -154,9 +154,11 @@ std::vector<std::string> pkeys{publick1, publick2, publick3};
 class test_utt_instance : public ::testing::Test {
  public:
  protected:
-  void setUp(bool ibe, bool register_clients) {
-    libutt::api::UTTParams::BaseLibsInitData base_libs_init_data;
-    libutt::api::UTTParams::initLibs(base_libs_init_data);
+  void setUp(bool ibe, bool register_clients, bool init = true) {
+    if (init) {
+      libutt::api::UTTParams::BaseLibsInitData base_libs_init_data;
+      libutt::api::UTTParams::initLibs(base_libs_init_data);
+    }
     config = std::make_unique<libutt::api::Configuration>(n, thresh);
     d = config->getPublicConfig().getParams();
 

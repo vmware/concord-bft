@@ -11,6 +11,17 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
+
 #include "../../../tests/testUtils.hpp"
 #include "gtest/gtest.h"
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
@@ -31,10 +42,13 @@ using namespace ::vmware::concord::privacy::wallet::api::v1;
 class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_instance {
  protected:
   void SetUp() override {
-    libutt::api::testing::test_utt_instance::setUp(false, false);
+    libutt::api::testing::test_utt_instance::setUp(false, false, false);
     server_.StartServer(grpc_uri_);
   }
-  void TearDown() override { server_.Shutdown(); }
+  void TearDown() override {
+    fs::remove(".state.json");
+    server_.Shutdown();
+  }
 
   void configureWallet(size_t index) {
     auto context = grpc::ClientContext{};
