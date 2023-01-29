@@ -30,6 +30,7 @@ namespace fs = std::experimental::filesystem;
 #include <grpcpp/create_channel.h>
 #include "PrivacyService.hpp"
 #include "Wallet.hpp"
+#include "types.hpp"
 #include <thread>
 #include "serialization.hpp"
 #include "utils/crypto.hpp"
@@ -76,7 +77,43 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
          libutt::api::testing::pkeys[index].end()});  // same user id as the one the wallet creates
   }
 
- protected:
+  std::pair<types::CurvePoint, types::Signature> registerUser(const std::vector<uint8_t>& rcm1) {
+    size_t n = registrators.size();
+    std::vector<std::vector<uint8_t>> shares;
+    std::vector<uint16_t> shares_signers;
+    Fr fr_s2 = Fr::random_element();
+    types::CurvePoint s2;
+
+    auto deserialized_rcm1 = libutt::api::deserialize<libutt::api::Commitment>(rcm1);
+
+    auto pidHash = AddrSK::pidHash(user_id_).to_words();
+    for (auto& r : registrators) {
+      auto [ret_s2, sig] = r->signRCM(pidHash, fr_s2.to_words(), deserialized_rcm1);
+      shares.push_back(sig);
+      shares_signers.push_back(r->getId());
+      if (s2.empty()) {
+        s2 = ret_s2;
+      }
+    }
+    for (auto& r : registrators) {
+      for (size_t i = 0; i < shares.size(); i++) {
+        auto& sig = shares[i];
+        auto& signer = shares_signers[i];
+        assertTrue(r->validatePartialRCMSig(signer, pidHash, s2, deserialized_rcm1, sig));
+      }
+    }
+    auto sids = getSubset((uint32_t)n, (uint32_t)thresh);
+    std::map<uint32_t, std::vector<uint8_t>> rsigs;
+    for (auto i : sids) {
+      rsigs[i] = shares[i];
+    }
+    auto sig = Utils::unblindSignature(d,
+                                       Commitment::Type::REGISTRATION,
+                                       {Fr::zero().to_words(), Fr::zero().to_words()},
+                                       Utils::aggregateSigShares((uint32_t)n, rsigs));
+    return {s2, sig};
+  }
+
   const std::string grpc_uri_{"127.0.0.1:50051"};
   utt::walletservice::PrivacyWalletService server_;
   std::shared_ptr<grpc::Channel> channel_ = grpc::CreateChannel(grpc_uri_, grpc::InsecureChannelCredentials());
@@ -142,46 +179,15 @@ TEST_F(test_privacy_wallet_grpc_service, test_privacy_service_wallet_registratio
   (void)registration_req;
   grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
 
-  // compute rcm_sig and s2
-  size_t n = registrators.size();
-  std::vector<std::vector<uint8_t>> shares;
-  std::vector<uint16_t> shares_signers;
-  Fr fr_s2 = Fr::random_element();
-  types::CurvePoint s2;
-
   std::vector<uint8_t> rcm1 = {response.user_registration_response().rcm1().begin(),
                                response.user_registration_response().rcm1().end()};
-  auto deserialized_rcm1 = libutt::api::deserialize<libutt::api::Commitment>(rcm1);
-  auto pidHash = AddrSK::pidHash(user_id_).to_words();
-  for (auto& r : registrators) {
-    auto [ret_s2, sig] = r->signRCM(pidHash, fr_s2.to_words(), deserialized_rcm1);
-    shares.push_back(sig);
-    shares_signers.push_back(r->getId());
-    if (s2.empty()) {
-      s2 = ret_s2;
-    }
-  }
-  for (auto& r : registrators) {
-    for (size_t i = 0; i < shares.size(); i++) {
-      auto& sig = shares[i];
-      auto& signer = shares_signers[i];
-      assertTrue(r->validatePartialRCMSig(signer, pidHash, s2, deserialized_rcm1, sig));
-    }
-  }
-  auto sids = getSubset((uint32_t)n, (uint32_t)thresh);
-  std::map<uint32_t, std::vector<uint8_t>> rsigs;
-  for (auto i : sids) {
-    rsigs[i] = shares[i];
-  }
-  auto sig = Utils::aggregateSigShares((uint32_t)n, rsigs);
-  sig = Utils::unblindSignature(d, Commitment::Type::REGISTRATION, {Fr::zero().to_words(), Fr::zero().to_words()}, sig);
 
-  // Now that we have rcm_sig and s2, we need to submit them to the wallet
+  auto [s2, rcm_sig] = registerUser(rcm1);
 
   auto response2 = ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse{};
   PrivacyWalletRequest request2;
   auto registration_update_req = request2.mutable_user_registration_update_request();
-  registration_update_req->set_rcm_sig({sig.begin(), sig.end()});
+  registration_update_req->set_rcm_sig({rcm_sig.begin(), rcm_sig.end()});
   *(registration_update_req->mutable_s2()) = {s2.begin(), s2.end()};
   auto context2 = grpc::ClientContext{};
   grpc::Status status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
