@@ -56,7 +56,7 @@ class Params {
 
   // The number of sub-messages that compose a coin, which we commit to via Pedersen:
   // (pid, sn, v, type, expdate) -> 5
-  static const size_t NumMessages = 5;
+  static const size_t NumMessages;
 
  public:
   // WARNING: For deserialization only

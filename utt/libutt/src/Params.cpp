@@ -29,7 +29,7 @@ std::istream& operator>>(std::istream& in, libutt::Params& p) {
 }
 
 namespace libutt {
-
+const size_t Params::NumMessages = 5;
 Params Params::random() {
   /**
    * Pick the coin commitment key (and thus the PS16 g and \tilde{g} bases)

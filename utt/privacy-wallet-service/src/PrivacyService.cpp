@@ -101,7 +101,7 @@ void PrivacyWalletService::Shutdown() {
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
-  auto req = request->privacy_wallet_config_request();
+  const auto& req = request->privacy_wallet_config_request();
   auto public_key = req.public_key();
   auto userId = sha256({public_key.begin(), public_key.end()});
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
@@ -144,7 +144,7 @@ void PrivacyWalletService::Shutdown() {
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
-  auto req = request->user_registration_update_request();
+  const auto& req = request->user_registration_update_request();
   auto res = wallet_->updateRegistrationCommitment({req.rcm_sig().begin(), req.rcm_sig().end()},
                                                    {req.s2().begin(), req.s2().end()});
   if (!res) {
