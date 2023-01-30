@@ -12,17 +12,20 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/RawMemoryPool.cpp
+    src/MultiSizeBufferPool.cpp
     src/config_file_parser.cpp
     src/io.cpp)
     
 add_library(util STATIC ${util_source_files})
-
+target_link_libraries(util PUBLIC diagnostics)
 if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_link_libraries(util PUBLIC stdc++fs)
 endif()
 
-target_include_directories(util PUBLIC include ${Boost_INCLUDE_DIR})
+target_include_directories(util PUBLIC include
+  ${libdiagnostics_SOURCE_DIR}/include
+  ${Boost_INCLUDE_DIR}
+)
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(util PUBLIC ${OPENSSL_ROOT_DIR}/include)
 endif()
