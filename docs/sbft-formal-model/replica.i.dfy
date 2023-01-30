@@ -64,14 +64,14 @@ module Replica {
 
     predicate IsActiveSeqID(lastStableCheckpoint:SequenceID, seqID:SequenceID)
     {
-      && lastStableCheckpoint <= seqID < lastStableCheckpoint + clusterConfig.workingWindowSize
+      && lastStableCheckpoint < seqID <= lastStableCheckpoint + clusterConfig.workingWindowSize
     }
 
     function getActiveSequenceIDs(lastStableCheckpoint:SequenceID) : set<SequenceID> 
       requires WF()
     {
       set seqID:SequenceID | && IsActiveSeqID(lastStableCheckpoint, seqID) // This statement provides a trigger by naming the constraint
-                             && lastStableCheckpoint <= seqID < lastStableCheckpoint + clusterConfig.workingWindowSize // This statement satisfies Dafny's finite set heuristics.
+                             && lastStableCheckpoint < seqID <= lastStableCheckpoint + clusterConfig.workingWindowSize // This statement satisfies Dafny's finite set heuristics.
     }
   }
 
@@ -305,7 +305,7 @@ module Replica {
   // Node local invariants that we need to satisfy dafny requires. This gets proven as part of the Distributed system invariants.
   // That is why it can appear as enabling condition, but does not need to be translated to runtime checks to C++.
   // For this to be safe it has to appear in the main invarinat in the proof.
-  predicate LiteInv(c:Constants, v:Variables) {
+  predicate LiteInv(c:Constants, v:Variables) { //TODO: move to proof
     && v.WF(c)
     && (forall newViewMsg | newViewMsg in v.newViewMsgsRecvd.msgs ::
                && newViewMsg.payload.valid(c.clusterConfig.AgreementQuorum())
@@ -640,19 +640,14 @@ module Replica {
     && v' == v
   }
 
-  predicate ValidViewChangeMsg(msg:Network.Message<Message>,
-                               networkMsgs:set<Network.Message<Message>>,
-                               agreementQuorum:nat)
+  predicate ValidViewChangeMsg(c:Constants,
+                               msg:Network.Message<Message>,
+                               networkMsgs:set<Network.Message<Message>>)
+    requires c.WF()
   {
     && msg.payload.ViewChangeMsg?
-    // Check Checkpoint msg-s signatures:
-    && var checkpointMsgs := set c | c in msg.payload.proofForLastStable.msgs;
-    && checkpointMsgs <= networkMsgs
-    // Check Signatures for the Prepared Certificates:
-    && (forall seqID | seqID in msg.payload.certificates
-            :: && msg.payload.certificates[seqID].votes <= networkMsgs
-               && msg.payload.certificates[seqID].valid(agreementQuorum, seqID)) // TODO: refactor to put this in msg.payload.valid(agreementQuorum)
-    && msg.payload.valid(agreementQuorum)
+    // Check validity and signatures for the Prepared Certificates:
+    && msg.payload.checked(c.clusterConfig, networkMsgs)
   }
 
   predicate RecvViewChangeMsg(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>)
@@ -660,15 +655,7 @@ module Replica {
     && v.WF(c)
     && msgOps.IsRecv()
     && var msg := msgOps.recv.value;
-    && msg.payload.ViewChangeMsg?
-    // Check Checkpoint msg-s signatures:
-    && var checkpointMsgs := set c | c in msg.payload.proofForLastStable.msgs;
-    && checkpointMsgs <= msgOps.signedMsgsToCheck
-    // Check Signatures for the Prepared Certificates:
-    && (forall seqID | seqID in msg.payload.certificates
-            :: && msg.payload.certificates[seqID].votes <= msgOps.signedMsgsToCheck
-               && msg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum(), seqID))
-    && msg.payload.valid(c.clusterConfig.AgreementQuorum())
+    && ValidViewChangeMsg(c, msg, msgOps.signedMsgsToCheck)
     && v' == v.(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {msg}))
   }
 
@@ -680,12 +667,11 @@ module Replica {
     && msg.payload.NewViewMsg?
     && CurrentPrimary(c, v) == msg.sender
     && msg.payload.newView == v.view
-    && msg.payload.vcMsgs.msgs <= msgOps.signedMsgsToCheck
-    // Check that all the PreparedCertificates are valid
-    && msg.payload.valid(c.clusterConfig.AgreementQuorum())
+    // Check that all the PreparedCertificates are valid and the signatures are OK
+    && msg.payload.checked(c.clusterConfig, msgOps.signedMsgsToCheck)
     // We only allow the primary to select 1 set of View Change messages per view.
     && (forall storedMsg | storedMsg in v.newViewMsgsRecvd.msgs :: msg.payload.newView != storedMsg.payload.newView)
-    && v.workingWindow.lastStableCheckpoint == HighestStable(c, msg.payload.vcMsgs.msgs)
+    && v.workingWindow.lastStableCheckpoint == HighestStable(c, msg.payload.vcMsgs.msgs) //TODO: might be >=
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
   }
 
@@ -777,6 +763,7 @@ module Replica {
     && v.newViewMsgsRecvd.msgs == {}
     && v.countExecutedSeqIDs == 0
     && v.checkpointMsgsRecvd.msgs == {}
+    && v.workingWindow.lastStableCheckpoint == 0
   }
 
   // Jay Normal Form - Dafny syntactic sugar, useful for selecting the next step

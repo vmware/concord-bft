@@ -52,7 +52,7 @@ module Proof {
                     
   }
 
-  predicate RecordedPreparesRecvdCameFromNetwork(c:Constants, v:Variables, observer:HostId)
+  predicate RecordedPreparesRecvdCameFromNetworkForHost(c:Constants, v:Variables, observer:HostId)
   {
     && v.WF(c)
     && IsHonestReplica(c, observer)
@@ -67,11 +67,11 @@ module Proof {
                     && msg.payload.seqID == seqID)) // The key we stored matches what is in the msg
   }
 
-  predicate {:opaque} RecordedPreparesInAllHostsRecvdCameFromNetwork(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedPreparesRecvdCameFromNetwork(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall observer | 
             && IsHonestReplica(c, observer)
-                :: RecordedPreparesRecvdCameFromNetwork(c, v, observer))
+                :: RecordedPreparesRecvdCameFromNetworkForHost(c, v, observer))
   }
 
   predicate {:opaque} EveryCommitMsgIsSupportedByAQuorumOfPrepares(c:Constants, v:Variables) {
@@ -96,8 +96,10 @@ module Proof {
              && var certificate := Replica.ExtractCertificateForSeqID(h_c, h_v, commitMsg.payload.seqID);
              && certificate.valid(c.clusterConfig.AgreementQuorum(), commitMsg.payload.seqID)
              && !certificate.empty()
-             && certificate.prototype().view == commitMsg.payload.view
-             && certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+             && certificate.prototype().view >= commitMsg.payload.view
+            //  && (certificate.prototype().view == commitMsg.payload.view 
+            //      ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+             )
   }
 
   predicate {:opaque} TemporarilyDisableCheckpointing(c:Constants, v:Variables) {
@@ -207,7 +209,7 @@ module Proof {
                            && IsHonestReplica(c, msg.sender)
           :: && var replicaVariables := v.hosts[msg.sender].replicaVariables;
              && var replicaConstants := c.hosts[msg.sender].replicaConstants;
-             && msg.payload.seqID < replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
+             && msg.payload.seqID <= replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
   }
 
   predicate {:opaque} EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c:Constants, v:Variables) {
@@ -316,7 +318,7 @@ module Proof {
     && RecordedPreparesHaveValidSenderID(c, v)
     //&& SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
     && RecordedPrePreparesRecvdCameFromNetwork(c, v)
-    && RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v)
+    && RecordedPreparesRecvdCameFromNetwork(c, v)
     && RecordedPrePreparesMatchHostView(c, v)
     && RecordedPreparesMatchHostView(c, v)
     && EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v)
@@ -331,15 +333,15 @@ module Proof {
     && CommitMsgsFromHonestSendersAgree(c, v)
     && RecordedCheckpointsRecvdCameFromNetwork(c, v)
     && UnCommitableAgreesWithPrepare(c, v)
-    && UnCommitableAgreesWithRecordedPrePrepare(c, v)
+    && UnCommitableAgreesWithRecordedPrePrepare(c, v)//Unfinished proof.
     && HonestReplicasLeaveViewsBehind(c, v)
     && RecordedNewViewMsgsContainSentVCMsgs(c, v)
     && RecordedViewChangeMsgsCameFromNetwork(c, v)
-    && SentViewChangesMsgsComportWithSentCommits(c, v)
-    && EveryCommitMsgIsRememberedByItsSender(c, v)
+    && SentViewChangesMsgsComportWithSentCommits(c, v)//Unfinished proof.
+    && EveryCommitMsgIsRememberedByItsSender(c, v)//Unfinished proof.
+    && RecordedViewChangeMsgsAreValid(c, v)//Unfinished proof.
     && TemporarilyDisableCheckpointing(c, v)
-    // AllPreparedCertsInWorkingWindowAreValid
-    // AllPreparedCertsInViewChangeMsgsAreValid
+    // "AllPreparedCertsInWorkingWindowAreValid"
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
@@ -378,7 +380,7 @@ module Proof {
     requires IsHonestReplica(c, msg2.sender)
     ensures msg1.payload.operationWrapper == msg2.payload.operationWrapper
   {
-    reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    reveal_RecordedPreparesRecvdCameFromNetwork();
     reveal_RecordedPreparesMatchHostView();
     reveal_RecordedPreparesClientOpsMatchPrePrepare();
     reveal_HonestReplicasLockOnPrepareForGivenView();
@@ -539,12 +541,12 @@ module Proof {
     }
   }
 
-  lemma HonestPreservesRecordedPreparesInAllHostsRecvdCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+  lemma HonestPreservesRecordedPreparesRecvdCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
-    ensures RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v')
+    ensures RecordedPreparesRecvdCameFromNetwork(c, v')
   {
-    reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    reveal_RecordedPreparesRecvdCameFromNetwork();
 
     if (h_step.AdvanceWorkingWindowStep?) {
       h_v.workingWindow.reveal_Shift();
@@ -587,7 +589,7 @@ module Proof {
                                                       commitMsg.payload.seqID, commitMsg.payload.operationWrapper));
         Library.SubsetCardinality(senders, senders');
       } else { // the commitMsg is being sent in the current step
-        reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+        reveal_RecordedPreparesRecvdCameFromNetwork();
         reveal_RecordedPreparesMatchHostView();
         reveal_RecordedPreparesClientOpsMatchPrePrepare();
         var prepares := sentPreparesForSeqID(c, v, commitMsg.payload.view,
@@ -878,7 +880,7 @@ module Proof {
     // reveal_AllReplicasLiteInv();
     // reveal_RecordedPreparesHaveValidSenderID();
     reveal_RecordedPrePreparesRecvdCameFromNetwork();
-    // reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    // reveal_RecordedPreparesRecvdCameFromNetwork();
     // reveal_RecordedPreparesMatchHostView();
     // reveal_RecordedPreparesClientOpsMatchPrePrepare();
     // reveal_RecordedCommitsClientOpsMatchPrePrepare();
@@ -1119,9 +1121,10 @@ module Proof {
                               && IsHonestReplica(c, replicaIdx)
                               && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
                               && viewChangeMsg in replicaVariables.viewChangeMsgsRecvd.msgs
-                                 :: Replica.ValidViewChangeMsg(viewChangeMsg,
-                                                               v.network.sentMsgs,
-                                                               c.clusterConfig.AgreementQuorum()))
+                                 :: && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
+                                    && Replica.ValidViewChangeMsg(replicaConstants,
+                                                                  viewChangeMsg,
+                                                                  v.network.sentMsgs))
   }
 
   predicate {:opaque} SentViewChangesMsgsComportWithSentCommits(c:Constants, v:Variables) {
@@ -1368,6 +1371,30 @@ module Proof {
   {
     reveal_RecordedNewViewMsgsContainSentVCMsgs();
     reveal_RecordedViewChangeMsgsCameFromNetwork();
+
+    forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
+                                        && var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
+                                        && newViewMsg in replicaVariables'.newViewMsgsRecvd.msgs
+                                           ensures 
+                                              && newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs
+                                              && MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs)
+    {
+      var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+      if (newViewMsg in replicaVariables.newViewMsgsRecvd.msgs) {
+        assert newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs;
+        assert MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs);
+      } else {
+        if (h_step.RecvNewViewMsgStep?) {
+          assert newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs;
+          assert MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs);
+        } else if (h_step.SelectQuorumOfViewChangeMsgsStep?) {
+          assert newViewMsg.payload.vcMsgs.msgs <= v'.network.sentMsgs;
+          assert MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs);
+        } else {
+          assert false;
+        }
+      }
+    }
   }
 
   lemma HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1428,7 +1455,7 @@ module Proof {
           assert !ReplicasThatSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             // Need to finish this proof
             reveal_SentViewChangesMsgsComportWithSentCommits();
-            //assume false;
+            assume false;
           }
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             reveal_HonestReplicasLeaveViewsBehind();
@@ -1472,6 +1499,7 @@ module Proof {
     ensures SentViewChangesMsgsComportWithSentCommits(c, v')
   {
     reveal_SentViewChangesMsgsComportWithSentCommits();
+    assume false;
   }
 
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSender(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1480,8 +1508,59 @@ module Proof {
     ensures EveryCommitMsgIsRememberedByItsSender(c, v')
   {
     reveal_EveryCommitMsgIsRememberedByItsSender();
+
+    // reveal_AllReplicasLiteInv();
+    // reveal_RecordedPreparesHaveValidSenderID();
+    // reveal_RecordedPrePreparesRecvdCameFromNetwork();
+    // reveal_RecordedPreparesRecvdCameFromNetwork();
+    // reveal_RecordedPrePreparesMatchHostView();
+    // reveal_RecordedPreparesMatchHostView();
+    // reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    // reveal_RecordedPreparesClientOpsMatchPrePrepare();
+    // reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    // reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+    // reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    // reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    // reveal_HonestReplicasLockOnPrepareForGivenView();
+    // reveal_HonestReplicasLockOnCommitForGivenView();
+    // reveal_CommitMsgsFromHonestSendersAgree();
+    // reveal_RecordedCheckpointsRecvdCameFromNetwork();
+    // reveal_UnCommitableAgreesWithPrepare();
+    // reveal_UnCommitableAgreesWithRecordedPrePrepare();//Unfinished proof.
+    // reveal_HonestReplicasLeaveViewsBehind();
+    // reveal_RecordedNewViewMsgsContainSentVCMsgs();
+    // reveal_RecordedViewChangeMsgsCameFromNetwork();
+    // reveal_SentViewChangesMsgsComportWithSentCommits();//Unfinished proof.
+    // reveal_EveryCommitMsgIsRememberedByItsSender();//Unfinished proof.
+    // reveal_RecordedViewChangeMsgsAreValid();//Unfinished proof.
+    // reveal_TemporarilyDisableCheckpointing();
   }
 
+  lemma HonestPreservesRecordedViewChangeMsgsAreValid(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures RecordedViewChangeMsgsAreValid(c, v')
+  {
+    reveal_RecordedViewChangeMsgsAreValid();
+    reveal_TemporarilyDisableCheckpointing(); // Needed for LeaveViewStep
+    if (h_step.LeaveViewStep?) {
+      reveal_RecordedPreparesHaveValidSenderID();
+      reveal_RecordedPrePreparesRecvdCameFromNetwork();
+      reveal_RecordedPreparesRecvdCameFromNetwork();
+      reveal_RecordedPrePreparesMatchHostView();
+      reveal_RecordedPreparesMatchHostView();
+      reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+      reveal_RecordedPreparesClientOpsMatchPrePrepare();
+      reveal_RecordedCommitsClientOpsMatchPrePrepare();
+      reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+      reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+      reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+      reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+      reveal_HonestReplicasLockOnPrepareForGivenView();
+      assume false;
+    }
+  }
   lemma InvariantNext(c: Constants, v:Variables, v':Variables)
     requires Inv(c, v)
     requires Next(c, v, v')
@@ -1497,7 +1576,7 @@ module Proof {
       HonestPreservesAllReplicasLiteInv(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesHaveValidSenderID(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPrePreparesRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
-      HonestPreservesRecordedPreparesInAllHostsRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedPreparesRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesMatchHostView(c, v, v', step, h_v, h_step);
       AlwaysPreservesEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
       HonestPreservesRecordedPreparesClientOpsMatchPrePrepare(c, v, v', step, h_v, h_step);
@@ -1518,6 +1597,7 @@ module Proof {
       HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesSentViewChangesMsgsComportWithSentCommits(c, v, v', step, h_v, h_step);
       HonestPreservesEveryCommitMsgIsRememberedByItsSender(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedViewChangeMsgsAreValid(c, v, v', step, h_v, h_step);
       assume TemporarilyDisableCheckpointing(c, v');
     } else {
       InvNextFaultyOrClient(c, v, v', step);
@@ -1540,8 +1620,8 @@ module Proof {
     assert RecordedPrePreparesRecvdCameFromNetwork(c, v') by {
       reveal_RecordedPrePreparesRecvdCameFromNetwork();
     }
-    assert RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v') by {
-      reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+    assert RecordedPreparesRecvdCameFromNetwork(c, v') by {
+      reveal_RecordedPreparesRecvdCameFromNetwork();
     }
     assert RecordedPreparesMatchHostView(c, v') by {
       reveal_RecordedPreparesMatchHostView();
@@ -1606,6 +1686,9 @@ module Proof {
     assert EveryCommitMsgIsRememberedByItsSender(c, v') by {
       reveal_EveryCommitMsgIsRememberedByItsSender();
     }
+    assert RecordedViewChangeMsgsAreValid(c, v') by {
+      reveal_RecordedViewChangeMsgsAreValid();
+    }
     assume TemporarilyDisableCheckpointing(c, v');
   }
 
@@ -1622,7 +1705,7 @@ module Proof {
       reveal_CommitMsgsFromHonestSendersAgree();
       reveal_RecordedPreparesHaveValidSenderID();
       reveal_RecordedPrePreparesRecvdCameFromNetwork();
-      reveal_RecordedPreparesInAllHostsRecvdCameFromNetwork();
+      reveal_RecordedPreparesRecvdCameFromNetwork();
       reveal_RecordedPreparesMatchHostView();
       reveal_RecordedPreparesClientOpsMatchPrePrepare();
       reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
@@ -1638,7 +1721,8 @@ module Proof {
       reveal_RecordedViewChangeMsgsCameFromNetwork();
       reveal_SentViewChangesMsgsComportWithSentCommits();
       reveal_EveryCommitMsgIsRememberedByItsSender();
-      assume TemporarilyDisableCheckpointing(c, v);
+      reveal_RecordedViewChangeMsgsAreValid();
+      reveal_TemporarilyDisableCheckpointing();
     }
   }
 

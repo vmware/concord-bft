@@ -11,13 +11,15 @@
 
 include "network.s.dfy"
 include "library/Library.dfy"
+include "cluster_config.s.dfy"
 
 module Messages {
   import Library
   import opened HostIdentifiers
   import Network
+  import ClusterConfig
 
-  type SequenceID = k:nat | 0 < k witness 1
+  type SequenceID = nat
   type ViewNum = nat
 
   datatype ClientOperation = ClientOperation(sender:HostId, timestamp:nat)
@@ -72,12 +74,14 @@ module Messages {
       prot.payload
     }
     predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
-      && |msgs| > 0
-      && UniqueSenders(msgs)
-      && (forall m | m in msgs :: && m.payload.CheckpointMsg?
-                                  && m.payload == prototype()
-                                  && m.payload.seqIDReached == lastStableCheckpoint)
-      && |msgs| >= quorumSize
+      || (&& lastStableCheckpoint == 0
+          && |msgs| == 0)
+      || (&& |msgs| > 0
+          && UniqueSenders(msgs)
+          && (forall m | m in msgs :: && m.payload.CheckpointMsg?
+                                      && m.payload == prototype()
+                                      && m.payload.seqIDReached == lastStableCheckpoint)
+          && |msgs| >= quorumSize)
     }
   }
 
@@ -105,6 +109,12 @@ module Messages {
                          && (ViewChangeMsg? ==> validViewChangeMsg(quorumSize))
                          && (NewViewMsg? ==> validNewViewMsg(quorumSize))
                        }
+                       predicate checked(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires clusterConfig.WF()
+                       {
+                         && (ViewChangeMsg? ==> checkedViewChangeMsg(clusterConfig, sigChecks))
+                         && (NewViewMsg? ==> checkedNewViewMsg(clusterConfig, sigChecks))
+                       }
                        predicate validViewChangeMsg(quorumSize:nat) 
                          requires ViewChangeMsg?
                        {
@@ -114,6 +124,28 @@ module Messages {
                          requires NewViewMsg?
                        {
                          vcMsgs.valid(newView, quorumSize)
+                       }
+                       predicate checkedViewChangeMsg(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires ViewChangeMsg?
+                         requires clusterConfig.WF()
+                       {
+                          && valid(clusterConfig.AgreementQuorum())
+                          // Check Checkpoint msg-s signatures:
+                          && proofForLastStable.msgs <= sigChecks
+                          && (forall seqID | seqID in certificates
+                                  :: && certificates[seqID].votes <= sigChecks
+                                     && (forall replica | replica in sendersOf(certificates[seqID].votes)
+                                                      :: clusterConfig.IsReplica(replica))
+                                     && certificates[seqID].valid(clusterConfig.AgreementQuorum(), seqID))
+                       }
+                       predicate checkedNewViewMsg(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires NewViewMsg?
+                         requires clusterConfig.WF()
+                       {
+                          && valid(clusterConfig.AgreementQuorum())
+                          && (forall replica | replica in sendersOf(vcMsgs.msgs)
+                                               :: clusterConfig.IsReplica(replica))
+                          && vcMsgs.msgs <= sigChecks
                        }
                        predicate IsIntraViewMsg() {
                           || PrePrepare?
