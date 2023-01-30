@@ -14,6 +14,8 @@ include "network.s.dfy"
 module ClusterConfig {
   import opened HostIdentifiers
 
+  type ViewNum = nat
+
   datatype Constants = Constants(
     maxByzantineFaultyReplicas:nat,
     numClients:nat,
@@ -30,6 +32,12 @@ module ClusterConfig {
       requires WF()
     {
       N() + numClients
+    }
+
+    function PrimaryForView(view:ViewNum) : nat 
+      requires WF()
+    {
+      view % N()
     }
 
     function F() : nat

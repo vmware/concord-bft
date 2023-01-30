@@ -18,7 +18,7 @@ module Replica {
   import opened HostIdentifiers
   import opened Messages
   import Network
-  import ClusterConfig
+  import opened ClusterConfig
   
   type PrepareProofSet = map<HostId, Network.Message<Message>> 
   predicate PrepareProofSetWF(c:Constants, ps:PrepareProofSet)
@@ -163,16 +163,10 @@ module Replica {
     }
   }
 
-  function PrimaryForView(c:Constants, view:ViewNum) : nat 
-    requires c.WF()
-  {
-    view % c.clusterConfig.N()
-  }
-
   function CurrentPrimary(c:Constants, v:Variables) : nat 
     requires v.WF(c)
   {
-    PrimaryForView(c, v.view)
+    c.clusterConfig.PrimaryForView(v.view)
   }
 
   predicate HaveSufficientVCMsgsToMoveTo(c:Constants, v:Variables, newView:ViewNum)
@@ -302,24 +296,13 @@ module Replica {
                                  v.workingWindow.prePreparesRcvd[seqID := Some(msgOps.send.value)]))
   }
 
-  // Node local invariants that we need to satisfy dafny requires. This gets proven as part of the Distributed system invariants.
-  // That is why it can appear as enabling condition, but does not need to be translated to runtime checks to C++.
-  // For this to be safe it has to appear in the main invarinat in the proof.
-  predicate LiteInv(c:Constants, v:Variables) { //TODO: move to proof
-    && v.WF(c)
-    && (forall newViewMsg | newViewMsg in v.newViewMsgsRecvd.msgs ::
-               && newViewMsg.payload.valid(c.clusterConfig.AgreementQuorum())
-               && PrimaryForView(c, newViewMsg.payload.newView) == newViewMsg.sender)
-  }
-
   predicate CurrentNewViewMsg(c:Constants,
                               v:Variables,
                               newViewMsg:Network.Message<Message>)
   {
     && v.WF(c)
-    && LiteInv(c, v)
     && newViewMsg.payload.NewViewMsg?
-    && newViewMsg.payload.valid(c.clusterConfig.AgreementQuorum())
+    && newViewMsg.payload.valid(c.clusterConfig)
     && newViewMsg in v.newViewMsgsRecvd.msgs
     && newViewMsg.payload.newView == v.view
     && CurrentPrimary(c, v) == newViewMsg.sender
@@ -344,7 +327,6 @@ module Replica {
   predicate IsValidPrePrepare(c:Constants, v:Variables, msg:Network.Message<Message>)
   {
     && v.WF(c)
-    && LiteInv(c, v)
     && msg.payload.PrePrepare?
     && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
@@ -358,6 +340,8 @@ module Replica {
         then true
         else && |newViewMsgs| == 1
              && var newViewMsg :| newViewMsg in newViewMsgs;
+             && newViewMsg.payload.valid(c.clusterConfig)
+             && c.clusterConfig.PrimaryForView(newViewMsg.payload.newView) == newViewMsg.sender
              && IsValidOperationWrapper(c, v, msg.payload.seqID, newViewMsg, msg.payload.operationWrapper))
   }
 
@@ -532,7 +516,7 @@ module Replica {
                                       v.workingWindow.lastStableCheckpoint,
                                       CheckpointsQuorum(ExtractStableCheckpointProof(c, v)),
                                       ExtractCertificatesFromWorkingWindow(c, v)));
-    // TODO: this should follow from the invariant and from the way we collect prepares. Might be put in LiteInv.
+    // TODO: this should follow from the invariant and from the way we collect prepares.
     // && (forall seqID :: seqID in vcMsg.payload.certificates ==> 
     //            (vcMsg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum())))
     && v' == v.(view := newView)
@@ -621,7 +605,7 @@ module Replica {
                        :: msg.payload.newView != v.view) // We can only select 1 set of VC msgs
     && (forall vcMsg | vcMsg in viewChangeMsgsSelectedByPrimary.msgs 
                        :: && vcMsg in v.viewChangeMsgsRecvd.msgs)
-    && viewChangeMsgsSelectedByPrimary.valid(v.view, c.clusterConfig.AgreementQuorum())
+    && viewChangeMsgsSelectedByPrimary.valid(v.view, c.clusterConfig)
     && var newViewMsg := Network.Message(c.myId, 
                                          NewViewMsg(v.view, viewChangeMsgsSelectedByPrimary));
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {newViewMsg}))

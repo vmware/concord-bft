@@ -304,17 +304,21 @@ module Proof {
   //                                       :: prePrepare1 == prePrepare2)
   // }
 
-  predicate {:opaque} AllReplicasLiteInv (c: Constants, v:Variables) {
+  predicate {:opaque} RecordedNewViewMsgsAreValid(c:Constants, v:Variables) {
     && v.WF(c)
-    && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsHonestReplica(replicaIdx)
-                            :: Replica.LiteInv(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
+    && (forall replicaIdx, newViewMsg | 
+                        && c.clusterConfig.IsHonestReplica(replicaIdx)
+                        && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+                        && newViewMsg in replicaVariables.newViewMsgsRecvd.msgs
+                          :: && newViewMsg.payload.valid(c.clusterConfig)
+                             && c.clusterConfig.PrimaryForView(newViewMsg.payload.newView) == newViewMsg.sender)
   }
 
   predicate Inv(c: Constants, v:Variables) {
     //&& PrePreparesCarrySameClientOpsForGivenSeqID(c, v)
     // Do not remove, lite invariant about internal honest Node invariants:
     && v.WF(c)
-    && AllReplicasLiteInv(c, v)
+    && RecordedNewViewMsgsAreValid(c, v)
     && RecordedPreparesHaveValidSenderID(c, v)
     //&& SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
     && RecordedPrePreparesRecvdCameFromNetwork(c, v)
@@ -505,12 +509,12 @@ module Proof {
     && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
   }
 
-  lemma HonestPreservesAllReplicasLiteInv(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+  lemma HonestPreservesRecordedNewViewMsgsAreValid(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
-    ensures AllReplicasLiteInv(c, v')
+    ensures RecordedNewViewMsgsAreValid(c, v')
   {
-    reveal_AllReplicasLiteInv();
+    reveal_RecordedNewViewMsgsAreValid();
   }
 
   lemma HonestPreservesRecordedPreparesHaveValidSenderID(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -877,7 +881,7 @@ module Proof {
   {
     ///
     // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-    // reveal_AllReplicasLiteInv();
+    // reveal_RecordedNewViewMsgsAreValid();
     // reveal_RecordedPreparesHaveValidSenderID();
     reveal_RecordedPrePreparesRecvdCameFromNetwork();
     // reveal_RecordedPreparesRecvdCameFromNetwork();
@@ -1509,7 +1513,7 @@ module Proof {
   {
     reveal_EveryCommitMsgIsRememberedByItsSender();
 
-    // reveal_AllReplicasLiteInv();
+    // reveal_RecordedNewViewMsgsAreValid();
     // reveal_RecordedPreparesHaveValidSenderID();
     // reveal_RecordedPrePreparesRecvdCameFromNetwork();
     // reveal_RecordedPreparesRecvdCameFromNetwork();
@@ -1573,7 +1577,7 @@ module Proof {
       var h_v' := v'.hosts[step.id].replicaVariables;
       var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
       assert HonestReplicaStepTaken(c, v, v', step, h_v, h_step);
-      HonestPreservesAllReplicasLiteInv(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedNewViewMsgsAreValid(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesHaveValidSenderID(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPrePreparesRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
@@ -1611,8 +1615,8 @@ module Proof {
     requires (c.clusterConfig.IsFaultyReplica(step.id) || c.clusterConfig.IsClient(step.id))
     ensures Inv(c, v')
   {
-    assert AllReplicasLiteInv(c, v') by {
-      reveal_AllReplicasLiteInv();
+    assert RecordedNewViewMsgsAreValid(c, v') by {
+      reveal_RecordedNewViewMsgsAreValid();
     }
     assert RecordedPreparesHaveValidSenderID(c, v') by {
       reveal_RecordedPreparesHaveValidSenderID();
@@ -1697,7 +1701,7 @@ module Proof {
     ensures Inv(c, v)
   {
     assert Inv(c, v) by {
-      reveal_AllReplicasLiteInv();
+      reveal_RecordedNewViewMsgsAreValid();
       reveal_RecordedCommitsClientOpsMatchPrePrepare();
       reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
       reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
