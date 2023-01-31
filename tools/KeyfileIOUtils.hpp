@@ -16,7 +16,7 @@
 #include <sstream>
 #include <exception>
 #include "bftengine/ReplicaConfig.hpp"
-#include "threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
 
 /**
  * Output the required generated keys for a given replica to a file. The replica

@@ -451,7 +451,7 @@ void DbCheckpointManager::builMetadataFromFileSystem() {
         const auto filenameStr = entry.path().filename().string();
         // directory name is last block id in the db checkpoint
         // and must be a valid numeric string
-        if (filenameStr.find_first_not_of("0123456789") != string::npos) {
+        if (filenameStr.find_first_not_of("0123456789") != std::string::npos) {
           LOG_WARN(getLogger(), "Invalid file or directory:" << filenameStr << " found in checkpoint folder");
           continue;
         }

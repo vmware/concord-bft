@@ -282,7 +282,7 @@ void KVCommandHandler::writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequ
       deserialize(reply_buffer_as_uint8, reply_buffer_as_uint8 + req.outActualReplySize, reply);
       KVWriteReply &write_rep = std::get<KVWriteReply>(reply.reply);
       write_rep.latest_block = currBlock + 1;
-      vector<uint8_t> serialized_reply;
+      std::vector<uint8_t> serialized_reply;
       serialize(serialized_reply, reply);
 
       // We expect modifying the value of latest_block in the KVWriteReply
@@ -464,7 +464,7 @@ OperationResult KVCommandHandler::executeWriteCommand(uint32_t requestSize,
   else
     writeRep.latest_block = currBlock;
 
-  vector<uint8_t> serializedReply;
+  std::vector<uint8_t> serializedReply;
   serialize(serializedReply, reply);
   ConcordAssert(serializedReply.size() <= maxReplySize);
   copy(serializedReply.begin(), serializedReply.end(), outReply);
@@ -509,7 +509,7 @@ OperationResult KVCommandHandler::executeGetBlockDataCommand(const KVGetBlockDat
     }
   }
 
-  vector<uint8_t> serializedReply;
+  std::vector<uint8_t> serializedReply;
   serialize(serializedReply, reply);
   if (maxReplySize < serializedReply.size()) {
     LOG_ERROR(getLogger(),
@@ -547,7 +547,7 @@ OperationResult KVCommandHandler::executeReadCommand(const KVReadRequest &reques
     readRep.reads[i].second.assign(value.begin(), value.end());
   }
 
-  vector<uint8_t> serializedReply;
+  std::vector<uint8_t> serializedReply;
   serialize(serializedReply, reply);
   if (maxReplySize < serializedReply.size()) {
     LOG_ERROR(getLogger(),
@@ -570,7 +570,7 @@ OperationResult KVCommandHandler::executeGetLastBlockCommand(size_t maxReplySize
   KVGetLastBlockReply &glbRep = std::get<KVGetLastBlockReply>(reply.reply);
   glbRep.latest_block = storageReader_->getLastBlockId();
 
-  vector<uint8_t> serializedReply;
+  std::vector<uint8_t> serializedReply;
   serialize(serializedReply, reply);
   if (serializedReply.size() > maxReplySize) {
     LOG_ERROR(getLogger(),

@@ -25,7 +25,6 @@
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "PerformanceManager.hpp"
-#include "PersistentStorage.hpp"
 #include "IRequestHandler.hpp"
 #include "InternalBFTClient.hpp"
 #include "Timers.hpp"
@@ -41,6 +40,7 @@ namespace bftEngine {
 namespace impl {
 class MsgsCommunicator;
 class MsgHandlersRegistrator;
+class PersistentStorage;
 }  // namespace impl
 // Possible values for 'flags' parameter
 enum MsgFlag : uint64_t {

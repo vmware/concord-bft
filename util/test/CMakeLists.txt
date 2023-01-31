@@ -1,7 +1,5 @@
 find_package(GTest REQUIRED)
 
-find_package(OpenSSL REQUIRED)
-
 add_executable(metric_tests metric_test.cpp)
 add_test(metric_tests metric_tests)
 target_link_libraries(metric_tests GTest::Main util)
@@ -33,9 +31,6 @@ add_executable(timers_tests timers_tests.cpp )
 add_test(timers_tests timers_tests)
 target_link_libraries(timers_tests GTest::Main util)
 
-add_executable(sha_hash_tests sha_hash_tests.cpp)
-add_test(sha_hash_tests sha_hash_tests)
-target_link_libraries(sha_hash_tests GTest::Main util OpenSSL::Crypto)
 
 add_executable(RollingAvgAndVar_test RollingAvgAndVar_test.cpp )
 add_test(RollingAvgAndVar_test RollingAvgAndVar_test)
@@ -69,10 +64,6 @@ add_executable(RawMemoryPool_test RawMemoryPool_test.cpp)
 add_test(RawMemoryPool_test RawMemoryPool_test)
 target_link_libraries(RawMemoryPool_test GTest::Main util)
 
-add_executable(openssl_utils_test openssl_utils_test.cpp )
-add_test(openssl_utils_test openssl_utils_test)
-target_link_libraries(openssl_utils_test GTest::Main util)
-
 add_executable(synchronized_value_test synchronized_value_test.cpp)
 add_test(synchronized_value_test synchronized_value_test)
 target_link_libraries(synchronized_value_test GTest::Main util)
@@ -81,10 +72,3 @@ add_executable(utilization_test utilization_test.cpp)
 add_test(utilization_test utilization_test)
 target_link_libraries(utilization_test GTest::Main util)
 
-add_executable(openssl_digest_creator_test openssl_digest_creator_test.cpp)
-add_test(openssl_digest_creator_test openssl_digest_creator_test)
-target_link_libraries(openssl_digest_creator_test GTest::Main util)
-
-add_executable(openssl_digest_holder_test openssl_digest_holder_test.cpp)
-add_test(openssl_digest_holder_test openssl_digest_holder_test)
-target_link_libraries(openssl_digest_holder_test GTest::Main util)

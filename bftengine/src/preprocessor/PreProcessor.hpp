@@ -15,11 +15,8 @@
 #include "messages/ClientBatchRequestMsg.hpp"
 #include "messages/PreProcessBatchRequestMsg.hpp"
 #include "messages/PreProcessBatchReplyMsg.hpp"
-#include "MsgsCommunicator.hpp"
-#include "MsgHandlersRegistrator.hpp"
 #include "SimpleThreadPool.hpp"
 #include "IRequestHandler.hpp"
-#include "Replica.hpp"
 #include "RequestProcessingState.hpp"
 #include "sliver.hpp"
 #include "SigManager.hpp"
@@ -34,16 +31,17 @@
 #include "RawMemoryPool.hpp"
 #include "GlobalData.hpp"
 #include "PerfMetrics.hpp"
-
-// TODO[TK] till boost upgrade
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#include "Replica.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
-#pragma GCC diagnostic pop
 
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+
+namespace bftEngine::impl {
+class MsgsCommunicator;
+class MsgHandlersRegistrator;
+}  // namespace bftEngine::impl
 
 namespace preprocessor {
 
@@ -125,9 +123,9 @@ using OngoingReqBatchesMap = std::map<uint16_t, RequestsBatchSharedPtr>;
 
 class PreProcessor : public bftEngine::IExternalObject {
  public:
-  PreProcessor(std::shared_ptr<MsgsCommunicator> &msgsCommunicator,
+  PreProcessor(std::shared_ptr<bftEngine::impl::MsgsCommunicator> &msgsCommunicator,
                std::shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
-               std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
+               std::shared_ptr<bftEngine::impl::MsgHandlersRegistrator> &msgHandlersRegistrator,
                bftEngine::IRequestsHandler &requestsHandler,
                InternalReplicaApi &replica,
                concordUtil::Timers &timers,

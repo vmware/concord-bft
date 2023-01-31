@@ -11,8 +11,8 @@
 // LICENSE file.
 
 #include "PersistentStorageImp.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "../simpleStorage/FileStorage.hpp"
 #include "../../src/bftengine/PersistentStorage.hpp"
 #include "../../src/bftengine/PersistentStorageWindows.hpp"

@@ -7,6 +7,6 @@ include(ProcessorCount)
 include(FetchContent)
 
 
-include(boost.cmake)
-include(yaml-cpp.cmake)
-
+include(thirdparty/boost.cmake)
+include(thirdparty/yaml-cpp.cmake)
+include(thirdparty/openssl.cmake)

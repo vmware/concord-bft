@@ -16,7 +16,6 @@
 #include "pruning_handler.hpp"
 #include "categorization/versioned_kv_category.h"
 #include "kvbc_key_types.hpp"
-#include "crypto/factory.hpp"
 
 namespace concord::kvbc::pruning {
 

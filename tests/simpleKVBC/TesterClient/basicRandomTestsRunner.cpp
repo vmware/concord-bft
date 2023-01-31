@@ -40,8 +40,8 @@ void BasicRandomTestsRunner::run(size_t numOfOperations) {
     testsBuilder_->getReplies().pop_front();
 
     bool readOnly = !holds_alternative<SKVBCWriteRequest>(request.request);
-    vector<uint8_t> serialized_request;
-    vector<uint8_t> serialized_reply;
+    std::vector<uint8_t> serialized_request;
+    std::vector<uint8_t> serialized_reply;
     skvbc::messages::serialize(serialized_request, request);
     skvbc::messages::serialize(serialized_reply, expectedReply);
     size_t expectedReplySize = serialized_reply.size();
@@ -78,12 +78,12 @@ void BasicRandomTestsRunner::run(size_t numOfOperations) {
 BlockId BasicRandomTestsRunner::getInitialLastBlockId() {
   SKVBCRequest request;
   request.request = SKVBCGetLastBlockRequest();
-  vector<uint8_t> serialized_request;
+  std::vector<uint8_t> serialized_request;
   skvbc::messages::serialize(serialized_request, request);
 
   SKVBCReply reply;
   reply.reply = SKVBCGetLastBlockReply();
-  vector<uint8_t> serialized_reply;
+  std::vector<uint8_t> serialized_reply;
   skvbc::messages::serialize(serialized_reply, reply);
   size_t expected_reply_size = serialized_reply.size();
   uint32_t actual_reply_size = 0;

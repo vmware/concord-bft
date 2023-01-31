@@ -16,10 +16,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "threshsign/ThresholdSignaturesTypes.h"
-#include "threshsign/IThresholdAccumulator.h"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/IThresholdAccumulator.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "KeyfileIOUtils.hpp"
 #include "crypto/factory.hpp"
 

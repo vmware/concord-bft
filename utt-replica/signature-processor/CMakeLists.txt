@@ -40,4 +40,6 @@ add_library(sig_processor STATIC ${sig_processor_src})
 target_link_libraries(sig_processor PUBLIC utt_api corebft util)
 target_include_directories(sig_processor PUBLIC include)
 
-add_subdirectory(tests)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

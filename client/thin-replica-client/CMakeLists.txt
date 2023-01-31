@@ -24,6 +24,7 @@ target_include_directories(thin_replica_client_lib PUBLIC include)
 target_link_libraries(thin_replica_client_lib
   opentracing
   util
+  concord-crypto
   thin-replica-proto
   replica-state-snapshot-proto
   concordclient-event-api

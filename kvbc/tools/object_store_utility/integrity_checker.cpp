@@ -220,6 +220,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   UNUSED(_);
   auto containing_block_id = util::to<BlockId>(containing_block.data());
   LOG_INFO(logger_, KVLOG(containing_block_id));
+  LOG_INFO(logger_, KVLOG(containing_block_id));
 
   auto [block_id, digest] = getCheckpointDescriptor(containing_block_id);
   for (auto block = block_id; block >= containing_block_id; --block) digest = checkBlock(block, digest);

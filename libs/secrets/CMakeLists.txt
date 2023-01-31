@@ -17,7 +17,7 @@ target_include_directories(secretsmanager PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRE
                                           PRIVATE src
 )
 
-target_link_libraries(secretsmanager PUBLIC util)
+target_link_libraries(secretsmanager PUBLIC concord-crypto)
 
 install(TARGETS secretsmanager
 #       EXPORT  secretsmanager-targets #TODO [TK] generate secretsmanager-config.cmake
@@ -26,7 +26,9 @@ install(TARGETS secretsmanager
 
 if (USE_JSON AND USE_HTTPLIB)
     find_package(nlohmann_json REQUIRED)
-    find_package(OpenSSL REQUIRED)
+    if(NOT BUILD_THIRDPARTY)
+        find_package(OpenSSL COMPONENTS SSL REQUIRED)
+    endif()
     set(HTTPLIB_IS_USING_OPENSSL TRUE)
 
     add_library(secret_retriever STATIC src/secret_retriever.cpp)
@@ -36,7 +38,7 @@ if (USE_JSON AND USE_HTTPLIB)
                                                 PRIVATE src
     )
     target_compile_definitions(secret_retriever PUBLIC $<$<BOOL:${HTTPLIB_IS_USING_OPENSSL}>:CPPHTTPLIB_OPENSSL_SUPPORT>)
-    target_link_libraries(secret_retriever PRIVATE nlohmann_json::nlohmann_json ${OPENSSL_LIBRARIES})
+    target_link_libraries(secret_retriever PUBLIC nlohmann_json::nlohmann_json OpenSSL::SSL concord-crypto)
 
     install(TARGETS secret_retriever
 #           EXPORT  secret_retriever-targets #TODO [TK] generate secret_retriever-config.cmake

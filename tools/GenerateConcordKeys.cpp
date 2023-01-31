@@ -15,7 +15,7 @@
 #include <iostream>
 #include <vector>
 
-#include "threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 #include "util/filesystem.hpp"
 #include "crypto/crypto.hpp"
@@ -102,9 +102,10 @@ int main(int argc, char** argv) {
     std::string defaultSysType = "UninitializedCryptoSystem";
     std::string defaultSubSysType = "UninitializedCryptoSubSystem";
 
+#ifdef USE_MULTISIG_EDDSA
     defaultSysType = MULTISIG_EDDSA_SCHEME;
     defaultSubSysType = "ED25519";
-
+#endif
     // These are currently unused
     std::string slowType = defaultSysType;
     std::string slowParam = defaultSubSysType;

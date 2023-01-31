@@ -4,5 +4,6 @@ add_executable(hash_state_benchmark hash_state_benchmark.cpp)
 target_link_libraries(hash_state_benchmark PUBLIC
     kvbc
     util
+    concord-crypto
     Boost::program_options
 )

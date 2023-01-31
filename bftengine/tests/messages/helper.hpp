@@ -21,9 +21,9 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "Serializable.h"
 #include "messages/MessageBase.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
-#include "threshsign/IPublicKey.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
 #include "SigManager.hpp"
 

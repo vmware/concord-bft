@@ -20,6 +20,8 @@
 #include "messages/PreProcessResultMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "ControlStateManager.hpp"
+#include "MsgsCommunicator.hpp"
+#include "MsgHandlersRegistrator.hpp"
 
 namespace preprocessor {
 

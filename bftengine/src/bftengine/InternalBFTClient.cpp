@@ -38,7 +38,7 @@ uint64_t InternalBFTClient::sendRequest(uint64_t flags,
 }
 uint64_t IInternalBFTClient::sendRequest(uint64_t flags,
                                          const concord::serialize::Serializable& msg,
-                                         const string& cid) {
+                                         const std::string& cid) {
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();

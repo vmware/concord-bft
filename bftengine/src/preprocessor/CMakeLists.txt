@@ -1,8 +1,5 @@
 
 set(preprocessor_source_files
-    ${bftengine_SOURCE_DIR}/src/bftengine/MsgsCommunicator.cpp
-    ${bftengine_SOURCE_DIR}/src/bftengine/messages/ClientRequestMsg.cpp
-    ${bftengine_SOURCE_DIR}/src/bftengine/messages/MessageBase.cpp
     PreProcessor.cpp
     GlobalData.cpp
     RequestProcessingState.cpp
@@ -31,7 +28,6 @@ if(BUILD_SLOWDOWN)
 endif()
 
 target_link_libraries(preprocessor PUBLIC util)
-target_link_libraries(preprocessor PUBLIC threshsign)
 target_link_libraries(preprocessor PUBLIC bftcommunication)
 
 if (BUILD_TESTING)

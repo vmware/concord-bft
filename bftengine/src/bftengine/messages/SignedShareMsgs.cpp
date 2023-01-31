@@ -15,7 +15,7 @@
 #include "assertUtils.hpp"
 #include "kvstream.h"
 #include "EpochManager.hpp"
-#include "threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdSigner.h"
 
 namespace bftEngine {
 namespace impl {

@@ -59,18 +59,14 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/v4blockchain/detail/blockchain.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
-target_link_libraries(kvbc PUBLIC corebft util)
+target_link_libraries(kvbc PUBLIC corebft util concord-crypto)
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs event_group_msgs)
 
 add_subdirectory("proto")
 target_sources(kvbc PRIVATE src/kvbc_app_filter/kvbc_app_filter.cpp)
-target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
+target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto concord-crypto)
 
 target_include_directories(kvbc PUBLIC ${PROJECT_SOURCE_DIR} include util)
-
-find_package(OpenSSL REQUIRED)
-
-target_link_libraries(kvbc PRIVATE OpenSSL::Crypto)
 
 if (BUILD_TESTING)
     add_subdirectory(test)

@@ -9,6 +9,7 @@ if(benchmark_FOUND)
     target_link_libraries(sparse_merkle_benchmark PUBLIC
         benchmark
         util
+        concord-crypto
         corebft
         kvbc
     )
