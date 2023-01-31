@@ -77,6 +77,7 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
   }
   /**
    * Should be called at initialization if number of pages is not known at compile time
+   * This function must be called only from the ReplicaForStateTransfer constructor before stateTransfer->init().
    */
   static void setNumResPages(const uint32_t numPages) {
     Registry& reg = registry();
