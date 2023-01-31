@@ -131,6 +131,7 @@ void PrivacyWalletService::Shutdown() {
   auto reg_response = response->mutable_user_registration_response();
   reg_response->set_rcm1(registration_input->rcm1.data(), registration_input->rcm1.size());
   reg_response->set_rcm1_sig(registration_input->rcm1_sig.data(), registration_input->rcm1_sig.size());
+  reg_response->set_pid(wallet_->getUserId());
   return grpc::Status::OK;
 }
 

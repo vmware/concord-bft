@@ -40,8 +40,9 @@ message UserRegistrationRequest {
 }
 
 message UserRegistrationResponse {
-    bytes rcm1 = 1;
-    bytes rcm1_sig = 2;
+    string pid = 1;
+    bytes rcm1 = 2;
+    bytes rcm1_sig = 3;
 }
 
 message UserRegistrationUpdateRequest {

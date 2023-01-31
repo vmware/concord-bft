@@ -47,4 +47,6 @@ bool Wallet::updateRegistrationCommitment(const RegistrationSig& sig, const S2& 
   user_->updateRegistration(user_->getPK(), sig, s2);
   return true;
 }
+
+const std::string& Wallet::getUserId() const { return userId_; }
 }  // namespace utt::walletservice

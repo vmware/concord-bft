@@ -156,6 +156,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_generate_registration_input) {
   ASSERT_TRUE(response.has_user_registration_response());
   ASSERT_TRUE(!response.user_registration_response().rcm1().empty());
   ASSERT_TRUE(!response.user_registration_response().rcm1_sig().empty());
+  ASSERT_TRUE(!response.user_registration_response().pid().empty());
   ASSERT_TRUE(status.ok());
 }
 

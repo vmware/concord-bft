@@ -37,6 +37,7 @@ class Wallet {
 
   std::optional<RegistrationInput> generateRegistrationInput();
   bool updateRegistrationCommitment(const RegistrationSig& sig, const S2& s2);
+  const std::string& getUserId() const;
 
  private:
   std::unique_ptr<utt::client::IStorage> storage_;
