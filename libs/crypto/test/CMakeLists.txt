@@ -18,3 +18,7 @@ target_link_libraries(openssl_digest_creator_test GTest::Main concord-crypto)
 add_executable(openssl_digest_holder_test openssl_digest_holder_test.cpp)
 add_test(openssl_digest_holder_test openssl_digest_holder_test)
 target_link_libraries(openssl_digest_holder_test GTest::Main concord-crypto)
+
+add_executable(openssl_certificates_utils_test openssl_certificates_utils_tests.cpp)
+add_test(openssl_certificates_utils_test openssl_certificates_utils_test)
+target_link_libraries(openssl_certificates_utils_test GTest::Main concord-crypto)

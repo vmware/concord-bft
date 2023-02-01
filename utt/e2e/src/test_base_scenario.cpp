@@ -45,7 +45,8 @@ class E2eTestBaseScenario : public E2eTestScenario {
     expectedBalances.expectedPrivacyBudget = std::nullopt;
     checkExpectedBalances(context.chanWallet, context.wallet2, expectedBalances, testResult);
 
-    context.wallet1->transfer(context.chanWallet, TRANSFER_AMOUNT, "user-2");
+    context.wallet1->transfer(
+        context.chanWallet, TRANSFER_AMOUNT, "user-2", libutt::api::testing::k_TestKeys.at("user-2").second);
     context.wallet1->burn(context.chanWallet, BURN_AMOUNT);
 
     EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before - MINT_AMOUNT + BURN_AMOUNT;

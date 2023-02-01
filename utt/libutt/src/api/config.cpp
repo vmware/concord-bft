@@ -18,6 +18,7 @@
 #include <utt/RandSig.h>
 #include <utt/RegAuth.h>
 #include <utt/Serialization.h>
+#include <utt/Params.h>
 
 namespace libutt::api {
 
@@ -59,6 +60,8 @@ struct Configuration::Impl {
   std::vector<RegAuthShareSK> registrationSecrets_;
   std::vector<RandSigSharePK> committerVerificationKeyShares_;
   std::vector<RegAuthSharePK> registrationVerificationKeyShares_;
+  std::unique_ptr<libutt::RegAuthSK> registration_secret_;  // should not be de/serialized
+  std::unique_ptr<libutt::RandSigDKG> commit_secret_;       // should not be de/serialized
 };
 
 Configuration::Configuration() : pImpl_{new Impl{}} {}
@@ -70,11 +73,10 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   pImpl_->t_ = t;
 
   // Generate public parameters and committer (bank) authority secret keys
-  auto dkg = libutt::RandSigDKG(pImpl_->t_, pImpl_->n_, libutt::Params::NumMessages);
-
+  pImpl_->commit_secret_ = std::make_unique<libutt::RandSigDKG>(pImpl_->t_, pImpl_->n_, libutt::Params::NumMessages);
   // Generate registration authority secret keys
-  auto rsk = libutt::RegAuthSK::generateKeyAndShares(pImpl_->t_, pImpl_->n_);
-
+  pImpl_->registration_secret_ = std::make_unique<libutt::RegAuthSK>();
+  *(pImpl_->registration_secret_) = libutt::RegAuthSK::generateKeyAndShares(pImpl_->t_, pImpl_->n_);
   // Pass in the commitment keys to UTTParams
   // This struct matches the expected data structure by UTTParams::create since the method hides the actual type by
   // using a void*
@@ -82,20 +84,20 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
     libutt::CommKey cck;
     libutt::CommKey rck;
   };
-  CommitmentKeys commitmentKeys{dkg.getCK(), rsk.ck_reg};
+  CommitmentKeys commitmentKeys{pImpl_->commit_secret_->getCK(), pImpl_->registration_secret_->ck_reg};
   pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&commitmentKeys));
 
   // For some reason we need to go back and set the IBE parameters although we might not be using IBE.
-  rsk.setIBEParams(pImpl_->publicConfig_.pImpl_->params_.pImpl_->p.ibe);
+  pImpl_->registration_secret_->setIBEParams(pImpl_->publicConfig_.pImpl_->params_.pImpl_->p.ibe);
 
   // Public verification keys
-  pImpl_->publicConfig_.pImpl_->commitVerificationKey_ = dkg.sk.toPK();
-  pImpl_->publicConfig_.pImpl_->registrationVerificationKey_ = rsk.toPK();
+  pImpl_->publicConfig_.pImpl_->commitVerificationKey_ = pImpl_->commit_secret_->sk.toPK();
+  pImpl_->publicConfig_.pImpl_->registrationVerificationKey_ = pImpl_->registration_secret_->toPK();
 
   // [TODO-UTT] Important!!! - These secrets need to be encrypted for each validator
   // before the config is used to deploy a UTT instance
-  pImpl_->commitSecrets_ = std::move(dkg.skShares);
-  pImpl_->registrationSecrets_ = std::move(rsk.shares);
+  pImpl_->commitSecrets_ = std::move(pImpl_->commit_secret_->skShares);
+  pImpl_->registrationSecrets_ = std::move(pImpl_->registration_secret_->shares);
 
   // We need to make the public key shares accessible to all validators.
   pImpl_->committerVerificationKeyShares_.reserve(pImpl_->commitSecrets_.size());
@@ -149,7 +151,9 @@ std::string Configuration::getCommitVerificationKeyShare(uint16_t idx) const {
 std::string Configuration::getRegistrationVerificationKeyShare(uint16_t idx) const {
   return libutt::serialize<libutt::RegAuthSharePK>(pImpl_->registrationVerificationKeyShares_.at(idx));
 }
-
+std::string Configuration::getIbeMsk() const {
+  return libutt::serialize<libutt::IBE::MSK>(pImpl_->registration_secret_->msk);
+}
 }  // namespace libutt::api
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::PublicConfig& config) {

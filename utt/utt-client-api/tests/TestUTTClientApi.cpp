@@ -32,9 +32,9 @@
 #include <burn.hpp>
 #include <transaction.hpp>
 #include <serialization.hpp>
-
+#include "testUtils/testKeys.hpp"
 using namespace libutt;
-
+using namespace libutt::api::testing;
 struct RegisterUserResponse {
   utt::RegistrationSig sig;
   utt::S2 s2;
@@ -305,6 +305,8 @@ class InMemoryUserStorage : public utt::client::IStorage {
   std::pair<std::string, std::string> keyPair_;
 };
 
+const std::vector<std::string> user_ids({"user-1", "user-2", "user-3"});
+
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
@@ -326,10 +328,7 @@ int main(int argc, char* argv[]) {
   // Create a valid server-side mock based on the config
   auto serverMock = ServerMock::createFromConfig(config);
 
-  // Create new users by using the public config
-  utt::client::TestUserPKInfrastructure pki;
-  auto testUserIds = pki.getUserIds();
-  const size_t C = testUserIds.size();
+  const size_t C = user_ids.size();
   loginfo << "Test users: " << C << '\n';
   assertTrue(C >= 3);  // At least 3 test users expected
 
@@ -367,7 +366,9 @@ int main(int argc, char* argv[]) {
 
   for (size_t i = 0; i < C; ++i) {
     std::unique_ptr<utt::client::IStorage> storage = std::make_unique<InMemoryUserStorage>();
-    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, std::move(storage)));
+    const auto& private_key = k_TestKeys.at(user_ids[i]).first;
+    const auto& public_key = k_TestKeys.at(user_ids[i]).second;
+    users.emplace_back(utt::client::createUser(user_ids[i], publicConfig, private_key, public_key, std::move(storage)));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);
   }
@@ -419,7 +420,7 @@ int main(int argc, char* argv[]) {
       std::string nextUserId = "user-" + std::to_string(nextUserIdx + 1);
       loginfo << "Sending " << amount << " from " << users[i]->getUserId() << " to " << nextUserId << endl;
       assertTrue(amount <= users[i]->getBalance());
-      auto result = users[i]->transfer(nextUserId, pki.getPublicKey(nextUserId), amount);
+      auto result = users[i]->transfer(nextUserId, k_TestKeys.at(nextUserId).second, amount);
       assertTrue(result.isFinal_);
       auto txNum = serverMock.transfer(result.requiredTx_);
       assertTrue(txNum == serverMock.getLastExecutedTxNum());

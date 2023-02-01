@@ -7,7 +7,7 @@ foreach(testSrc ${test-client-api-src})
     set(testDir ../bin/test)
 
     add_executable(${testName} ${testSrc})
-    target_link_libraries(${testName} PRIVATE utt_client_api)
+    target_link_libraries(${testName} PRIVATE utt_test_utils utt_client_api)
 
     add_test(NAME ${testName} COMMAND ${testName})
     set_target_properties(${testName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${testDir})

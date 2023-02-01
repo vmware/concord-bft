@@ -16,7 +16,7 @@
 #include <sstream>
 
 #include "PrivacyService.hpp"
-
+using namespace utt::walletservice;
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;

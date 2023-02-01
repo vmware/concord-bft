@@ -2,6 +2,7 @@
 
 #include "wallet.hpp"
 #include "admin.hpp"
+#include "testUtils/testKeys.hpp"
 #include <string>
 #include <optional>
 #include <memory>

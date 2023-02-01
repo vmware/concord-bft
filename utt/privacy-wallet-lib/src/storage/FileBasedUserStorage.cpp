@@ -127,6 +127,7 @@ void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) {
 uint64_t FileBasedUserStorage::getLastExecutedSn() { return state_["last_executed_sn"]; }
 
 libutt::api::types::CurvePoint FileBasedUserStorage::getClientSideSecret() {
+  if (!state_.contains("s1")) return {};
   std::stringstream ss;
   auto bytes = hexStringToBytes(state_["s1"]);
   ss.str(std::string(bytes.begin(), bytes.end()));
@@ -136,6 +137,7 @@ libutt::api::types::CurvePoint FileBasedUserStorage::getClientSideSecret() {
 }
 
 libutt::api::types::CurvePoint FileBasedUserStorage::getSystemSideSecret() {
+  if (!state_.contains("s2")) return {};
   std::stringstream ss;
   auto bytes = hexStringToBytes(state_["s2"]);
   ss.str(std::string(bytes.begin(), bytes.end()));
@@ -144,7 +146,10 @@ libutt::api::types::CurvePoint FileBasedUserStorage::getSystemSideSecret() {
   return ret;
 }
 
-libutt::api::types::Signature FileBasedUserStorage::getRcmSignature() { return hexStringToBytes(state_["rcm_sig"]); }
+libutt::api::types::Signature FileBasedUserStorage::getRcmSignature() {
+  if (!state_.contains("rcm_sig")) return {};
+  return hexStringToBytes(state_["rcm_sig"]);
+}
 
 std::vector<libutt::api::Coin> FileBasedUserStorage::getCoins() {
   std::vector<libutt::api::Coin> coins;
@@ -155,6 +160,7 @@ std::vector<libutt::api::Coin> FileBasedUserStorage::getCoins() {
 }
 
 std::pair<std::string, std::string> FileBasedUserStorage::getKeyPair() {
+  if (!state_.contains("key_pair")) return {"", ""};
   auto sk = hexStringToBytes(state_["key_pair"]["sk"]);
   auto pk = hexStringToBytes(state_["key_pair"]["pk"]);
   return {std::string(sk.begin(), sk.end()), std::string(pk.begin(), pk.end())};

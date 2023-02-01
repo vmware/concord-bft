@@ -16,20 +16,34 @@
 #include <string>
 #include <memory>
 #include <tuple>
-
+#include <optional>
 #include <grpcpp/grpcpp.h>
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
-
 #include <utt-client-api/ClientApi.hpp>
 
+namespace utt::walletservice {
 class Wallet {
  public:
-  Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
+  struct RegistrationInput {
+    std::vector<uint8_t> rcm1;
+    std::vector<uint8_t> rcm1_sig;
+  };
+
+  Wallet(std::string userId,
+         const std::string& private_key,
+         const std::string& public_key,
+         const std::string& storage_path,
+         const utt::PublicConfig& config);
+
+  std::optional<RegistrationInput> generateRegistrationInput();
+  bool updateRegistrationCommitment(const RegistrationSig& sig, const S2& s2);
+  const std::string& getUserId() const;
 
  private:
   std::unique_ptr<utt::client::IStorage> storage_;
   std::string userId_;
-  utt::client::TestUserPKInfrastructure& pki_;
+  std::string private_key_;
   std::unique_ptr<utt::client::User> user_;
   bool registered_ = false;
 };
+}  // namespace utt::walletservice

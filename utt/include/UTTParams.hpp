@@ -80,6 +80,6 @@ class UTTParams {
 
  public:
   // For testing only
-  Impl* getImpl();
+  const Impl* getImpl() const;
 };
 }  // namespace libutt::api

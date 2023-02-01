@@ -81,5 +81,5 @@ UTTParams& UTTParams::operator=(UTTParams&& other) {
   return *this;
 }
 
-UTTParams::Impl* UTTParams::getImpl() { return pImpl_; }
+const UTTParams::Impl* UTTParams::getImpl() const { return pImpl_; }
 }  // namespace libutt::api

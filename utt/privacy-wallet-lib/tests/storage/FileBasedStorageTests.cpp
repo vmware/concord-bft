@@ -21,7 +21,7 @@ namespace fs = std::experimental::filesystem;
 #else
 #error "Missing filesystem support"
 #endif
-#include "../../../tests/testUtils.hpp"
+#include "testUtils/testUtils.hpp"
 #include "mint.hpp"
 #include <storage/FileBasedUserStorage.hpp>
 #include "gtest/gtest.h"
@@ -64,8 +64,7 @@ TEST_F(test_utt_storage, test_setLastExecutedSn) {
 }
 
 TEST_F(test_utt_storage, test_setKeyPair) {
-  std::pair<std::string, std::string> keypair = {libutt::api::testing::pr_keys.front(),
-                                                 libutt::api::testing::pkeys.front()};
+  std::pair<std::string, std::string> keypair = {pr_keys.front(), pkeys.front()};
   {
     IStorage::tx_guard g(*storage_);
     storage_->setKeyPair(keypair);

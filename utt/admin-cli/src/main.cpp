@@ -29,7 +29,6 @@ struct CLIApp {
   Admin::Connection conn;
   Admin::Channel chan;
   utt::Configuration config;
-  utt::client::TestUserPKInfrastructure pki;
   bool deployed = false;
 
   CLIApp() {

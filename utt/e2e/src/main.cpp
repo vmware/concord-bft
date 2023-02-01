@@ -1,5 +1,6 @@
 #include "admin.hpp"
 #include "wallet.hpp"
+#include "testUtils/testKeys.hpp"
 #include "test_base_scenario.cpp"
 #include "test_scenario_convertPrivateToPublic_above_balance.cpp"
 #include "test_scenario_transfer_above_budget.cpp"
@@ -9,7 +10,6 @@
 #include <iostream>
 #include <unistd.h>
 #include <xutils/Log.h>
-
 using namespace libutt;
 
 class E2eTestSuite {
@@ -18,7 +18,6 @@ class E2eTestSuite {
   grpc::ClientContext ctxWallet;
   grpc::ClientContext ctxAdmin;
   utt::Configuration config;
-  utt::client::TestUserPKInfrastructure pki;
   E2eTestContext context;
 
   std::list<std::unique_ptr<E2eTestScenario>> testScenarios;
@@ -72,7 +71,10 @@ class E2eTestSuite {
 
  private:
   void configureWallet(std::unique_ptr<Wallet> &wallet, const std::string &userId) {
-    wallet = std::make_unique<Wallet>(userId, pki, config);
+    wallet = std::make_unique<Wallet>(userId,
+                                      libutt::api::testing::k_TestKeys.at(userId).first,
+                                      libutt::api::testing::k_TestKeys.at(userId).second,
+                                      config);
     wallet->registerUser(context.chanWallet);
   }
 

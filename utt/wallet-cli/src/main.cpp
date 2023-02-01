@@ -14,7 +14,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-
+#include "testUtils/testKeys.hpp"
 #include "wallet.hpp"
 
 // [TODO-UTT] The wallet should use RocksDB to store UTT assets.
@@ -48,7 +48,7 @@
 // In a single machine demo setting liveness issues will not be created due to the network,
 // so we don't need to implement the full range of precautions to handle liveness issues
 // such as timeouts.
-
+using namespace libutt::api::testing;
 void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << "config                    -- configures wallets with the privacy application.\n";
@@ -65,12 +65,13 @@ void printHelp() {
 }
 
 struct CLIApp {
+  // For this demo we assume all the private and public key are pre known
+
   std::string userId;
   grpc::ClientContext ctx;
   Wallet::Connection conn;
   Wallet::Channel chan;
   utt::Configuration config;
-  utt::client::TestUserPKInfrastructure pki;
   std::unique_ptr<Wallet> wallet;
 
   CLIApp() {
@@ -99,7 +100,7 @@ struct CLIApp {
 
     auto publicConfig = Wallet::getPublicConfig(chan);
 
-    wallet = std::make_unique<Wallet>(userId, pki, publicConfig);
+    wallet = std::make_unique<Wallet>(userId, k_TestKeys.at(userId).first, k_TestKeys.at(userId).second, publicConfig);
   }
 
   void registerUserCmd() {
@@ -137,7 +138,8 @@ struct CLIApp {
       std::cout << "Expected a positive transfer amount!\n";
       return;
     }
-    wallet->transfer(chan, (uint64_t)amount, cmdTokens[2]);
+    const auto& userId = cmdTokens[2];
+    wallet->transfer(chan, (uint64_t)amount, userId, k_TestKeys.at(userId).second);
     wallet->showInfo(chan);
   }
 
@@ -184,11 +186,10 @@ int main(int argc, char* argv[]) {
   CLIApp app;
   app.userId = argv[1];
 
-  const auto userIds = app.pki.getUserIds();
-  if (std::find(userIds.begin(), userIds.end(), app.userId) == userIds.end()) {
+  if (k_TestKeys.find(app.userId) == k_TestKeys.end()) {
     std::cout << "Selected user id has no pre-generated keys!\n";
     std::cout << "Valid user ids: [";
-    for (const auto& userId : userIds) std::cout << userId << ", ";
+    for (const auto& [userId, _] : k_TestKeys) std::cout << userId << ", ";
     std::cout << "]\n";
     return 0;
   }
