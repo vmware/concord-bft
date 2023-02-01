@@ -299,6 +299,9 @@ class PreProcessor : public bftEngine::IExternalObject {
     return logger_;
   }
 
+  concordUtil::MultiSizeBufferPool::SubpoolsConfig calcSubpoolsConfig();
+  std::unique_ptr<concordUtil::MultiSizeBufferPool> createbufferPool();
+
  private:
   const uint32_t MAX_MSGS = 10000;
   const uint32_t WAIT_TIMEOUT_MILLI = 100;
@@ -333,7 +336,7 @@ class PreProcessor : public bftEngine::IExternalObject {
   // engine supported size is kMaxSubpoolBuffersize_ - responseSizeInternalOverhead_
   static constexpr uint32_t kMaxSubpoolBuffersize_{1UL << 25};
   // Must be sorted in an ascending order, by bufferSize
-  const std::vector<concordUtil::MultiSizeBufferPool::SubpoolConfig> subpoolsConfig_;
+  const concordUtil::MultiSizeBufferPool::SubpoolsConfig subpoolsConfig_;
   std::unique_ptr<concordUtil::MultiSizeBufferPool> bufferPool_;
 
   concordMetrics::Component metricsComponent_;

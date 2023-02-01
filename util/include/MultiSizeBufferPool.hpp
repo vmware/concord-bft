@@ -19,6 +19,7 @@
 #include "performance_handler.h"
 
 #include <boost/lockfree/queue.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include <string_view>
 #include <mutex>
@@ -377,6 +378,8 @@ class MultiSizeBufferPool {
    */
 
   // SubpoolsConfig must apply the configurations in an ascending order by buffer size.
+  // SubpoolsConfig can be defined statically in code, or dynamically in YAML format and then be parsed using the struct
+  // YAML::convert that's defined below.
   MultiSizeBufferPool(std::string_view name,
                       Timers& timers,
                       const SubpoolsConfig& subpoolsConfig,  // must be sorted by an ascending buffer size
@@ -496,3 +499,19 @@ class MultiSizeBufferPool {
 };  // class MultiSizeBufferPool
 
 }  // namespace concordUtil
+
+// The code below is used to parse YAML::Node into SubpoolConfig struct
+template <>
+struct YAML::convert<concordUtil::MultiSizeBufferPool::SubpoolConfig> {
+  static bool decode(const YAML::Node& node, concordUtil::MultiSizeBufferPool::SubpoolConfig& rhs) {
+    static_assert(sizeof(concordUtil::MultiSizeBufferPool::SubpoolConfig) == 12,
+                  "Newly added field should be taken into account in the condition below");
+    if (!node.IsSequence() || node.size() != 3) {
+      return false;
+    }
+    rhs.bufferSize = node[0].as<uint32_t>();
+    rhs.numInitialBuffers = node[1].as<uint32_t>();
+    rhs.numMaxBuffers = node[2].as<uint32_t>();
+    return true;
+  }
+};

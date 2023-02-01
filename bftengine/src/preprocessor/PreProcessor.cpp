@@ -327,6 +327,56 @@ bool PreProcessor::validateSubpoolsConfig() {
   return true;
 }
 
+concordUtil::MultiSizeBufferPool::SubpoolsConfig PreProcessor::calcSubpoolsConfig() {
+  auto subpoolsConf = YAML::Load(myReplica_.getReplicaConfig().get<std::string>(
+                                     "concord.preprocessor.multiSizedPool.subpoolsConfig", "[]"))
+                          .as<std::vector<concordUtil::MultiSizeBufferPool::SubpoolConfig>>();
+  // Use default subpools configurations if not defined dynamically in bft_config.yaml
+  if (subpoolsConf.size() == 0) {
+    constexpr uint32_t KB = (1 << 10);
+    constexpr uint32_t MB = (1 << 20);
+    subpoolsConf = {{64 * KB, 0, 1400},
+                    {128 * KB, 0, 1400},
+                    {256 * KB, 0, 1400},
+                    {512 * KB, 0, 1400},
+                    {1 * MB, 0, 1400},
+                    {2 * MB, 0, 1400},
+                    {4 * MB, 0, 700},
+                    {8 * MB, 0, 700},
+                    {16 * MB, 0, 80},
+                    {32 * MB, 0, 80}};
+  }
+  return subpoolsConf;
+}
+
+std::unique_ptr<concordUtil::MultiSizeBufferPool> PreProcessor::createbufferPool() {
+  auto enablePool = myReplica_.getReplicaConfig().enablePreProcessorMemoryPool;
+  constexpr uint32_t GB = (1 << 30);
+  return (enablePool
+              ? std::make_unique<concordUtil::MultiSizeBufferPool>(
+                    "PreProcessor::memoryPool",
+                    timers_,
+                    subpoolsConfig_,
+                    concordUtil::MultiSizeBufferPool::Config{
+                        myReplica_.getReplicaConfig().get<uint64_t>(
+                            "concord.preprocessor.multiSizedPool.maxAllocatedBytes", 10ULL * GB),
+                        myReplica_.getReplicaConfig().get<bool>(
+                            "concord.preprocessor.multiSizedPool.purgeEvaluationFrequency", 0),
+                        myReplica_.getReplicaConfig().get<uint32_t>(
+                            "concord.preprocessor.multiSizedPool.statusReportFrequency", 60),
+                        myReplica_.getReplicaConfig().get<uint32_t>(
+                            "concord.preprocessor.multiSizedPool.histogramsReportFrequency", 60),
+                        myReplica_.getReplicaConfig().get<uint32_t>(
+                            "concord.preprocessor.multiSizedPool.metricsReportFrequency", 5),
+                        myReplica_.getReplicaConfig().get<bool>(
+                            "concord.preprocessor.multiSizedPool.enableStatusReportChangesOnly", false),
+                        myReplica_.getReplicaConfig().get<uint32_t>(
+                            "concord.preprocessor.multiSizedPool.subpoolSelectorEvaluationNumRetriesMinThreshold", 3),
+                        myReplica_.getReplicaConfig().get<uint32_t>(
+                            "concord.preprocessor.multiSizedPool.subpoolSelectorEvaluationNumRetriesMaxThreshold", 10)})
+              : nullptr);
+}
+
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
@@ -347,44 +397,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
       threadPool_("PreProcessor::threadPool"),
       timers_{timers},
-      // TODO - this is a temporary in-place configuration - should be replaced with a future task to take it from
-      // replica config
-      subpoolsConfig_{
-          {1 << 16, 0, 1400},  // 64KB
-          {1 << 17, 0, 1400},  // 128KB
-          {1 << 18, 0, 1400},  // 256KB
-          {1 << 19, 0, 1400},  // 512KB
-          {1 << 20, 0, 1400},  // 1MB
-          {1 << 21, 0, 1400},  // 2MB
-          {1 << 22, 0, 700},   // 4MB
-          {1 << 23, 0, 700},   // 8MB
-          {1 << 24, 0, 80},    // 16MB
-          {1 << 25, 0, 80},    // 32MB
-      },
-      // TODO - this is a temporary in-place configuration - should be replaced with a future task to take it from
-      // replica config
-      bufferPool_{myReplica_.getReplicaConfig().enablePreProcessorMemoryPool
-                      ? std::make_unique<concordUtil::MultiSizeBufferPool>(
-                            "PreProcessor::memoryPool",
-                            timers_,
-                            subpoolsConfig_,
-                            concordUtil::MultiSizeBufferPool::Config{// maxAllocatedBytes
-                                                                     10ULL * (1 << 30),
-                                                                     // purgeEvaluationFrequency
-                                                                     0,
-                                                                     // statusReportFrequency
-                                                                     60,
-                                                                     // histogramsReportFrequency
-                                                                     60,
-                                                                     // metricsReportFrequency
-                                                                     5,
-                                                                     // enableStatusReportChangesOnly
-                                                                     true,
-                                                                     // subpoolSelectorEvaluationNumRetriesMinThreshold
-                                                                     3,
-                                                                     // subpoolSelectorEvaluationNumRetriesMaxThreshold
-                                                                     10})
-                      : nullptr},
+      subpoolsConfig_{calcSubpoolsConfig()},
+      bufferPool_{createbufferPool()},
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
