@@ -48,6 +48,8 @@ void PrivacyWalletService::Shutdown() {
   }
 }
 
+const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
+
 ::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletService(
     ::grpc::ServerContext* context,
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
@@ -100,12 +102,19 @@ void PrivacyWalletService::Shutdown() {
     ::grpc::ServerContext* /*context*/,
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (wallet_) {
+    std::string err_msg = "wallet is already configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, err_msg);
+  }
   auto status = grpc::Status::OK;
   const auto& req = request->privacy_wallet_config_request();
   auto public_key = req.public_key();
   auto userId = sha256({public_key.begin(), public_key.end()});
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
-  wallet_ = std::make_unique<Wallet>(userId, req.private_key(), public_key, req.storage_path(), publicConfig);
+  wallet_ = std::make_unique<Wallet>(
+      userId, req.private_key(), public_key, PrivacyWalletServiceImpl::wallet_db_path, publicConfig);
   auto resp = response->mutable_privacy_wallet_config_response();
   resp->set_succ(true);
   return grpc::Status::OK;

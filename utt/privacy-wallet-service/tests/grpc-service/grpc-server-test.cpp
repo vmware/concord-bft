@@ -47,11 +47,12 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     server_.StartServer(grpc_uri_);
   }
   void TearDown() override {
-    fs::remove(".state.json");
+    fs::remove_all("wallet-db");
     server_.Shutdown();
   }
 
-  void configureWallet(size_t index) {
+  std::pair<grpc::Status, ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse> configureWallet(
+      size_t index) {
     auto context = grpc::ClientContext{};
     utt::client::ConfigInputParams params;
     params.threshold = 2;
@@ -65,15 +66,13 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     wallet_conf->set_public_key(pkeys[index]);
     wallet_conf->set_private_key(pr_keys[index]);
     wallet_conf->set_public_application_config({public_config.begin(), public_config.end()});
-    wallet_conf->set_storage_path(".");
     auto response = ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse{};
     grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
-    ASSERT_TRUE(response.has_privacy_wallet_config_response());
-    ASSERT_TRUE(response.privacy_wallet_config_response().succ());
-    ASSERT_TRUE(status.ok());
-
-    user_id_ = utt::client::utils::crypto::sha256(
-        {pkeys[index].begin(), pkeys[index].end()});  // same user id as the one the wallet creates
+    if (status.ok()) {
+      user_id_ = utt::client::utils::crypto::sha256(
+          {pkeys[index].begin(), pkeys[index].end()});  // same user id as the one the wallet creates
+    }
+    return {status, response};
   }
 
   std::pair<types::CurvePoint, types::Signature> registerUser(const std::vector<uint8_t>& rcm1) {
@@ -142,7 +141,17 @@ TEST_F(test_privacy_wallet_grpc_service, privacy_app_config) {
   }
 }
 
-TEST_F(test_privacy_wallet_grpc_service, test_wallet_config_request) { configureWallet(0); }
+TEST_F(test_privacy_wallet_grpc_service, test_wallet_config_request) {
+  auto [status1, response1] = configureWallet(0);
+  ASSERT_TRUE(response1.has_privacy_wallet_config_response());
+  ASSERT_TRUE(response1.privacy_wallet_config_response().succ());
+  ASSERT_TRUE(status1.ok());
+
+  auto [status2, _] = configureWallet(0);
+  ASSERT_EQ(status2.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+  ASSERT_EQ(status2.error_message(), "wallet is already configured");
+  (void)_;
+}
 
 TEST_F(test_privacy_wallet_grpc_service, test_generate_registration_input) {
   configureWallet(0);
@@ -191,6 +200,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_privacy_service_wallet_registratio
   *(registration_update_req->mutable_s2()) = {s2.begin(), s2.end()};
   auto context2 = grpc::ClientContext{};
   grpc::Status status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
+  std::cout << status.error_message() << std::endl;
   ASSERT_TRUE(status2.ok());
 }
 

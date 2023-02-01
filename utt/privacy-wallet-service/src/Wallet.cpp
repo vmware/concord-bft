@@ -45,6 +45,7 @@ std::optional<Wallet::RegistrationInput> Wallet::generateRegistrationInput() {
 bool Wallet::updateRegistrationCommitment(const RegistrationSig& sig, const S2& s2) {
   if (registered_) return false;
   user_->updateRegistration(user_->getPK(), sig, s2);
+  registered_ = true;
   return true;
 }
 

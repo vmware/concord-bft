@@ -16,7 +16,7 @@
 #include <string>
 #include <memory>
 #include <tuple>
-
+#include <string_view>
 #include <grpcpp/grpcpp.h>
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-service/proto/api
 #include "Wallet.hpp"
@@ -55,6 +55,7 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
 
  private:
   std::unique_ptr<Wallet> wallet_;
+  static const std::string wallet_db_path;
 };
 
 class PrivacyWalletService {

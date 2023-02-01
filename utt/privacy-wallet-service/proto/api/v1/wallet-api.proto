@@ -29,7 +29,6 @@ message PrivacyWalletConfigRequest {
     string private_key = 1;
     string public_key = 2;
     bytes public_application_config = 3;
-    string storage_path = 4;
 }
 
 message PrivacyWalletConfigResponse {
