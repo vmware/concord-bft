@@ -1,5 +1,4 @@
 #include "UTTParams.hpp"
-#include "testUtils.hpp"
 #include "mint.hpp"
 #include "budget.hpp"
 #include "burn.hpp"
@@ -7,7 +6,8 @@
 #include "transaction.hpp"
 #include "config.hpp"
 #include "serialization.hpp"
-
+#include "testUtils/testUtils.hpp"
+#include "testUtils/testKeys.hpp"
 #include <utt/DataUtils.hpp>
 #include <memory>
 #include <vector>
@@ -479,8 +479,8 @@ TEST_F(rsa_based_test_system_minted, test_transaction) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
     std::map<std::string, std::string> tx_pub_keys;
-    tx_pub_keys[issuer.getPid()] = libutt::api::testing::pkeys[i];
-    tx_pub_keys[receiver.getPid()] = libutt::api::testing::pkeys[(i + 1) % clients.size()];
+    tx_pub_keys[issuer.getPid()] = pkeys[i];
+    tx_pub_keys[receiver.getPid()] = pkeys[(i + 1) % clients.size()];
     libutt::RSAEncryptor tx_encryptor(tx_pub_keys);
     Transaction tx(d,
                    issuer,

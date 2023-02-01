@@ -31,7 +31,7 @@ class E2eTestScenarioTransferAboveBalance : public E2eTestScenario {
     context.wallet1->transfer(context.chanWallet,
                               privateBalance1Before + TRANSFER_OVERFLOW,
                               "user-2",
-                              E2eTestKeys::k_TestKeys.at("user-2").second);
+                              libutt::api::testing::k_TestKeys.at("user-2").second);
 
     const uint64_t EXPECTED_PUBLIC_BALANCE_1_AFTER = publicBalance1Before;
     const uint64_t EXPECTED_PRIVATE_BALANCE_1_AFTER = privateBalance1Before;

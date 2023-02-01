@@ -8,7 +8,7 @@ foreach(appSrc ${privacy_wallet_service_tests_src})
     set(appDir ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
     add_executable(${appName} ${appSrc})
-    target_link_libraries(${appName} PRIVATE privacy-wallet-service-lib GTest::Main GTest::GTest)
+    target_link_libraries(${appName} PRIVATE utt_test_utils privacy-wallet-service-lib GTest::Main GTest::GTest)
 
     add_test(NAME ${appName} COMMAND ${appName})
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})

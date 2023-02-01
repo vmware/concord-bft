@@ -22,7 +22,7 @@ namespace fs = std::experimental::filesystem;
 #error "Missing filesystem support"
 #endif
 
-#include "../../../tests/testUtils.hpp"
+#include "testUtils/testUtils.hpp"
 #include "gtest/gtest.h"
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
 
@@ -62,8 +62,8 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     auto public_config = libutt::api::serialize<libutt::api::PublicConfig>(config->getPublicConfig());
     PrivacyWalletRequest request;
     auto wallet_conf = request.mutable_privacy_wallet_config_request();
-    wallet_conf->set_public_key(libutt::api::testing::pkeys[index]);
-    wallet_conf->set_private_key(libutt::api::testing::pr_keys[index]);
+    wallet_conf->set_public_key(pkeys[index]);
+    wallet_conf->set_private_key(pr_keys[index]);
     wallet_conf->set_public_application_config({public_config.begin(), public_config.end()});
     wallet_conf->set_storage_path(".");
     auto response = ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse{};
@@ -73,8 +73,7 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     ASSERT_TRUE(status.ok());
 
     user_id_ = utt::client::utils::crypto::sha256(
-        {libutt::api::testing::pkeys[index].begin(),
-         libutt::api::testing::pkeys[index].end()});  // same user id as the one the wallet creates
+        {pkeys[index].begin(), pkeys[index].end()});  // same user id as the one the wallet creates
   }
 
   std::pair<types::CurvePoint, types::Signature> registerUser(const std::vector<uint8_t>& rcm1) {
