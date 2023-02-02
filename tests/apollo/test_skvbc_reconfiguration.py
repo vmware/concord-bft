@@ -1609,7 +1609,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
     @with_trio
     @with_bft_network(start_replica_cmd, bft_configs=[BFTConfig(n=4, f=1, c=0)], publish_master_keys=True)
     async def test_add_nodes_with_failures(self, bft_network):

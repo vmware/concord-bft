@@ -114,8 +114,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
   // requests queue (used by the primary)
-  std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
-  size_t primaryCombinedReqSize = 0;                     // only used by the primary
+  std::queue<std::unique_ptr<ClientRequestMsg>> requestsQueueOfPrimary;  // only used by the primary
+  size_t primaryCombinedReqSize = 0;                                     // only used by the primary
 
   std::map<uint64_t, std::pair<Time, ClientRequestMsg*>>
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
@@ -146,7 +146,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // fetching of requests from the queue happens when we are getting to it as part of finishExecutePrePrepareMsg which
   // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
   // internal msgs queue.
-  std::deque<ClientRequestMsg*> deferredRORequests_;
+  std::deque<std::unique_ptr<ClientRequestMsg>> deferredRORequests_;
   // if we have active executions and the main thread fetches request we will defer the message and store it in this
   // queue, we will handle these requests after the post execution finishes
   // This queue should not be thread safe because we add requests only in several onMessages which can be
@@ -396,10 +396,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
   SeqNum getLastExecutedSeqNum() const override { return lastExecutedSeqNum; }
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessage() override;
+  PrePrepareMsgCreationResult buildPrePrepareMessage() override;
   bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
+  PrePrepareMsgCreationResult buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
+  PrePrepareMsgCreationResult buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
   void handleDeferredRequests();
   void onExecutionFinish();
   void finalizeExecution();
@@ -481,10 +481,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onInternalMsg(InternalMessage&& msg);
   void onInternalMsg(GetStatus& msg) const;
 
-  std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
-                                                                      uint32_t maxSpaceForReqs,
-                                                                      uint32_t requiredRequestsSize,
-                                                                      uint32_t requiredRequestsNum);
+  PrePrepareMsgCreationResult finishAddingRequestsToPrePrepareMsg(PrePrepareMsgUPtr prePrepareMsg,
+                                                                  uint32_t maxSpaceForReqs,
+                                                                  uint32_t requiredRequestsSize,
+                                                                  uint32_t requiredRequestsNum);
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
@@ -502,17 +502,17 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void sendPartialProof(SeqNumInfo&);
 
-  ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg*& nextRequest,
+  ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg* nextRequest,
                                                   PrePrepareMsg& prePrepareMsg,
                                                   uint32_t maxStorageForRequests);
 
-  PrePrepareMsg* createPrePrepareMessage();
+  PrePrepareMsgUPtr createPrePrepareMessage();
 
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
+  PrePrepareMsgCreationResult buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
 
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
+  PrePrepareMsgCreationResult buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
-  void validatePrePrepareMsg(std::unique_ptr<PrePrepareMsg> ppm);
+  void validatePrePrepareMsg(PrePrepareMsgUPtr ppm);
 
   template <typename MSG>
   void asyncValidateMessage(std::unique_ptr<MSG>);
@@ -627,8 +627,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::CallbackRegistry<> stopCallbacks_;
 
   void addTimers();
-  void startConsensusProcess(PrePrepareMsg* pp, bool isCreatedEarlier);
-  void startConsensusProcess(PrePrepareMsg* pp);
+  void startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarlier);
+  void startConsensusProcess(PrePrepareMsgUPtr pp);
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo

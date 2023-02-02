@@ -57,9 +57,9 @@ void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
   }
 }
 
-std::pair<PrePrepareMsg *, bool> RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
-                                                                                        uint64_t requestsInQueue,
-                                                                                        SeqNum lastExecutedSeqNum) {
+PrePrepareMsgCreationResult RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
+                                                                                   uint64_t requestsInQueue,
+                                                                                   SeqNum lastExecutedSeqNum) {
   if (requestsInQueue > maxNumberOfPendingRequestsInRecentHistory_)
     maxNumberOfPendingRequestsInRecentHistory_ = requestsInQueue;
 
@@ -111,11 +111,11 @@ void RequestsBatchingLogic::adjustPreprepareSize() {
   LOG_INFO(GL, "increasing maxBatchSize to:" << maxNumOfRequestsInBatch_);
 }
 
-std::pair<PrePrepareMsg *, bool> RequestsBatchingLogic::batchRequests() {
+PrePrepareMsgCreationResult RequestsBatchingLogic::batchRequests() {
   const auto requestsInQueue = replica_.getRequestsInQueue();
   if (requestsInQueue == 0) return std::make_pair(nullptr, false);
 
-  std::pair<PrePrepareMsg *, bool> prePrepareMsgWithResult{nullptr, false};
+  PrePrepareMsgCreationResult prePrepareMsgWithResult{nullptr, false};
   switch (batchingPolicy_) {
     case BATCH_SELF_ADJUSTED:
       prePrepareMsgWithResult = batchRequestsSelfAdjustedPolicy(
