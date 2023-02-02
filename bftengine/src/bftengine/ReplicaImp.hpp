@@ -396,10 +396,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
   SeqNum getLastExecutedSeqNum() const override { return lastExecutedSeqNum; }
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessage() override;
+  PrePrepareMsgCreationResult buildPrePrepareMessage() override;
   bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
+  PrePrepareMsgCreationResult buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
+  PrePrepareMsgCreationResult buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
   void handleDeferredRequests();
   void onExecutionFinish();
   void finalizeExecution();
@@ -481,10 +481,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onInternalMsg(InternalMessage&& msg);
   void onInternalMsg(GetStatus& msg) const;
 
-  std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
-                                                                      uint32_t maxSpaceForReqs,
-                                                                      uint32_t requiredRequestsSize,
-                                                                      uint32_t requiredRequestsNum);
+  PrePrepareMsgCreationResult finishAddingRequestsToPrePrepareMsg(PrePrepareMsgUPtr prePrepareMsg,
+                                                                  uint32_t maxSpaceForReqs,
+                                                                  uint32_t requiredRequestsSize,
+                                                                  uint32_t requiredRequestsNum);
 
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
@@ -506,13 +506,13 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                                   PrePrepareMsg& prePrepareMsg,
                                                   uint32_t maxStorageForRequests);
 
-  PrePrepareMsg* createPrePrepareMessage();
+  PrePrepareMsgUPtr createPrePrepareMessage();
 
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
+  PrePrepareMsgCreationResult buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
 
-  std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
+  PrePrepareMsgCreationResult buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
-  void validatePrePrepareMsg(std::unique_ptr<PrePrepareMsg> ppm);
+  void validatePrePrepareMsg(PrePrepareMsgUPtr ppm);
 
   template <typename MSG>
   void asyncValidateMessage(std::unique_ptr<MSG>);

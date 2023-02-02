@@ -324,7 +324,7 @@ void ReplicaImp::asyncValidateMessage(std::unique_ptr<MSG> msg) {
  * to get handled.
  * @return : returns nothing
  */
-void ReplicaImp::validatePrePrepareMsg(std::unique_ptr<PrePrepareMsg> ppm) {
+void ReplicaImp::validatePrePrepareMsg(PrePrepareMsgUPtr ppm) {
   // The thread pool is initialized once and kept with this function.
   // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
@@ -549,24 +549,24 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(std::unique_ptr<pr
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(std::unique_ptr<ReplicaAsksToLeaveViewMsg> message) {
-  auto *msg = message.release();
   if (activeExecutions_ > 0) {
-    pushDeferredMessage(msg);
+    pushDeferredMessage(message.release());
     return;
   }
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
-  if (msg->viewNumber() == getCurrentView()) {
+  if (message->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg "
-                 << KVLOG(msg->viewNumber(), msg->senderId(), msg->idOfGeneratedReplica()));
-    viewsManager->storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(msg));
+                 << KVLOG(message->viewNumber(), message->senderId(), message->idOfGeneratedReplica()));
+    viewsManager->storeComplaint(std::move(message));
     tryToGoToNextView();
   } else {
-    LOG_WARN(
-        VC_LOG,
-        "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(
-            getCurrentView(), currentViewIsActive(), msg->viewNumber(), msg->senderId(), msg->idOfGeneratedReplica()));
-    delete msg;
+    LOG_WARN(VC_LOG,
+             "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(getCurrentView(),
+                                                            currentViewIsActive(),
+                                                            message->viewNumber(),
+                                                            message->senderId(),
+                                                            message->idOfGeneratedReplica()));
   }
 }
 
@@ -634,7 +634,7 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So, the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
   if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
     LOG_DEBUG(GL,
               "Not sufficient messages size in the primary replica queue to fill a batch"
@@ -649,7 +649,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSiz
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So, the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
 
   if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
@@ -668,13 +668,13 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
   removeDuplicatedRequestsFromRequestsQueue();
-  PrePrepareMsg *pp = nullptr;
+  PrePrepareMsgUPtr pp;
   bool isSent = false;
   if (batchingLogic) {
     auto batchedReq = reqBatchingLogic_.batchRequests();
     isSent = batchedReq.second;
     if (isSent) {
-      pp = batchedReq.first;
+      pp = std::move(batchedReq.first);
       batch_closed_on_logic_on_++;
       accumulating_batch_time_.add(
           std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime() - time_to_collect_batch_).count());
@@ -688,17 +688,17 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     auto builtReq = buildPrePrepareMessage();
     isSent = builtReq.second;
     if (isSent) {
-      pp = builtReq.first;
+      pp = std::move(builtReq.first);
       batch_closed_on_logic_off_++;
       time_to_collect_batch_ = MinTime;
     }
   }
   if (!pp) return isSent;
-  startConsensusProcess(pp);
+  startConsensusProcess(pp.release());
   return true;
 }
 
-PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
+PrePrepareMsgUPtr ReplicaImp::createPrePrepareMessage() {
   CommitPath firstPath = controller->getCurrentFirstPath();
   ConcordAssertOR((config_.getcVal() != 0), (firstPath != CommitPath::FAST_WITH_THRESHOLD));
   if (requestsQueueOfPrimary.empty()) {
@@ -710,12 +710,12 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
   }
 
-  return new PrePrepareMsg(config_.getreplicaId(),
-                           getCurrentView(),
-                           (primaryLastUsedSeqNum + 1),
-                           firstPath,
-                           requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
-                           primaryCombinedReqSize);
+  return make_unique<PrePrepareMsg>(config_.getreplicaId(),
+                                    getCurrentView(),
+                                    (primaryLastUsedSeqNum + 1),
+                                    firstPath,
+                                    requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
+                                    primaryCombinedReqSize);
 }
 
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
@@ -747,13 +747,12 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
 // second value in the returned pair.
 // The first value of the pair can be nullptr depending on the availability of the result. So the
 // first value cannot represent failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
-                                                                                 uint32_t maxSpaceForReqs,
-                                                                                 uint32_t requiredRequestsSize,
-                                                                                 uint32_t requiredRequestsNum) {
+PrePrepareMsgCreationResult ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsgUPtr prePrepareMsg,
+                                                                            uint32_t maxSpaceForReqs,
+                                                                            uint32_t requiredRequestsSize,
+                                                                            uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
-    delete prePrepareMsg;
     return std::make_pair(nullptr, false);
   }
   {
@@ -769,32 +768,35 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
           numOfTransientPreprepareMsgs_++;
         } else {
           LOG_ERROR(GL, "The number of transient preprepare messages are very large so they will have to be retried.");
-          delete prePrepareMsg;
           return std::make_pair(nullptr, false);
         }
+        // prePrepareMsg is about to be moved. save here values for future use
+        auto seqNum = prePrepareMsg->seqNumber();
+        auto cid = prePrepareMsg->getCid();
+        auto requestsSize = prePrepareMsg->requestsSize();
+        auto numberOfRequests = prePrepareMsg->numberOfRequests();
         threadPool.async(
-            [](auto *ppm, auto *iq, auto *hist) {
+            [](auto ppm, auto *iq, auto *hist) {
               {
                 TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
                 ppm->finishAddingRequests();
               }
-              iq->pushInternalMsg(std::move(ppm));
+              iq->pushInternalMsg(ppm.release());
             },
-            prePrepareMsg,
+            std::move(prePrepareMsg),
             &(getIncomingMsgsStorage()),
             &histograms_);
         LOG_DEBUG(GL,
-                  "Finishing adding requests in the thread : " << KVLOG(prePrepareMsg->seqNumber(),
-                                                                        prePrepareMsg->getCid(),
+                  "Finishing adding requests in the thread : " << KVLOG(seqNum,
+                                                                        cid,
                                                                         maxSpaceForReqs,
                                                                         requiredRequestsSize,
-                                                                        prePrepareMsg->requestsSize(),
+                                                                        requestsSize,
                                                                         requiredRequestsNum,
-                                                                        prePrepareMsg->numberOfRequests()));
+                                                                        numberOfRequests));
         return std::make_pair(nullptr, true);
       } catch (std::out_of_range &ex) {
         LOG_ERROR(GL, "The request threadpool selector is selecting some non-existent threadpool");
-        delete prePrepareMsg;
         return std::make_pair(nullptr, false);
       }
 
@@ -811,16 +813,16 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
                                                                         prePrepareMsg->requestsSize(),
                                                                         requiredRequestsNum,
                                                                         prePrepareMsg->numberOfRequests()));
-      return std::make_pair(prePrepareMsg, true);
+      return std::make_pair(std::move(prePrepareMsg), true);
     }
   }
 }
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
+PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessage() {
   TimeRecorder scoped_timer(*histograms_.buildPrePrepareMessage);
-  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  auto prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
 
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
@@ -832,15 +834,15 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
     TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
     ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
     while (nextRequest != nullptr)
-      nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+      nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
   }
-  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
+  return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, 0);
 }
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
-  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
+  auto prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
@@ -849,15 +851,15 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
-    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
 
-  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, requiredRequestsNum);
+  return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, requiredRequestsNum);
 }
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
-  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
+  auto prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
@@ -867,9 +869,9 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(u
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr &&
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
-    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
 
-  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, requiredBatchSizeInBytes, 0);
+  return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
@@ -1057,7 +1059,7 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
 }
 
 template <>
-void ReplicaImp::onMessage<PrePrepareMsg>(std::unique_ptr<PrePrepareMsg> message) {
+void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
   if (isSeqNumToStopAt(message->seqNumber())) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
@@ -1554,7 +1556,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       ppcim->ppm_ = nullptr;
       return;
     } else {
-      return onMessage(std::unique_ptr<PrePrepareMsg>(ppcim->ppm_));
+      return onMessage(PrePrepareMsgUPtr(ppcim->ppm_));
     }
   }
 
