@@ -694,7 +694,7 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     }
   }
   if (!pp) return isSent;
-  startConsensusProcess(pp.release());
+  startConsensusProcess(std::move(pp));
   return true;
 }
 
@@ -874,14 +874,13 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByBatchSize(uint32
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
 
-void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
+void ReplicaImp::startConsensusProcess(PrePrepareMsgUPtr pp) {
   static constexpr bool createdEarlier = false;
-  startConsensusProcess(pp, createdEarlier);
+  startConsensusProcess(std::move(pp), createdEarlier);
 }
 
-void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
+void ReplicaImp::startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarlier) {
   if (!isCurrentPrimary()) {
-    delete pp;
     return;
   }
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
@@ -918,16 +917,18 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   consensus_times_.start(primaryLastUsedSeqNum);
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
+  // pp is about to be moved, use ppMsg for next (not owning) operations
+  auto ppMsg = pp.get();
   {
     TimeRecorder scoped_timer1(*histograms_.addSelfMsgPrePrepare);
-    seqNumInfo.addSelfMsg(pp);
+    seqNumInfo.addSelfMsg(std::move(pp));
   }
 
   if (ps_) {
     TimeRecorder scoped_timer1(*histograms_.prePrepareWriteTransaction);
     ps_->beginWriteTran();
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
-    ps_->setPrePrepareMsgInSeqNumWindow(primaryLastUsedSeqNum, pp);
+    ps_->setPrePrepareMsgInSeqNumWindow(primaryLastUsedSeqNum, ppMsg);
     if (firstPath == CommitPath::SLOW) ps_->setSlowStartedInSeqNumWindow(primaryLastUsedSeqNum, true);
     ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
   }
@@ -935,10 +936,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   {
     TimeRecorder scoped_timer1(*histograms_.broadcastPrePrepare);
     if (!retransmissionsLogicEnabled) {
-      sendToAllOtherReplicas(pp);
+      sendToAllOtherReplicas(ppMsg);
     } else {
       for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
-        sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
+        sendRetransmittableMsgToReplica(ppMsg, x, primaryLastUsedSeqNum);
       }
     }
   }
@@ -1082,32 +1083,30 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(CNSUS, "Received PrePrepareMsg" << KVLOG(message->senderId(), msgSeqNum, message->size()));
 
-  auto *msg = message.release();
   if (!currentViewIsActive() && viewsManager->waitingForMsgs() && msgSeqNum > lastStableSeqNum) {
-    ConcordAssert(!msg->isNull());  // we should never send (and never accept) null PrePrepare message
+    ConcordAssert(!message->isNull());  // we should never send (and never accept) null PrePrepare message
 
-    if (viewsManager->addPotentiallyMissingPP(msg, lastStableSeqNum)) {
+    if (viewsManager->addPotentiallyMissingPP(message.get(), lastStableSeqNum)) {
+      message.release();  // NOLINT(bugprone-unused-return-value)
       LOG_INFO(CNSUS, "PrePrepare added to views manager. " << KVLOG(lastStableSeqNum));
       tryToEnterView();
     } else {
       LOG_INFO(CNSUS, "PrePrepare discarded.");
-      delete msg;
     }
     return;
   }
 
   bool msgAdded = false;
-  if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
-    sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
+  if (relevantMsgForActiveView(message.get()) && (message->senderId() == currentPrimary())) {
+    sendAckIfNeeded(message.get(), message->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-    const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
+    const bool slowStarted = (message->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
     bool time_is_ok = true;
     if (config_.timeServiceEnabled) {
-      auto ppmTime = msg->getTime();
+      auto ppmTime = message->getTime();
       if (ppmTime <= 0) {
         LOG_WARN(CNSUS, "No timePoint in the prePrepare, PrePrepare will be ignored" << KVLOG(ppmTime));
-        delete msg;
         return;
       }
       if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
@@ -1116,12 +1115,14 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
     }
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
+    // message is about to be moved, use ppMsg for next (not owning) operations
+    auto ppMsg = message.get();
     // All pre-prepare messages are added in seqNumInfo even if replica detects incorrect time
-    if (seqNumInfo.addMsg(msg, false, time_is_ok)) {
+    if (seqNumInfo.addMsg(std::move(message), false, time_is_ok)) {
       msgAdded = true;
 
       // Start tracking all client requests with in this pp message
-      RequestsIterator reqIter(msg);
+      RequestsIterator reqIter(ppMsg);
       char *requestBody = nullptr;
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
@@ -1136,7 +1137,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
       }
       if (ps_) {
         ps_->beginWriteTran();
-        ps_->setPrePrepareMsgInSeqNumWindow(msgSeqNum, msg);
+        ps_->setPrePrepareMsgInSeqNumWindow(msgSeqNum, ppMsg);
         if (slowStarted) ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
         ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
       }
@@ -1152,7 +1153,9 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
     }
   }
 
-  if (!msgAdded) delete msg;
+  if (!msgAdded) {
+    LOG_DEBUG(GL, "PrePrepareMsg was not added to seqNumInfo" << KVLOG(msgSeqNum));
+  }
 }
 
 void ReplicaImp::tryToStartSlowPaths() {
@@ -1544,7 +1547,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       ppm = nullptr;
       return;
     } else {
-      return startConsensusProcess(*ppm, true);
+      return startConsensusProcess(std::make_unique<PrePrepareMsg>(*ppm), true);
     }
   }
 
@@ -3015,7 +3018,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       if (seqNumInfo.getPrePrepareMsg() != nullptr && seqNumInfo.isTimeCorrect()) {
         ViewsManager::PrevViewInfo x;
 
-        seqNumInfo.getAndReset(x.prePrepare, x.prepareFull);
+        std::tie(x.prePrepare, x.prepareFull) = seqNumInfo.getAndReset();
         x.hasAllRequests = true;
 
         ConcordAssertNE(x.prePrepare, nullptr);
@@ -3191,13 +3194,14 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   }
 
   const bool primaryIsMe = (config_.getreplicaId() == repsInfo->primaryOfView(getCurrentView()));
-
+  std::vector<SeqNum> ppSeqNumbers;
   for (size_t i = 0; i < prePreparesForNewView.size(); i++) {
     PrePrepareMsg *pp = prePreparesForNewView[i];
     ConcordAssertGE(pp->seqNumber(), firstPPSeq);
     ConcordAssertLE(pp->seqNumber(), lastPPSeq);
     ConcordAssertEQ(pp->firstPath(), CommitPath::SLOW);  // TODO(GG): don't we want to use the fast path?
     SeqNumInfo &seqNumInfo = mainLog->get(pp->seqNumber());
+    ppSeqNumbers.push_back(pp->seqNumber());
 
     if (ps_) {
       ps_->setPrePrepareMsgInSeqNumWindow(pp->seqNumber(), pp);
@@ -3205,9 +3209,9 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     }
 
     if (primaryIsMe)
-      seqNumInfo.addSelfMsg(pp);
+      seqNumInfo.addSelfMsg(std::make_unique<PrePrepareMsg>(pp));
     else
-      seqNumInfo.addMsg(pp);
+      seqNumInfo.addMsg(std::make_unique<PrePrepareMsg>(pp));
 
     seqNumInfo.startSlowPath();
   }
@@ -3239,9 +3243,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     sendToAllOtherReplicas(newNewViewMsgToSend);
   }
 
-  for (size_t i = 0; i < prePreparesForNewView.size(); i++) {
-    PrePrepareMsg *pp = prePreparesForNewView[i];
-    SeqNumInfo &seqNumInfo = mainLog->get(pp->seqNumber());
+  for (size_t i = 0; i < ppSeqNumbers.size(); i++) {
+    SeqNumInfo &seqNumInfo = mainLog->get(ppSeqNumbers[i]);
     sendPreparePartial(seqNumInfo);
   }
 
@@ -4115,13 +4118,15 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       // add prePrepareMsg
 
       if (isPrimaryOfView)
-        seqNumInfo.addSelfMsg(seqNumData.getPrePrepareMsg(), true);
+        seqNumInfo.addSelfMsg(std::make_unique<PrePrepareMsg>(seqNumData.getPrePrepareMsg()), true);
       else
-        seqNumInfo.addMsg(seqNumData.getPrePrepareMsg(), true);
+        seqNumInfo.addMsg(std::make_unique<PrePrepareMsg>(seqNumData.getPrePrepareMsg()), true);
 
-      ConcordAssert(seqNumData.getPrePrepareMsg()->equals(*seqNumInfo.getPrePrepareMsg()));
+      auto prePrepareMsg = seqNumInfo.getPrePrepareMsg();
 
-      const CommitPath pathInPrePrepare = seqNumData.getPrePrepareMsg()->firstPath();
+      ConcordAssert(prePrepareMsg->equals(*seqNumInfo.getPrePrepareMsg()));
+
+      const CommitPath pathInPrePrepare = prePrepareMsg->firstPath();
 
       // TODO(GG): check this when we load the data from disk
       ConcordAssertOR(pathInPrePrepare != CommitPath::SLOW, seqNumData.getSlowStarted());
@@ -4130,7 +4135,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         // add PartialCommitProofMsg
 
         PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
-        ConcordAssert(seqNumData.getPrePrepareMsg()->equals(*pp));
+        ConcordAssert(prePrepareMsg->equals(*pp));
         Digest &ppDigest = pp->digestOfRequests();
         const SeqNum seqNum = pp->seqNumber();
 

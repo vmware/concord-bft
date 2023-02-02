@@ -62,7 +62,6 @@ void SeqNumInfo::resetCommitSignatures(CommitPath cPath) {
 void SeqNumInfo::resetPrepareSignatures() { prepareSigCollector->resetAndFree(); }
 
 void SeqNumInfo::resetAndFree() {
-  delete prePrepareMsg;
   prePrepareMsg = nullptr;
 
   prepareSigCollector->resetAndFree();
@@ -82,32 +81,33 @@ void SeqNumInfo::resetAndFree() {
   commitUpdateTime = getMonotonicTime();  // TODO(GG): TBD
 }
 
-void SeqNumInfo::getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg) {
-  outPrePrepare = prePrepareMsg;
-  prePrepareMsg = nullptr;
+std::pair<PrePrepareMsg*, PrepareFullMsg*> SeqNumInfo::getAndReset() {
+  auto outPrePrepare = prePrepareMsg.release();
 
-  prepareSigCollector->getAndReset(outCombinedValidSignatureMsg);
+  PrepareFullMsg* outPrepareFullMsg = nullptr;
+  prepareSigCollector->getAndReset(outPrepareFullMsg);
 
   resetAndFree();
+  return std::make_pair(outPrePrepare, outPrepareFullMsg);
 }
 
-bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd, bool isTimeCorrect) {
+bool SeqNumInfo::addMsg(PrePrepareMsgUPtr m, bool directAdd, bool isTimeCorrect) {
   if (prePrepareMsg != nullptr) return false;
 
   ConcordAssert(primary == false);
   ConcordAssert(!forcedCompleted);
   ConcordAssert(!prepareSigCollector->hasPartialMsgFromReplica(replica->getReplicasInfo().myId()));
 
-  prePrepareMsg = m;
+  prePrepareMsg = std::move(m);
   isTimeCorrect_ = isTimeCorrect;
 
   // set expected
   Digest tmpDigest;
-  m->digestOfRequests().calcCombination(m->viewNumber(), m->seqNumber(), tmpDigest);
+  prePrepareMsg->digestOfRequests().calcCombination(prePrepareMsg->viewNumber(), prePrepareMsg->seqNumber(), tmpDigest);
   if (!directAdd)
-    prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+    prepareSigCollector->setExpected(prePrepareMsg->seqNumber(), prePrepareMsg->viewNumber(), tmpDigest);
   else
-    prepareSigCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+    prepareSigCollector->initExpected(prePrepareMsg->seqNumber(), prePrepareMsg->viewNumber(), tmpDigest);
 
   if (firstSeenFromPrimary == MinTime)  // TODO(GG): remove condition - TBD
     firstSeenFromPrimary = getMonotonicTime();
@@ -115,7 +115,7 @@ bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd, bool isTimeCorrect) {
   return true;
 }
 
-bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
+bool SeqNumInfo::addSelfMsg(PrePrepareMsgUPtr m, bool directAdd) {
   ConcordAssert(primary == false);
   ConcordAssert(replica->getReplicasInfo().myId() == replica->getReplicasInfo().primaryOfView(m->viewNumber()));
   ConcordAssert(!forcedCompleted);
@@ -124,16 +124,16 @@ bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
   // ConcordAssert(me->id() == m->senderId()); // GG: incorrect assert - because after a view change it may has been
   // sent by another replica
 
-  prePrepareMsg = m;
+  prePrepareMsg = std::move(m);
   primary = true;
 
   // set expected
   Digest tmpDigest;
-  m->digestOfRequests().calcCombination(m->viewNumber(), m->seqNumber(), tmpDigest);
+  prePrepareMsg->digestOfRequests().calcCombination(prePrepareMsg->viewNumber(), prePrepareMsg->seqNumber(), tmpDigest);
   if (!directAdd)
-    prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+    prepareSigCollector->setExpected(prePrepareMsg->seqNumber(), prePrepareMsg->viewNumber(), tmpDigest);
   else
-    prepareSigCollector->initExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
+    prepareSigCollector->initExpected(prePrepareMsg->seqNumber(), prePrepareMsg->viewNumber(), tmpDigest);
 
   if (firstSeenFromPrimary == MinTime)  // TODO(GG): remove condition - TBD
     firstSeenFromPrimary = getMonotonicTime();
@@ -234,11 +234,11 @@ void SeqNumInfo::forceComplete() {
   commitUpdateTime = getMonotonicTime();
 }
 
-PrePrepareMsg* SeqNumInfo::getPrePrepareMsg() const { return prePrepareMsg; }
+PrePrepareMsg* SeqNumInfo::getPrePrepareMsg() const { return prePrepareMsg.get(); }
 
 PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const {
   if (primary) {
-    return prePrepareMsg;
+    return prePrepareMsg.get();
   }
   return nullptr;
 }

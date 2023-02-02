@@ -627,8 +627,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::CallbackRegistry<> stopCallbacks_;
 
   void addTimers();
-  void startConsensusProcess(PrePrepareMsg* pp, bool isCreatedEarlier);
-  void startConsensusProcess(PrePrepareMsg* pp);
+  void startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarlier);
+  void startConsensusProcess(PrePrepareMsgUPtr pp);
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo
