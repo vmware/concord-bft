@@ -114,8 +114,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
   // requests queue (used by the primary)
-  std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
-  size_t primaryCombinedReqSize = 0;                     // only used by the primary
+  std::queue<std::unique_ptr<ClientRequestMsg>> requestsQueueOfPrimary;  // only used by the primary
+  size_t primaryCombinedReqSize = 0;                                     // only used by the primary
 
   std::map<uint64_t, std::pair<Time, ClientRequestMsg*>>
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
@@ -146,7 +146,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // fetching of requests from the queue happens when we are getting to it as part of finishExecutePrePrepareMsg which
   // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
   // internal msgs queue.
-  std::deque<ClientRequestMsg*> deferredRORequests_;
+  std::deque<std::unique_ptr<ClientRequestMsg>> deferredRORequests_;
   // if we have active executions and the main thread fetches request we will defer the message and store it in this
   // queue, we will handle these requests after the post execution finishes
   // This queue should not be thread safe because we add requests only in several onMessages which can be
@@ -502,7 +502,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void sendPartialProof(SeqNumInfo&);
 
-  ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg*& nextRequest,
+  ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg* nextRequest,
                                                   PrePrepareMsg& prePrepareMsg,
                                                   uint32_t maxStorageForRequests);
 

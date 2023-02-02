@@ -394,21 +394,20 @@ void ReplicaImp::onMessage<StateTransferMsg>(std::unique_ptr<StateTransferMsg> m
 }
 
 template <>
-void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m) {
+void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> msg) {
   metric_received_client_requests_++;
-  const NodeIdType senderId = m->senderId();
-  const NodeIdType clientId = m->clientProxyId();
-  const bool readOnly = m->isReadOnly();
-  const ReqId reqSeqNum = m->requestSeqNum();
-  const uint64_t flags = m->flags();
-  const auto &cid = m->getCid();
+  const NodeIdType senderId = msg->senderId();
+  const NodeIdType clientId = msg->clientProxyId();
+  const bool readOnly = msg->isReadOnly();
+  const ReqId reqSeqNum = msg->requestSeqNum();
+  const uint64_t flags = msg->flags();
+  const auto &cid = msg->getCid();
 
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(CNSUS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
-  auto msg = m.release();
-  const auto &span_context = msg->spanContext<std::remove_pointer<decltype(msg)>::type>();
+  const auto &span_context = msg->spanContext<std::remove_pointer<decltype(msg.get())>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
   span.setTag("rid", config_.getreplicaId());
   span.setTag("cid", cid);
@@ -422,7 +421,6 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
       (!KeyExchangeManager::instance().clientKeysPublished() && repsInfo->isIdOfClientProxy(senderId))) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
-      delete msg;
       return;
     }
   }
@@ -442,8 +440,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
   if (invalidClient || sentFromReplicaToNonPrimary) {
     std::ostringstream oss("ClientRequestMsg is invalid. ");
     oss << KVLOG(invalidClient, sentFromReplicaToNonPrimary);
-    onReportAboutInvalidMessage(msg, oss.str().c_str());
-    delete msg;
+    onReportAboutInvalidMessage(msg.get(), oss.str().c_str());
     return;
   }
 
@@ -451,14 +448,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
     if (activeExecutions_ > 0) {
       if (deferredRORequests_.size() < maxQueueSize_) {
         // We should handle span and deleting the message when we handle the deferred message
-        deferredRORequests_.push_back(msg);
+        deferredRORequests_.push_back(std::move(msg));
         deferredRORequestsMetric_++;
-      } else {
-        delete msg;
       }
     } else {
-      executeReadOnlyRequest(span, msg);
-      delete msg;
+      executeReadOnlyRequest(span, msg.get());
     }
     return;
   }
@@ -468,12 +462,10 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
     LOG_INFO(CNSUS,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
-    delete msg;
     return;
   }
 
   if (!currentViewIsActive()) {
-    delete msg;
     return;
   }
 
@@ -485,15 +477,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
         LOG_WARN(CNSUS,
                  "ClientRequestMsg dropped. Primary request queue is full. "
                      << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));
-        delete msg;
         return;
       }
       if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         LOG_DEBUG(CNSUS, "Pushing to primary queue, request " << KVLOG(reqSeqNum, clientId, senderId));
         if (time_to_collect_batch_ == MinTime) time_to_collect_batch_ = getMonotonicTime();
         metric_primary_batching_duration_.addStartTimeStamp(cid);
-        requestsQueueOfPrimary.push(msg);
         primaryCombinedReqSize += msg->size();
+        requestsQueueOfPrimary.push(std::move(msg));
         primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         tryToSendPrePrepareMsg(true);
         return;
@@ -506,21 +497,23 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
       if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         clientsManager->addPendingRequest(clientId, reqSeqNum, cid);
 
+        auto m = msg.get();
         // Adding the message to a queue for future retransmission.
         if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize) {
           if (requestsOfNonPrimary.count(msg->requestSeqNum())) {
             delete std::get<1>(requestsOfNonPrimary.at(msg->requestSeqNum()));
           }
-          requestsOfNonPrimary[msg->requestSeqNum()] = std::make_pair(getMonotonicTime(), msg);
+          requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), msg.release());
         }
-        send(msg, currentPrimary());
+
+        send(m, currentPrimary());
         LOG_INFO(CNSUS,
                  "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId, currentPrimary()));
         return;
       }
       if (clientsManager->isPending(clientId, reqSeqNum)) {
         // As long as this request is not committed, we want to continue and alert the primary about it
-        send(msg, currentPrimary());
+        send(msg.get(), currentPrimary());
       } else {
         LOG_INFO(CNSUS,
                  "ClientRequestMsg is ignored because: request is old, or primary is currently working on it"
@@ -536,7 +529,6 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
       send(repMsg.get(), clientId);
     }
   }
-  delete msg;
 }  // namespace bftEngine::impl
 
 template <>
@@ -622,12 +614,11 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
 void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   TimeRecorder scoped_timer(*histograms_.removeDuplicatedRequestsFromQueue);
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
-  ClientRequestMsg *first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+  ClientRequestMsg *first = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     primaryCombinedReqSize -= first->size();
     requestsQueueOfPrimary.pop();
-    delete first;
-    first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+    first = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   }
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 }
@@ -718,7 +709,7 @@ PrePrepareMsgUPtr ReplicaImp::createPrePrepareMessage() {
                                     primaryCombinedReqSize);
 }
 
-ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
+ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *nextRequest,
                                                             PrePrepareMsg &prePrepareMsg,
                                                             uint32_t maxStorageForRequests) {
   if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
@@ -736,9 +727,8 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
   }
   primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
-  delete nextRequest;
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
-  return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+  return (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
 }
 
 // Finalize the preprepare message by adding digest at a point when no more changes will happen.
@@ -832,7 +822,7 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessage() {
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
     TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
-    ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+    ClientRequestMsg *nextRequest = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
   }
@@ -849,7 +839,7 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByRequestsNum(uint
   }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
-  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  ClientRequestMsg *nextRequest = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
 
@@ -866,7 +856,7 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByBatchSize(uint32
   }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
-  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  ClientRequestMsg *nextRequest = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   while (nextRequest != nullptr &&
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
@@ -3229,10 +3219,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   // clear requestsQueueOfPrimary
   while (!requestsQueueOfPrimary.empty()) {
-    auto msg = requestsQueueOfPrimary.front();
-    primaryCombinedReqSize -= msg->size();
+    primaryCombinedReqSize -= requestsQueueOfPrimary.front()->size();
     requestsQueueOfPrimary.pop();
-    delete msg;
   }
 
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
@@ -5338,15 +5326,13 @@ void ReplicaImp::handleDeferredRequests() {
     }
     // Currently we are avoiding duplicates on deferred RO requests queue
     while (!deferredRORequests_.empty()) {
-      auto *msg = deferredRORequests_.front();
-      deferredRORequests_.pop_front();
+      auto &msg = deferredRORequests_.front();
       deferredRORequestsMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
       if (msgHandlerCallback) {
-        msgHandlerCallback(std::unique_ptr<MessageBase>(msg));
-      } else {
-        delete msg;
+        msgHandlerCallback(std::unique_ptr<MessageBase>(std::move(msg)));
       }
+      deferredRORequests_.pop_front();
     }
   }
 }
