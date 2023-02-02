@@ -71,6 +71,11 @@ class Block {
     return *reinterpret_cast<const concord::crypto::BlockDigest*>(buffer_.data() + sizeof(version_type));
   }
 
+  static const concord::crypto::BlockDigest& parentDigest(const std::string_view buffer) {
+    ConcordAssert(buffer.size() >= HEADER_SIZE);
+    return *reinterpret_cast<const concord::crypto::BlockDigest*>(buffer.data() + sizeof(version_type));
+  }
+
   void addDigest(const concord::crypto::BlockDigest& digest) {
     ConcordAssert(isValid_);
     ConcordAssert(buffer_.size() >= HEADER_SIZE);

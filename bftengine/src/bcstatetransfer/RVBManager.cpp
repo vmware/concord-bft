@@ -26,7 +26,7 @@ static inline std::string vecToStr(const std::vector<T>& vec);
 
 void RVBManager::rvt_deleter::operator()(RangeValidationTree* ptr) const { delete ptr; }  // used for pimpl
 
-RVBManager::RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds)
+RVBManager::RVBManager(const Config& config, IAppState* const state_api, const std::shared_ptr<DataStore>& ds)
     : logger_{logging::getLogger("concord.bft.st.rvb")},
       config_{config},
       as_{state_api},
@@ -754,61 +754,73 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
 #ifdef ENABLE_ALL_METRICS
   metrics_.pruning_reports_++;
 #endif
-  auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
 
+  const auto genesis_block_id = as_->getGenesisBlockNum();
   if (start_rvb_id == 0) {
     // In some cases tree is still not built, we still have to keep the pruned digests
-    start_rvb_id = pruned_blocks_digests_.empty() ? as_->getGenesisBlockNum() : pruned_blocks_digests_.back().first;
+    start_rvb_id = pruned_blocks_digests_.empty() ? genesis_block_id : pruned_blocks_digests_.back().first;
   }
 
   start_rvb_id = nextRvbBlockId(start_rvb_id);
-  if (lastAgreedPrunableBlockId < start_rvb_id) {
+
+  uint64_t current_rvb_id = start_rvb_id;
+  // Avoid fetching already existing digests of to-be-pruned blocks
+  if (!pruned_blocks_digests_.empty()) {
+    while ((current_rvb_id <= lastAgreedPrunableBlockId) and (current_rvb_id <= pruned_blocks_digests_.back().first)) {
+      current_rvb_id += config_.fetchRangeSize;
+    }
+  }
+
+  if ((current_rvb_id < genesis_block_id) || (lastAgreedPrunableBlockId < current_rvb_id)) {
     LOG_WARN(logger_,
-             "Current pruning report has no impact on RVB data:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
+             "Current pruning report has no impact on RVB data:" << KVLOG(
+                 current_rvb_id, genesis_block_id, lastAgreedPrunableBlockId));
     return;
   }
 
-  uint64_t current_rvb_id = start_rvb_id;
-  int32_t num_digests_added{0};
-  while (current_rvb_id <= lastAgreedPrunableBlockId) {
-    Digest digest;
-    if (!pruned_blocks_digests_.empty() && (current_rvb_id <= pruned_blocks_digests_.back().first)) {
-      current_rvb_id += config_.fetchRangeSize;
-      continue;
-    }
-    if (!as_->getPrevDigestFromBlock(current_rvb_id + 1,
-                                     reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()))) {
-      LOG_FATAL(logger_,
-                "Digest not found:" << KVLOG(lastAgreedPrunableBlockId,
-                                             initial_size,
-                                             start_rvb_id,
-                                             current_rvb_id,
-                                             num_digests_added,
-                                             pruned_blocks_digests_.size()));
-      ConcordAssert(false);
-    }
-    pruned_blocks_digests_.push_back(std::make_pair(current_rvb_id, std::move(digest)));
-    current_rvb_id += config_.fetchRangeSize;
-    ++num_digests_added;
+  const auto max_rvb_id = config_.fetchRangeSize * (lastAgreedPrunableBlockId / config_.fetchRangeSize);
+  auto num_rvb_blocks = (max_rvb_id - current_rvb_id) / config_.fetchRangeSize;
+  if ((max_rvb_id % lastAgreedPrunableBlockId) ||
+      ((current_rvb_id != max_rvb_id) && (lastAgreedPrunableBlockId % config_.fetchRangeSize == 0)) ||
+      ((current_rvb_id == max_rvb_id) && (max_rvb_id == lastAgreedPrunableBlockId))) {
+    num_rvb_blocks++;
   }
 
-  if (initial_size != pruned_blocks_digests_.size()) {
+  LOG_INFO(
+      logger_,
+      KVLOG(num_rvb_blocks, start_rvb_id, current_rvb_id, lastAgreedPrunableBlockId, pruned_blocks_digests_.size()));
+
+  std::vector<std::pair<BlockId, std::future<std::optional<concord::crypto::BlockDigest>>>> block_ids(num_rvb_blocks);
+  for (size_t i = 0; current_rvb_id <= lastAgreedPrunableBlockId; current_rvb_id += config_.fetchRangeSize) {
+    block_ids[i++].first = current_rvb_id + 1;
+  }
+
+  if (!block_ids.empty()) {
+    for (size_t i = 0; i < block_ids.size(); i++) {
+      block_ids[i].second = as_->getPrevDigestFromBlockAsync(block_ids[i].first);
+    }
+
+    for (size_t i = 0; i < block_ids.size(); i++) {
+      auto digest = block_ids[i].second.get();
+      if (!digest.has_value()) {
+        LOG_FATAL(logger_, "Digest not found" << KVLOG(block_ids[i].first));
+        ConcordAssert(false);
+      }
+      pruned_blocks_digests_.push_back(std::make_pair(block_ids[i].first - 1, digest.value()));
+    }
+
     auto total_duration = store_pruned_digests_dt.totalDuration();
     ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
     LOG_INFO(logger_,
-             num_digests_added << " pruned block digests saved:"
-                               << KVLOG(start_rvb_id,
-                                        current_rvb_id,
-                                        lastAgreedPrunableBlockId,
-                                        pruned_blocks_digests_.size(),
-                                        total_duration));
+             block_ids.size() << " pruned block digests saved:"
+                              << KVLOG(current_rvb_id,
+                                       pruned_blocks_digests_.size(),
+                                       pruned_blocks_digests_.front().first,
+                                       pruned_blocks_digests_.back().first,
+                                       total_duration));
   } else {
-    LOG_INFO(logger_,
-             "pruned block digests was not updated:" << KVLOG(initial_size,
-                                                              pruned_blocks_digests_.size(),
-                                                              pruned_blocks_digests_.front().first,
-                                                              pruned_blocks_digests_.back().first));
+    LOG_INFO(logger_, "pruned block digests was not updated:" << KVLOG(pruned_blocks_digests_.size()));
   }
 #ifdef ENABLE_ALL_METRICS
   metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());

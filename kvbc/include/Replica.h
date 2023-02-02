@@ -116,6 +116,8 @@ class Replica : public IReplica,
   void getPrevDigestFromBlock(const char *blockData,
                               const uint32_t blockSize,
                               bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const override final;
+  std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(BlockId block_id) override;
+
   bool putBlock(const uint64_t blockId,
                 const char *blockData,
                 const uint32_t blockSize,
@@ -260,6 +262,7 @@ class Replica : public IReplica,
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
   concord::util::ThreadPool blocks_io_workers_pool;
+  concord::util::ThreadPool digests_workers_pool_{"digests-thread-pool", 4};
   struct Recorders {
     static constexpr uint64_t MAX_VALUE_MICROSECONDS = 2ULL * 1000ULL * 1000ULL;  // 2 seconds
     const std::string component_ = "iappstate";

@@ -355,6 +355,7 @@ std::optional<BlockId> KeyValueBlockchain::getLastStatetransferBlockId() const {
 std::optional<concord::crypto::BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
+    LOG_DEBUG(V4_BLOCK_LOG, KVLOG(block_id, last_reachable_block));
     return std::optional<concord::crypto::BlockDigest>(state_transfer_chain_.getBlockParentDigest(block_id));
   }
   if (block_id < getGenesisBlockId()) {
