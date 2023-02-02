@@ -52,6 +52,13 @@ class AppStateAdapter : public bftEngine::bcst::IAppState {
   void getPrevDigestFromBlock(const char *blockData,
                               const uint32_t blockSize,
                               bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const override final;
+
+  std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(
+      uint64_t block_id) override final {
+    ConcordAssert(false);
+    return std::async([]() { return std::optional<concord::crypto::BlockDigest>{}; });
+  }
+
   bool putBlock(const uint64_t blockId,
                 const char *blockData,
                 const uint32_t blockSize,

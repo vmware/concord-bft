@@ -31,7 +31,6 @@ namespace bftEngine {
 namespace SimpleInMemoryStateTransfer {
 
 namespace impl {
-
 logging::Logger STLogger = logging::getLogger("state-transfer");
 
 class SimpleStateTran : public ISimpleInMemoryStateTransfer {
@@ -127,6 +126,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     void getPrevDigestFromBlock(const char* blockData,
                                 const uint32_t blockSize,
                                 bcst::StateTransferDigest* outPrevBlockDigest) const override;
+    std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(uint64_t block_id) override;
 
     bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock = true) override;
 
@@ -455,7 +455,7 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
   lastKnownCheckpoint = checkpointNumber;
 
   //  map from a metadata page to its set of updated app pages
-  std::map<uint32_t, std::set<uint32_t> > pagesMap;
+  std::map<uint32_t, std::set<uint32_t>> pagesMap;
 
   for (uint32_t appPage : updateAppPages_) {
     uint32_t mPage = findMetadataPageOfAppPage(appPage);
@@ -653,6 +653,12 @@ void SimpleStateTran::DummyBDState::getPrevDigestFromBlock(const char* blockData
                                                            const uint32_t blockSize,
                                                            bcst::StateTransferDigest* outPrevBlockDigest) const {
   ConcordAssert(false);
+}
+
+std::future<std::optional<concord::crypto::BlockDigest>> SimpleStateTran::DummyBDState::getPrevDigestFromBlockAsync(
+    uint64_t block_id) {
+  ConcordAssert(false);
+  return std::async([]() { return std::optional<concord::crypto::BlockDigest>{}; });
 }
 
 bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId,

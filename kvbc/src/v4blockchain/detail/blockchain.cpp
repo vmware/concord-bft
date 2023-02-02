@@ -167,7 +167,7 @@ concord::crypto::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::Blo
 concord::crypto::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
   auto block_str = getBlockData(id);
   ConcordAssert(block_str.has_value());
-  return v4blockchain::detail::Block{*block_str}.parentDigest();
+  return v4blockchain::detail::Block::parentDigest(*block_str);
 }
 
 std::optional<std::string> Blockchain::getBlockData(concord::kvbc::BlockId id) const {

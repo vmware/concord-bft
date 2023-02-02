@@ -159,6 +159,11 @@ class ReplicaBlockchain : public IBlocksDeleter,
     return app_state_->getPrevDigestFromBlock(blockData, blockSize, outPrevBlockDigest);
   }
 
+  std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(
+      uint64_t block_id) override final {
+    return app_state_->getPrevDigestFromBlockAsync(block_id);
+  }
+
   bool putBlock(const uint64_t blockId,
                 const char *blockData,
                 const uint32_t blockSize,
