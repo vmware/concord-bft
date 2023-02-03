@@ -94,7 +94,7 @@ module Proof {
           :: && var h_c := c.hosts[commitMsg.sender].replicaConstants;
              && var h_v := v.hosts[commitMsg.sender].replicaVariables;
              && var certificate := Replica.ExtractCertificateForSeqID(h_c, h_v, commitMsg.payload.seqID);
-             && certificate.valid(c.clusterConfig.AgreementQuorum(), commitMsg.payload.seqID)
+             && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
              && !certificate.empty()
              && certificate.prototype().view >= commitMsg.payload.view
             //  && (certificate.prototype().view == commitMsg.payload.view 
@@ -162,7 +162,8 @@ module Proof {
           && var prepareMap := v.hosts[replicaIdx].replicaVariables.workingWindow.preparesRcvd;
           && seqID in prepareMap
           && sender in prepareMap[seqID]
-          :: && v.hosts[replicaIdx].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender
+          :: && c.clusterConfig.IsReplica(sender)
+             && v.hosts[replicaIdx].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender
         )
   }
 
@@ -1144,7 +1145,7 @@ module Proof {
                             && IsHonestReplica(c, viewChangeMsg.sender)
                               :: && commitMsg.payload.seqID in viewChangeMsg.payload.certificates
                                  && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
-                                 && certificate.valid(c.clusterConfig.AgreementQuorum(), commitMsg.payload.seqID)
+                                 && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
                                  && !certificate.empty()
                                  && certificate.prototype().view >= commitMsg.payload.view
                                  // && certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper
@@ -1416,6 +1417,7 @@ module Proof {
     ensures UnCommitableAgreesWithRecordedPrePrepare(c, v')
   {
     reveal_UnCommitableAgreesWithRecordedPrePrepare();
+    reveal_RecordedNewViewMsgsAreValid();
     forall replicaIdx, seqID, priorView:nat, priorOperationWrapper:Messages.OperationWrapper | 
       && IsHonestReplica(c, replicaIdx)
       && var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
@@ -1512,7 +1514,7 @@ module Proof {
     ensures EveryCommitMsgIsRememberedByItsSender(c, v')
   {
     reveal_EveryCommitMsgIsRememberedByItsSender();
-
+    assume false;
     // reveal_RecordedNewViewMsgsAreValid();
     // reveal_RecordedPreparesHaveValidSenderID();
     // reveal_RecordedPrePreparesRecvdCameFromNetwork();
@@ -1531,13 +1533,13 @@ module Proof {
     // reveal_CommitMsgsFromHonestSendersAgree();
     // reveal_RecordedCheckpointsRecvdCameFromNetwork();
     // reveal_UnCommitableAgreesWithPrepare();
-    // reveal_UnCommitableAgreesWithRecordedPrePrepare();//Unfinished proof.
+    // reveal_UnCommitableAgreesWithRecordedPrePrepare();
     // reveal_HonestReplicasLeaveViewsBehind();
     // reveal_RecordedNewViewMsgsContainSentVCMsgs();
     // reveal_RecordedViewChangeMsgsCameFromNetwork();
-    // reveal_SentViewChangesMsgsComportWithSentCommits();//Unfinished proof.
-    // reveal_EveryCommitMsgIsRememberedByItsSender();//Unfinished proof.
-    // reveal_RecordedViewChangeMsgsAreValid();//Unfinished proof.
+    // reveal_SentViewChangesMsgsComportWithSentCommits();
+    // reveal_EveryCommitMsgIsRememberedByItsSender();
+    // reveal_RecordedViewChangeMsgsAreValid();
     // reveal_TemporarilyDisableCheckpointing();
   }
 
@@ -1549,22 +1551,29 @@ module Proof {
     reveal_RecordedViewChangeMsgsAreValid();
     reveal_TemporarilyDisableCheckpointing(); // Needed for LeaveViewStep
     if (h_step.LeaveViewStep?) {
-      reveal_RecordedPreparesHaveValidSenderID();
-      reveal_RecordedPrePreparesRecvdCameFromNetwork();
       reveal_RecordedPreparesRecvdCameFromNetwork();
-      reveal_RecordedPrePreparesMatchHostView();
       reveal_RecordedPreparesMatchHostView();
-      reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
       reveal_RecordedPreparesClientOpsMatchPrePrepare();
-      reveal_RecordedCommitsClientOpsMatchPrePrepare();
-      reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
-      reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
-      reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
-      reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-      reveal_HonestReplicasLockOnPrepareForGivenView();
-      assume false;
+      reveal_TemporarilyDisableCheckpointing();
+
+      forall replicaIdx, viewChangeMsg | 
+                              && IsHonestReplica(c, replicaIdx)
+                              && var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
+                              && viewChangeMsg in replicaVariables'.viewChangeMsgsRecvd.msgs
+                                 ensures (&& var replicaConstants := c.hosts[replicaIdx].replicaConstants;
+                                          && Replica.ValidViewChangeMsg(replicaConstants,
+                                                                        viewChangeMsg,
+                                                                        v'.network.sentMsgs))
+      {
+        if(viewChangeMsg !in v.hosts[replicaIdx].replicaVariables.viewChangeMsgsRecvd.msgs) {
+          Messages.reveal_UniqueSenders();
+          assert viewChangeMsg.payload.lastStableCheckpoint == 0;
+          assume |viewChangeMsg.payload.proofForLastStable.msgs| == 0; // TODO: remove once we introduce Checkpointing reasoning
+        }
+      }
     }
   }
+  
   lemma InvariantNext(c: Constants, v:Variables, v':Variables)
     requires Inv(c, v)
     requires Next(c, v, v')

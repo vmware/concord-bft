@@ -571,7 +571,8 @@ module Replica {
     requires v.WF(c)
     requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    var workingWindowPreparesRecvd := v.workingWindow.preparesRcvd[seqID].Values;
+    var workingWindowPreparesRecvd := set key | key in v.workingWindow.preparesRcvd[seqID]  // This set comprehension is the same as calling .Values,
+                                                :: v.workingWindow.preparesRcvd[seqID][key];// but this way it is better for triggering in Dafny
     var viewChangeMsgPreparesRecvd := ExtractPreparedCertificateFromLatestViewChangeMsg(c, v, seqID).votes;
     if |workingWindowPreparesRecvd| >= c.clusterConfig.AgreementQuorum()
     then PreparedCertificate(workingWindowPreparesRecvd)

@@ -41,13 +41,21 @@ module Messages {
     predicate WF() {
       (forall v | v in votes :: v.payload.Prepare?)
     }
-    predicate valid(quorumSize:nat, seqID:SequenceID) {
+    predicate validFull(clusterConfig:ClusterConfig.Constants, seqID:SequenceID)
+      requires clusterConfig.WF()
+    {
+      && |votes| >= clusterConfig.AgreementQuorum()
+      && WF()
+      && prototype().seqID == seqID
+      && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
+      && UniqueSenders(votes)
+      && (forall v | v in votes :: clusterConfig.IsReplica(v.sender))
+    }
+    predicate valid(clusterConfig:ClusterConfig.Constants, seqID:SequenceID)
+      requires clusterConfig.WF()
+    {
       || empty()
-      || (&& |votes| == quorumSize
-          && WF()
-          && prototype().seqID == seqID
-          && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
-          && UniqueSenders(votes))
+      || validFull(clusterConfig, seqID)
     }
     predicate empty() {
       && |votes| == 0
@@ -122,9 +130,7 @@ module Messages {
                          requires ViewChangeMsg?
                        {
                          && (forall seqID | seqID in certificates
-                                  :: && (forall replica | replica in sendersOf(certificates[seqID].votes)
-                                                      :: clusterConfig.IsReplica(replica))
-                                     && certificates[seqID].valid(clusterConfig.AgreementQuorum(), seqID))
+                                     :: certificates[seqID].valid(clusterConfig, seqID))
                          && proofForLastStable.valid(lastStableCheckpoint, clusterConfig.AgreementQuorum())
                        }
                        predicate validNewViewMsg(clusterConfig:ClusterConfig.Constants)
