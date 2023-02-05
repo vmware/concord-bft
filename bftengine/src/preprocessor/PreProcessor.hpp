@@ -29,6 +29,7 @@
 #include "RollingAvgAndVar.hpp"
 #include "SharedTypes.hpp"
 #include "MultiSizeBufferPool.hpp"
+#include "RawMemoryPool.hpp"
 #include "GlobalData.hpp"
 #include "PerfMetrics.hpp"
 #include "Replica.hpp"
@@ -141,7 +142,10 @@ class PreProcessor : public bftEngine::IExternalObject {
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator> &a) override {
     metricsComponent_.SetAggregator(a);
-    bufferPool_->setAggregator(a);
+    if (multiSizeBufferPool_)
+      multiSizeBufferPool_->setAggregator(a);
+    else if (rawMemoryPool_)
+      rawMemoryPool_->setAggregator(a);
   }
 
  protected:
@@ -300,7 +304,7 @@ class PreProcessor : public bftEngine::IExternalObject {
   }
 
   concordUtil::MultiSizeBufferPool::SubpoolsConfig calcSubpoolsConfig();
-  std::unique_ptr<concordUtil::MultiSizeBufferPool> createbufferPool();
+  std::unique_ptr<concordUtil::MultiSizeBufferPool> createMultiSizeBufferPool();
 
  private:
   const uint32_t MAX_MSGS = 10000;
@@ -335,9 +339,19 @@ class PreProcessor : public bftEngine::IExternalObject {
   // Maximal subpool size should support up to 32MB (including responseSizeInternalOverhead_). So the maximal execution
   // engine supported size is kMaxSubpoolBuffersize_ - responseSizeInternalOverhead_
   static constexpr uint32_t kMaxSubpoolBuffersize_{1UL << 25};
-  // Must be sorted in an ascending order, by bufferSize
+
+  // Execution engine results can be stored in 3 different modes:
+  // 1) Without any pool, so the result buffers are managed by the pre-processor itself.
+  // 2) With MultiSizeBufferPool (default case)- the least amount of memory is consumed.
+  // 3) With RawMemoryPool - legacy method. We keep this method to ensure stability - no abstract layer/interface
+  //  or pool polymorphism is implemented since we hope to remove this code at some point soon.
+  enum class PreProcessorMemoryPoolMode { NO_POOL, MULTI_SIZE_BUFFER_POOL, RAW_MEMORY_POOL };
+  PreProcessorMemoryPoolMode initMemoryPoolMode();
+  PreProcessorMemoryPoolMode memoryPoolMode_;
+  // SubpoolsConfig must be sorted in ascending order, by bufferSize
   const concordUtil::MultiSizeBufferPool::SubpoolsConfig subpoolsConfig_;
-  std::unique_ptr<concordUtil::MultiSizeBufferPool> bufferPool_;
+  std::unique_ptr<concordUtil::MultiSizeBufferPool> multiSizeBufferPool_;
+  std::unique_ptr<concordUtil::RawMemoryPool> rawMemoryPool_;
 
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;

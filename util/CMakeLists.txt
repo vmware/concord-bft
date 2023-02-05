@@ -12,6 +12,7 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
+    src/RawMemoryPool.cpp
     src/MultiSizeBufferPool.cpp
     src/config_file_parser.cpp
     src/io.cpp)

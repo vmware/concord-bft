@@ -9,9 +9,9 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "PreProcessor.hpp"
 #include <optional>
 
+#include "PreProcessor.hpp"
 #include "log/logger.hpp"
 #include "InternalReplicaApi.hpp"
 #include "MsgHandlersRegistrator.hpp"
@@ -329,7 +329,7 @@ bool PreProcessor::validateSubpoolsConfig() {
 
 concordUtil::MultiSizeBufferPool::SubpoolsConfig PreProcessor::calcSubpoolsConfig() {
   auto subpoolsConf = YAML::Load(myReplica_.getReplicaConfig().get<std::string>(
-                                     "concord.preprocessor.multiSizedPool.subpoolsConfig", "[]"))
+                                     "concord.preprocessor.MultiSizeBufferPool.subpoolsConfig", "[]"))
                           .as<std::vector<concordUtil::MultiSizeBufferPool::SubpoolConfig>>();
   // Use default subpools configurations if not defined dynamically in bft_config.yaml
   if (subpoolsConf.size() == 0) {
@@ -349,32 +349,49 @@ concordUtil::MultiSizeBufferPool::SubpoolsConfig PreProcessor::calcSubpoolsConfi
   return subpoolsConf;
 }
 
-std::unique_ptr<concordUtil::MultiSizeBufferPool> PreProcessor::createbufferPool() {
-  auto enablePool = myReplica_.getReplicaConfig().enablePreProcessorMemoryPool;
+std::unique_ptr<concordUtil::MultiSizeBufferPool> PreProcessor::createMultiSizeBufferPool() {
   constexpr uint32_t GB = (1 << 30);
-  return (enablePool
-              ? std::make_unique<concordUtil::MultiSizeBufferPool>(
-                    "PreProcessor::memoryPool",
-                    timers_,
-                    subpoolsConfig_,
-                    concordUtil::MultiSizeBufferPool::Config{
-                        myReplica_.getReplicaConfig().get<uint64_t>(
-                            "concord.preprocessor.multiSizedPool.maxAllocatedBytes", 10ULL * GB),
-                        myReplica_.getReplicaConfig().get<bool>(
-                            "concord.preprocessor.multiSizedPool.purgeEvaluationFrequency", 0),
-                        myReplica_.getReplicaConfig().get<uint32_t>(
-                            "concord.preprocessor.multiSizedPool.statusReportFrequency", 60),
-                        myReplica_.getReplicaConfig().get<uint32_t>(
-                            "concord.preprocessor.multiSizedPool.histogramsReportFrequency", 60),
-                        myReplica_.getReplicaConfig().get<uint32_t>(
-                            "concord.preprocessor.multiSizedPool.metricsReportFrequency", 5),
-                        myReplica_.getReplicaConfig().get<bool>(
-                            "concord.preprocessor.multiSizedPool.enableStatusReportChangesOnly", false),
-                        myReplica_.getReplicaConfig().get<uint32_t>(
-                            "concord.preprocessor.multiSizedPool.subpoolSelectorEvaluationNumRetriesMinThreshold", 3),
-                        myReplica_.getReplicaConfig().get<uint32_t>(
-                            "concord.preprocessor.multiSizedPool.subpoolSelectorEvaluationNumRetriesMaxThreshold", 10)})
-              : nullptr);
+  return std::make_unique<concordUtil::MultiSizeBufferPool>(
+      "PreProcessor::memoryPool",
+      timers_,
+      subpoolsConfig_,
+      concordUtil::MultiSizeBufferPool::Config{
+          myReplica_.getReplicaConfig().get<uint64_t>("concord.preprocessor.MultiSizeBufferPool.maxAllocatedBytes",
+                                                      10ULL * GB),
+          myReplica_.getReplicaConfig().get<bool>("concord.preprocessor.MultiSizeBufferPool.purgeEvaluationFrequency",
+                                                  0),
+          myReplica_.getReplicaConfig().get<uint32_t>("concord.preprocessor.MultiSizeBufferPool.statusReportFrequency",
+                                                      60),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.histogramsReportFrequency", 60),
+          myReplica_.getReplicaConfig().get<uint32_t>("concord.preprocessor.MultiSizeBufferPool.metricsReportFrequency",
+                                                      5),
+          myReplica_.getReplicaConfig().get<bool>(
+              "concord.preprocessor.MultiSizeBufferPool.enableStatusReportChangesOnly", false),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.subpoolSelectorEvaluationNumRetriesMinThreshold", 3),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.subpoolSelectorEvaluationNumRetriesMaxThreshold", 10)});
+}
+
+PreProcessor::PreProcessorMemoryPoolMode PreProcessor::initMemoryPoolMode() {
+  const auto preProcessorMemoryPoolMode{myReplica_.getReplicaConfig().preProcessorMemoryPoolMode};
+
+  if (preProcessorMemoryPoolMode > 2) {
+    std::ostringstream oss;
+    oss << "Invalid" << KVLOG(preProcessorMemoryPoolMode) << " ,must be in the range [0,2]!";
+    LOG_ERROR(logger(), oss.str());
+    throw std::invalid_argument(__PRETTY_FUNCTION__ + oss.str());
+  };
+
+  return (preProcessorMemoryPoolMode == 0)
+             ? PreProcessorMemoryPoolMode::NO_POOL
+             : (preProcessorMemoryPoolMode == 1)
+                   ? PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL
+                   : (preProcessorMemoryPoolMode == 2)
+                         ? PreProcessorMemoryPoolMode::RAW_MEMORY_POOL
+                         : PreProcessorMemoryPoolMode::NO_POOL; /* should never happen and checked again later on ctor
+                                                                 */
 }
 
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
@@ -397,8 +414,14 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
       threadPool_("PreProcessor::threadPool"),
       timers_{timers},
+      memoryPoolMode_{initMemoryPoolMode()},
       subpoolsConfig_{calcSubpoolsConfig()},
-      bufferPool_{createbufferPool()},
+      multiSizeBufferPool_{(memoryPoolMode_ == PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL)
+                               ? createMultiSizeBufferPool()
+                               : nullptr},
+      rawMemoryPool_{(memoryPoolMode_ == PreProcessorMemoryPoolMode::RAW_MEMORY_POOL)
+                         ? std::make_unique<RawMemoryPool>(maxExternalMsgSize_, timers)
+                         : nullptr},
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -421,20 +444,23 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       totalPreExecDurationRecorder_{histograms_.totalPreExecutionDuration},
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
       pm_{pm} {
-  // Validate subpoolsConfig_
-  if (!validateSubpoolsConfig()) {
+  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1;
+  const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;
+  const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
+
+  if (multiSizeBufferPool_ && !validateSubpoolsConfig()) {
     string err{
         "Invalid subpools Configuration! Check buffer sizes, they might be 0 or exceeding maximal supported size!"};
     LOG_ERROR(logger(), err);
     throw std::invalid_argument(__PRETTY_FUNCTION__ + err);
+  } else if (rawMemoryPool_) {
+    // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
+    rawMemoryPool_->allocatePool(clientMaxBatchSize_, numOfReqEntries);
   }
   // register a stop call back for the new preprocessor in order to stop it before replica is destroyed
   myReplica_.registerStopCallback([this]() { this->stop(); });
-  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
   registerMsgHandlers();
   metricsComponent_.Register();
-  const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;
-  const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     preProcessResultBuffers_.emplace_back(make_shared<SafeResultBuffer>());
@@ -495,7 +521,7 @@ void PreProcessor::stop() {
 
 PreProcessor::~PreProcessor() {
   LOG_DEBUG(logger(), "~PreProcessor start");
-  if (!bufferPool_) {
+  if (memoryPoolMode_ == PreProcessorMemoryPoolMode::NO_POOL) {
     for (const auto &result : preProcessResultBuffers_) {
       delete[] result->buffer;
     }
@@ -897,7 +923,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsgUniqueP
     LOG_DEBUG(logger(), "Pass ClientBatchRequestMsg to the current primary" << KVLOG(senderId, clientId, batchCid));
     sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
   }
-}  // namespace preprocessor
+}
 
 bool PreProcessor::checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
                                                    const string &reqCid,
@@ -1617,7 +1643,8 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
     if (!myReplica_.isCurrentPrimary() && (preProcessorMetrics_.preProcInFlyRequestsNum.Get().Get() > 0)) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
-    if (bufferPool_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
+    if (memoryPoolMode_ != PreProcessorMemoryPoolMode::NO_POOL)
+      releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   }
 }
 
@@ -1760,15 +1787,20 @@ SafeResultBuffer &PreProcessor::getPreProcessResultBufferEntry(uint16_t clientId
   auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
   std::unique_lock lock(resultBuffEntry->mutex);
   if (!resultBuffEntry->buffer) {
-    if (bufferPool_) {
+    if (multiSizeBufferPool_) {
       std::tie(resultBuffEntry->buffer, resultBuffEntry->size) =
-          (minBufferSize == 0) ? bufferPool_->getBufferBySubpoolSelector()
-                               : bufferPool_->getBufferByMinBufferSize(minBufferSize);
+          (minBufferSize == 0) ? multiSizeBufferPool_->getBufferBySubpoolSelector()
+                               : multiSizeBufferPool_->getBufferByMinBufferSize(minBufferSize);
       LOG_TRACE(
           logger(),
           "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, minBufferSize));
+    } else if (rawMemoryPool_) {
+      resultBuffEntry->buffer = rawMemoryPool_->getChunk();
+      resultBuffEntry->size = maxExternalMsgSize_;
+      LOG_TRACE(logger(),
+                "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
     } else {
-      preProcessResultBuffers_[bufferOffset]->buffer = new char[maxExternalMsgSize_];
+      resultBuffEntry->buffer = new char[maxExternalMsgSize_];
       resultBuffEntry->size = maxExternalMsgSize_;
       LOG_INFO(logger(), "Allocate raw memory" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
     }
@@ -1781,7 +1813,11 @@ void PreProcessor::releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeq
   auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
   std::unique_lock lock(resultBuffEntry->mutex);
   if (resultBuffEntry->buffer) {
-    bufferPool_->returnBuffer(resultBuffEntry->buffer);
+    if (multiSizeBufferPool_) {
+      multiSizeBufferPool_->returnBuffer(resultBuffEntry->buffer);
+    } else if (rawMemoryPool_) {
+      rawMemoryPool_->returnChunk(preProcessResultBuffers_[bufferOffset]->buffer);
+    }
     resultBuffEntry->buffer = nullptr;
     resultBuffEntry->size = 0;
     LOG_TRACE(logger(), "Returned a buffer to the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
@@ -1889,7 +1925,8 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
                                               resultBufferEntry.get().buffer,
                                               request.maxReplySize,
                                               request.requestSize));
-    if (!bufferPool_ || (OperationResult::EXEC_DATA_TOO_LARGE != preProcessResult)) {
+    if ((memoryPoolMode_ != PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL) ||
+        (OperationResult::EXEC_DATA_TOO_LARGE != preProcessResult)) {
       // do not retry pre-execute if not using a memory pool OR if error is not due to response buffer size
       break;
     }
@@ -1917,7 +1954,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
 
       // we can assume that request.outRequiredReplySize <= maxSupportedBufferSize (supported buffer size)
       LOG_INFO(logger(), "Retry pre-execution with a larger buffer:" << args);
-      bufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outRequiredReplySize);
+      multiSizeBufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outRequiredReplySize);
       releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
       // buffer returned from pool should be at least of size as required by execution engine + the response internal
       // overhead
@@ -1946,7 +1983,9 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
   }
   // Append the conflict detection block id and add its size to the resulting length.
   memcpy(resultBufferEntry.get().buffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
-  bufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outActualReplySize);
+  if (multiSizeBufferPool_) {
+    multiSizeBufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outActualReplySize);
+  }
   resultLen += sizeof(uint64_t);
   LOG_INFO(logger(),
            "Pre-execution operation has been completed by Execution engine" << KVLOG(clientId,
