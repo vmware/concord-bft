@@ -25,8 +25,8 @@ Wallet::Wallet(std::string userId,
                const std::string& storage_path,
                const utt::PublicConfig& config)
     : userId_{std::move(userId)}, private_key_{private_key} {
-  storage_ = std::make_unique<utt::client::FileBasedUserStorage>(storage_path);
-  user_ = utt::client::createUser(userId_, config, private_key, public_key, std::move(storage_));
+  auto storage_ = std::make_shared<utt::client::FileBasedUserStorage>(storage_path);
+  user_ = utt::client::createUser(userId_, config, private_key, public_key, storage_);
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }

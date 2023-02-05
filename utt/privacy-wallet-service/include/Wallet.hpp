@@ -40,7 +40,6 @@ class Wallet {
   const std::string& getUserId() const;
 
  private:
-  std::unique_ptr<utt::client::IStorage> storage_;
   std::string userId_;
   std::string private_key_;
   std::unique_ptr<utt::client::User> user_;

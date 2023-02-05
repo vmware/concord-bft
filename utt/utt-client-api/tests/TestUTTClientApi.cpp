@@ -265,10 +265,6 @@ class InMemoryUserStorage : public utt::client::IStorage {
  public:
   bool isNewStorage() override { return true; };
   void setKeyPair(const std::pair<std::string, std::string>& keyPair) override { keyPair_ = keyPair; }
-  void setLastExecutedSn(uint64_t sn) override {
-    if (sn < lastExecutedSn_) throw std::runtime_error("trying to write an incorrect sequence number");
-    lastExecutedSn_ = sn;
-  }
   void setClientSideSecret(const libutt::api::types::CurvePoint& s1) override { s1_ = s1; }
   void setSystemSideSecret(const libutt::api::types::CurvePoint& s2) override { s2_ = s2; };
   void setRcmSignature(const libutt::api::types::Signature& rcm_sig) override { rcm_sig_ = rcm_sig; }
@@ -283,7 +279,6 @@ class InMemoryUserStorage : public utt::client::IStorage {
     coins_.erase(coin.getNullifier());
   };
 
-  uint64_t getLastExecutedSn() override { return lastExecutedSn_; }
   libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
   libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
   libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
@@ -297,7 +292,6 @@ class InMemoryUserStorage : public utt::client::IStorage {
   void commit() override {}
 
  private:
-  uint64_t lastExecutedSn_;
   libutt::api::types::CurvePoint s1_;
   libutt::api::types::CurvePoint s2_;
   libutt::api::types::Signature rcm_sig_;
@@ -306,7 +300,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
 };
 
 const std::vector<std::string> user_ids({"user-1", "user-2", "user-3"});
-
+std::vector<uint64_t> users_last_sn{0, 0, 0};
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
@@ -337,24 +331,25 @@ int main(int argc, char* argv[]) {
   auto syncUsersWithServer = [&]() {
     loginfo << "Synchronizing users with server" << endl;
     for (size_t i = 0; i < C; ++i) {
-      for (uint64_t txNum = users[i]->getLastExecutedTxNum() + 1; txNum <= serverMock.getLastExecutedTxNum(); ++txNum) {
+      for (uint64_t txNum = users_last_sn[i] + 1; txNum <= serverMock.getLastExecutedTxNum(); ++txNum) {
         const auto& executedTx = serverMock.getExecutedTx(txNum);
         switch (executedTx.tx_.type_) {
           case utt::Transaction::Type::Mint: {
             assertTrue(executedTx.sigs_.size() == 1);
-            users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
+            users[i]->updateMintTx(executedTx.tx_, executedTx.sigs_.front());
           } break;
           case utt::Transaction::Type::Burn: {
             assertTrue(executedTx.sigs_.empty());
-            users[i]->updateBurnTx(txNum, executedTx.tx_);
+            users[i]->updateBurnTx(executedTx.tx_);
           } break;
           case utt::Transaction::Type::Transfer: {
             assertFalse(executedTx.sigs_.empty());
-            users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
+            users[i]->updateTransferTx(executedTx.tx_, executedTx.sigs_);
           } break;
           default:
             assertFail("Unknown tx type!");
         }
+        users_last_sn[i] = txNum;
       }
     }
   };
@@ -400,8 +395,7 @@ int main(int argc, char* argv[]) {
     loginfo << "Minting tokens" << endl;
     for (size_t i = 0; i < C; ++i) {
       auto tx = users[i]->mint(initialBalance[i]);
-      auto txNum = serverMock.mint(users[i]->getUserId(), initialBalance[i], tx);
-      assertTrue(txNum == serverMock.getLastExecutedTxNum());
+      serverMock.mint(users[i]->getUserId(), initialBalance[i], tx);
     }
 
     syncUsersWithServer();
@@ -422,8 +416,7 @@ int main(int argc, char* argv[]) {
       assertTrue(amount <= users[i]->getBalance());
       auto result = users[i]->transfer(nextUserId, k_TestKeys.at(nextUserId).second, amount);
       assertTrue(result.isFinal_);
-      auto txNum = serverMock.transfer(result.requiredTx_);
-      assertTrue(txNum == serverMock.getLastExecutedTxNum());
+      serverMock.transfer(result.requiredTx_);
     }
     syncUsersWithServer();
 
@@ -445,15 +438,13 @@ int main(int argc, char* argv[]) {
       auto result = users[i]->burn(balance);
       if (result.requiredTx_.type_ == utt::Transaction::Type::Burn) {
         assertTrue(result.isFinal_);
-        auto txNum = serverMock.burn(result.requiredTx_);
-        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        serverMock.burn(result.requiredTx_);
         syncUsersWithServer();
         break;  // We can stop processing after burning the coin
       } else if (result.requiredTx_.type_ == utt::Transaction::Type::Transfer) {
         assertFalse(result.isFinal_);
         // We need to process a self transaction (split/merge)
-        auto txNum = serverMock.transfer(result.requiredTx_);
-        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        serverMock.transfer(result.requiredTx_);
         syncUsersWithServer();
       }
     }

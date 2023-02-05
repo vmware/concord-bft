@@ -21,10 +21,25 @@
 #include "wallet-api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 #include <utt-client-api/ClientApi.hpp>
+#include <storage/FileBasedUserStorage.hpp>
 
 namespace WalletApi = vmware::concord::utt::wallet::api::v1;
 
 class Wallet {
+  class CliCustomPersistentStorage : public utt::client::FileBasedUserStorage {
+   public:
+    CliCustomPersistentStorage(const std::string& path) : utt::client::FileBasedUserStorage{path} {}
+    void setLastExecutedSn(uint64_t sn) {
+      IStorage::tx_guard gurd(*this);
+      state_["last_executed_sn"] = sn;
+    }
+
+    uint64_t getLastExecutedSn() {
+      if (!state_.contains("last_executed_sn")) return 0;
+      return state_["last_executed_sn"];
+    }
+  };
+
  public:
   using Connection = std::unique_ptr<WalletApi::WalletService::Stub>;
   using Channel = std::unique_ptr<grpc::ClientReaderWriter<WalletApi::WalletRequest, WalletApi::WalletResponse>>;
@@ -84,11 +99,11 @@ class Wallet {
   /// @brief Updates the ERC20 balance of the wallet.
   void updatePublicBalance(Channel& chan);
 
-  std::unique_ptr<utt::client::IStorage> storage_;
   std::string userId_;
   std::unique_ptr<utt::client::User> user_;
   uint64_t publicBalance_ = 0;
   bool registered_ = false;
   std::string public_key_;
   std::string private_key_;
+  std::shared_ptr<CliCustomPersistentStorage> cli_storage_;
 };
