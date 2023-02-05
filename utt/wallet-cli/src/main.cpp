@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
   if (k_TestKeys.find(app.userId) == k_TestKeys.end()) {
     std::cout << "Selected user id has no pre-generated keys!\n";
     std::cout << "Valid user ids: [";
-    for (const auto& [userId, _] : k_TestKeys) std::cout << userId << ", ";
+    for (const auto& [userId, _] : k_TestKeys) {(void)_; std::cout << userId << ", ";}
     std::cout << "]\n";
     return 0;
   }

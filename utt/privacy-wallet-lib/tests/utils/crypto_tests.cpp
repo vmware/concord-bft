@@ -97,7 +97,7 @@ TEST(crypto_tests, test_sign_and_verify) {
 
   EVP_MD_CTX* ctx = EVP_MD_CTX_create();
   ASSERT_EQ(EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, pub_key), 1);
-  ASSERT_EQ(EVP_DigestVerifyUpdate(ctx, data.c_str(), (int)data.size()), 1);
+  ASSERT_EQ(EVP_DigestVerifyUpdate(ctx, data.c_str(), (size_t)data.size()), 1);
   ASSERT_EQ(EVP_DigestVerifyFinal(ctx, sig.data(), sig.size()), 1);
   EVP_MD_CTX_destroy(ctx);
   EVP_PKEY_free(pub_key);
