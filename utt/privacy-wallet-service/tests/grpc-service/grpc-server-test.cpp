@@ -112,6 +112,29 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     return {s2, sig};
   }
 
+  template <typename T>
+  std::vector<libutt::api::types::Signature> signTx(const std::vector<uint8_t>& tx) {
+    auto deserialized_tx = libutt::api::deserialize<T>(tx);
+    std::map<size_t, std::vector<types::Signature>> shares;
+
+    for (size_t i = 0; i < banks.size(); i++) {
+      shares[i] = banks[i]->sign(tx);
+    }
+
+    size_t num_coins = shares[0].size();
+
+    std::vector<libutt::api::types::Signature> sigs;
+    for (size_t i = 0; i < num_coins; i++) {
+      std::map<uint32_t, types::Signature> share_sigs;
+      auto sbs = getSubset((uint32_t)n, (uint32_t)thresh);
+      for (auto s : sbs) {
+        share_sigs[s] = shares[s][i];
+      }
+      auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {share_sigs});
+      sigs.emplace_back(std::move(blinded_sig));
+    }
+    return sigs;
+  }
   const std::string grpc_uri_{"127.0.0.1:50051"};
   utt::walletservice::PrivacyWalletService server_;
   std::shared_ptr<grpc::Channel> channel_ = grpc::CreateChannel(grpc_uri_, grpc::InsecureChannelCredentials());

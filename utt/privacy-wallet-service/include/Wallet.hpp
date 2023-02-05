@@ -20,7 +20,7 @@
 #include <grpcpp/grpcpp.h>
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
 #include <utt-client-api/ClientApi.hpp>
-
+#include <utt-common-api/CommonApi.hpp>
 namespace utt::walletservice {
 class Wallet {
  public:
@@ -38,11 +38,62 @@ class Wallet {
   std::optional<RegistrationInput> generateRegistrationInput();
   bool updateRegistrationCommitment(const RegistrationSig& sig, const S2& s2);
   const std::string& getUserId() const;
+  bool claimCoins(const utt::Transaction& tx, const std::vector<std::vector<uint8_t>>& sigs);
+  utt::Transaction generateMintTx(uint64_t amount) const;
+  utt::client::TxResult generateTransferTx(uint64_t amount,
+                                           const std::string& recipient,
+                                           const std::string& recipient_public_key) const;
+  utt::client::TxResult generateBurnTx(uint64_t amount) const;
 
  private:
   std::string userId_;
   std::string private_key_;
   std::unique_ptr<utt::client::User> user_;
   bool registered_ = false;
+};
+
+class TxHandler {
+ public:
+  TxHandler(Wallet& wallet) : wallet_{wallet} {}
+  utt::Transaction getNextTx();
+  std::optional<utt::Transaction> claimCoins(const utt::Transaction& tx, const std::vector<std::vector<uint8_t>>& sigs);
+  virtual ~TxHandler() = default;
+
+ protected:
+  virtual utt::client::TxResult generateTransaction() = 0;
+  Wallet& wallet_;
+  bool in_progress_{false};
+};
+
+class TransferHandler : public TxHandler {
+ public:
+  TransferHandler(Wallet& wallet,
+                  uint64_t amount,
+                  const std::string& recipient,
+                  const std::string& recipient_public_key);
+  utt::client::TxResult generateTransaction() override;
+
+ private:
+  uint64_t amount_;
+  std::string recipient_;
+  std::string recipient_public_key_;
+};
+
+class BurnHandler : public TxHandler {
+ public:
+  BurnHandler(Wallet& wallet, uint64_t amount);
+  utt::client::TxResult generateTransaction() override;
+
+ private:
+  uint64_t amount_;
+};
+
+class MintHandler : public TxHandler {
+ public:
+  MintHandler(Wallet& wallet, uint64_t amount);
+  utt::client::TxResult generateTransaction() override;
+
+ private:
+  uint64_t amount_;
 };
 }  // namespace utt::walletservice

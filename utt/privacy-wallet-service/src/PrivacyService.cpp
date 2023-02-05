@@ -18,6 +18,7 @@
 #include <utils/crypto.hpp>
 
 using namespace utt::client::utils::crypto;
+using namespace ::vmware::concord::privacy::wallet::api::v1;
 namespace utt::walletservice {
 PrivacyWalletService::PrivacyWalletService() : privacy_wallet_service_(std::make_unique<PrivacyWalletServiceImpl>()) {
   utt::client::Initialize();
@@ -50,10 +51,9 @@ void PrivacyWalletService::Shutdown() {
 
 const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
 
-::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletService(
-    ::grpc::ServerContext* context,
-    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
-    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletService(::grpc::ServerContext* context,
+                                                              const PrivacyWalletRequest* request,
+                                                              PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
   std::cout << "Processing privacy wallet service message.....!" << std::endl;
   if (request->has_privacy_app_config()) {
@@ -71,11 +71,60 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   return status;
 }
 
+::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletTxService(
+    ::grpc::ServerContext* context, ::grpc::ServerReaderWriter<PrivacyWalletResponse, PrivacyWalletRequest>* stream) {
+  if (!wallet_) {
+    context->TryCancel();
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  std::unique_ptr<utt::walletservice::TxHandler> handler;
+  PrivacyWalletRequest request;
+  stream->Read(&request);
+  if (request.has_generate_mint_tx_request()) {
+    handler = std::make_unique<utt::walletservice::MintHandler>(*wallet_, request.generate_mint_tx_request().amount());
+  } else if (request.has_generate_burn_tx_request()) {
+    handler = std::make_unique<utt::walletservice::BurnHandler>(*wallet_, request.generate_burn_tx_request().amount());
+  } else if (request.has_generate_transact_tx_request()) {
+    auto& transfer_req = request.generate_transact_tx_request();
+    handler = std::make_unique<utt::walletservice::TransferHandler>(
+        *wallet_, transfer_req.amount(), transfer_req.recipient_pid(), transfer_req.recipient_public_key());
+  } else {
+    context->TryCancel();
+    std::cout << "unknown tx request: " << request.DebugString() << std::endl;
+    return grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+  }
+  PrivacyWalletResponse resp;
+  auto tx_resp = resp.mutable_generate_tx_response();
+  auto tx_data = handler->getNextTx();
+  tx_resp->set_tx(tx_data.data_.data(), tx_data.data_.size());
+  stream->Write(resp);
+  while (stream->Read(&request)) {
+    if (!request.has_claim_coins_request()) {
+      context->TryCancel();
+      std::cout << "only claim coins request is allowed within the stream: " << request.DebugString() << std::endl;
+      return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "only claim coins request is allowed within the stream");
+    }
+    auto status = handleUserClaimCoinsRequest(context, &request, nullptr);
+    if (!status.ok()) {
+      context->TryCancel();
+      std::cout << "Unable to claim the coins" << std::endl;
+      return grpc::Status(grpc::StatusCode::ABORTED, "Unable to claim the coins");
+    }
+    PrivacyWalletResponse resp;
+    tx_resp = resp.mutable_generate_tx_response();
+    tx_data = handler->getNextTx();
+    tx_resp->set_tx(tx_data.data_.data(), tx_data.data_.size());
+    stream->Write(resp);
+  }
+  return grpc::Status::OK;
+}
+
 // @FIXME - make this asynchronous..
-::grpc::Status PrivacyWalletServiceImpl::handleApplicationConfigRequest(
-    ::grpc::ServerContext* /*context*/,
-    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
-    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+::grpc::Status PrivacyWalletServiceImpl::handleApplicationConfigRequest(::grpc::ServerContext* /*context*/,
+                                                                        const PrivacyWalletRequest* request,
+                                                                        PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
   std::cout << "Processing privacy app config request" << request->DebugString() << std::endl;
 
@@ -98,10 +147,9 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   return status;
 }
 
-::grpc::Status PrivacyWalletServiceImpl::handleWalletConfigRequest(
-    ::grpc::ServerContext* /*context*/,
-    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
-    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+::grpc::Status PrivacyWalletServiceImpl::handleWalletConfigRequest(::grpc::ServerContext* /*context*/,
+                                                                   const PrivacyWalletRequest* request,
+                                                                   PrivacyWalletResponse* response) {
   if (wallet_) {
     std::string err_msg = "wallet is already configured";
     std::cout << err_msg << std::endl;
@@ -120,10 +168,9 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   return grpc::Status::OK;
 }
 
-::grpc::Status PrivacyWalletServiceImpl::handleUserRegistrationRequest(
-    ::grpc::ServerContext*,
-    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest*,
-    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+::grpc::Status PrivacyWalletServiceImpl::handleUserRegistrationRequest(::grpc::ServerContext*,
+                                                                       const PrivacyWalletRequest*,
+                                                                       PrivacyWalletResponse* response) {
   if (!wallet_) {
     std::string err_msg = "wallet is not configured";
     std::cout << err_msg << std::endl;
@@ -144,10 +191,9 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   return grpc::Status::OK;
 }
 
-::grpc::Status PrivacyWalletServiceImpl::handleUserRegistrationUpdateRequest(
-    ::grpc::ServerContext*,
-    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
-    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+::grpc::Status PrivacyWalletServiceImpl::handleUserRegistrationUpdateRequest(::grpc::ServerContext*,
+                                                                             const PrivacyWalletRequest* request,
+                                                                             PrivacyWalletResponse* response) {
   if (!wallet_) {
     std::string err_msg = "wallet is not configured";
     std::cout << err_msg << std::endl;
@@ -167,4 +213,61 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   resp->set_succ(true);
   return grpc::Status::OK;
 }
+
+std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildClaimCoinsData(
+    const ClaimCoinsRequest& req) {
+  utt::Transaction::Type type{utt::Transaction::Type::Undefined};
+  switch (req.type()) {
+    case TxType::MINT:
+      type = utt::Transaction::Type::Mint;
+      break;
+    case TxType::BURN:
+      type = utt::Transaction::Type::Burn;
+      break;
+    case TxType::TRANSFER:
+      type = utt::Transaction::Type::Transfer;
+      break;
+    case TxType::BUDGET:
+      type = utt::Transaction::Type::Budget;
+      break;
+    default:
+      std::cout << "invalid transaction type" << std::endl;
+      throw std::runtime_error("invalid transaction type");
+  }
+  utt::TxOutputSigs sigs{static_cast<size_t>(req.sigs().size())};
+  for (int i = 0; i < req.sigs().size(); i++) {
+    sigs[static_cast<size_t>(i)] = {req.sigs(i).begin(), req.sigs(i).end()};
+  }
+  return {utt::Transaction{type, {req.tx().begin(), req.tx().end()}, static_cast<uint32_t>(sigs.size())}, sigs};
+}
+::grpc::Status PrivacyWalletServiceImpl::handleUserClaimCoinsRequest(::grpc::ServerContext*,
+                                                                     const PrivacyWalletRequest* request,
+                                                                     PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  try {
+    auto data = buildClaimCoinsData(request->claim_coins_request());
+    auto res = wallet_->claimCoins(data.first, data.second);
+    if (!res) {
+      std::string err_msg = "unable to claim coins";
+      std::cout << err_msg << std::endl;
+      response->set_err(err_msg);
+      return grpc::Status(grpc::StatusCode::ABORTED, err_msg);
+    }
+  } catch (const std::exception& e) {
+    std::cout << e.what() << std::endl;
+    response->set_err(e.what());
+    return grpc::Status(grpc::StatusCode::ABORTED, e.what());
+  }
+  if (response) {
+    auto resp = response->mutable_claim_coins_response();
+    resp->set_succ(true);
+  }
+  return grpc::Status::OK;
+}
+
 }  // namespace utt::walletservice

@@ -511,7 +511,7 @@ utt::Transaction User::mint(uint64_t amount) const {
   return tx;
 }
 
-BurnResult User::burn(uint64_t amount) const {
+TxResult User::burn(uint64_t amount) const {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
 
@@ -538,7 +538,7 @@ BurnResult User::burn(uint64_t amount) const {
   }
 }
 
-TransferResult User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
+TxResult User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
   if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
   if (!pImpl_->client_) throw std::runtime_error("Uninitialized user!");
 

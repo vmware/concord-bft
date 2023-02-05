@@ -23,16 +23,9 @@
 #include "storage/IStorage.hpp"
 namespace utt::client {
 
-/// @brief A transaction required to be executed in order to fulfill some burn request
-/// with a target amount
-struct BurnResult {
-  utt::Transaction requiredTx_;
-  bool isFinal_ = true;
-};
-
 /// @brief A transaction required to be executed in order to fulfill some transfer request
 /// with a target amount
-struct TransferResult {
+struct TxResult {
   utt::Transaction requiredTx_;
   bool isFinal_ = true;
 };
@@ -103,7 +96,7 @@ class User {
   /// @param amount The amount of private funds to burn.
   /// @return Result indicating the required transaction to fulfill the burn request and whether
   /// it is the final one.
-  BurnResult burn(uint64_t amount) const;
+  TxResult burn(uint64_t amount) const;
 
   /// @brief Ask to transfer some amount of private funds. This function needs to be called repeatedly until the final
   /// transfer transaction is produced.
@@ -112,7 +105,7 @@ class User {
   /// @param amount The amount of private funds to transfer
   /// @return Returns a result indicating the required transaction to execute in order
   /// to transfer the desired amount.
-  TransferResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
+  TxResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
 
   void debugOutput() const;
 
