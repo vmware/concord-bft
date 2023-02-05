@@ -34,6 +34,8 @@ namespace fs = std::experimental::filesystem;
 #include <thread>
 #include "mint.hpp"
 #include "budget.hpp"
+#include "burn.hpp"
+#include "transaction.hpp"
 
 #include "serialization.hpp"
 #include "utils/crypto.hpp"
@@ -137,6 +139,69 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     }
     return sigs;
   }
+
+  void runFullRegistrationCycle() {
+    auto response = PrivacyWalletResponse{};
+    auto context = grpc::ClientContext{};
+    PrivacyWalletRequest request;
+    auto registration_req = request.mutable_user_registration_request();
+    (void)registration_req;
+    grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
+
+    std::vector<uint8_t> rcm1 = {response.user_registration_response().rcm1().begin(),
+                                 response.user_registration_response().rcm1().end()};
+
+    auto [s2, rcm_sig] = registerUser(rcm1);
+
+    auto response2 = PrivacyWalletResponse{};
+    PrivacyWalletRequest request2;
+    auto registration_update_req = request2.mutable_user_registration_update_request();
+    registration_update_req->set_rcm_sig({rcm_sig.begin(), rcm_sig.end()});
+    *(registration_update_req->mutable_s2()) = {s2.begin(), s2.end()};
+    auto context2 = grpc::ClientContext{};
+    grpc::Status status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
+    std::cout << status.error_message() << std::endl;
+    ASSERT_TRUE(status2.ok());
+  }
+
+  void createBudgetCoin() {
+    auto snHash = Fr::random_element().to_words();
+    auto pidHash = AddrSK::pidHash(user_id_).to_words();
+    auto budget = libutt::api::operations::Budget(d, snHash, pidHash, 1000, 123456789, false);
+    auto serialized_budget = libutt::api::serialize<libutt::api::operations::Budget>(budget);
+    auto sigs = signTx<libutt::api::operations::Budget>(serialized_budget);
+
+    // Try to claim the budget coin using the wallet service
+    auto response = PrivacyWalletResponse{};
+    auto context = grpc::ClientContext{};
+    PrivacyWalletRequest request;
+    auto claim_coins_req = request.mutable_claim_coins_request();
+    claim_coins_req->set_tx(serialized_budget.data(), serialized_budget.size());
+    claim_coins_req->add_sigs({sigs[0].begin(), sigs[0].end()});
+    claim_coins_req->set_type(TxType::BUDGET);
+    auto status = stub_->PrivacyWalletService(&context, request, &response);
+    ASSERT_TRUE(status.ok());
+  }
+
+  void mintRegularCoin(uint64_t amount) {
+    std::string simulatonOfUniqueTxHash = std::to_string(((uint64_t)rand()) * ((uint64_t)rand()) * ((uint64_t)rand()));
+    auto mint = libutt::api::operations::Mint(simulatonOfUniqueTxHash, amount, user_id_);
+    auto mint_tx = libutt::api::serialize<libutt::api::operations::Mint>(mint);
+    auto sigs = signTx<libutt::api::operations::Mint>(mint_tx);
+
+    // Update the wallet with the minted coin
+    {
+      auto response = PrivacyWalletResponse{};
+      auto context = grpc::ClientContext{};
+      PrivacyWalletRequest request;
+      auto claim_coins_req = request.mutable_claim_coins_request();
+      claim_coins_req->set_tx(mint_tx.data(), mint_tx.size());
+      claim_coins_req->add_sigs({sigs[0].begin(), sigs[0].end()});
+      claim_coins_req->set_type(TxType::MINT);
+      auto status = stub_->PrivacyWalletService(&context, request, &response);
+      ASSERT_TRUE(status.ok());
+    }
+  }
   const std::string grpc_uri_{"127.0.0.1:50051"};
   utt::walletservice::PrivacyWalletService server_;
   std::shared_ptr<grpc::Channel> channel_ = grpc::CreateChannel(grpc_uri_, grpc::InsecureChannelCredentials());
@@ -206,51 +271,18 @@ TEST_F(test_privacy_wallet_grpc_service, test_generate_registration_input_wallet
 
 TEST_F(test_privacy_wallet_grpc_service, test_privacy_service_wallet_registration_update) {
   configureWallet(0);
-  auto response = PrivacyWalletResponse{};
-  auto context = grpc::ClientContext{};
-  PrivacyWalletRequest request;
-  auto registration_req = request.mutable_user_registration_request();
-  (void)registration_req;
-  grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
-
-  std::vector<uint8_t> rcm1 = {response.user_registration_response().rcm1().begin(),
-                               response.user_registration_response().rcm1().end()};
-
-  auto [s2, rcm_sig] = registerUser(rcm1);
-
-  auto response2 = PrivacyWalletResponse{};
-  PrivacyWalletRequest request2;
-  auto registration_update_req = request2.mutable_user_registration_update_request();
-  registration_update_req->set_rcm_sig({rcm_sig.begin(), rcm_sig.end()});
-  *(registration_update_req->mutable_s2()) = {s2.begin(), s2.end()};
-  auto context2 = grpc::ClientContext{};
-  grpc::Status status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
-  std::cout << status.error_message() << std::endl;
-  ASSERT_TRUE(status2.ok());
+  runFullRegistrationCycle();
 }
 
 TEST_F(test_privacy_wallet_grpc_service, test_budget_coin_claiming) {
   configureWallet(0);
-  auto snHash = Fr::random_element().to_words();
-  auto pidHash = AddrSK::pidHash(user_id_).to_words();
-  auto budget = libutt::api::operations::Budget(d, snHash, pidHash, 1000, 123456789, false);
-  auto serialized_budget = libutt::api::serialize<libutt::api::operations::Budget>(budget);
-  auto sigs = signTx<libutt::api::operations::Budget>(serialized_budget);
-
-  // Try to claim the budget coin using the wallet service
-  auto response = PrivacyWalletResponse{};
-  auto context = grpc::ClientContext{};
-  PrivacyWalletRequest request;
-  auto claim_coins_req = request.mutable_claim_coins_request();
-  claim_coins_req->set_tx(serialized_budget.data(), serialized_budget.size());
-  claim_coins_req->add_sigs({sigs[0].begin(), sigs[0].end()});
-  claim_coins_req->set_type(TxType::BUDGET);
-  auto status = stub_->PrivacyWalletService(&context, request, &response);
-  ASSERT_TRUE(status.ok());
+  runFullRegistrationCycle();
+  createBudgetCoin();
 }
 
 TEST_F(test_privacy_wallet_grpc_service, test_mint_cycle) {
   configureWallet(0);
+  runFullRegistrationCycle();
   PrivacyWalletRequest request;
   auto mint_req = request.mutable_generate_mint_tx_request();
   mint_req->set_amount(1000);
@@ -261,31 +293,217 @@ TEST_F(test_privacy_wallet_grpc_service, test_mint_cycle) {
       stub_->PrivacyWalletTxService(&context));
   ASSERT_TRUE(stream->Write(request));
   uint64_t cycles{0};
-  while (true) {
+  bool final_tx = false;
+  while (!final_tx) {
     auto response = PrivacyWalletResponse{};
     stream->Read(&response);
-    if (response.has_generate_tx_response()) {
-      cycles++;
+    ASSERT_TRUE(response.has_generate_tx_response());
+    cycles++;
+    auto& tx_data = response.generate_tx_response();
+    auto sigs = signTx<libutt::api::operations::Mint>({tx_data.tx().begin(), tx_data.tx().end()});
+    final_tx = tx_data.final();
+    ASSERT_TRUE(final_tx);
+    {
+      PrivacyWalletRequest request2;
+      auto claim_coins_req = request2.mutable_claim_coins_request();
+      claim_coins_req->set_tx(tx_data.tx());
+      claim_coins_req->add_sigs({sigs[0].begin(), sigs[0].end()});
+      claim_coins_req->set_type(TxType::MINT);
+      ASSERT_TRUE(stream->Write(request2));
+    }
+  }
+  ASSERT_EQ(cycles, 1);
+  auto status = stream->Finish();
+  ASSERT_TRUE(status.ok());
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_burn_single_cycle) {
+  configureWallet(0);
+  runFullRegistrationCycle();
+  mintRegularCoin(1000);
+
+  {
+    PrivacyWalletRequest request;
+    auto burn_req = request.mutable_generate_burn_tx_request();
+    burn_req->set_amount(1000);
+
+    // start a stream to the server
+    auto context = grpc::ClientContext{};
+    std::shared_ptr<grpc::ClientReaderWriter<PrivacyWalletRequest, PrivacyWalletResponse>> stream(
+        stub_->PrivacyWalletTxService(&context));
+    ASSERT_TRUE(stream->Write(request));
+    uint64_t cycles{0};
+    bool is_final = false;
+    while (!is_final) {
+      auto response = PrivacyWalletResponse{};
+      stream->Read(&response);
+      ASSERT_TRUE(response.has_generate_tx_response());
       auto& tx_data = response.generate_tx_response();
-      auto sigs = signTx<libutt::api::operations::Mint>({tx_data.tx().begin(), tx_data.tx().end()});
+      is_final = tx_data.final();
+      cycles++;
+      if (is_final) {
+        auto burn = libutt::api::deserialize<libutt::api::operations::Burn>({tx_data.tx().begin(), tx_data.tx().end()});
+        ASSERT_EQ(burn.getCoin().getVal(), 1000);
+        {
+          // update the burn results in the service
+          PrivacyWalletRequest request2;
+          auto claim_coins_req = request2.mutable_claim_coins_request();
+          claim_coins_req->set_tx(tx_data.tx());
+          claim_coins_req->set_type(TxType::BURN);
+          ASSERT_TRUE(stream->Write(request2));
+        }
+      }
+    }
+    ASSERT_EQ(cycles, 1);
+    auto status = stream->Finish();
+    ASSERT_TRUE(status.ok());
+  }
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_break_and_burn_cycles) {
+  configureWallet(0);
+  runFullRegistrationCycle();
+  mintRegularCoin(1000);
+
+  {
+    PrivacyWalletRequest request;
+    auto burn_req = request.mutable_generate_burn_tx_request();
+    burn_req->set_amount(100);
+
+    // start a stream to the server
+    auto context = grpc::ClientContext{};
+    std::shared_ptr<grpc::ClientReaderWriter<PrivacyWalletRequest, PrivacyWalletResponse>> stream(
+        stub_->PrivacyWalletTxService(&context));
+    ASSERT_TRUE(stream->Write(request));
+    uint64_t cycles{0};
+    bool is_final = false;
+    while (!is_final) {
+      auto response = PrivacyWalletResponse{};
+      stream->Read(&response);
+      ASSERT_TRUE(response.has_generate_tx_response());
+      auto& tx_data = response.generate_tx_response();
+      is_final = tx_data.final();
+      cycles++;
+      if (is_final) {
+        auto burn = libutt::api::deserialize<libutt::api::operations::Burn>({tx_data.tx().begin(), tx_data.tx().end()});
+        ASSERT_EQ(burn.getCoin().getVal(), 100);
+        {
+          // update the burn results in the service
+          PrivacyWalletRequest request2;
+          auto claim_coins_req = request2.mutable_claim_coins_request();
+          claim_coins_req->set_tx(tx_data.tx());
+          claim_coins_req->set_type(TxType::BURN);
+          ASSERT_TRUE(stream->Write(request2));
+        }
+      } else {
+        auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
+        {
+          PrivacyWalletRequest request2;
+          auto claim_coins_req = request2.mutable_claim_coins_request();
+          claim_coins_req->set_tx(tx_data.tx());
+          for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
+          claim_coins_req->set_type(TxType::TRANSFER);
+          ASSERT_TRUE(stream->Write(request2));
+        }
+      }
+    }
+    ASSERT_EQ(cycles, 2);
+    auto status = stream->Finish();
+    ASSERT_TRUE(status.ok());
+  }
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_transfer_single_cycles) {
+  configureWallet(0);
+  runFullRegistrationCycle();
+  createBudgetCoin();
+  mintRegularCoin(1000);
+
+  {
+    PrivacyWalletRequest request;
+    auto transfer_req = request.mutable_generate_transact_tx_request();
+    transfer_req->set_amount(100);
+    transfer_req->set_recipient_pid("user-2");
+    transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
+
+    // start a stream to the server
+    auto context = grpc::ClientContext{};
+    std::shared_ptr<grpc::ClientReaderWriter<PrivacyWalletRequest, PrivacyWalletResponse>> stream(
+        stub_->PrivacyWalletTxService(&context));
+    ASSERT_TRUE(stream->Write(request));
+    uint64_t cycles{0};
+    bool is_final = false;
+    while (!is_final) {
+      auto response = PrivacyWalletResponse{};
+      stream->Read(&response);
+      ASSERT_TRUE(response.has_generate_tx_response());
+      auto& tx_data = response.generate_tx_response();
+      is_final = tx_data.final();
+      cycles++;
+      auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
       {
         PrivacyWalletRequest request2;
         auto claim_coins_req = request2.mutable_claim_coins_request();
         claim_coins_req->set_tx(tx_data.tx());
-        claim_coins_req->add_sigs({sigs[0].begin(), sigs[0].end()});
-        claim_coins_req->set_type(TxType::MINT);
+        for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
+        claim_coins_req->set_type(TxType::TRANSFER);
         ASSERT_TRUE(stream->Write(request2));
       }
-    } else {
-      ASSERT_TRUE(response.has_tx_completed_response());
-      ASSERT_TRUE(response.tx_completed_response().succ());
-      ASSERT_EQ(cycles, 1);
-      break;
     }
+
+    ASSERT_EQ(cycles, 1);
+    auto status = stream->Finish();
+    ASSERT_TRUE(status.ok());
   }
-  auto status = stream->Finish();
-  ASSERT_TRUE(status.ok());
 }
+
+TEST_F(test_privacy_wallet_grpc_service, test_transfer_merge_and_transfer_cycles) {
+  configureWallet(0);
+  runFullRegistrationCycle();
+  createBudgetCoin();
+  mintRegularCoin(1);
+  mintRegularCoin(1);
+  mintRegularCoin(1);
+  mintRegularCoin(1);
+
+  {
+    PrivacyWalletRequest request;
+    auto transfer_req = request.mutable_generate_transact_tx_request();
+    transfer_req->set_amount(4);
+    transfer_req->set_recipient_pid("user-2");
+    transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
+
+    // start a stream to the server
+    auto context = grpc::ClientContext{};
+    std::shared_ptr<grpc::ClientReaderWriter<PrivacyWalletRequest, PrivacyWalletResponse>> stream(
+        stub_->PrivacyWalletTxService(&context));
+    ASSERT_TRUE(stream->Write(request));
+    uint64_t cycles{0};
+    bool is_final = false;
+    while (!is_final) {
+      auto response = PrivacyWalletResponse{};
+      stream->Read(&response);
+      ASSERT_TRUE(response.has_generate_tx_response());
+      auto& tx_data = response.generate_tx_response();
+      is_final = tx_data.final();
+      cycles++;
+      auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
+      {
+        PrivacyWalletRequest request2;
+        auto claim_coins_req = request2.mutable_claim_coins_request();
+        claim_coins_req->set_tx(tx_data.tx());
+        for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
+        claim_coins_req->set_type(TxType::TRANSFER);
+        ASSERT_TRUE(stream->Write(request2));
+      }
+    }
+
+    ASSERT_EQ(cycles, 3);
+    auto status = stream->Finish();
+    ASSERT_TRUE(status.ok());
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {

@@ -57,6 +57,7 @@ class TxHandler {
   TxHandler(Wallet& wallet) : wallet_{wallet} {}
   utt::Transaction getNextTx();
   std::optional<utt::Transaction> claimCoins(const utt::Transaction& tx, const std::vector<std::vector<uint8_t>>& sigs);
+  bool inProgress() { return in_progress_; }
   virtual ~TxHandler() = default;
 
  protected:

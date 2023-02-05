@@ -83,7 +83,7 @@ utt::client::TxResult Wallet::generateTransferTx(uint64_t amount,
   return user_->transfer(recipient, recipient_public_key, amount);
 }
 utt::client::TxResult Wallet::generateBurnTx(uint64_t amount) const {
-  std::cout << "Processing an burn request of " << amount << "...\n";
+  std::cout << "Processing a burn request of " << amount << "...\n";
   return user_->burn(amount);
 }
 

@@ -101,25 +101,29 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   auto tx_resp = resp.mutable_generate_tx_response();
   auto tx_data = handler->getNextTx();
   tx_resp->set_tx(tx_data.data_.data(), tx_data.data_.size());
+  tx_resp->set_final(!handler->inProgress());
   stream->Write(resp);
   while (stream->Read(&request)) {
     if (!request.has_claim_coins_request()) {
       context->TryCancel();
-      std::cout << "only claim coins request is allowed within the stream: " << request.DebugString() << std::endl;
+      std::cout << "only claim coins request is allowed within a stream: " << request.DebugString() << std::endl;
       return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "only claim coins request is allowed within the stream");
     }
     PrivacyWalletResponse resp;
     auto data = buildClaimCoinsData(request.claim_coins_request());
     auto res = handler->claimCoins(data.first, data.second);
-    if (!res.has_value()) {
+    if (!res.has_value() && handler->inProgress()) {
+      context->TryCancel();
+      std::cout << "unable to claim coins" << std::endl;
+      return grpc::Status(grpc::StatusCode::ABORTED, "unable to claim coins");
+    }
+    if (!res.has_value() && !handler->inProgress()) {
       std::cout << "transaction cycle has ended" << std::endl;
-      auto tx_completed = resp.mutable_tx_completed_response();
-      tx_completed->set_succ(true);
-      stream->Write(resp);
-      return grpc::Status::OK;
+      break;
     }
     tx_resp = resp.mutable_generate_tx_response();
     tx_resp->set_tx(res->data_.data(), res->data_.size());
+    tx_resp->set_final(!handler->inProgress());
     stream->Write(resp);
   }
   return grpc::Status::OK;
