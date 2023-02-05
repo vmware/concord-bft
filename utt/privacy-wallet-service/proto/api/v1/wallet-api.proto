@@ -89,6 +89,9 @@ message GenerateTxResponse {
     bytes tx = 1;
 }
 
+message TxCompleted {
+    bool succ = 1;
+}
 
 message PrivacyWalletRequest {
     oneof req {
@@ -118,5 +121,6 @@ message PrivacyWalletResponse {
         UserRegistrationUpdateResponse user_registration_update_response = 5;
         ClaimCoinsReponse claim_coins_response = 6;
         GenerateTxResponse generate_tx_response = 7;
+        TxCompleted tx_completed_response = 8;
     }
 }
