@@ -54,15 +54,11 @@ struct Recorders {
 
   Recorders() {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    if (!registrar.perf.isRegisteredComponent("clientservice_event_service")) {
-      registrar.perf.registerComponent("clientservice_event_service", {processing_duration, write_duration});
-    }
+    registrar.perf.registerComponent("clientservice_event_service", {processing_duration, write_duration});
   }
   ~Recorders() {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    if (registrar.perf.isRegisteredComponent("clientservice_event_service")) {
-      registrar.perf.unRegisterComponent("clientservice_event_service");
-    }
+    registrar.perf.unRegisterComponent("clientservice_event_service");
   }
 
   DEFINE_SHARED_RECORDER(processing_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);

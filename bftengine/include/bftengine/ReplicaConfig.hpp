@@ -261,10 +261,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(enableEventGroups, bool, false, "A flag to specify whether event groups are enabled or not.");
 
-  CONFIG_PARAM(enablePreProcessorMemoryPool,
-               bool,
-               true,
-               "A flag to specify whether to use a memory pool in PreProcessor or not");
+  CONFIG_PARAM(preProcessorMemoryPoolMode,
+               uint32_t,
+               1,
+               "0: do not use a memory pool in PreProcessor, 1: use multi size buffer pool, 2: use raw memory pool");
 
   CONFIG_PARAM(diagnosticsServerPort,
                int,
@@ -412,7 +412,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, config_params_);
     serialize(outStream, enableMultiplexChannel);
     serialize(outStream, enableEventGroups);
-    serialize(outStream, enablePreProcessorMemoryPool);
+    serialize(outStream, preProcessorMemoryPoolMode);
     serialize(outStream, diagnosticsServerPort);
     serialize(outStream, useUnifiedCertificates);
     serialize(outStream, kvBlockchainVersion);
@@ -512,7 +512,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, config_params_);
     deserialize(inStream, enableMultiplexChannel);
     deserialize(inStream, enableEventGroups);
-    deserialize(inStream, enablePreProcessorMemoryPool);
+    deserialize(inStream, preProcessorMemoryPoolMode);
     deserialize(inStream, diagnosticsServerPort);
     deserialize(inStream, useUnifiedCertificates);
     deserialize(inStream, kvBlockchainVersion);
@@ -609,7 +609,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enableMultiplexChannel,
               rc.enableEventGroups,
               rc.operatorEnabled_,
-              rc.enablePreProcessorMemoryPool,
+              rc.preProcessorMemoryPoolMode,
               rc.diagnosticsServerPort,
               rc.useUnifiedCertificates,
               rc.kvBlockchainVersion,

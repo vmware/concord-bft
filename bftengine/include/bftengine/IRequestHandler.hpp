@@ -53,6 +53,7 @@ class IRequestsHandler {
     uint16_t reqIndexInClientBatch = 0;
     uint32_t outExecutionStatus = 1;  // UNKNOWN
     uint32_t outActualReplySize = 0;
+    uint32_t outRequiredReplySize = 0;  // In case of a failure e.g OperationResult::EXEC_DATA_TOO_LARGE
     uint32_t outReplicaSpecificInfoSize = 0;
     uint64_t blockId = 0;
   };

@@ -265,9 +265,7 @@ class Replica : public IReplica,
     const std::string component_ = "iappstate";
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      if (!registrar.perf.isRegisteredComponent(component_)) {
-        registrar.perf.registerComponent(component_, {get_block_duration, put_block_duration});
-      }
+      registrar.perf.registerComponent(component_, {get_block_duration, put_block_duration});
     }
 
     ~Recorders() {}

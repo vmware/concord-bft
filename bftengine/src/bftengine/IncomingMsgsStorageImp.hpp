@@ -99,15 +99,13 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       const auto component = "incomingMsgsStorageImp";
-      if (!registrar.perf.isRegisteredComponent(component)) {
-        registrar.perf.registerComponent(component,
-                                         {external_queue_len_at_swap,
-                                          internal_queue_len_at_swap,
-                                          evaluate_timers,
-                                          take_lock,
-                                          wait_for_cv,
-                                          dropped_msgs_in_a_row});
-      }
+      registrar.perf.registerComponent(component,
+                                       {external_queue_len_at_swap,
+                                        internal_queue_len_at_swap,
+                                        evaluate_timers,
+                                        take_lock,
+                                        wait_for_cv,
+                                        dropped_msgs_in_a_row});
     }
     DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
     DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);

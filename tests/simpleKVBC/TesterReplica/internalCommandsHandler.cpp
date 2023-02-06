@@ -164,7 +164,7 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
   }
   res = verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize);
   if (res != OperationResult::SUCCESS) {
-    LOG_INFO(GL, "Operation result is not success in verifying write command");
+    LOG_ERROR(GL, "Operation result is not success in verifying write command");
   } else {
     SKVBCRequest deserialized_request;
     deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);

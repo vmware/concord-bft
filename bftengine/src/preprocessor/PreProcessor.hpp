@@ -28,6 +28,7 @@
 #include "PerformanceManager.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "SharedTypes.hpp"
+#include "MultiSizeBufferPool.hpp"
 #include "RawMemoryPool.hpp"
 #include "GlobalData.hpp"
 #include "PerfMetrics.hpp"
@@ -58,6 +59,7 @@ struct RequestState {
 struct SafeResultBuffer {
   std::mutex mutex;
   char *buffer = nullptr;
+  uint32_t size{};
 };
 
 using SafeResultBufferSharedPtr = std::shared_ptr<SafeResultBuffer>;
@@ -140,7 +142,10 @@ class PreProcessor : public bftEngine::IExternalObject {
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator> &a) override {
     metricsComponent_.SetAggregator(a);
-    memoryPool_.setAggregator(a);
+    if (multiSizeBufferPool_)
+      multiSizeBufferPool_->setAggregator(a);
+    else if (rawMemoryPool_)
+      rawMemoryPool_->setAggregator(a);
   }
 
  protected:
@@ -221,7 +226,13 @@ class PreProcessor : public bftEngine::IExternalObject {
                                     const std::string &reqCid,
                                     const std::string &ongoingCid);
   uint32_t getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
-  const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
+  // If minBufferSize is 0, default (minimal) buffer size is returned. Else, a buffer size of at least minBufferSize
+  // bytes is returned. If no such buffer size exist - function throws an exception.
+  // Returns: an entry to a buffer entry which holds the allocated result buffer and its size.
+  SafeResultBuffer &getPreProcessResultBufferEntry(uint16_t clientId,
+                                                   ReqId reqSeqNum,
+                                                   uint16_t reqOffsetInBatch,
+                                                   uint32_t minBufferSize = 0);
   void releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
@@ -286,11 +297,14 @@ class PreProcessor : public bftEngine::IExternalObject {
                                            const std::string &reqCid);
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
   bool handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
-
+  bool validateSubpoolsConfig();
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
+
+  concordUtil::MultiSizeBufferPool::SubpoolsConfig calcSubpoolsConfig();
+  std::unique_ptr<concordUtil::MultiSizeBufferPool> createMultiSizeBufferPool();
 
  private:
   const uint32_t MAX_MSGS = 10000;
@@ -310,16 +324,34 @@ class PreProcessor : public bftEngine::IExternalObject {
   InternalReplicaApi &myReplica_;
   const ReplicaId myReplicaId_;
   const uint32_t maxExternalMsgSize_;
-  const uint32_t maxPreExecResultSize_;
+  // Add overheads that should be reduced from the net space given for execution engine
+  const uint32_t responseSizeInternalOverhead_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClientProxies_;
   const bool clientBatchingEnabled_;
   inline static uint16_t clientMaxBatchSize_ = 0;
   concord::util::SimpleThreadPool threadPool_;
+  concordUtil::Timers &timers_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqBatchesMap ongoingReqBatches_;  // clientId -> RequestsBatch
-  concordUtil::RawMemoryPool memoryPool_;
+  // Memory pool parameters:
+  // Maximal subpool size should support up to 32MB (including responseSizeInternalOverhead_). So the maximal execution
+  // engine supported size is kMaxSubpoolBuffersize_ - responseSizeInternalOverhead_
+  static constexpr uint32_t kMaxSubpoolBuffersize_{1UL << 25};
+
+  // Execution engine results can be stored in 3 different modes:
+  // 1) Without any pool, so the result buffers are managed by the pre-processor itself.
+  // 2) With MultiSizeBufferPool (default case)- the least amount of memory is consumed.
+  // 3) With RawMemoryPool - legacy method. We keep this method to ensure stability - no abstract layer/interface
+  //  or pool polymorphism is implemented since we hope to remove this code at some point soon.
+  enum class PreProcessorMemoryPoolMode { NO_POOL, MULTI_SIZE_BUFFER_POOL, RAW_MEMORY_POOL };
+  PreProcessorMemoryPoolMode initMemoryPoolMode();
+  PreProcessorMemoryPoolMode memoryPoolMode_;
+  // SubpoolsConfig must be sorted in ascending order, by bufferSize
+  const concordUtil::MultiSizeBufferPool::SubpoolsConfig subpoolsConfig_;
+  std::unique_ptr<concordUtil::MultiSizeBufferPool> multiSizeBufferPool_;
+  std::unique_ptr<concordUtil::RawMemoryPool> rawMemoryPool_;
 
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
@@ -346,12 +378,10 @@ class PreProcessor : public bftEngine::IExternalObject {
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle metricsTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
-  concordUtil::Timers &timers_;
   PreProcessorRecorder histograms_;
   std::shared_ptr<concord::diagnostics::Recorder> totalPreExecDurationRecorder_;
   std::shared_ptr<concord::diagnostics::Recorder> launchAsyncPreProcessJobRecorder_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
-  bool memoryPoolEnabled_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

@@ -353,9 +353,14 @@ struct HistogramData {
 
 class PerformanceHandler {
  public:
+  /*
+  If a component is already registered: print a warning and do nothing. This is the API definition, there is nothing
+  ill-defined here. For example std::vector::clear(), std::unique_ptr::reset() or std::set::insert() operates in the
+  same way. Same idea for the unregistered part.
+  */
   void registerComponent(const std::string& name, const std::vector<std::shared_ptr<Recorder>>&);
+  // If a component is already not registered: print a warning and do nothing.
   void unRegisterComponent(const std::string& name);
-  bool isRegisteredComponent(const std::string& name);
 
   // List all components
   std::string list() const;
