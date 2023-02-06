@@ -344,8 +344,9 @@ module Proof {
     && RecordedViewChangeMsgsCameFromNetwork(c, v)
     && SentViewChangesMsgsComportWithSentCommits(c, v)//Unfinished proof.
     && EveryCommitMsgIsRememberedByItsSender(c, v)//Unfinished proof.
-    && RecordedViewChangeMsgsAreValid(c, v)//Unfinished proof.
+    && RecordedViewChangeMsgsAreValid(c, v)
     && TemporarilyDisableCheckpointing(c, v)
+    // && CommitCertificateEstablishesUncommitableInView(c, v)
     // "AllPreparedCertsInWorkingWindowAreValid"
   }
 
@@ -904,14 +905,6 @@ module Proof {
     reveal_RecordedPrePreparesMatchHostView();
     ///
 
-    // if (h_step.SendPrepareStep?) {
-    //   assume false;
-    // } else if (h_step.LeaveViewStep?) {
-    //   assume false;
-    // } else if (h_step.SendCommitStep?) {
-    //   assume false; 
-    // }
-
     reveal_UnCommitableAgreesWithPrepare();
     //TODO: minimise proof
     forall prepareMsg:Message,
@@ -997,12 +990,12 @@ module Proof {
     }
   }
 
-  predicate ReplicasThatSentCommit(c:Constants,
-                                   v:Variables,
-                                   seqID:Messages.SequenceID,
-                                   view:nat,
-                                   operationWrapper:Messages.OperationWrapper,
-                                   replica:HostIdentifiers.HostId)
+  predicate ReplicaSentCommit(c:Constants,
+                              v:Variables,
+                              seqID:Messages.SequenceID,
+                              view:nat,
+                              operationWrapper:Messages.OperationWrapper,
+                              replica:HostIdentifiers.HostId)
     requires v.WF(c)
   {
     && c.clusterConfig.IsHonestReplica(replica)
@@ -1033,7 +1026,7 @@ module Proof {
     requires v.WF(c)
   {
     set replica | replica in getAllReplicas(c) &&
-                   (|| ReplicasThatSentCommit(c, v, seqID, view, operationWrapper, replica)
+                   (|| ReplicaSentCommit(c, v, seqID, view, operationWrapper, replica)
                     || ReplicasInViewOrLower(c, v, seqID, view, operationWrapper, replica)
                     || c.clusterConfig.IsFaultyReplica(replica))
   }
@@ -1410,6 +1403,21 @@ module Proof {
     reveal_RecordedViewChangeMsgsCameFromNetwork();
   }
 
+  // This is part of a contradiction proof
+  lemma DoubleAgentDidNotCommit(c: Constants,
+                                v:Variables,
+                                doubleAgent:HostId,
+                                seqID:Messages.SequenceID,
+                                priorView:nat,
+                                priorOperationWrapper:Messages.OperationWrapper,
+                                vcMsg:Message)
+    requires Inv(c, v)
+    requires c.clusterConfig.IsHonestReplica(doubleAgent)
+    ensures !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent)
+  {
+
+  }
+
   lemma HonestRecvPrePrepareStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -1436,7 +1444,7 @@ module Proof {
                                      && msg.payload.newView == h_v.view;  // is sufficient to proove UnCommitableAgreesWithRecordedPrePrepare
         if |newViewMsgs| == 0 {
           assert h_v.view == 0;
-          assert false;
+          assert false;//This cannot happen because there is a priorView < prePrepareMsg's view.
         }
         var newViewMsg :| newViewMsg in newViewMsgs;
         var viewChangers := Messages.sendersOf(newViewMsg.payload.vcMsgs.msgs);
@@ -1446,7 +1454,6 @@ module Proof {
           UniqueSendersCardinality(newViewMsg.payload.vcMsgs.msgs);
           assert viewChangers <= getAllReplicas(c) by {
             reveal_RecordedNewViewMsgsContainSentVCMsgs();
-            //assume false; // Need an invariant on the VC messages.
           }
           var doubleAgent := FindQuorumIntersection(c, viewChangers, troubleMakers);
           assert !c.clusterConfig.IsFaultyReplica(doubleAgent);
@@ -1456,12 +1463,11 @@ module Proof {
           assert vcMsg.payload.ViewChangeMsg?;
           assert vcMsg in v.network.sentMsgs by {
             reveal_RecordedNewViewMsgsContainSentVCMsgs();
-            //assume false;
           }
-          assert !ReplicasThatSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+          assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             // Need to finish this proof
             reveal_SentViewChangesMsgsComportWithSentCommits();
-            assume false;
+            // assume false;
           }
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             reveal_HonestReplicasLeaveViewsBehind();
@@ -1573,7 +1579,7 @@ module Proof {
       }
     }
   }
-  
+
   lemma InvariantNext(c: Constants, v:Variables, v':Variables)
     requires Inv(c, v)
     requires Next(c, v, v')
