@@ -87,43 +87,4 @@ utt::client::TxResult Wallet::generateBurnTx(uint64_t amount) const {
   return user_->burn(amount);
 }
 
-std::optional<utt::Transaction> TxHandler::claimCoins(const utt::Transaction& tx,
-                                                      const std::vector<std::vector<uint8_t>>& sigs) {
-  auto valid = wallet_.claimCoins(tx, sigs);
-  if (!valid) {
-    std::cout << "failed to update the transaction output\n";
-    throw std::runtime_error("failed to update the transaction output");
-  }
-  if (!in_progress_) {
-    std::cout << "transaction completed successfully\n";
-    return std::nullopt;
-  }
-  return getNextTx();
-}
-
-utt::Transaction TxHandler::getNextTx() {
-  auto tx = generateTransaction();
-  in_progress_ = !tx.isFinal_;
-  return tx.requiredTx_;
-}
-
-TransferHandler::TransferHandler(Wallet& wallet,
-                                 uint64_t amount,
-                                 const std::string& recipient,
-                                 const std::string& recipient_public_key)
-    : TxHandler::TxHandler{wallet},
-      amount_{amount},
-      recipient_{recipient},
-      recipient_public_key_{recipient_public_key} {}
-utt::client::TxResult TransferHandler::generateTransaction() {
-  return wallet_.generateTransferTx(amount_, recipient_, recipient_public_key_);
-}
-
-BurnHandler::BurnHandler(Wallet& wallet, uint64_t amount) : TxHandler::TxHandler{wallet}, amount_{amount} {}
-utt::client::TxResult BurnHandler::generateTransaction() { return wallet_.generateBurnTx(amount_); }
-
-MintHandler::MintHandler(Wallet& wallet, uint64_t amount) : TxHandler::TxHandler{wallet}, amount_{amount} {}
-
-utt::client::TxResult MintHandler::generateTransaction() { return {wallet_.generateMintTx(amount_), true}; }
-
 }  // namespace utt::walletservice

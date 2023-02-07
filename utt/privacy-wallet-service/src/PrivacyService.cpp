@@ -66,67 +66,17 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
     return handleUserRegistrationUpdateRequest(context, request, response);
   } else if (request->has_claim_coins_request()) {
     return handleUserClaimCoinsRequest(context, request, response);
+  } else if (request->has_generate_mint_tx_request()) {
+    return handleUserMintRequest(context, request, response);
+  } else if (request->has_generate_burn_tx_request()) {
+    return handleUserBurnRequest(context, request, response);
+  } else if (request->has_generate_transact_tx_request()) {
+    return handleUserTransferRequest(context, request, response);
   } else {
     std::cout << "unknown request: " << request->DebugString() << std::endl;
     status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
   }
   return status;
-}
-
-::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletTxService(
-    ::grpc::ServerContext* context, ::grpc::ServerReaderWriter<PrivacyWalletResponse, PrivacyWalletRequest>* stream) {
-  if (!wallet_) {
-    context->TryCancel();
-    std::string err_msg = "wallet is not configured";
-    std::cout << err_msg << std::endl;
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
-  }
-  std::unique_ptr<utt::walletservice::TxHandler> handler;
-  PrivacyWalletRequest request;
-  stream->Read(&request);
-  if (request.has_generate_mint_tx_request()) {
-    handler = std::make_unique<utt::walletservice::MintHandler>(*wallet_, request.generate_mint_tx_request().amount());
-  } else if (request.has_generate_burn_tx_request()) {
-    handler = std::make_unique<utt::walletservice::BurnHandler>(*wallet_, request.generate_burn_tx_request().amount());
-  } else if (request.has_generate_transact_tx_request()) {
-    auto& transfer_req = request.generate_transact_tx_request();
-    handler = std::make_unique<utt::walletservice::TransferHandler>(
-        *wallet_, transfer_req.amount(), transfer_req.recipient_pid(), transfer_req.recipient_public_key());
-  } else {
-    context->TryCancel();
-    std::cout << "unknown tx request: " << request.DebugString() << std::endl;
-    return grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
-  }
-  PrivacyWalletResponse resp;
-  auto tx_resp = resp.mutable_generate_tx_response();
-  auto tx_data = handler->getNextTx();
-  tx_resp->set_tx(tx_data.data_.data(), tx_data.data_.size());
-  tx_resp->set_final(!handler->inProgress());
-  stream->Write(resp);
-  while (stream->Read(&request)) {
-    if (!request.has_claim_coins_request()) {
-      context->TryCancel();
-      std::cout << "only claim coins request is allowed within a stream: " << request.DebugString() << std::endl;
-      return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "only claim coins request is allowed within the stream");
-    }
-    PrivacyWalletResponse resp;
-    auto data = buildClaimCoinsData(request.claim_coins_request());
-    auto res = handler->claimCoins(data.first, data.second);
-    if (!res.has_value() && handler->inProgress()) {
-      context->TryCancel();
-      std::cout << "unable to claim coins" << std::endl;
-      return grpc::Status(grpc::StatusCode::ABORTED, "unable to claim coins");
-    }
-    if (!res.has_value() && !handler->inProgress()) {
-      std::cout << "transaction cycle has ended" << std::endl;
-      break;
-    }
-    tx_resp = resp.mutable_generate_tx_response();
-    tx_resp->set_tx(res->data_.data(), res->data_.size());
-    tx_resp->set_final(!handler->inProgress());
-    stream->Write(resp);
-  }
-  return grpc::Status::OK;
 }
 
 // @FIXME - make this asynchronous..
@@ -275,6 +225,63 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     auto resp = response->mutable_claim_coins_response();
     resp->set_succ(true);
   }
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleUserMintRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  auto mint_req = request->generate_mint_tx_request();
+  auto res = wallet_->generateMintTx(mint_req.amount());
+  auto tx_resp = response->mutable_generate_tx_response();
+  tx_resp->set_tx(res.data_.data(), res.data_.size());
+  tx_resp->set_final(true);
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleUserBurnRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  auto burn_req = request->generate_burn_tx_request();
+  auto res = wallet_->generateBurnTx(burn_req.amount());
+  auto tx_resp = response->mutable_generate_tx_response();
+  tx_resp->set_tx(res.requiredTx_.data_.data(), res.requiredTx_.data_.size());
+  tx_resp->set_final(res.isFinal_);
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleUserTransferRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  auto transfer_req = request->generate_transact_tx_request();
+  auto res = wallet_->generateTransferTx(
+      transfer_req.amount(),
+      {transfer_req.recipient_pid().begin(), transfer_req.recipient_pid().end()},
+      {transfer_req.recipient_public_key().begin(), transfer_req.recipient_public_key().end()});
+  auto tx_resp = response->mutable_generate_tx_response();
+  tx_resp->set_tx(res.requiredTx_.data_.data(), res.requiredTx_.data_.size());
+  tx_resp->set_final(res.isFinal_);
   return grpc::Status::OK;
 }
 

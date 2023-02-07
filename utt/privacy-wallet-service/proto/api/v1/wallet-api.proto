@@ -11,7 +11,6 @@ import "google/protobuf/any.proto";
 // Privacy Wallet Service Interface
 service PrivacyWalletService {
     rpc PrivacyWalletService(PrivacyWalletRequest) returns (PrivacyWalletResponse);
-    rpc PrivacyWalletTxService(stream PrivacyWalletRequest) returns (stream PrivacyWalletResponse);
 }
 
 enum TxType {

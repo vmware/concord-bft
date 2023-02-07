@@ -32,11 +32,6 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) override;
 
-  ::grpc::Status PrivacyWalletTxService(
-      ::grpc::ServerContext* context,
-      ::grpc::ServerReaderWriter<::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse,
-                                 ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest>* stream) override;
-
  protected:
   ::grpc::Status handleApplicationConfigRequest(
       ::grpc::ServerContext* context,
@@ -59,6 +54,19 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
 
   ::grpc::Status handleUserClaimCoinsRequest(
+      ::grpc::ServerContext* context,
+      const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+      ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+  ::grpc::Status handleUserMintRequest(::grpc::ServerContext* context,
+                                       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+                                       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+  ::grpc::Status handleUserBurnRequest(::grpc::ServerContext* context,
+                                       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+                                       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
+  ::grpc::Status handleUserTransferRequest(
       ::grpc::ServerContext* context,
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
