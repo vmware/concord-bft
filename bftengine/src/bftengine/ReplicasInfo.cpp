@@ -32,11 +32,13 @@ namespace impl {
 //  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
 //
 // Client services address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices-1] inclusive
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients - (int)operatorEnabled,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients - (int)operatorEnabled + numOfClientServices-1]
+//  inclusive
 //
 //  Operator-id:
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices - 1
+//  Note that the operator is also added to the external clients list
 //
 // Internal clients address range:
 //  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices+1,
@@ -145,8 +147,8 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         return ret;
       }()} {
   _operator_id = config.operatorEnabled_
-                     ? static_cast<PrincipalId>(numberOfReplicas() + _idsOfClientProxies.size() +
-                                                _idsOfExternalClients.size() + _idsOfClientServices.size())
+                     ? static_cast<PrincipalId>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                                                config.numOfExternalClients + config.numOfClientServices - 1)
                      : 0;
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
