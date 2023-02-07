@@ -54,7 +54,7 @@ message UserRegistrationResponse {
 
 message UserRegistrationUpdateRequest {
     bytes rcm_sig = 1;
-    repeated uint64 s2 = 2;
+    repeated uint64 s2 = 2[jstype = JS_STRING];
 }
 
 message UserRegistrationUpdateResponse {
