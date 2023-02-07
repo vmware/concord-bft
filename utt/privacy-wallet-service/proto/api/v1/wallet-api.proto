@@ -72,15 +72,15 @@ message ClaimCoinsReponse {
 }
 
 message GenerateMintTx {
-    uint64 amount = 1[jstype = JS_STRING];;
+    uint64 amount = 1[jstype = JS_STRING];
 }
 
 message GenerateBurnTx {
-    uint64 amount = 1[jstype = JS_STRING];;
+    uint64 amount = 1[jstype = JS_STRING];
 }
 
 message GenerateTransactTx {
-    uint64 amount = 1[jstype = JS_STRING];;
+    uint64 amount = 1[jstype = JS_STRING];
     string recipient_pid = 2;
     bytes recipient_public_key = 3;
 }
@@ -94,8 +94,8 @@ message GetStateRequest {
 }
 
 message GetStateResponse {
-    uint64 budget = 1[jstype = JS_STRING];;
-    uint64 balance = 2[jstype = JS_STRING];;
+    uint64 budget = 1[jstype = JS_STRING];
+    uint64 balance = 2[jstype = JS_STRING];
 }
 
 message PrivacyWalletRequest {
