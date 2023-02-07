@@ -72,6 +72,8 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
     return handleUserBurnRequest(context, request, response);
   } else if (request->has_generate_transact_tx_request()) {
     return handleUserTransferRequest(context, request, response);
+  } else if (request->has_get_state_request()) {
+    return handleGetStateRequest(context, request, response);
   } else {
     std::cout << "unknown request: " << request->DebugString() << std::endl;
     status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
@@ -117,7 +119,7 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
   auto status = grpc::Status::OK;
   const auto& req = request->privacy_wallet_config_request();
   auto public_key = req.public_key();
-  auto userId = sha256({public_key.begin(), public_key.end()});
+  auto userId = req.user_id();
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
   wallet_ = std::make_unique<Wallet>(
       userId, req.private_key(), public_key, PrivacyWalletServiceImpl::wallet_db_path, publicConfig);
@@ -285,4 +287,19 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   return grpc::Status::OK;
 }
 
+::grpc::Status PrivacyWalletServiceImpl::handleGetStateRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest*,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (!wallet_) {
+    std::string err_msg = "wallet is not configured";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+  auto state_resp = response->mutable_get_state_response();
+  state_resp->set_budget(wallet_->getBudget());
+  state_resp->set_balance(wallet_->getBalance());
+  return grpc::Status::OK;
+}
 }  // namespace utt::walletservice

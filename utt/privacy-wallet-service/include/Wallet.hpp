@@ -44,6 +44,8 @@ class Wallet {
                                            const std::string& recipient,
                                            const std::string& recipient_public_key) const;
   utt::client::TxResult generateBurnTx(uint64_t amount) const;
+  uint64_t getBalance() const;
+  uint64_t getBudget() const;
 
  private:
   std::string userId_;

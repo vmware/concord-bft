@@ -35,7 +35,8 @@ message PrivacyAppConfigResponse {
 message PrivacyWalletConfigRequest {
     string private_key = 1;
     string public_key = 2;
-    bytes public_application_config = 3;
+    string user_id = 3;
+    bytes public_application_config = 4;
 }
 
 message PrivacyWalletConfigResponse {
@@ -89,6 +90,14 @@ message GenerateTxResponse {
     bool final = 2;
 }
 
+message GetStateRequest {    
+}
+
+message GetStateResponse {
+    uint64 budget = 1;
+    uint64 balance = 2;
+}
+
 message PrivacyWalletRequest {
     oneof req {
         PrivacyAppConfigRequest privacy_app_config = 1;
@@ -99,13 +108,14 @@ message PrivacyWalletRequest {
         GenerateMintTx generate_mint_tx_request = 6;
         GenerateBurnTx generate_burn_tx_request = 7;
         GenerateTransactTx generate_transact_tx_request = 8;
+        GetStateRequest get_state_request = 9;
 
     }
     // Required timeout which defines the maximum amount of time the caller is
      // willing to wait for the request to be processed by a quorum of replicas.
     // Returns DEADLINE_EXCEEDED if the request times out.
     // Returns INVALID_ARGUMENT if the timeout is zero.
-    google.protobuf.Duration timeout = 9;    
+    google.protobuf.Duration timeout = 10;    
 }
 
 message PrivacyWalletResponse {
@@ -117,5 +127,6 @@ message PrivacyWalletResponse {
         UserRegistrationUpdateResponse user_registration_update_response = 5;
         ClaimCoinsReponse claim_coins_response = 6;
         GenerateTxResponse generate_tx_response = 7;
+        GetStateResponse get_state_response = 8;
     }
 }

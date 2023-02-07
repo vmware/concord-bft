@@ -87,4 +87,6 @@ utt::client::TxResult Wallet::generateBurnTx(uint64_t amount) const {
   return user_->burn(amount);
 }
 
+uint64_t Wallet::getBalance() const { return user_->getBalance(); }
+uint64_t Wallet::getBudget() const { return user_->getPrivacyBudget(); }
 }  // namespace utt::walletservice

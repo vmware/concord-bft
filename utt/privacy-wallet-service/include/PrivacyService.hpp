@@ -71,6 +71,10 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
 
+  ::grpc::Status handleGetStateRequest(::grpc::ServerContext* context,
+                                       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+                                       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response);
+
  private:
   std::pair<utt::Transaction, utt::TxOutputSigs> buildClaimCoinsData(
       const ::vmware::concord::privacy::wallet::api::v1::ClaimCoinsRequest& req);

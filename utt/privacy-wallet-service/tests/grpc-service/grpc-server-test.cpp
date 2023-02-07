@@ -67,14 +67,15 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
     auto public_config = libutt::api::serialize<libutt::api::PublicConfig>(config->getPublicConfig());
     PrivacyWalletRequest request;
     auto wallet_conf = request.mutable_privacy_wallet_config_request();
+    auto userId = utt::client::utils::crypto::sha256({pkeys[index].begin(), pkeys[index].end()});
     wallet_conf->set_public_key(pkeys[index]);
     wallet_conf->set_private_key(pr_keys[index]);
     wallet_conf->set_public_application_config({public_config.begin(), public_config.end()});
+    wallet_conf->set_user_id(userId);
     auto response = PrivacyWalletResponse{};
     grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
     if (status.ok()) {
-      user_id_ = utt::client::utils::crypto::sha256(
-          {pkeys[index].begin(), pkeys[index].end()});  // same user id as the one the wallet creates
+      user_id_ = userId;
     }
     return {status, response};
   }
@@ -278,6 +279,23 @@ TEST_F(test_privacy_wallet_grpc_service, test_budget_coin_claiming) {
   configureWallet(0);
   runFullRegistrationCycle();
   createBudgetCoin();
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_get_state) {
+  configureWallet(0);
+  runFullRegistrationCycle();
+  createBudgetCoin();
+  mintRegularCoin(1000);
+
+  PrivacyWalletRequest request;
+  auto get_state_req = request.mutable_get_state_request();
+  (void)get_state_req;
+  auto context = grpc::ClientContext{};
+  auto response = PrivacyWalletResponse{};
+  grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
+  ASSERT_TRUE(status.ok());
+  ASSERT_EQ(response.get_state_response().balance(), 1000);
+  ASSERT_EQ(response.get_state_response().budget(), 1000);
 }
 
 TEST_F(test_privacy_wallet_grpc_service, test_mint_cycle) {
