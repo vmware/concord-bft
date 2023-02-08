@@ -249,18 +249,11 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxPostprocessedBlockId_{0},
       config_{config},
       replicas_{generateSetOfReplicas(config_.numReplicas)},
-      maxVBlockSize_{calcMaxVBlockSize(config_.maxNumOfReservedPages, config_.sizeOfReservedPage)},
-      maxItemSize_{calcMaxItemSize(config_.maxBlockSize, config_.maxNumOfReservedPages, config_.sizeOfReservedPage)},
-      maxNumOfChunksInAppBlock_{
-          calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, false)},
-      maxNumOfChunksInVBlock_{
-          calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, true)},
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       cycleCounter_{0},
       running_{false},
       replicaForStateTransfer_{nullptr},
-      buffer_(new char[maxItemSize_]),
       randomGen_{randomDevice_()},
       sourceSelector_{allOtherReplicas(),
                       config_.fetchRetransmissionTimeoutMs,
@@ -316,7 +309,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
-  ConcordAssertGE(config_.maxNumOfReservedPages, 2);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
   ConcordAssertEQ(RejectFetchingMsg::reasonMessages.size(), RejectFetchingMsg::Reason::LAST - 1);
   if (config_.sourceSessionExpiryDurationMs > 0) {
@@ -369,6 +361,14 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
     ConcordAssert(!running_);
     ConcordAssertEQ(replicaForStateTransfer_, nullptr);
     ConcordAssertEQ(sizeOfReservedPage, config_.sizeOfReservedPage);
+    ConcordAssertLE(numberOfRequiredReservedPages, config_.maxNumOfReservedPages);
+
+    maxVBlockSize_ = calcMaxVBlockSize(numberOfRequiredReservedPages, config_.sizeOfReservedPage);
+    maxItemSize_ = calcMaxItemSize(config_.maxBlockSize, numberOfRequiredReservedPages, config_.sizeOfReservedPage);
+    maxNumOfChunksInAppBlock_ =
+        calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, false);
+    maxNumOfChunksInVBlock_ = calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, true);
+    buffer_.reset(new char[maxItemSize_]);
 
     maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
     numberOfReservedPages_ = numberOfRequiredReservedPages;
@@ -428,7 +428,6 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
       ConcordAssertGE(maxNumOfRequiredStoredCheckpoints, 2);
       ConcordAssertLE(maxNumOfRequiredStoredCheckpoints, kMaxNumOfStoredCheckpoints);
       ConcordAssertGE(numberOfRequiredReservedPages, 2);
-      ConcordAssertLE(numberOfRequiredReservedPages, config_.maxNumOfReservedPages);
 
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
       rvbm_->init(false);

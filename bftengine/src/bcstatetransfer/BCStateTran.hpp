@@ -273,10 +273,10 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   const Config config_;
   const set<uint16_t> replicas_;
-  const uint32_t maxVBlockSize_;
-  const uint32_t maxItemSize_;
-  const uint32_t maxNumOfChunksInAppBlock_;
-  const uint32_t maxNumOfChunksInVBlock_;
+  uint32_t maxVBlockSize_{0};
+  uint32_t maxItemSize_{0};
+  uint32_t maxNumOfChunksInAppBlock_{0};
+  uint32_t maxNumOfChunksInVBlock_{0};
 
   uint64_t maxNumOfStoredCheckpoints_;
   std::atomic_uint64_t numberOfReservedPages_;
