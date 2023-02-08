@@ -245,6 +245,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   auto tx_resp = response->mutable_generate_tx_response();
   tx_resp->set_tx(res.data_.data(), res.data_.size());
   tx_resp->set_final(true);
+  tx_resp->set_num_of_output_coins(1);
   return grpc::Status::OK;
 }
 
@@ -263,6 +264,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   auto tx_resp = response->mutable_generate_tx_response();
   tx_resp->set_tx(res.requiredTx_.data_.data(), res.requiredTx_.data_.size());
   tx_resp->set_final(res.isFinal_);
+  tx_resp->set_num_of_output_coins(res.requiredTx_.numOutputs_);
   return grpc::Status::OK;
 }
 
@@ -284,6 +286,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   auto tx_resp = response->mutable_generate_tx_response();
   tx_resp->set_tx(res.requiredTx_.data_.data(), res.requiredTx_.data_.size());
   tx_resp->set_final(res.isFinal_);
+  tx_resp->set_num_of_output_coins(res.requiredTx_.numOutputs_);
   return grpc::Status::OK;
 }
 

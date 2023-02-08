@@ -311,6 +311,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_mint_cycle) {
   ASSERT_TRUE(response.has_generate_tx_response());
   auto& tx_data = response.generate_tx_response();
   ASSERT_TRUE(tx_data.final());
+  ASSERT_EQ(tx_data.num_of_output_coins(), 1);
   auto sigs = signTx<libutt::api::operations::Mint>({tx_data.tx().begin(), tx_data.tx().end()});
 
   auto context2 = grpc::ClientContext{};
@@ -339,6 +340,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_burn_single_cycle) {
   ASSERT_TRUE(response.has_generate_tx_response());
   auto& tx_data = response.generate_tx_response();
   ASSERT_TRUE(tx_data.final());
+  ASSERT_EQ(tx_data.num_of_output_coins(), 0);
 
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>({tx_data.tx().begin(), tx_data.tx().end()});
   ASSERT_EQ(burn.getCoin().getVal(), 1000);
@@ -379,6 +381,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_break_and_burn_cycles) {
       tx_type = TxType::BURN;
     } else {
       sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
+      ASSERT_EQ(tx_data.num_of_output_coins(), 2);
     }
     auto context2 = grpc::ClientContext{};
     PrivacyWalletRequest request2;
@@ -411,7 +414,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_transfer_single_cycle) {
   ASSERT_TRUE(response.has_generate_tx_response());
   auto& tx_data = response.generate_tx_response();
   ASSERT_TRUE(tx_data.final());
-
+  ASSERT_EQ(tx_data.num_of_output_coins(), 3);
   auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
 
   auto context2 = grpc::ClientContext{};
@@ -450,7 +453,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_merge_and_transfer_cycles) {
     auto& tx_data = response.generate_tx_response();
     is_final = tx_data.final();
     auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
-
+    ASSERT_EQ(tx_data.num_of_output_coins(), is_final ? 2 : 1);
     auto context2 = grpc::ClientContext{};
     PrivacyWalletRequest request2;
     auto response2 = PrivacyWalletResponse{};
