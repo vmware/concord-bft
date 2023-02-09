@@ -10,7 +10,7 @@
 // file.
 
 #include "NewViewMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include <bftengine/ClientMsgs.hpp>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "ReplicaAsksToLeaveViewMsg.hpp"
 #include "SysConsts.hpp"
 #include "ViewsManager.hpp"

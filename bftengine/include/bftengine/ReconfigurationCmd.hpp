@@ -13,11 +13,11 @@
 
 #pragma once
 #include "ReservedPagesClient.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "concord.cmf.hpp"
 #include <optional>
 #include "client/reconfiguration/cre_interfaces.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 namespace bftEngine {
 class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 1> {

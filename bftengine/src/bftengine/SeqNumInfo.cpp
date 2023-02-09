@@ -11,7 +11,7 @@
 
 #include "SeqNumInfo.hpp"
 #include "InternalReplicaApi.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
 #include "CryptoManager.hpp"
 

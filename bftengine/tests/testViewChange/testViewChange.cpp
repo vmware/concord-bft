@@ -13,7 +13,7 @@
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
 #include "ReplicaConfig.hpp"
-#include "SimpleThreadPool.hpp"
+#include "util/SimpleThreadPool.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "KeyfileIOUtils.hpp"

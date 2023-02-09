@@ -10,7 +10,7 @@
 // file.
 
 #include "ClientBatchRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 
 namespace bftEngine::impl {

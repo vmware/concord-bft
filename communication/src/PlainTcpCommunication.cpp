@@ -37,7 +37,7 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace std;
 using namespace boost::asio::;

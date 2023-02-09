@@ -20,7 +20,7 @@
 #include <functional>
 #include <cstdint>
 
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 
 namespace concord::kvbc {
 

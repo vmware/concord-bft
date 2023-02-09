@@ -10,13 +10,13 @@
 // file.
 
 #include "SigManager.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 
 #include <algorithm>
 #include "keys_and_signatures.cmf.hpp"
 #include "ReplicaConfig.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "crypto/factory.hpp"
 
 using namespace std;

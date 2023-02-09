@@ -13,7 +13,7 @@
 #include "ReplicaBase.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"

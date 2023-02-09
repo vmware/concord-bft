@@ -13,8 +13,8 @@
 
 #include "MessageBase.hpp"
 #include "crypto/digest.hpp"
-#include "OpenTracing.hpp"
-#include "assertUtils.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine::impl {
 

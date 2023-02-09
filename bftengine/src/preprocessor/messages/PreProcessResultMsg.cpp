@@ -13,7 +13,7 @@
 #include "Replica.hpp"  // for HAS_PRE_PROCESSED_FLAG
 #include "SigManager.hpp"
 #include "PreProcessResultHashCreator.hpp"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 
 namespace preprocessor {
 

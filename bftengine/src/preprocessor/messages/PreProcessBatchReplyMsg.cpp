@@ -11,7 +11,7 @@
 
 #include "PreProcessBatchReplyMsg.hpp"
 #include "SigManager.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace preprocessor {
 

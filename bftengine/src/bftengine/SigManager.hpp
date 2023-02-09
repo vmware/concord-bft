@@ -11,8 +11,8 @@
 
 #pragma once
 #include "PrimitiveTypes.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
 #include "crypto/crypto.hpp"
 #include "crypto/signer.hpp"
 #include "crypto/verifier.hpp"

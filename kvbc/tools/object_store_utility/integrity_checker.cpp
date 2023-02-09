@@ -12,7 +12,7 @@
 // file.
 
 #include "integrity_checker.hpp"
-#include "string.hpp"
+#include "util/string.hpp"
 #include "s3/config_parser.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/ReplicasInfo.hpp"

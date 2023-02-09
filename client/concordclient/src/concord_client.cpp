@@ -15,7 +15,7 @@
 #include <thread>
 #include <numeric>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/replica_state_snapshot_client.hpp"

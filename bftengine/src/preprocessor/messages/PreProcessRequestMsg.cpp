@@ -10,7 +10,7 @@
 // file.
 
 #include "PreProcessRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 
 #include <cstring>

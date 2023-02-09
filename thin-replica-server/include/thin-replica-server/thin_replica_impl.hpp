@@ -31,7 +31,7 @@
 #include <fstream>
 
 #include "log/logger.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
@@ -42,7 +42,7 @@
 #include "subscription_buffer.hpp"
 #include "trs_metrics.hpp"
 #include "util/filesystem.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 using google::protobuf::util::TimeUtil;
 using namespace std::chrono_literals;

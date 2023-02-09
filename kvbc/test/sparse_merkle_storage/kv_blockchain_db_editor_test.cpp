@@ -14,7 +14,7 @@
 #include "db_editor_tests_base.h"
 #include "kv_blockchain_db_editor.hpp"
 #include "kvbc_key_types.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 namespace {
 

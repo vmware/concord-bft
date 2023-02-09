@@ -6,7 +6,7 @@
 #include "aes.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
-#include "kvstream.h"
+#include "util/kvstream.h"
 
 using namespace concord::secretsmanager;
 

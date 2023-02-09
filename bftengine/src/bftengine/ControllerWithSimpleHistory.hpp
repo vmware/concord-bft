@@ -17,7 +17,7 @@
 #include "ControllerBase.hpp"
 #include "SysConsts.hpp"
 #include "SequenceWithActiveWindow.hpp"
-#include "RollingAvgAndVar.hpp"
+#include "util/RollingAvgAndVar.hpp"
 #include "TimeUtils.hpp"
 
 namespace bftEngine {

@@ -9,7 +9,7 @@
 #include "kv_types.hpp"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "storage/db_interface.h"
 

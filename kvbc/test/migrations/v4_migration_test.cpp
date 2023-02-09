@@ -26,7 +26,7 @@
 #include "categorization/updates.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "db_interfaces.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "event_group_msgs.cmf.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord_kvbc.pb.h"

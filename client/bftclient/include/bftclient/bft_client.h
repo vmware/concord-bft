@@ -17,7 +17,7 @@
 
 #include "log/logger.hpp"
 #include "communication/ICommunication.hpp"
-#include "DynamicUpperLimitWithSimpleFilter.hpp"
+#include "util/DynamicUpperLimitWithSimpleFilter.hpp"
 
 #include "bftclient/config.h"
 #include "matcher.h"

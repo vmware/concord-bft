@@ -11,7 +11,7 @@
 
 #include "ViewChangeSafetyLogic.hpp"
 #include "crypto/threshsign/IThresholdVerifier.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "CryptoManager.hpp"
 #include <set>
 #include <unordered_map>

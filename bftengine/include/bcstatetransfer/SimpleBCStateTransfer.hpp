@@ -19,8 +19,8 @@
 #include <future>
 
 #include "bftengine/IStateTransfer.hpp"
-#include "Metrics.hpp"
-#include "kvstream.h"
+#include "util/Metrics.hpp"
+#include "util/kvstream.h"
 #include "crypto/digest.hpp"
 
 namespace concord {

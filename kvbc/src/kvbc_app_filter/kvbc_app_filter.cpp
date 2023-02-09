@@ -14,7 +14,7 @@
 // Filtered access to the KV Blockchain.
 
 #include "kvbc_app_filter/kvbc_app_filter.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
 #include <cassert>
 #include <chrono>

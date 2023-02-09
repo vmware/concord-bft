@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "kv_types.hpp"
-#include "status.hpp"
+#include "util/status.hpp"
 
 #include "categorization/base_types.h"
 #include "categorization/updates.h"

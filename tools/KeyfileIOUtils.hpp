@@ -12,7 +12,7 @@
 // file.
 #pragma once
 #include <iostream>
-#include <string.hpp>
+#include "util/string.hpp"
 #include <sstream>
 #include <exception>
 #include "bftengine/ReplicaConfig.hpp"

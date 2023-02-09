@@ -13,7 +13,7 @@
 #pragma once
 
 #include <string>
-#include "types.hpp"
+#include "util/types.hpp"
 
 namespace concord::crypto {
 

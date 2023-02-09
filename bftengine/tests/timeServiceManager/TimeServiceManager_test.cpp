@@ -10,10 +10,9 @@
 // file.
 
 #include "TimeServiceManager.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "gtest/gtest.h"
-#include "serialize.hpp"
 #include <chrono>
 #include <memory>
 

@@ -13,7 +13,7 @@
 
 #include "RangeValidationTree.hpp"
 #include "RVBManager.hpp"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 
 using concord::crypto::DigestGenerator;
 using namespace std;

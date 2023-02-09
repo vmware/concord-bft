@@ -11,8 +11,8 @@
 // file.
 
 #include "st_reconfiguraion_sm.hpp"
-#include "hex_tools.h"
-#include "endianness.hpp"
+#include "util/hex_tools.hpp"
+#include "util/endianness.hpp"
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"

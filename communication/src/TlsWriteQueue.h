@@ -26,7 +26,7 @@
 #include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
 #include "TlsDiagnostics.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 namespace bft::communication::tls {
 // Any message attempted to be put on the queue that causes the total size of the queue to exceed
 // this value will be dropped. This is to prevent indefinite backups and useless stale messages.

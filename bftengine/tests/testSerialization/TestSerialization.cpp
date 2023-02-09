@@ -18,7 +18,7 @@
 #include "../../src/bftengine/PersistentStorageWindows.hpp"
 #include "../mocks/ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include <string>

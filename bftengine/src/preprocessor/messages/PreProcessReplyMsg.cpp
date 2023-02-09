@@ -11,7 +11,7 @@
 
 #include "PreProcessReplyMsg.hpp"
 #include "ReplicaConfig.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 
 namespace preprocessor {

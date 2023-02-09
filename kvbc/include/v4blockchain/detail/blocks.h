@@ -20,7 +20,7 @@
 #include "kv_types.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "blockchain_misc.hpp"
 #include "categorization/updates.h"
 #include "v4blockchain/detail/detail.h"

@@ -15,7 +15,7 @@
 #include "UTTParams.hpp"
 #include "client.hpp"
 #include "commitment.hpp"
-#include "types.hpp"
+#include "util/types.hpp"
 #include <memory>
 #include <optional>
 #include <iostream>

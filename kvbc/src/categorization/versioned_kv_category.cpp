@@ -13,7 +13,7 @@
 
 #include "categorization/versioned_kv_category.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/details.h"

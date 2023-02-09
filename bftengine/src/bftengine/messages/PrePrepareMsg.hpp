@@ -14,7 +14,7 @@
 #include <cstdint>
 
 #include "PrimitiveTypes.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "crypto/digest.hpp"
 #include "MessageBase.hpp"
 #include "ReplicaConfig.hpp"

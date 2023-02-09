@@ -20,7 +20,7 @@
 #include <vector>
 #include <random>
 #include "storage/test/storage_test_common.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include "categorization/db_categories.h"
 #include "categorized_kvbc_msgs.cmf.hpp"

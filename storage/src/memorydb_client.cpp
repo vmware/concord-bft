@@ -8,8 +8,8 @@
 #include <cstring>
 #include <iterator>
 
-#include "assertUtils.hpp"
-#include "sliver.hpp"
+#include "util/assertUtils.hpp"
+#include "util/sliver.hpp"
 
 using concordUtils::Sliver;
 using concordUtils::Status;

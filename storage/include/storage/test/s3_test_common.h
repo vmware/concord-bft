@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "s3/client.hpp"
 #include "s3/config_parser.hpp"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 
 #include <random>
 #include <cstdlib>

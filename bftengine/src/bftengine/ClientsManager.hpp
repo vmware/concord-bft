@@ -14,7 +14,7 @@
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
 #include "bftengine/ReservedPagesClient.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "IPendingRequest.hpp"
 #include "bftengine/IKeyExchanger.hpp"
 #include "PersistentStorage.hpp"

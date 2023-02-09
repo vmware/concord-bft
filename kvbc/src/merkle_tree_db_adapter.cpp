@@ -15,10 +15,10 @@
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/histograms.h"
-#include "status.hpp"
-#include "string.hpp"
+#include "util/status.hpp"
+#include "util/string.hpp"
 
 #include <exception>
 #include <iterator>

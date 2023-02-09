@@ -14,7 +14,7 @@
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "gmock/gmock.h"
 #include "thin_replica_client_mocks.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"

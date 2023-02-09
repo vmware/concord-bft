@@ -11,7 +11,7 @@
 // LICENSE file.
 
 #include "gtest/gtest.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include "client/reconfiguration/cre_interfaces.hpp"
 #include <chrono>

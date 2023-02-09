@@ -12,7 +12,7 @@
 
 #include "gtest/gtest.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "bftengine/ClientMsgs.hpp"
 
 #include "msg_receiver.h"

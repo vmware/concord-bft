@@ -13,16 +13,16 @@
 
 #pragma once
 
-#include <assertUtils.hpp>
+#include "util/assertUtils.hpp"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_block.h"
-#include "endianness.hpp"
-#include "sliver.hpp"
+#include "util/endianness.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 #include "sparse_merkle/keys.h"
 #include "storage/db_types.h"
-#include "string.hpp"
+#include "util/string.hpp"
 
 #include <algorithm>
 #include <cstdint>

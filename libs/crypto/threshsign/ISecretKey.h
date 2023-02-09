@@ -12,7 +12,7 @@
 
 #pragma once
 #include <ostream>
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 class ISecretKey : public concord::serialize::IStringSerializable {
  public:

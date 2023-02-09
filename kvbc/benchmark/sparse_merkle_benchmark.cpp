@@ -15,8 +15,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include "endianness.hpp"
-#include "Handoff.hpp"
+#include "util/endianness.hpp"
+#include "util/Handoff.hpp"
 #include "memorydb/client.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"

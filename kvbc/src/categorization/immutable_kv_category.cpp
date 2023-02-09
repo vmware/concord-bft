@@ -13,7 +13,7 @@
 
 #include "categorization/immutable_kv_category.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 #include "rocksdb/details.h"

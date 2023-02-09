@@ -11,11 +11,11 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "replica_state_sync_imp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "block_metadata.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 #include "metadata_block_id.h"
 
 #include <stdexcept>

@@ -20,7 +20,7 @@
 #include "native_write_batch.h"
 #include "rocksdb_exception.h"
 #include "rocksdb/snapshot.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "client.h"
 
 #include <rocksdb/slice.h>

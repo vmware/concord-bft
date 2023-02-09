@@ -29,7 +29,7 @@
 #include <atomic>
 #include <utility>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "log/logger.hpp"
 
 using concordUtils::Sliver;

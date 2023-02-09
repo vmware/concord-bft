@@ -18,7 +18,7 @@
 #include <memory>
 
 #include "log/logger.hpp"
-#include "string.hpp"
+#include "util/string.hpp"
 #include "InMemoryDataStore.hpp"
 #include "storage/key_manipulator_interface.h"
 

@@ -12,7 +12,7 @@
 // file.
 
 #include "DbMetadataStorage.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include <cstring>
 #include <exception>
 

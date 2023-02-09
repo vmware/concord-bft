@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "kv_types.hpp"
 #include "PersistentStorage.hpp"
 

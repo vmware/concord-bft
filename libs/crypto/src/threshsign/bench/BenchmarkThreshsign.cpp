@@ -20,7 +20,7 @@
 #include <iostream>
 #include <chrono>
 #include <boost/program_options.hpp>
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -28,7 +28,6 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #include "picobench/picobench.hpp"
-#include "macros.h"
 #if defined(USE_MULTISIG_EDDSA)
 #include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "crypto/threshsign/eddsa/SingleEdDSASignature.h"

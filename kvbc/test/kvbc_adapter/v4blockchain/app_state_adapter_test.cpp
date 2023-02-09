@@ -20,7 +20,7 @@
 #include <vector>
 #include <random>
 #include "storage/test/storage_test_common.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "v4blockchain/detail/st_chain.h"
 #include "kvbc_adapter/v4blockchain/app_state_adapter.hpp"
 #include "v4blockchain/v4_blockchain.h"

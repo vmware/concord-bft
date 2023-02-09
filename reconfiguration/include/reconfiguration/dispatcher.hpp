@@ -15,7 +15,7 @@
 #include "log/logger.hpp"
 #include "ireconfiguration.hpp"
 #include "concord.cmf.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 namespace concord::reconfiguration {
 // The dispatcher forwards all messages to their appropriate handlers.

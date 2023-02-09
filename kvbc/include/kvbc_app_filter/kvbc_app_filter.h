@@ -24,14 +24,14 @@
 #include <set>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"
 #include "db_interfaces.h"
 #include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "event_group_msgs.cmf.hpp"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "kvbc_key_types.h"
 
 namespace concord {

@@ -14,7 +14,7 @@
 #pragma once
 
 #include "key_manipulator_interface.h"
-#include "string.hpp"
+#include "util/string.hpp"
 
 #include <string>
 

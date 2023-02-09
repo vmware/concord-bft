@@ -18,7 +18,7 @@
 
 #include "log/logger.hpp"
 #include "IStateTransfer.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 namespace bftEngine {
 namespace bcst {

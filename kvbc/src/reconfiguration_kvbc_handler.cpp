@@ -16,7 +16,7 @@
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "bftengine/SigManager.hpp"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"

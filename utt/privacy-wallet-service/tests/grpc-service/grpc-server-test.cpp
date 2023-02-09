@@ -30,7 +30,7 @@ namespace fs = std::experimental::filesystem;
 #include <grpcpp/create_channel.h>
 #include "PrivacyService.hpp"
 #include "Wallet.hpp"
-#include "types.hpp"
+#include "util/types.hpp"
 #include <thread>
 #include "serialization.hpp"
 #include "utils/crypto.hpp"

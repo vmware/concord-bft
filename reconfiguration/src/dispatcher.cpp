@@ -11,7 +11,7 @@
 // file.
 
 #include "reconfiguration/dispatcher.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 
 using namespace concord::messages;
 

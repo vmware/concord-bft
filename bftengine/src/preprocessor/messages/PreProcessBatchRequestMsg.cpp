@@ -10,7 +10,7 @@
 // file.
 
 #include "PreProcessBatchRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 namespace preprocessor {
 

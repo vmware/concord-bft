@@ -14,7 +14,7 @@
 #include "MessageBase.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 
 #ifdef DEBUG_MEMORY_MSG

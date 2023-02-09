@@ -15,7 +15,7 @@
 #include "coin.hpp"
 #include "client.hpp"
 #include "UTTParams.hpp"
-#include "types.hpp"
+#include "util/types.hpp"
 #include <string>
 namespace libutt::api::operations {
 class Budget;

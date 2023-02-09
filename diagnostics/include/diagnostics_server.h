@@ -28,8 +28,8 @@
 #include <unistd.h>
 
 #include "log/logger.hpp"
-#include "errnoString.hpp"
-#include "kvstream.h"
+#include "util/errnoString.hpp"
+#include "util/kvstream.h"
 #include "protocol.h"
 
 using concordUtils::errnoString;

@@ -18,7 +18,7 @@
 #include <chrono>
 #include <memory>
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
 #include "SharedTypes.hpp"

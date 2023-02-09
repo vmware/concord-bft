@@ -15,7 +15,7 @@
 #include <iostream>
 #include <random>
 #include <memory>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "gtest/gtest.h"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"

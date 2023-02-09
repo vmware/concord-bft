@@ -16,7 +16,7 @@
 #include <iostream>
 #include <thread>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/block_merkle_category.h"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "input.h"

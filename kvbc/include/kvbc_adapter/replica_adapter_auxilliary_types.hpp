@@ -16,7 +16,7 @@
 #include <vector>
 #include <memory>
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 namespace concord::kvbc::adapter::aux {
 

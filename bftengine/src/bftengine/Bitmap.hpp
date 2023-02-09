@@ -14,7 +14,7 @@
 #pragma once
 
 #include "PrimitiveTypes.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 #include <vector>
 #include <cstring>

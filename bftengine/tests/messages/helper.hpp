@@ -19,7 +19,7 @@
 #include "gtest/gtest.h"
 
 #include "bftengine/ReplicaConfig.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "messages/MessageBase.hpp"
 #include "crypto/threshsign/IThresholdSigner.h"
 #include "crypto/threshsign/IThresholdVerifier.h"

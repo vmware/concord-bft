@@ -13,8 +13,8 @@
 
 #pragma once
 #include "ReservedPagesClient.hpp"
-#include "Serializable.h"
-#include "Metrics.hpp"
+#include "util/serializable.hpp"
+#include "util/Metrics.hpp"
 #include <functional>
 
 namespace bftEngine {

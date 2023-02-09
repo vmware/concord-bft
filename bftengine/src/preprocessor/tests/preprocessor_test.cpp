@@ -12,13 +12,13 @@
 #define CONCORD_BFT_TESTING
 
 #include "PreProcessor.hpp"
-#include "OpenTracing.hpp"
-#include "Timers.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/Timers.hpp"
 #include "messages/PreProcessBatchRequestMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "RequestProcessingState.hpp"
 #include "ReplicaConfig.hpp"
 #include "IncomingMsgsStorageImp.hpp"

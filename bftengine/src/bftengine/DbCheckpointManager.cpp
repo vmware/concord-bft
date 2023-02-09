@@ -14,8 +14,8 @@
 #include "DbCheckpointManager.hpp"
 #include <future>
 #include <cmath>
-#include <assertUtils.hpp>
-#include "Serializable.h"
+#include "util/assertUtils.hpp"
+#include "util/serializable.hpp"
 #include "db_checkpoint_msg.cmf.hpp"
 #include "SigManager.hpp"
 #include "Replica.hpp"

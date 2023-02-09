@@ -19,9 +19,9 @@
 #include "communication/CommFactory.hpp"
 #include "communication/CommDefs.hpp"
 #include "SimpleClient.hpp"
-#include "histogram.hpp"
+#include "util/histogram.hpp"
 #include "TimeUtils.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "utils.hpp"
 
 using namespace bftEngine;

@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "callback_registry.hpp"
+#include "util/callback_registry.hpp"
 #include <functional>
 namespace bft::client {
 class StateControl {

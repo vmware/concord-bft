@@ -13,7 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "crypto/digest.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
 #include "ReplicaAsksToLeaveViewMsg.hpp"

@@ -10,7 +10,7 @@
 #include <atomic>
 
 #include "st_reconfiguraion_sm.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "categorization/db_categories.h"
 #include "communication/ICommunication.hpp"
@@ -27,7 +27,7 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>

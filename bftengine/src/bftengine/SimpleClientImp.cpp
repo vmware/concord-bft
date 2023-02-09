@@ -18,14 +18,14 @@
 #include "log/logger.hpp"
 
 #include "ClientMsgs.hpp"
-#include "OpenTracing.hpp"
-#include "assertUtils.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/assertUtils.hpp"
 #include "TimeUtils.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "messages/ClientBatchRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
-#include "DynamicUpperLimitWithSimpleFilter.hpp"
+#include "util/DynamicUpperLimitWithSimpleFilter.hpp"
 
 using namespace std;
 using namespace std::chrono;

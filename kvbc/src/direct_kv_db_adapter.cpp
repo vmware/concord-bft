@@ -12,15 +12,15 @@
 //    -> Ascending order of Key
 //       -> Descending order of Block Id
 
-#include "sliver.hpp"
-#include "status.hpp"
+#include "util/sliver.hpp"
+#include "util/status.hpp"
 #include "kv_types.hpp"
 #include "direct_kv_block.h"
 #include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "hex_tools.h"
-#include "string.hpp"
-#include "assertUtils.hpp"
+#include "util/hex_tools.hpp"
+#include "util/string.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
 

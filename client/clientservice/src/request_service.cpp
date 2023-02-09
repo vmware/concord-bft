@@ -16,7 +16,7 @@
 #include "client/concordclient/concord_client.hpp"
 #include "concord_client_request.pb.h"
 #include "client/thin-replica-client/trace_contexts.hpp"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 
 using namespace client::thin_replica_client;
 using namespace vmware::concord::client::concord_client_request::v1;

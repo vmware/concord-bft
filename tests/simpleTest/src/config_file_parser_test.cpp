@@ -1,5 +1,5 @@
-#include "config_file_parser.hpp"
-#include "assertUtils.hpp"
+#include "util/config_file_parser.hpp"
+#include "util/assertUtils.hpp"
 
 #include <iostream>
 #include <string>

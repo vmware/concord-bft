@@ -24,7 +24,7 @@
 
 #include "communication/ICommunication.hpp"
 #include "communication/StatusInfo.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 #ifdef USE_COMM_TLS_TCP
 #include "secrets/secret_data.h"

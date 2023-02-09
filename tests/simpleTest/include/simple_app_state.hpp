@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SimpleClient.hpp"
 #include "commonDefs.h"
 #include "Replica.hpp"

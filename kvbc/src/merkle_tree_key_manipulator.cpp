@@ -13,11 +13,11 @@
 
 #include "merkle_tree_key_manipulator.h"
 
-#include "assertUtils.hpp"
-#include "endianness.hpp"
-#include "hex_tools.h"
+#include "util/assertUtils.hpp"
+#include "util/endianness.hpp"
+#include "util/hex_tools.hpp"
 #include "merkle_tree_serialization.h"
-#include "string.hpp"
+#include "util/string.hpp"
 
 namespace concord::kvbc::v2MerkleTree::detail {
 

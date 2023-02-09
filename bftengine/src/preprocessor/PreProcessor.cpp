@@ -15,7 +15,7 @@
 #include "log/logger.hpp"
 #include "InternalReplicaApi.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "messages/PreProcessResultMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"

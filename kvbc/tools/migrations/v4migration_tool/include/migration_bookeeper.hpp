@@ -31,7 +31,7 @@
 #include "rocksdb/native_client.h"
 #include "categorization/updates.h"
 #include "blockchain_adapter.hpp"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 class BookKeeper {
  public:

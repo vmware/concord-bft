@@ -15,7 +15,7 @@
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kv_types.hpp"
 #include "crypto/openssl/hash.hpp"
 

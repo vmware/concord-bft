@@ -10,7 +10,7 @@
 // file.
 #include <cstring>
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "ReplicasRestartReadyProofMsg.hpp"
 #include "SysConsts.hpp"
 #include "EpochManager.hpp"

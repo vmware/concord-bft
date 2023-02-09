@@ -18,7 +18,7 @@
 #include <set>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "crypto/digest.hpp"
 

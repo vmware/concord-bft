@@ -21,7 +21,7 @@
 #include <opentracing/tracer.h>
 
 #include "KeyExchangeMsg.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "concord.cmf.hpp"
 
 namespace concord::concord_client_pool {

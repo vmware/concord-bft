@@ -15,7 +15,7 @@
 #include "ReplicaConfig.hpp"
 #include "db_interfaces.h"
 #include "blockchain_misc.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include "SigManager.hpp"

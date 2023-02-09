@@ -21,7 +21,7 @@
 #include "log/logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "communication/ICommunication.hpp"
-#include "MetricsServer.hpp"
+#include "util/MetricsServer.hpp"
 #include "config/test_parameters.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"

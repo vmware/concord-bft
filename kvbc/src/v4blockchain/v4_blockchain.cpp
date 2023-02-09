@@ -19,7 +19,7 @@
 #include "categorization/db_categories.h"
 #include "kvbc_key_types.hpp"
 #include "block_metadata.hpp"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 #include "blockchain_misc.hpp"
 #include "util/filesystem.hpp"
 

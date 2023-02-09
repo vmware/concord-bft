@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "ISecretKey.h"
 #include "IPublicKey.h"
 

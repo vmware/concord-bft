@@ -14,7 +14,7 @@
 #include <set>
 
 #include "log/logger.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "SysConsts.hpp"
 #include "messages/PrePrepareMsg.hpp"

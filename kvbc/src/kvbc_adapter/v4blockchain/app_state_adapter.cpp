@@ -15,7 +15,7 @@
 #include "kvbc_adapter/v4blockchain/app_state_adapter.hpp"
 #include "v4blockchain/detail/blocks.h"
 #include "v4blockchain/detail/detail.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace concord::kvbc;
 

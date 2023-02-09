@@ -22,8 +22,8 @@
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/cre_interfaces.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"

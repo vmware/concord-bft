@@ -16,7 +16,7 @@
 
 #include "client/clientservice/event_service.hpp"
 #include "client/concordclient/concord_client.hpp"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
 

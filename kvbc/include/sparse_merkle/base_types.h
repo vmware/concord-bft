@@ -18,7 +18,7 @@
 #include <limits>
 #include <vector>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "crypto/digest.hpp"
 
 namespace concord {

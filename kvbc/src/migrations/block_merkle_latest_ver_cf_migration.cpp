@@ -12,15 +12,15 @@
 
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
 
-#include "assertUtils.hpp"
-#include "thread_pool.hpp"
+#include "util/assertUtils.hpp"
+#include "util/thread_pool.hpp"
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "kv_types.hpp"
 #include "storage/db_types.h"
-#include "string.hpp"
+#include "util/string.hpp"
 
 #include <stdexcept>
 #include <vector>

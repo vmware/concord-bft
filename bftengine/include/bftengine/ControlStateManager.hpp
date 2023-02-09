@@ -16,9 +16,9 @@
 #include <atomic>
 #include "IStateTransfer.hpp"
 #include "ReservedPagesClient.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "SysConsts.hpp"
-#include "callback_registry.hpp"
+#include "util/callback_registry.hpp"
 #include <mutex>
 namespace bftEngine {
 class ControlStateManager {

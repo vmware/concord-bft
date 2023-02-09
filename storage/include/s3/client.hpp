@@ -21,11 +21,11 @@
 #include <functional>
 
 #include "log/logger.hpp"
-#include "kvstream.h"
-#include "assertUtils.hpp"
+#include "util/kvstream.h"
+#include "util/assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "s3_metrics.hpp"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 #pragma once
 

@@ -17,7 +17,7 @@
 #include <functional>
 
 #include "kv_types.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::kvbc {
 enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, V4_BLOCKCHAIN = 4, INVALID_BLOCKCHAIN_VERSION };

@@ -24,9 +24,9 @@
 
 #include "log/logger.hpp"
 #include "grpc_connection.hpp"
-#include "thread_pool.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "util/thread_pool.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
 
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"

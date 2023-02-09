@@ -39,7 +39,7 @@
 #include "EpochManager.hpp"
 #include "Messages.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "RVBManager.hpp"
 #include "RangeValidationTree.hpp"
 #include "messages/StateTransferMsg.hpp"

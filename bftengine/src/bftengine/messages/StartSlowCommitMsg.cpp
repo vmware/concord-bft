@@ -11,7 +11,7 @@
 
 #include "StartSlowCommitMsg.hpp"
 #include <cstring>
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

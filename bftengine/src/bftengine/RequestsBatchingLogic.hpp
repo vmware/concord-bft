@@ -13,11 +13,11 @@
 
 #include <utility>
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "InternalReplicaApi.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 #include "performance_handler.h"
 
 namespace bftEngine::batchingLogic {

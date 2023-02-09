@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "base_types.h"
 
 namespace bft::client {

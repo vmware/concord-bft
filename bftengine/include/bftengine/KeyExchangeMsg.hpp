@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchangeMsg> {
   constexpr static uint8_t EXCHANGE{0};

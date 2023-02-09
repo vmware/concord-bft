@@ -18,9 +18,9 @@
 
 #include <openssl/evp.h>
 
-#include "types.hpp"
-#include "hex_tools.h"
-#include "assertUtils.hpp"
+#include "util/types.hpp"
+#include "util/hex_tools.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::crypto::openssl {
 

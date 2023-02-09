@@ -19,8 +19,8 @@
 #include "categorization/updates.h"
 #include "v4blockchain/detail/categories.h"
 #include <rocksdb/compaction_filter.h>
-#include "endianness.hpp"
-#include "hex_tools.h"
+#include "util/endianness.hpp"
+#include "util/hex_tools.hpp"
 #include "rocksdb/snapshot.h"
 
 namespace concord::kvbc::v4blockchain::detail {

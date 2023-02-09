@@ -12,7 +12,7 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 #include <iostream>
 #include <sstream>

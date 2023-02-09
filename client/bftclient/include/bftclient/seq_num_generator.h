@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <atomic>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "base_types.h"
 
 namespace bft::client {

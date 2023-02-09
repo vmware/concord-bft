@@ -7,8 +7,8 @@
 #include "rocksdb/key_comparator.h"
 #include "log/logger.hpp"
 
-#include "hex_tools.h"
-#include "sliver.hpp"
+#include "util/hex_tools.hpp"
+#include "util/sliver.hpp"
 #include "rocksdb/client.h"
 
 #include <chrono>

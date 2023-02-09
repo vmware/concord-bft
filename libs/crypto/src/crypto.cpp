@@ -16,10 +16,10 @@
 #include "crypto/crypto.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
-#include "hex_tools.h"
-#include "string.hpp"
-#include "types.hpp"
+#include "util/assertUtils.hpp"
+#include "util/hex_tools.hpp"
+#include "util/string.hpp"
+#include "util/types.hpp"
 #ifdef USE_OPENSSL
 #include "crypto/openssl/EdDSA.hpp"
 #include "crypto/openssl/crypto.hpp"

@@ -14,7 +14,7 @@
 #include "MessageBase.hpp"
 #include "crypto/digest.hpp"
 #include "ReplicaConfig.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 using concord::crypto::Digest;
 

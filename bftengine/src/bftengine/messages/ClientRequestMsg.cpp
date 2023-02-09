@@ -11,7 +11,7 @@
 
 #include "bftengine/SimpleClient.hpp"
 #include "ClientRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "SigManager.hpp"
 #include "Replica.hpp"

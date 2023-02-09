@@ -13,10 +13,10 @@
 
 #include <cstdint>
 #include <cassert>
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {

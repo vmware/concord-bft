@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "IReservedPages.hpp"
 #include "ReservedPagesClient.hpp"
 #include "KeyExchangeMsg.hpp"

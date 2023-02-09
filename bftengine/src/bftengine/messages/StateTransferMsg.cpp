@@ -10,7 +10,7 @@
 // file.
 
 #include "StateTransferMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine::impl {
 

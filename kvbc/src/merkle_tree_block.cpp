@@ -1,6 +1,6 @@
 #include "merkle_tree_block.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "direct_kv_block.h"
 #include "kv_types.hpp"
 #include "merkle_tree_serialization.h"

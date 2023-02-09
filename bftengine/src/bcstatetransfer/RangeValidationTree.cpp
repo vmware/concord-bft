@@ -18,7 +18,7 @@
 #include "RangeValidationTree.hpp"
 #include "crypto/digest.hpp"
 #include "type_traits"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 
 using concord::crypto::DigestGenerator;
 

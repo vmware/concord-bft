@@ -13,7 +13,7 @@
 //
 
 #include "gtest/gtest.h"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "crypto/digest_holder.hpp"
 #include "crypto/openssl/digest_creator.hpp"
 #include "crypto/crypto.hpp"

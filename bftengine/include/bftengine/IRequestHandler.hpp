@@ -20,7 +20,7 @@
 #include <string>
 #include <functional>
 #include <deque>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "TimeService.hpp"
 
 namespace concord::reconfiguration {

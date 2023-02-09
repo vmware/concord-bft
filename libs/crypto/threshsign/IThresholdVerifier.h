@@ -15,7 +15,7 @@
 #include <cstddef>
 #include <memory>
 
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "IPublicKey.h"
 #include "ThresholdSignaturesTypes.h"
 #include "IThresholdAccumulator.h"
