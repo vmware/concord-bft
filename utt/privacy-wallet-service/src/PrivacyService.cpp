@@ -55,30 +55,36 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
                                                               const PrivacyWalletRequest* request,
                                                               PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
-  std::cout << "Processing privacy wallet service message.....!" << std::endl;
-  if (request->has_privacy_app_config()) {
-    return handleApplicationConfigRequest(context, request, response);
-  } else if (request->has_privacy_wallet_config_request()) {
-    return handleWalletConfigRequest(context, request, response);
-  } else if (request->has_user_registration_request()) {
-    return handleUserRegistrationRequest(context, request, response);
-  } else if (request->has_user_registration_update_request()) {
-    return handleUserRegistrationUpdateRequest(context, request, response);
-  } else if (request->has_claim_coins_request()) {
-    return handleUserClaimCoinsRequest(context, request, response);
-  } else if (request->has_generate_mint_tx_request()) {
-    return handleUserMintRequest(context, request, response);
-  } else if (request->has_generate_burn_tx_request()) {
-    return handleUserBurnRequest(context, request, response);
-  } else if (request->has_generate_transact_tx_request()) {
-    return handleUserTransferRequest(context, request, response);
-  } else if (request->has_get_state_request()) {
-    return handleGetStateRequest(context, request, response);
-  } else {
-    std::cout << "unknown request: " << request->DebugString() << std::endl;
-    status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+  try {
+    // TODO: cleanup after service is hardened...
+    std::cout << "Processing privacy app config request" << request->ShortDebugString() << std::endl;
+    if (request->has_privacy_app_config()) {
+      return handleApplicationConfigRequest(context, request, response);
+    } else if (request->has_privacy_wallet_config_request()) {
+      return handleWalletConfigRequest(context, request, response);
+    } else if (request->has_user_registration_request()) {
+      return handleUserRegistrationRequest(context, request, response);
+    } else if (request->has_user_registration_update_request()) {
+      return handleUserRegistrationUpdateRequest(context, request, response);
+    } else if (request->has_claim_coins_request()) {
+      return handleUserClaimCoinsRequest(context, request, response);
+    } else if (request->has_generate_mint_tx_request()) {
+      return handleUserMintRequest(context, request, response);
+    } else if (request->has_generate_burn_tx_request()) {
+      return handleUserBurnRequest(context, request, response);
+    } else if (request->has_generate_transact_tx_request()) {
+      return handleUserTransferRequest(context, request, response);
+    } else if (request->has_get_state_request()) {
+      return handleGetStateRequest(context, request, response);
+    } else {
+      std::cout << "unknown request: " << request->DebugString() << std::endl;
+      status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+    }
+    return status;
+  } catch (const std::exception& e) {
+    std::cout << "Failed to handle request:" << e.what() << std::endl;
+    return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, e.what());
   }
-  return status;
 }
 
 // @FIXME - make this asynchronous..
@@ -86,8 +92,6 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
                                                                         const PrivacyWalletRequest* request,
                                                                         PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
-  std::cout << "Processing privacy app config request" << request->DebugString() << std::endl;
-
   // Generate a privacy config for a N=4 replica system tolerating F=1 failures
   utt::client::ConfigInputParams params;
   for (auto i = 0; i < request->privacy_app_config().validatorpublickey_size(); i++) {
