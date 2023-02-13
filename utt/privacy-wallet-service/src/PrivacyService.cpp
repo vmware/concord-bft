@@ -141,6 +141,12 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
+  if (wallet_->isRegistered()) {
+    std::string err_msg = "user is already registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, err_msg);
+  }
   auto registration_input = wallet_->generateRegistrationInput();
   if (!registration_input.has_value()) {
     std::string err_msg = "error while generating registration input";
@@ -164,14 +170,22 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
-  const auto& req = request->user_registration_update_request();
-  auto res = wallet_->updateRegistrationCommitment({req.rcm_sig().begin(), req.rcm_sig().end()},
-                                                   {req.s2().begin(), req.s2().end()});
-  if (!res) {
+
+  if (wallet_->isRegistered()) {
     std::string err_msg = "user is already registered";
     std::cout << err_msg << std::endl;
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, err_msg);
+  }
+
+  const auto& req = request->user_registration_update_request();
+  auto res = wallet_->updateRegistrationCommitment({req.rcm_sig().begin(), req.rcm_sig().end()},
+                                                   {req.s2().begin(), req.s2().end()});
+  if (!res) {
+    std::string err_msg = "unable to update registration data";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::ABORTED, err_msg);
   }
   auto resp = response->mutable_user_registration_update_response();
   resp->set_succ(true);
@@ -213,6 +227,12 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
+  if (!wallet_->isRegistered()) {
+    std::string err_msg = "user is not registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
   try {
     auto data = buildClaimCoinsData(request->claim_coins_request());
     auto res = wallet_->claimCoins(data.first, data.second);
@@ -244,6 +264,14 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
+
+  if (!wallet_->isRegistered()) {
+    std::string err_msg = "user is not registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+
   auto mint_req = request->generate_mint_tx_request();
   auto res = wallet_->generateMintTx(mint_req.amount());
   auto tx_resp = response->mutable_generate_tx_response();
@@ -263,6 +291,14 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
+
+  if (!wallet_->isRegistered()) {
+    std::string err_msg = "user is not registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+
   auto burn_req = request->generate_burn_tx_request();
   auto res = wallet_->generateBurnTx(burn_req.amount());
   auto tx_resp = response->mutable_generate_tx_response();
@@ -282,7 +318,15 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
-  auto transfer_req = request->generate_transact_tx_request();
+
+  if (!wallet_->isRegistered()) {
+    std::string err_msg = "user is not registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+
+  auto transfer_req = request->generate_transfer_tx_request();
   auto res = wallet_->generateTransferTx(
       transfer_req.amount(),
       {transfer_req.recipient_pid().begin(), transfer_req.recipient_pid().end()},
@@ -304,6 +348,14 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     response->set_err(err_msg);
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
+
+  if (!wallet_->isRegistered()) {
+    std::string err_msg = "user is not registered";
+    std::cout << err_msg << std::endl;
+    response->set_err(err_msg);
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
+  }
+
   auto state_resp = response->mutable_get_state_response();
   state_resp->set_budget(wallet_->getBudget());
   state_resp->set_balance(wallet_->getBalance());

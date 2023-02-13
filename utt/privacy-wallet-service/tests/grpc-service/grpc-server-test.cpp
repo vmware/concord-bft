@@ -403,7 +403,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_transfer_single_cycle) {
   mintRegularCoin(1000);
 
   PrivacyWalletRequest request;
-  auto transfer_req = request.mutable_generate_transact_tx_request();
+  auto transfer_req = request.mutable_generate_transfer_tx_request();
   transfer_req->set_amount(100);
   transfer_req->set_recipient_pid("user-2");
   transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
@@ -441,7 +441,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_merge_and_transfer_cycles) {
   while (!is_final) {
     cycles++;
     PrivacyWalletRequest request;
-    auto transfer_req = request.mutable_generate_transact_tx_request();
+    auto transfer_req = request.mutable_generate_transfer_tx_request();
     transfer_req->set_amount(4);
     transfer_req->set_recipient_pid("user-2");
     transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});

@@ -79,7 +79,7 @@ message GenerateBurnTx {
     uint64 amount = 1[jstype = JS_STRING];
 }
 
-message GenerateTransactTx {
+message GenerateTransferTx {
     uint64 amount = 1[jstype = JS_STRING];
     string recipient_pid = 2;
     bytes recipient_public_key = 3;
@@ -108,7 +108,7 @@ message PrivacyWalletRequest {
         ClaimCoinsRequest claim_coins_request = 5;
         GenerateMintTx generate_mint_tx_request = 6;
         GenerateBurnTx generate_burn_tx_request = 7;
-        GenerateTransactTx generate_transact_tx_request = 8;
+        GenerateTransferTx generate_transfer_tx_request = 8;
         GetStateRequest get_state_request = 9;
 
     }
