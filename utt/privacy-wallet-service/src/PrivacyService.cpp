@@ -72,7 +72,7 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
       return handleUserMintRequest(context, request, response);
     } else if (request->has_generate_burn_tx_request()) {
       return handleUserBurnRequest(context, request, response);
-    } else if (request->has_generate_transact_tx_request()) {
+    } else if (request->has_generate_transfer_tx_request()) {
       return handleUserTransferRequest(context, request, response);
     } else if (request->has_get_state_request()) {
       return handleGetStateRequest(context, request, response);
