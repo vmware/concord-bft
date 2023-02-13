@@ -36,10 +36,12 @@ void ConnectionManager::setKeepAliveOption(boost::asio::ip::tcp::socket& socket,
   socket.set_option(keepAlive);
 }
 
-void ConnectionManager::enableKeepAlive(boost::asio::ip::tcp::socket& socket, logging::Logger& logger) {
+void ConnectionManager::enableKeepAlive(boost::asio::ip::tcp::socket& socket,
+                                        const TcpKeepAliveConfig& keepAliveConfig,
+                                        logging::Logger& logger) {
   setKeepAliveOption(socket, true);
 
-  int idleTime = KEEP_ALIVE_IDLE_TIME;
+  int idleTime = keepAliveConfig.socketKeepAliveIdleTime;
   uint32_t optionLen = sizeof(idleTime);
   auto rc = setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPIDLE, &idleTime, optionLen);
   if (rc != 0) {
@@ -47,7 +49,7 @@ void ConnectionManager::enableKeepAlive(boost::asio::ip::tcp::socket& socket, lo
   }
   getsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPIDLE, &idleTime, &optionLen);
 
-  int interval = KEEP_ALIVE_INTERVAL;
+  int interval = keepAliveConfig.socketKeepAliveInterval;
   optionLen = sizeof(interval);
   rc = setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPINTVL, &interval, optionLen);
   if (rc != 0) {
@@ -55,7 +57,7 @@ void ConnectionManager::enableKeepAlive(boost::asio::ip::tcp::socket& socket, lo
   }
   getsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPINTVL, &interval, &optionLen);
 
-  int probesNum = KEEP_ALIVE_PROBES_NUM;
+  int probesNum = keepAliveConfig.socketKeepAliveProbesNum;
   optionLen = sizeof(probesNum);
   rc = setsockopt(socket.native_handle(), IPPROTO_TCP, TCP_KEEPCNT, &probesNum, optionLen);
   if (rc != 0) {
@@ -69,10 +71,12 @@ void ConnectionManager::enableKeepAlive(boost::asio::ip::tcp::socket& socket, lo
   LOG_INFO(logger, "Socket keep-alive has been enabled" << KVLOG(kaOption, idleTime, interval, probesNum));
 }
 
-void ConnectionManager::setSocketOptions(boost::asio::ip::tcp::socket& socket, logging::Logger& logger) {
+void ConnectionManager::setSocketOptions(boost::asio::ip::tcp::socket& socket,
+                                         const TcpKeepAliveConfig& keepAliveConfig,
+                                         logging::Logger& logger) {
   socket.set_option(boost::asio::ip::tcp::no_delay(true));
-  if (ENABLE_KEEP_ALIVE) {
-    enableKeepAlive(socket, logger);
+  if (keepAliveConfig.enableSocketKeepAlive) {
+    enableKeepAlive(socket, keepAliveConfig, logger);
   }
 }
 
@@ -332,7 +336,7 @@ void ConnectionManager::accept() {
         } else {
           total_accepted_connections_++;
           status_->total_accepted_connections = total_accepted_connections_;
-          setSocketOptions(sock, logger_);
+          setSocketOptions(sock, config_.tcpKeepAliveConfig_, logger_);
           LOG_INFO(logger_, "Accepted connection " << total_accepted_connections_);
           startServerSSLHandshake(std::move(sock));
           StateControl::instance().unlockComm();
@@ -388,7 +392,7 @@ void ConnectionManager::connect(NodeNum i, const boost::asio::ip::tcp::endpoint&
         }
         LOG_INFO(logger_, "Connected to node " << i << ": " << endpoint);
         auto connected_socket = std::move(connecting_.at(i).first);
-        setSocketOptions(connected_socket, logger_);
+        setSocketOptions(connected_socket, config_.tcpKeepAliveConfig_, logger_);
         // cleanup of entry from connecting map is being done in callback of timer
         connecting_.at(i).second.cancel();
         startClientSSLHandshake(std::move(connected_socket), i);

@@ -404,6 +404,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
                                                 config.tls_cipher_suite_list,
                                                 config.use_unified_certificates,
                                                 endpointIdToNodeIdMap,
+                                                &config.tcpKeepAliveConfig,
                                                 nullptr,
                                                 secretData);
   }

@@ -30,10 +30,6 @@ class AsyncTlsConnection;
 class ConnectionManager {
   static constexpr std::chrono::seconds CONNECT_TICK = std::chrono::seconds(1);
   static constexpr std::chrono::seconds CONNECT_DEADLINE = std::chrono::seconds(2);
-  static const int ENABLE_KEEP_ALIVE = true;
-  static const int KEEP_ALIVE_IDLE_TIME = 60;
-  static const int KEEP_ALIVE_INTERVAL = 3;
-  static const int KEEP_ALIVE_PROBES_NUM = 10;
   friend class Runner;
   friend class AsyncTlsConnection;
 
@@ -126,8 +122,12 @@ class ConnectionManager {
                                int rc,
                                logging::Logger &logger);
   static void setKeepAliveOption(boost::asio::ip::tcp::socket &socket, bool value);
-  static void enableKeepAlive(boost::asio::ip::tcp::socket &socket, logging::Logger &logger);
-  static void setSocketOptions(boost::asio::ip::tcp::socket &socket, logging::Logger &logger);
+  static void enableKeepAlive(boost::asio::ip::tcp::socket &socket,
+                              const TcpKeepAliveConfig &keepAliveConfig,
+                              logging::Logger &logger);
+  static void setSocketOptions(boost::asio::ip::tcp::socket &socket,
+                               const TcpKeepAliveConfig &keepAliveConfig,
+                               logging::Logger &logger);
 
  private:
   logging::Logger logger_;

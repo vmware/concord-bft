@@ -269,6 +269,7 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
                             pool_config_.tls_certificates_folder_path,
                             pool_config_.tls_cipher_suite_list,
                             pool_config_.use_unified_certificates,
+                            &pool_config_.tcpKeepAliveConfig,
                             nullptr,
                             secretData};
 #endif

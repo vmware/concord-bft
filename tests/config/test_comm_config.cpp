@@ -203,6 +203,7 @@ bft::communication::TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica
                                           "TLS_AES_256_GCM_SHA384",
                                           use_unified_certs,
                                           nullptr,
+                                          nullptr,
                                           secretData);
   return retVal;
 }
