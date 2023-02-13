@@ -272,7 +272,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
 
-  auto mint_req = request->generate_mint_tx_request();
+  auto& mint_req = request->generate_mint_tx_request();
   auto res = wallet_->generateMintTx(mint_req.amount());
   auto tx_resp = response->mutable_generate_tx_response();
   tx_resp->set_tx(res.data_.data(), res.data_.size());
@@ -299,7 +299,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
 
-  auto burn_req = request->generate_burn_tx_request();
+  auto& burn_req = request->generate_burn_tx_request();
   auto res = wallet_->generateBurnTx(burn_req.amount());
   auto tx_resp = response->mutable_generate_tx_response();
   tx_resp->set_tx(res.requiredTx_.data_.data(), res.requiredTx_.data_.size());
@@ -326,7 +326,7 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     return grpc::Status(grpc::StatusCode::NOT_FOUND, err_msg);
   }
 
-  auto transfer_req = request->generate_transfer_tx_request();
+  auto& transfer_req = request->generate_transfer_tx_request();
   auto res = wallet_->generateTransferTx(
       transfer_req.amount(),
       {transfer_req.recipient_pid().begin(), transfer_req.recipient_pid().end()},
