@@ -50,6 +50,7 @@ transaction_signing_enabled: true
 enable_multiplex_channel: false
 use_unified_certificates: false
 with_cre: false
+concord-bft_max_reply_message_size: 2097152
 node:
   - replica:
       - principal_id: 0

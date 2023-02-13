@@ -95,6 +95,7 @@ void RequestServiceCallData::sendToConcordClient() {
 
   bft::client::RequestConfig req_config;
   req_config.pre_execute = request_.pre_execute();
+  req_config.max_reply_size = client_->getMaxReplyBufferSize();
   req_config.timeout = timeout;
   req_config.correlation_id = request_.correlation_id();
 
