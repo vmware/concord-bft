@@ -13,7 +13,7 @@
 
 #pragma once
 #include "UTTParams.hpp"
-#include "util/types.hpp"
+#include "types.hpp"
 #include <vector>
 #include <cstdint>
 #include <optional>

@@ -12,7 +12,7 @@
 // file.
 
 #pragma once
-#include "util/types.hpp"
+#include "types.hpp"
 #include "UTTParams.hpp"
 #include <string>
 #include <memory>
