@@ -38,7 +38,6 @@ namespace bftEngine {
 // can also handle a limited amount of arbitrary mutable state (which is
 // represented as a small set of fixed size pages).
 namespace bcst {
-
 // Each block is required to store the digest of the previous block (this digest
 // is used by the state transfer to safely transfer blocks among the replicas).
 // The application/storage layer is responsible to store the digests in the
@@ -99,6 +98,7 @@ class IAppState {
   virtual void getPrevDigestFromBlock(const char *blockData,
                                       const uint32_t blockSize,
                                       StateTransferDigest *outPrevBlockDigest) const = 0;
+  virtual std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(uint64_t block_id) = 0;
 
   // Add a block
   // blockId   - the block number

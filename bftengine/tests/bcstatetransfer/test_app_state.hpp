@@ -165,6 +165,21 @@ class TestAppState : public IAppState, public IBlocksDeleter {
     std::memcpy(outPrevBlockDigest, &blk->digestPrev, sizeof(blk->digestPrev));
   }
 
+  std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(uint64_t block_id) override {
+    ConcordAssert(block_id > 0);
+    auto future = std::async(std::launch::async, [this, block_id]() {
+      std::lock_guard<std::mutex> lg(mtx);
+      auto it = blocks_.find(block_id);
+      if (it == blocks_.end()) {
+        return std::optional<concord::crypto::BlockDigest>{};
+      }
+      concord::crypto::BlockDigest dg;
+      std::memcpy(dg.data(), &it->second->digestPrev, sizeof(it->second->digestPrev));
+      return std::make_optional<concord::crypto::BlockDigest>(dg);
+    });
+    return future;
+  }
+
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock) override {
     std::lock_guard<std::mutex> lg(mtx);
     ConcordAssertLE(blockSize, Block::getMaxTotalBlockSize());

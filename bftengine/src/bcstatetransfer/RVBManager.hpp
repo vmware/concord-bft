@@ -70,7 +70,7 @@ class RVBManager {
  public:
   // Init / Destroy functions
   RVBManager() = delete;
-  RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds);
+  RVBManager(const Config& config, IAppState* const state_api, const std::shared_ptr<DataStore>& ds);
   void init(bool fetching);
 
   // Update the RVB data (up to last_checkpoint_desc.maBlockId) according to recent checkpoint  storage updates (added
@@ -151,7 +151,7 @@ class RVBManager {
 
   // config, storage and data store
   const Config& config_;
-  const IAppState* as_;
+  IAppState* const as_;
   const std::shared_ptr<DataStore>& ds_;
 
   // RVB data (during ST as destination)

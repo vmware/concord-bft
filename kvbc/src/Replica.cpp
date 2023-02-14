@@ -799,6 +799,24 @@ void Replica::getPrevDigestFromBlock(const char *blockData,
   return m_kvBlockchain->getPrevDigestFromBlock(blockData, blockSize, outPrevBlockDigest);
 }
 
+std::future<std::optional<concord::crypto::BlockDigest>> Replica::getPrevDigestFromBlockAsync(BlockId block_id) {
+  StateTransferDigest digest{};
+  auto future = digests_workers_pool_.async(
+      [this, digest](BlockId block_id) mutable {
+        auto ret = getPrevDigestFromBlock(block_id, &digest);
+        if (!ret) {
+          return std::optional<concord::crypto::BlockDigest>{};
+        }
+        concord::crypto::BlockDigest dg;
+        static_assert(dg.size() == sizeof(StateTransferDigest));
+        std::memcpy(dg.data(), &digest, DIGEST_SIZE);
+        return std::make_optional<concord::crypto::BlockDigest>(dg);
+      },
+      std::forward<decltype(block_id)>(block_id));
+
+  return future;
+}
+
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
                                                 bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGT(blockId, 0);
