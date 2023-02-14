@@ -1107,6 +1107,9 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
     ConcordAssertNE(pVC, nullptr);
     pVC->setNewViewNumber(nextView);
     pVC->clearAllComplaints();
+    for (auto& it : *prevViewInfo) {
+      delete it.prePrepare;
+    }
   } else {
     ConcordAssertNE(prevViewInfo, nullptr);
     pVC = exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, *prevViewInfo);
