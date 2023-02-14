@@ -14,7 +14,7 @@ import unittest
 import socket
 import subprocess
 import json
-import os.path
+import os
 import time
 import struct
 
@@ -32,7 +32,7 @@ class MetricsSeverTest(unittest.TestCase):
     """
 
     def setUp(self):
-        self.server_path = os.path.abspath("../../build/util/test/metric_server")
+        self.server_path = os.path.abspath(os.environ["METRIC_SERVER_PATH"])
         self.server = subprocess.Popen([self.server_path], close_fds=True)
         self.server_addr = ("127.0.0.1", 6161)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
