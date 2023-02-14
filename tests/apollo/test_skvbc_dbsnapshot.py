@@ -31,7 +31,7 @@ from util import operator
 import concord_msgs as cmf_msgs
 import sys
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 import bft_client
 
 TEMP_DB_SNAPSHOT_PREFIX = "TEMP_DB_SNAPSHOT_PREFIX"

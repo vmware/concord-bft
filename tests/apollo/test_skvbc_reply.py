@@ -17,7 +17,7 @@ import trio
 
 from util.test_base import ApolloTest
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX

@@ -29,7 +29,7 @@ from util import eliot_logging as log
 import concord_msgs as cmf_msgs
 from util import bft_network_partitioning as net
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 
 import bft_client
 from bft_config import BFTConfig

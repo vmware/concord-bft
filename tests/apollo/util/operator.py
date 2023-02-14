@@ -18,7 +18,7 @@ import sys
 sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
 import concord_msgs as cmf_msgs
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 
 # For EdDSA algorithm.
 from cryptography.hazmat.primitives import serialization
