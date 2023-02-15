@@ -72,7 +72,6 @@ FileBasedUserStorage::FileBasedUserStorage(const std::string& path)
     std::ifstream f(state_path_);
     state_ = json::parse(f);
   }
-  if (!state_.contains("last_executed_sn")) state_["last_executed_sn"] = 0;
 }
 
 void FileBasedUserStorage::startTransaction() {
@@ -98,8 +97,6 @@ void FileBasedUserStorage::setKeyPair(const std::pair<std::string, std::string>&
   state_["key_pair"] = {{"sk", bytesToHex(keyPair.first)}, {"pk", bytesToHex(keyPair.second)}};
 }
 
-void FileBasedUserStorage::setLastExecutedSn(uint64_t sn) { state_["last_executed_sn"] = sn; }
-
 void FileBasedUserStorage::setClientSideSecret(const libutt::api::types::CurvePoint& s1) {
   std::stringstream ss;
   libutt::serializeVector(ss, s1);
@@ -123,8 +120,6 @@ void FileBasedUserStorage::setCoin(const libutt::api::Coin& c) {
 void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) {
   state_["coins"].erase(bytesToHex(c.getNullifier()));
 }
-
-uint64_t FileBasedUserStorage::getLastExecutedSn() { return state_["last_executed_sn"]; }
 
 libutt::api::types::CurvePoint FileBasedUserStorage::getClientSideSecret() {
   if (!state_.contains("s1")) return {};

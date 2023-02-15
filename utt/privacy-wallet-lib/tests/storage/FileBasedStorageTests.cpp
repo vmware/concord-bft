@@ -50,17 +50,8 @@ TEST_F(test_utt_storage, test_isNewStorage) {
 
 TEST_F(test_utt_storage, test_isNewStorage_negative) {
   ASSERT_TRUE(storage_->isNewStorage());
-  storage_->setLastExecutedSn(5);
+  storage_->setKeyPair({"private_key", "public_key"});
   ASSERT_TRUE(storage_->isNewStorage());
-}
-
-TEST_F(test_utt_storage, test_setLastExecutedSn) {
-  {
-    IStorage::tx_guard g(*storage_);
-    storage_->setLastExecutedSn(5);
-  }
-  restartStorage();
-  ASSERT_EQ(storage_->getLastExecutedSn(), 5);
 }
 
 TEST_F(test_utt_storage, test_setKeyPair) {
@@ -205,19 +196,6 @@ TEST_F(test_utt_storage, test_getCoins) {
   for (const auto& coin : storage_->getCoins()) {
     ASSERT_TRUE(std::find(coins_nulls.begin(), coins_nulls.end(), coin.getNullifier()) != coins_nulls.end());
   }
-}
-
-TEST_F(test_utt_storage, test_restartWithoutTransaction) {
-  storage_->setLastExecutedSn(5);
-  restartStorage();
-  ASSERT_NE(storage_->getLastExecutedSn(), 5);
-}
-
-TEST_F(test_utt_storage, test_restartWithoutCommit) {
-  storage_->startTransaction();
-  storage_->setLastExecutedSn(5);
-  restartStorage();
-  ASSERT_NE(storage_->getLastExecutedSn(), 5);
 }
 
 }  // namespace

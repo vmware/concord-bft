@@ -76,9 +76,9 @@ std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
                                  const std::string& private_key,
                                  const std::string& public_key,
-                                 std::unique_ptr<IStorage> storage) {
+                                 std::shared_ptr<IStorage> storage) {
   if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
-  return User::createInitial(userId, config, private_key, public_key, std::move(storage));
+  return User::createInitial(userId, config, private_key, public_key, storage);
 }
 
 }  // namespace utt::client

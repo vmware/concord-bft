@@ -13,6 +13,13 @@ service PrivacyWalletService {
     rpc PrivacyWalletService(PrivacyWalletRequest) returns (PrivacyWalletResponse);
 }
 
+enum TxType {
+    MINT = 0;
+    BURN = 1;
+    TRANSFER = 2;
+    BUDGET = 3;
+}
+
 message PrivacyAppConfigRequest {
     bool budget = 1;
     uint32 numValidators = 2; // The number of validator shares required to reconstruct a signature
@@ -28,7 +35,8 @@ message PrivacyAppConfigResponse {
 message PrivacyWalletConfigRequest {
     string private_key = 1;
     string public_key = 2;
-    bytes public_application_config = 3;
+    string user_id = 3;
+    bytes public_application_config = 4;
 }
 
 message PrivacyWalletConfigResponse {
@@ -46,11 +54,49 @@ message UserRegistrationResponse {
 
 message UserRegistrationUpdateRequest {
     bytes rcm_sig = 1;
-    repeated uint64 s2 = 2;
+    repeated uint64 s2 = 2[jstype = JS_STRING];
 }
 
 message UserRegistrationUpdateResponse {
     bool succ = 1;
+}
+
+message ClaimCoinsRequest {
+    bytes tx = 1;
+    repeated bytes sigs = 2;
+    TxType type = 3;
+}
+
+message ClaimCoinsReponse {
+    bool succ = 1;
+}
+
+message GenerateMintTx {
+    uint64 amount = 1[jstype = JS_STRING];
+}
+
+message GenerateBurnTx {
+    uint64 amount = 1[jstype = JS_STRING];
+}
+
+message GenerateTransferTx {
+    uint64 amount = 1[jstype = JS_STRING];
+    string recipient_pid = 2;
+    bytes recipient_public_key = 3;
+}
+
+message GenerateTxResponse {
+    bytes tx = 1;
+    bool final = 2;
+    uint32 num_of_output_coins = 3;
+}
+
+message GetStateRequest {    
+}
+
+message GetStateResponse {
+    uint64 budget = 1[jstype = JS_STRING];
+    uint64 balance = 2[jstype = JS_STRING];
 }
 
 message PrivacyWalletRequest {
@@ -59,12 +105,18 @@ message PrivacyWalletRequest {
         PrivacyWalletConfigRequest privacy_wallet_config_request = 2;
         UserRegistrationRequest user_registration_request = 3;
         UserRegistrationUpdateRequest user_registration_update_request = 4;
+        ClaimCoinsRequest claim_coins_request = 5;
+        GenerateMintTx generate_mint_tx_request = 6;
+        GenerateBurnTx generate_burn_tx_request = 7;
+        GenerateTransferTx generate_transfer_tx_request = 8;
+        GetStateRequest get_state_request = 9;
+
     }
     // Required timeout which defines the maximum amount of time the caller is
      // willing to wait for the request to be processed by a quorum of replicas.
     // Returns DEADLINE_EXCEEDED if the request times out.
     // Returns INVALID_ARGUMENT if the timeout is zero.
-    google.protobuf.Duration timeout = 5;    
+    google.protobuf.Duration timeout = 10;    
 }
 
 message PrivacyWalletResponse {
@@ -74,5 +126,8 @@ message PrivacyWalletResponse {
         PrivacyWalletConfigResponse privacy_wallet_config_response = 3;
         UserRegistrationResponse user_registration_response = 4;
         UserRegistrationUpdateResponse user_registration_update_response = 5;
+        ClaimCoinsReponse claim_coins_response = 6;
+        GenerateTxResponse generate_tx_response = 7;
+        GetStateResponse get_state_response = 8;
     }
 }

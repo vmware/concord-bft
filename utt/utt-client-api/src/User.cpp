@@ -92,11 +92,10 @@ struct User::Impl {
   std::unique_ptr<libutt::RSAEncryptor>
       selfTxEncryptor_;  // Encryptor with own's public key for self transactions (computed once for convenience)
 
-  uint64_t lastExecutedTxNum_ = 0;
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
   std::set<std::string> budgetNullifiers_;
-  std::unique_ptr<IStorage> storage_;
+  std::shared_ptr<IStorage> storage_;
   bool is_registered_ = false;
 };
 
@@ -252,7 +251,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
                                           const std::string& private_key,
                                           const std::string& public_key,
-                                          std::unique_ptr<IStorage> storage) {
+                                          std::shared_ptr<IStorage> storage) {
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
   if (private_key.empty()) throw std::runtime_error("User private key cannot be empty!");
@@ -268,7 +267,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   auto user = std::make_unique<User>();
   user->pImpl_->pk_ = public_key;
   user->pImpl_->params_ = uttConfig.getParams();
-  user->pImpl_->storage_ = std::move(storage);
+  user->pImpl_->storage_ = storage;
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
       userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), private_key));
@@ -306,7 +305,6 @@ void User::recoverFromStorage(IStorage& storage) {
   if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
   pImpl_->is_registered_ = true;
-  pImpl_->lastExecutedTxNum_ = storage.getLastExecutedSn();
   auto coins = storage.getCoins();
   for (const auto& c : coins) {
     if (!pImpl_->client_->validate(c)) throw std::runtime_error("client has failed to validate its own stored coins");
@@ -405,22 +403,14 @@ const std::string& User::getUserId() const {
 
 const std::string& User::getPK() const { return pImpl_->pk_; }
 
-uint64_t User::getLastExecutedTxNum() const { return pImpl_->lastExecutedTxNum_; }
-
-void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
+void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (tx.type_ != Transaction::Type::Transfer) throw std::runtime_error("Transfer tx type mismatch!");
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Transfer tx number is not consecutive!");
 
   auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
 
-  logdbg_user << "executing transfer tx: " << txNum << endl;
-
   {
     IStorage::tx_guard g(*pImpl_->storage_);
-    pImpl_->storage_->setLastExecutedSn(txNum);
-
-    pImpl_->lastExecutedTxNum_ = txNum;
 
     // [TODO-UTT] More consistency checks
     // If we slash coins we expect to also update our budget coin
@@ -459,14 +449,11 @@ void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
   }
 }
 
-void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
+void User::updateMintTx(const Transaction& tx, const TxOutputSig& sig) {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (tx.type_ != Transaction::Type::Mint) throw std::runtime_error("Mint tx type mismatch!");
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Mint tx number is not consecutive!");
-
   auto mint = libutt::api::deserialize<libutt::api::operations::Mint>(tx.data_);
 
-  logdbg_user << "executing mint tx: " << txNum << endl;
   {
     IStorage::tx_guard g(*pImpl_->storage_);
     if (mint.getRecipentID() != pImpl_->client_->getPid()) {
@@ -481,20 +468,15 @@ void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
       pImpl_->storage_->setCoin(claimedCoins[0]);
       pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
     }
-    pImpl_->storage_->setLastExecutedSn(txNum);
-    pImpl_->lastExecutedTxNum_ = txNum;
   }
 }
 
 // [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifier to slash?
-void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
+void User::updateBurnTx(const Transaction& tx) {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (tx.type_ != Transaction::Type::Burn) throw std::runtime_error("Burn tx type mismatch!");
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Burn tx number is not consecutive!");
 
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
-
-  logdbg_user << "executing burn tx: " << txNum << endl;
   {
     IStorage::tx_guard g(*pImpl_->storage_);
     if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
@@ -510,22 +492,6 @@ void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
       pImpl_->storage_->removeCoin(*it);
       pImpl_->coins_.erase(it);
     }
-
-    // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
-    pImpl_->storage_->setLastExecutedSn(txNum);
-    pImpl_->lastExecutedTxNum_ = txNum;
-  }
-}
-
-void User::updateNoOp(uint64_t txNum) {
-  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Noop tx number is not consecutive!");
-
-  logdbg_user << "executing noop tx: " << txNum << endl;
-  {
-    IStorage::tx_guard g(*pImpl_->storage_);
-    pImpl_->storage_->setLastExecutedSn(txNum);
-    pImpl_->lastExecutedTxNum_ = txNum;
   }
 }
 
@@ -545,7 +511,7 @@ utt::Transaction User::mint(uint64_t amount) const {
   return tx;
 }
 
-BurnResult User::burn(uint64_t amount) const {
+TxResult User::burn(uint64_t amount) const {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
 
@@ -572,7 +538,7 @@ BurnResult User::burn(uint64_t amount) const {
   }
 }
 
-TransferResult User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
+TxResult User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
   if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
   if (!pImpl_->client_) throw std::runtime_error("Uninitialized user!");
 
@@ -606,7 +572,6 @@ void User::debugOutput() const {
   if (!pImpl_->client_) {
     std::cout << "User's libutt::api::client object not initialized!\n";
   }
-  std::cout << "lastExecutedTxNum:" << pImpl_->lastExecutedTxNum_ << '\n';
   std::cout << "coins: [\n";
 
   auto dbgOutputCoin = [](const libutt::api::Coin& coin) {

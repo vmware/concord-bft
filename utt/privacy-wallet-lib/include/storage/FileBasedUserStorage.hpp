@@ -25,7 +25,6 @@ class FileBasedUserStorage : public IStorage {
   FileBasedUserStorage(const std::string& path);
   bool isNewStorage() override;
   void setKeyPair(const std::pair<std::string, std::string>&) override;
-  void setLastExecutedSn(uint64_t) override;
   void setClientSideSecret(const libutt::api::types::CurvePoint&) override;
   void setSystemSideSecret(const libutt::api::types::CurvePoint&) override;
   void setRcmSignature(const libutt::api::types::Signature&) override;
@@ -34,14 +33,13 @@ class FileBasedUserStorage : public IStorage {
   void startTransaction() override;
   void commit() override;
 
-  uint64_t getLastExecutedSn() override;
   libutt::api::types::CurvePoint getClientSideSecret() override;
   libutt::api::types::CurvePoint getSystemSideSecret() override;
   libutt::api::types::Signature getRcmSignature() override;
   std::vector<libutt::api::Coin> getCoins() override;
   std::pair<std::string, std::string> getKeyPair() override;
 
- private:
+ protected:
   std::string state_path_;
   std::string pending_path_;
   std::string lock_path_;

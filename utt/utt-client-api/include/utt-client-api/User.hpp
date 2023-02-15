@@ -23,16 +23,9 @@
 #include "storage/IStorage.hpp"
 namespace utt::client {
 
-/// @brief A transaction required to be executed in order to fulfill some burn request
-/// with a target amount
-struct BurnResult {
-  utt::Transaction requiredTx_;
-  bool isFinal_ = true;
-};
-
 /// @brief A transaction required to be executed in order to fulfill some transfer request
 /// with a target amount
-struct TransferResult {
+struct TxResult {
   utt::Transaction requiredTx_;
   bool isFinal_ = true;
 };
@@ -77,32 +70,20 @@ class User {
    */
   const std::string& getPK() const;
 
-  /**
-   * @brief Get the last executed transaction number
-   */
-  uint64_t getLastExecutedTxNum() const;
-
   bool hasRegistrationCommitment() const;
   /// @brief Update the user's state with the effects of a transfer transaction
-  /// @param txNum The transaction number
   /// @param tx A transfer transaction
   /// @param sigs The signatures on the transaction outputs
-  void updateTransferTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSigs& sigs);
+  void updateTransferTx(const utt::Transaction& tx, const utt::TxOutputSigs& sigs);
 
   /// @brief Update the user's state with the effects of a mint transaction
-  /// @param txNum The transaction number
   /// @param tx A mint transaction
   /// @param sig The signature on the transaction output (we assume a mint tx has a single output)
-  void updateMintTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSig& sig);
+  void updateMintTx(const utt::Transaction& tx, const utt::TxOutputSig& sig);
 
   /// @brief Update the user's state with the effects of a burn transaction
-  /// @param txNum The transaction number
   /// @param tx A burn transaction
-  void updateBurnTx(uint64_t txNum, const utt::Transaction& tx);
-
-  /// @brief The user records the tx as a no-op and skips it
-  /// @param txNum
-  void updateNoOp(uint64_t txNum);
+  void updateBurnTx(const utt::Transaction& tx);
 
   /// @brief Creates a transaction to mint the requested amount
   utt::Transaction mint(uint64_t amount) const;
@@ -115,7 +96,7 @@ class User {
   /// @param amount The amount of private funds to burn.
   /// @return Result indicating the required transaction to fulfill the burn request and whether
   /// it is the final one.
-  BurnResult burn(uint64_t amount) const;
+  TxResult burn(uint64_t amount) const;
 
   /// @brief Ask to transfer some amount of private funds. This function needs to be called repeatedly until the final
   /// transfer transaction is produced.
@@ -124,7 +105,7 @@ class User {
   /// @param amount The amount of private funds to transfer
   /// @return Returns a result indicating the required transaction to execute in order
   /// to transfer the desired amount.
-  TransferResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
+  TxResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
 
   void debugOutput() const;
 
@@ -134,7 +115,7 @@ class User {
                                           const utt::PublicConfig& config,
                                           const std::string& private_key,
                                           const std::string& public_key,
-                                          std::unique_ptr<IStorage> storage);
+                                          std::shared_ptr<IStorage> storage);
 
   friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
 
@@ -142,7 +123,7 @@ class User {
                                              const utt::PublicConfig& config,
                                              const std::string& private_key,
                                              const std::string& public_key,
-                                             std::unique_ptr<IStorage> storage);
+                                             std::shared_ptr<IStorage> storage);
 
   void recoverFromStorage(IStorage& storage);
 

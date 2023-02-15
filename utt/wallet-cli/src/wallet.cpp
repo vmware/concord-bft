@@ -12,7 +12,6 @@
 // file.
 
 #include "wallet.hpp"
-#include <storage/FileBasedUserStorage.hpp>
 #include <iostream>
 
 using namespace vmware::concord::utt::wallet::api::v1;
@@ -22,16 +21,16 @@ Wallet::Wallet(std::string userId,
                const std::string& public_key,
                const utt::PublicConfig& config)
     : userId_{std::move(userId)} {
-  storage_ = std::make_unique<utt::client::FileBasedUserStorage>("state/" + userId_);
-  if (!storage_->isNewStorage()) {
-    auto key_pair = storage_->getKeyPair();
+  cli_storage_ = std::make_shared<Wallet::CliCustomPersistentStorage>("state/" + userId_);
+  if (!cli_storage_->isNewStorage()) {
+    auto key_pair = cli_storage_->getKeyPair();
     private_key_ = key_pair.first;
     public_key_ = key_pair.second;
   } else {
     private_key_ = private_key;
     public_key_ = public_key;
   }
-  user_ = utt::client::createUser(userId_, config, private_key_, public_key_, std::move(storage_));
+  user_ = utt::client::createUser(userId_, config, private_key_, public_key_, cli_storage_);
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }
@@ -75,7 +74,7 @@ void Wallet::showInfo(Channel& chan) {
   std::cout << "Public balance: " << publicBalance_ << '\n';
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
-  std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
+  std::cout << "Last executed tx number: " << cli_storage_->getLastExecutedSn() << '\n';
 }
 
 std::tuple<uint64_t, uint64_t, uint64_t> Wallet::getBalanceInfo(Channel& chan) {
@@ -381,7 +380,7 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
     }
   }
 
-  for (uint64_t txNum = user_->getLastExecutedTxNum() + 1; txNum <= lastKnownTxNum; ++txNum) {
+  for (uint64_t txNum = cli_storage_->getLastExecutedSn() + 1; txNum <= lastKnownTxNum; ++txNum) {
     WalletRequest req;
     req.mutable_get_signed_tx()->set_tx_number(txNum);
     chan->Write(req);
@@ -415,16 +414,19 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
       case TxType::MINT: {
         tx.type_ = utt::Transaction::Type::Mint;
         if (sigs.size() != 1) throw std::runtime_error("Expected single signature in mint tx!");
-        user_->updateMintTx(getSignedTxResp.tx_number(), tx, sigs[0]);
+        user_->updateMintTx(tx, sigs[0]);
+        cli_storage_->setLastExecutedSn(getSignedTxResp.tx_number());
       } break;
       case TxType::TRANSFER: {
         tx.type_ = utt::Transaction::Type::Transfer;
-        user_->updateTransferTx(getSignedTxResp.tx_number(), tx, sigs);
+        user_->updateTransferTx(tx, sigs);
+        cli_storage_->setLastExecutedSn(getSignedTxResp.tx_number());
       } break;
       case TxType::BURN: {
         tx.type_ = utt::Transaction::Type::Burn;
         if (!sigs.empty()) throw std::runtime_error("Expected no signatures for burn tx!");
-        user_->updateBurnTx(getSignedTxResp.tx_number(), tx);
+        user_->updateBurnTx(tx);
+        cli_storage_->setLastExecutedSn(getSignedTxResp.tx_number());
       } break;
       default:
         throw std::runtime_error("Unexpected tx type!");
@@ -434,4 +436,7 @@ void Wallet::syncState(Channel& chan, uint64_t lastKnownTxNum) {
   std::cout << "Ok. (Last known tx number: " << lastKnownTxNum << ")\n";
 }
 
-void Wallet::debugOutput() const { user_->debugOutput(); }
+void Wallet::debugOutput() const {
+  std::cout << "last_executed_sn: " << cli_storage_->getLastExecutedSn() << "\n";
+  user_->debugOutput();
+}

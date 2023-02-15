@@ -25,8 +25,8 @@ Wallet::Wallet(std::string userId,
                const std::string& storage_path,
                const utt::PublicConfig& config)
     : userId_{std::move(userId)}, private_key_{private_key} {
-  storage_ = std::make_unique<utt::client::FileBasedUserStorage>(storage_path);
-  user_ = utt::client::createUser(userId_, config, private_key, public_key, std::move(storage_));
+  auto storage_ = std::make_shared<utt::client::FileBasedUserStorage>(storage_path);
+  user_ = utt::client::createUser(userId_, config, private_key, public_key, storage_);
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }
@@ -50,4 +50,45 @@ bool Wallet::updateRegistrationCommitment(const RegistrationSig& sig, const S2& 
 }
 
 const std::string& Wallet::getUserId() const { return userId_; }
+
+bool Wallet::claimCoins(const utt::Transaction& tx, const std::vector<std::vector<uint8_t>>& sigs) {
+  switch (tx.type_) {
+    case utt::Transaction::Type::Mint: {
+      user_->updateMintTx(tx, sigs[0]);
+    } break;
+    case utt::Transaction::Type::Transfer: {
+      user_->updateTransferTx(tx, sigs);
+    } break;
+    case utt::Transaction::Type::Burn: {
+      user_->updateBurnTx(tx);
+    } break;
+    case utt::Transaction::Type::Budget: {
+      user_->updatePrivacyBudget(tx.data_, sigs[0]);
+    } break;
+    default:
+      std::cout << "invalid tx type" << std::endl;
+      return false;
+  }
+  return true;
+}
+
+utt::Transaction Wallet::generateMintTx(uint64_t amount) const {
+  std::cout << "Processing mint request " << amount << "...\n";
+  return user_->mint(amount);
+}
+utt::client::TxResult Wallet::generateTransferTx(uint64_t amount,
+                                                 const std::string& recipient,
+                                                 const std::string& recipient_public_key) const {
+  std::cout << "Processing an anonymous transfer request of " << amount << " to " << recipient << "...\n";
+  return user_->transfer(recipient, recipient_public_key, amount);
+}
+utt::client::TxResult Wallet::generateBurnTx(uint64_t amount) const {
+  std::cout << "Processing a burn request of " << amount << "...\n";
+  return user_->burn(amount);
+}
+
+uint64_t Wallet::getBalance() const { return user_->getBalance(); }
+uint64_t Wallet::getBudget() const { return user_->getPrivacyBudget(); }
+
+bool Wallet::isRegistered() const { return registered_; }
 }  // namespace utt::walletservice
