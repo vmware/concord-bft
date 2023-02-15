@@ -173,5 +173,5 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   // Some tests expect every block to be created by a request issued by test clients.
   // However, internal communication between replicas can also create blocks, e.g:
   // When rotating keys.
-  static constexpr const char* s_ignoreBlockStr = "ignoreBlock";
+  static constexpr const char *s_ignoreBlockStr = "ignoreBlock";
 };

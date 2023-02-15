@@ -25,6 +25,7 @@
 #include "bcstatetransfer/AsyncStateTransferCRE.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "KeyExchangeManager.hpp"
+#include "CryptoManager.hpp"
 #include "SigManager.hpp"
 
 namespace bftEngine::impl {
@@ -81,22 +82,35 @@ void ReplicaForStateTransfer::start() {
       msgsCommunicator_, msgHandlers_, std::make_unique<bftEngine::bcst::asyncCRE::ReplicaCRESigner>());
   stateTransfer->setReconfigurationEngine(cre_);
   stateTransfer->addOnTransferringCompleteCallback(
-      [this](std::uint64_t sequence_number) {
+      [this](std::uint64_t checkpoint) {
         // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - consider refactor or move outside
         if (!config_.isReadOnly) {
           // Load the public keys of the other replicas from reserved pages
           // so that their responses can be validated
+          cre_->halt();
           KeyExchangeManager::instance().loadPublicKeys();
+          // Need to update private key to match the loaded public key in case they differ (key exchange was executed
+          // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
+          // This can be done by iterating the saved cryptosystems and updating their private key if their
+          // public key matches the candidate saved in KeyExchangeManager
+
+          // Clear old keys
+          CryptoManager::instance().onCheckpoint(checkpoint);
+          auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
+          CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
+
           // Make sure to sign the reconfiguration client messages using the key
           // other replicas expect
-          SigManager::instance()->setReplicaLastExecutedSeq(sequence_number * checkpointWindowSize);
+          SigManager::instance()->setReplicaLastExecutedSeq(checkpoint * checkpointWindowSize);
+          cre_->resume();
 
           // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
           // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
           // scaling) then CRE probably won't work as well.
           // 1. First, make sure we handled the most recent available updates.
-          concord::client::reconfiguration::PollBasedStateClient *pbc =
-              (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
+          auto *pbc =
+              reinterpret_cast<concord::client::reconfiguration::PollBasedStateClient *>(cre_->getStateClient());
+
           bool succ = false;
           while (!succ) {
             auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
@@ -109,12 +123,11 @@ void ReplicaForStateTransfer::start() {
                 succ = false;
                 break;
               }  // else if (!isGettingBlocks)
+              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transferred
+              // blocks that haven't been handled yet
+              cre_->halt();
             }
-          }  // while (!succ) {
-          LOG_INFO(GL, "halting cre");
-          // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
-          // blocks that haven't been handled yet
-          cre_->halt();
+          }  // while (!succ)
         }
       },
       IStateTransfer::StateTransferCallBacksPriorities::HIGH);
@@ -180,8 +193,6 @@ Timers::Handle ReplicaForStateTransfer::addOneShotTimer(uint32_t timeoutMilli) {
                      [this](concordUtil::Timers::Handle h) { stateTransfer->onTimer(); });
 }
 
-void ReplicaForStateTransfer::resumeCRE() {
-  cre_->resume();
-}
+void ReplicaForStateTransfer::resumeCRE() { cre_->resume(); }
 
 }  // namespace bftEngine::impl

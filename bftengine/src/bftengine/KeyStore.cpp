@@ -39,7 +39,7 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
     std::istringstream iss(buffer_);
     PublicKeys ks;
     PublicKeys::deserialize(iss, ks);
-    //std::vector<SeqNum> keysToRemove;
+    // std::vector<SeqNum> keysToRemove;
     for (auto [sn, pk] : ks.keys) {
       /*if (ks.keys.size() - keysToRemove.size() > 2) {
         keysToRemove.push_back(sn);

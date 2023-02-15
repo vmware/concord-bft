@@ -70,7 +70,7 @@ std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
-  LOG_INFO(getLogger(), "sending reconfig request" << KVLOG(sn));
+  LOG_DEBUG(getLogger(), "sending reconfig request" << KVLOG(sn));
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   if (!rres.success) {
     LOG_WARN(getLogger(), "invalid response from replicas");
@@ -122,12 +122,11 @@ void PollBasedStateClient::start() {
         }
       }
 
-      LOG_INFO(getLogger(), "Sleeping for" << KVLOG(interval_timeout_ms_));
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) break;
       std::lock_guard<std::mutex> lk(lock_);
       bool succ;
-      LOG_INFO(getLogger(), "Getting state update");
+      LOG_DEBUG(getLogger(), "Getting state update");
       auto new_state = getStateUpdate(succ);
       uint64_t max_update_block{0};
       for (const auto& s : new_state) {

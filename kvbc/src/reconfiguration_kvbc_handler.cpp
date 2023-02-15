@@ -423,8 +423,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
   creply.block_id = 0;
   auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                    command_type + std::to_string(clientid));
-  LOG_INFO(GL, "Building state reply" << KVLOG(clientid, command_type, res.has_value()));
-  printCallStack();
+  LOG_DEBUG(GL, "Building state reply" << KVLOG(clientid, command_type, res.has_value()));
   if (res.has_value()) {
     std::visit(
         [&](auto&& arg) {
@@ -468,7 +467,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
   uint16_t first_client_id = ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas;
-  LOG_INFO(GL, KVLOG(first_client_id, sender_id));
+  LOG_DEBUG(GL, "Handling ClientReconfigurationStateRequest" << KVLOG(first_client_id, sender_id));
   if (sender_id > first_client_id) {
     for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
          i++) {
@@ -499,7 +498,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       for (auto& update_type : non_external_client_update_types) {
         auto state_reply = buildReplicaStateReply(update_type, i);
         if (state_reply.block_id > 0) {
-          LOG_INFO(GL, "Got State reply for replica id" << i);
+          LOG_DEBUG(GL, "Got State reply for replica id" << i);
           rep.states.push_back(state_reply);
         }
       }

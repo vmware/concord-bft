@@ -79,7 +79,8 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo, bool validateSignature) const {
   validateSize(repInfo);
-  if (validateSignature && !SigManager::instance()->verifySig(idOfGeneratedReplica(), getDataBytes(), getSignatureBytes())) {
+  if (validateSignature &&
+      !SigManager::instance()->verifySig(idOfGeneratedReplica(), getDataBytes(), getSignatureBytes())) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig(replica)"));
   }
 }

@@ -201,7 +201,6 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
     std::shared_lock lock(mutex_);
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
       auto result = pos->second->signatureLength();
-      // LOG_INFO(GL, "Sig size for id: " << pid << "is " << result);
       return result;
     } else {
       LOG_ERROR(GL, "Unrecognized pid " << pid);
@@ -212,7 +211,7 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 
 bool SigManager::verifyNonReplicaSig(
     PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
-  LOG_INFO(GL, "Validating NON-replica with: " << KVLOG(myId_, pid, sigLength));
+  LOG_DEBUG(GL, "Validating NON-replica with: " << KVLOG(myId_, pid, sigLength));
   bool result = false;
   {
     std::shared_lock lock(mutex_);
@@ -251,18 +250,27 @@ bool SigManager::verifyNonReplicaSig(
         metrics_component_.UpdateAggregator();
     }
   }
-  LOG_INFO(GL,
-           "NON-replica validation result: " << KVLOG(
-               result, myId_, pid, sigLength, idOfReadOnlyReplica, idOfExternalClient));
+  LOG_DEBUG(GL,
+            "NON-replica validation result: " << KVLOG(
+                result, myId_, pid, sigLength, idOfReadOnlyReplica, idOfExternalClient));
   return result;
 }
 
 size_t SigManager::sign(SeqNum seq, const concord::Byte* data, size_t dataLength, concord::Byte* outSig) const {
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
-  auto signer = CryptoManager::instance().getSigner(seq);
-  auto& rawSigner = *reinterpret_cast<EdDSAMultisigSigner*>(signer.get());
-  auto result = rawSigner.signBuffer(data, dataLength, outSig);
-  LOG_INFO(GL, "Signing as replica with " << KVLOG(myId_, seq, rawSigner.getPrivKey(), rawSigner.signatureLength(), result));
+  concord::crypto::ISigner* rawSigner = nullptr;
+  std::shared_ptr<EdDSAMultisigSigner> signer;
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    signer = CryptoManager::instance().getSigner(seq);
+    rawSigner = signer.get();
+  } else {
+    rawSigner = mySigner_.get();
+  }
+  auto result = rawSigner->signBuffer(data, dataLength, outSig);
+  // TODO(yf): remove private key and change to debug
+  LOG_DEBUG(
+      GL,
+      "Signing as replica with " << KVLOG(myId_, seq, rawSigner->getPrivKey(), rawSigner->signatureLength(), result));
   return result;
 }
 
@@ -275,7 +283,7 @@ bool SigManager::verifyReplicaSig(PrincipalId replicaID,
                                   size_t dataLength,
                                   const concord::Byte* sig,
                                   uint16_t sigLength) const {
-  LOG_INFO(GL, KVLOG(myId_));
+  LOG_DEBUG(GL, KVLOG(myId_));
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
   ConcordAssert(replicasInfo_.isIdOfReplica(replicaID));
   int i = 0;
@@ -284,15 +292,15 @@ bool SigManager::verifyReplicaSig(PrincipalId replicaID,
     if (multisigVerifier.get() == nullptr) {
       continue;
     }
-    auto& verifier = reinterpret_cast<EdDSAMultisigVerifier*>(multisigVerifier.get())->getVerifier(replicaID);
-    LOG_INFO(GL,
-             "Validating as replica with: " << KVLOG(
-                 myId_, replicaID, i, verifier.getPubKey(), sigLength, verifier.signatureLength()));
+    auto& verifier = multisigVerifier->getVerifier(replicaID);
+    LOG_DEBUG(GL,
+              "Validating as replica with: " << KVLOG(
+                  myId_, replicaID, i, verifier.getPubKey(), sigLength, verifier.signatureLength()));
     if (verifier.verifyBuffer(data, dataLength, sig, sigLength)) {
-      LOG_INFO(GL, "Validation Successful " << KVLOG(myId_, replicaID, i, sigLength, verifier.signatureLength()));
+      LOG_DEBUG(GL, "Validation Successful " << KVLOG(myId_, replicaID, i, sigLength, verifier.signatureLength()));
       return true;
     } else {
-      LOG_INFO(
+      LOG_DEBUG(
           GL,
           "Validation failed as replica with: " << KVLOG(myId_, replicaID, i, sigLength, verifier.signatureLength()));
     }
@@ -305,7 +313,7 @@ bool SigManager::verifyReplicaSig(PrincipalId replicaID,
 // verify using the two last keys, once the last key's checkpoint is reached, the previous key is removed
 bool SigManager::verifySig(
     PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
-  if (replicasInfo_.isIdOfReplica(pid)) {
+  if (replicasInfo_.isIdOfReplica(pid) && ReplicaConfig::instance().singleSignatureScheme) {
     return verifyReplicaSig(pid, data, dataLength, sig, sigLength);
   }
 
@@ -316,23 +324,27 @@ bool SigManager::verifyOwnSignature(const concord::Byte* data,
                                     size_t dataLength,
                                     const concord::Byte* expectedSignature) const {
   std::vector<concord::Byte> sig(getMySigLength());
-  for (auto multisigSigner : CryptoManager::instance().getLatestSigners()) {
-    auto* signer = reinterpret_cast<EdDSAMultisigSigner*>(multisigSigner.get());
-    signer->signBuffer(data, dataLength, sig.data());
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    for (auto signer : CryptoManager::instance().getLatestSigners()) {
+      signer->signBuffer(data, dataLength, sig.data());
 
-    if (std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0) {
-      LOG_INFO(GL, "Self-sig validation succeeded");
-      return true;
-    } else {
-      LOG_INFO(GL, "Self-sig validation failed");
+      if (std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0) {
+        LOG_DEBUG(GL, "Self-sig validation succeeded");
+        return true;
+      } else {
+        LOG_DEBUG(GL, "Self-sig validation failed");
+      }
     }
+    return false;
   }
 
-  return false;
+  mySigner_->signBuffer(data, dataLength, sig.data());
+  return std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0;
 }
 
 uint16_t SigManager::getMySigLength() const {
-  if (replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica()) {
+  if (ReplicaConfig::instance().singleSignatureScheme &&
+      (replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica())) {
     return getCurrentReplicaSigner()->signatureLength();
   }
   return (uint16_t)mySigner_->signatureLength();
@@ -359,50 +371,51 @@ bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != v
 
 concord::crypto::SignatureAlgorithm SigManager::getMainKeyAlgorithm() const { return concord::crypto::EdDSA; }
 
-std::shared_ptr<concord::crypto::ISigner> SigManager::getCurrentReplicaSigner() const {
+std::shared_ptr<EdDSAMultisigSigner> SigManager::getCurrentReplicaSigner() const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
-  std::shared_ptr<EdDSAMultisigSigner> currentSigner =
-      std::dynamic_pointer_cast<EdDSAMultisigSigner>(CryptoManager::instance().getSigner(getReplicaLastExecutedSeq()));
-  std::shared_ptr<concord::crypto::ISigner> ret = currentSigner;
-  LOG_INFO(GL, KVLOG((uint64_t)ret.get()));
-  return ret;
+  auto signer = CryptoManager::instance().getSigner(getReplicaLastExecutedSeq());
+  return signer;
 }
 
-std::shared_ptr<concord::crypto::ISigner> SigManager::getLastReplicaSigner() const {
+std::shared_ptr<EdDSAMultisigSigner> SigManager::getLastReplicaSigner() const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
-  std::shared_ptr<EdDSAMultisigSigner> latestSigner =
-      std::dynamic_pointer_cast<EdDSAMultisigSigner>(CryptoManager::instance().getLatestSigners()[0]);
-  std::shared_ptr<concord::crypto::ISigner> ret = latestSigner;
-  LOG_INFO(GL, KVLOG((uint64_t)ret.get()));
-  return ret;
+  auto latestSigner = CryptoManager::instance().getLatestSigners()[0];
+  return latestSigner;
 }
 
 std::pair<SeqNum, std::string> SigManager::getMyLatestPublicKey() const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
   auto [seq, latestVerifier] = CryptoManager::instance().getLatestVerifiers()[0];
-  auto retVerifier = static_cast<EdDSAMultisigVerifier*>(latestVerifier.get());
-  LOG_INFO(GL, KVLOG((uint64_t)retVerifier));
-  return {seq, retVerifier->getVerifier(myId_).getPubKey()};
+  auto pubKey = latestVerifier->getVerifier(myId_).getPubKey();
+  LOG_DEBUG(GL, KVLOG(pubKey));
+  return {seq, pubKey};
 }
 
-std::string SigManager::getSelfPrivKey() const { return getCurrentReplicaSigner()->getPrivKey(); }
+std::string SigManager::getSelfPrivKey() const {
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    return getCurrentReplicaSigner()->getPrivKey();
+  }
+  return mySigner_->getPrivKey();
+}
 
 std::array<std::string, replicaIdentityHistoryCount> SigManager::getPublicKeyOfVerifier(uint32_t id) const {
   std::array<std::string, replicaIdentityHistoryCount> publicKeys;
 
-  if (replicasInfo_.isIdOfReplica(id)) {
+  if (ReplicaConfig::instance().singleSignatureScheme && replicasInfo_.isIdOfReplica(id)) {
     int i = 0;
     for (auto [seq, multisigVerifier] : CryptoManager::instance().getLatestVerifiers()) {
       UNUSED(seq);
       if (multisigVerifier.get() == nullptr) {
         continue;
       }
-      auto& verifier = reinterpret_cast<EdDSAMultisigVerifier*>(multisigVerifier.get())->getVerifier(id);
+      auto& verifier = multisigVerifier->getVerifier(id);
       publicKeys[i] = verifier.getPubKey();
       ++i;
     }
-  }
-  else if (verifiers_.count(id)) {
+  } else if (verifiers_.count(id)) {
     publicKeys[0] = verifiers_.at(id)->getPubKey();
   }
 
@@ -414,7 +427,7 @@ const concord::crypto::IVerifier& SigManager::getVerifier(PrincipalId otherPrinc
 }
 
 void SigManager::setReplicaLastExecutedSeq(SeqNum seq) {
-  ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
   replicaLastExecutedSeq_ = seq;
 }
 

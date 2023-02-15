@@ -194,7 +194,20 @@ static void signal_handler(int signal_num) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  const auto signals = {SIGABRT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGKILL, SIGQUIT, SIGHUP, SIGBUS, SIGSYS, SIGPIPE, SIGSTOP, SIGTSTP, SIGXFSZ};
+  const auto signals = {SIGABRT,
+                        SIGILL,
+                        SIGFPE,
+                        SIGSEGV,
+                        SIGTERM,
+                        SIGKILL,
+                        SIGQUIT,
+                        SIGHUP,
+                        SIGBUS,
+                        SIGSYS,
+                        SIGPIPE,
+                        SIGSTOP,
+                        SIGTSTP,
+                        SIGXFSZ};
 
   for (int signalCode : signals) {
     defaultHandlers[signalCode] = signal(signalCode, signal_handler);

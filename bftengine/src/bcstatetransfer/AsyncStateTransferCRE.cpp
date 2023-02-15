@@ -113,11 +113,11 @@ class ScalingReplicaHandler : public IStateHandler {
     if (!configuration_file.good()) {
       LOG_FATAL(getLogger(), "unable to open the reconfigurations file");
     }
-    configuration_file << (command.config_descriptor + "\n");
-    configuration_file.close();
     LOG_INFO(getLogger(), "getting new configuration");
     bftEngine::ControlStateManager::instance().getNewConfiguration(command.config_descriptor, command.token);
     bftEngine::ControlStateManager::instance().markRemoveMetadata();
+    configuration_file << (command.config_descriptor + "\n");
+    configuration_file.close();
     LOG_INFO(getLogger(), "completed scaling procedure for " << command.config_descriptor << " restarting the replica");
     if (command.restart) bftEngine::ControlStateManager::instance().restart();
     return true;
@@ -148,8 +148,6 @@ class MainKeyUpdateHandler : public IStateHandler {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     concord::messages::ReplicaMainKeyUpdate update = std::get<concord::messages::ReplicaMainKeyUpdate>(crep.response);
-    // TODO(yf): persist key file?
-    // TODO(yf): update key via cryptomanager
     bftEngine::CryptoManager::instance().onPublicKeyExchange(update.key, update.sender_id, update.seq_num);
     return true;
   }
@@ -194,9 +192,8 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(
 }
 
 size_t ReplicaCRESigner::signBuffer(const concord::Byte* dataIn, size_t dataLen, concord::Byte* sigOutBuffer) const {
-  LOG_INFO(GL, "ReplicaCRESigner signing");
+  LOG_DEBUG(GL, "ReplicaCRESigner signing");
   auto* sigManager = bftEngine::impl::SigManager::instance();
-  //return sigManager->getLastReplicaSigner()->signBuffer(dataIn, dataLen, sigOutBuffer);
   return sigManager->sign(sigManager->getReplicaLastExecutedSeq(), dataIn, dataLen, sigOutBuffer);
 }
 

@@ -372,7 +372,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void recoverRequests();
 
   template <typename MessageType>
-  bool validateMessage(MessageType *msg);
+  bool validateMessage(MessageType* msg);
 
   std::function<bool(MessageBase*)> getMessageValidator();
 

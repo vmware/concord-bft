@@ -273,6 +273,7 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
     if (concordUpdates) {
       const auto &u = std::get<VersionedInput>(concordUpdates->get());
       for (const auto &[key, valueWithFlags] : u.kv) {
+        UNUSED(valueWithFlags);
         if (key[0] == concord::kvbc::keyTypes::reconfiguration_rep_main_key) {
           // Test categories and deployment categories are expected to be mutually exclusive
           ConcordAssert(ret.empty());
@@ -282,7 +283,6 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
       }
     }
   }
-
 
   return ret;
 }
@@ -479,8 +479,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
     // The batched requests all share batchCid
     // Batched requests are handled by the preprocessor and should not be sent more than once
     hasConflict = hasConflict || (!isFirstClientRequest && m_clientToMaxExecutedReqId[clientId] > batchCid);
-  }
-  else {
+  } else {
     hasConflict = hasConflict || (!isFirstClientRequest && m_clientToMaxExecutedReqId[clientId] >= requestId);
   }
 
@@ -504,6 +503,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
   if (!hasConflict) {
     write_rep.latest_block = currBlock + 1;
     auto [iter, isNew] = m_clientToMaxExecutedReqId.emplace(clientId, 0);
+    UNUSED(iter);
     UNUSED(isNew);
     m_clientToMaxExecutedReqId[clientId] = std::max(m_clientToMaxExecutedReqId[clientId], batchCid);
   } else {

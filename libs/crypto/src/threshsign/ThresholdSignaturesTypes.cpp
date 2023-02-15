@@ -107,6 +107,8 @@ std::vector<std::string> Cryptosystem::getSystemVerificationKeys() const {
   return verificationKeys_;
 }
 
+std::string Cryptosystem::getMyVerificationKey() const { return getSystemVerificationKeys()[signerID_]; }
+
 std::vector<std::string> Cryptosystem::getSystemPrivateKeys() const {
   std::vector<std::string> output;
   if (privateKeys_.size() != static_cast<uint16_t>(numSigners_)) {
@@ -120,7 +122,7 @@ std::vector<std::string> Cryptosystem::getSystemPrivateKeys() const {
 }
 
 std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
-  if ((signerIndex < 0) || (signerIndex >= numSigners_))
+  if (signerIndex >= numSigners_)
     throw std::out_of_range(__PRETTY_FUNCTION__ + std::string(" Signer index out of range: ") +
                             std::to_string(signerIndex));
 

@@ -179,9 +179,7 @@ class Cryptosystem {
    * represented as strings. Their format is cryptosystem type-dependent.
    *
    * @return A vector containing the verification keys, in order of which signer
-   *         they correspond to. To comply with the convention of 1-indexing
-   *         signer IDs, verification keys will begin at index 1 of the vector.
-   *         The contents of index 0 of the vector is left undefined.
+   *         they correspond to.
    *
    * @throws std::runtime_error                 If this cryptosystem does not
    *                                            currently have verification
@@ -190,6 +188,12 @@ class Cryptosystem {
    *                                            loaded.
    */
   std::vector<std::string> getSystemVerificationKeys() const;
+
+  /**
+   *
+   * @return The verification key of the current replica
+   */
+  std::string getMyVerificationKey() const;
 
   /**
    * Get a list of private keys for this threshold cryptosystem, represented as

@@ -73,7 +73,9 @@ class StateControl {
     }
     return str;
   }
-  void setGetPeerPubKeyMethod(std::function<std::array<std::string, replicaIdentityHistoryCount>(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
+  void setGetPeerPubKeyMethod(std::function<std::array<std::string, replicaIdentityHistoryCount>(uint32_t)> m) {
+    get_peer_pub_key_ = std::move(m);
+  }
 
   std::array<std::string, replicaIdentityHistoryCount> getPeerPubKey(uint32_t id) {
     if (get_peer_pub_key_) return get_peer_pub_key_(id);

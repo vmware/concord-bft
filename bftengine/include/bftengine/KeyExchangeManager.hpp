@@ -35,10 +35,19 @@ class KeyExchangeManager {
   void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();
-  // Generates and publish the first replica's key,
-  void sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& = 0);
-  // The execution handler implementation that is called when a key exchange msg has passed consensus.
+  // Waits for a quorum and calls generateConsensusKeyAndSendInternalClientMsg
+  void waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum& = 0);
+  // The execution handler implementation that is called after a key exchange msg passed consensus.
+  // The new key pair will be used from two checkpoints after kemsg.generated_sn
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
+  /**
+   * Updates new key pair in both volatile (CryptoManager) and persistent (Reserved pages) memory
+   * @param repID - The id of the replica which uses pubkey
+   * @param effective_key_sn - The sequence number from which the new key is to be used
+   * @param pubkey - The public key of replica repID
+   * @param cid
+   */
+  void registerNewKeyPair(uint16_t repID, SeqNum effective_key_sn, const std::string& pubkey, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer
@@ -46,13 +55,7 @@ class KeyExchangeManager {
   void loadClientPublicKeys();
   // whether initial key exchange has occurred
 
-  bool exchanged() const {
-    uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-    bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
-    return ReplicaConfig::instance().getkeyExchangeOnStart()
-               ? (publicKeys_.numOfExchangedReplicas() + 1 >= liveClusterSize) && exchange_self_keys
-               : true;
-  }
+  bool exchanged() const;
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
   ///////// Clients public keys interface///////////////
@@ -72,6 +75,8 @@ class KeyExchangeManager {
                            concord::crypto::KeyFormat,
                            NodeIdType clientId,
                            bool saveToReservedPages);
+
+  std::pair<std::string, std::string> getCandidateKeyPair() const;
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;

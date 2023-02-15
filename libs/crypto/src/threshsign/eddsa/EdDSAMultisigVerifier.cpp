@@ -27,13 +27,13 @@ int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
         reinterpret_cast<const uint8_t *>(expectedMsgDigest_.data()), expectedMsgDigest_.size(), singleSignature);
     if (!result) {
       invalidShares_.insert(static_cast<ShareID>(singleSignature.id));
-      LOG_INFO(EDDSA_MULTISIG_LOG, "Share id: " << singleSignature.id << " is invalid");
+      LOG_DEBUG(EDDSA_MULTISIG_LOG, "Share id: " << singleSignature.id << " is invalid");
     }
   }
 
   auto result = signatures_.insert({singleSignature.id, singleSignature});
   if (result.second) {
-    LOG_INFO(EDDSA_MULTISIG_LOG, "Added " << KVLOG(this, singleSignature.id, signatures_.size()));
+    LOG_DEBUG(EDDSA_MULTISIG_LOG, "Added " << KVLOG(this, singleSignature.id, signatures_.size()));
   }
   return static_cast<int>(signatures_.size());
 }
@@ -43,7 +43,7 @@ void EdDSASignatureAccumulator::setExpectedDigest(const unsigned char *msg, int 
 }
 
 size_t EdDSASignatureAccumulator::getFullSignedData(char *outThreshSig, int threshSigLen) {
-  LOG_INFO(EDDSA_MULTISIG_LOG, KVLOG(threshSigLen, signatures_.size()));
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(threshSigLen, signatures_.size()));
   ConcordAssertGE(static_cast<uint64_t>(threshSigLen),
                   static_cast<unsigned long>(signatures_.size()) * sizeof(SingleEdDSASignature));
   size_t offset = 0;
@@ -109,13 +109,13 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
       continue;
     }
     auto result = verifySingleSignature(reinterpret_cast<const uint8_t *>(msg), msgLenUnsigned, currentSignature);
-    LOG_INFO(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(currentSignature.id, result));
+    LOG_DEBUG(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(currentSignature.id, result, signatureCountInBuffer));
 
     validSignatureCount += result == true;
   }
 
   bool result = validSignatureCount >= threshold_;
-  LOG_INFO(EDDSA_MULTISIG_LOG, KVLOG(validSignatureCount, threshold_));
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(validSignatureCount, threshold_, signatureCountInBuffer, signersCount_));
   return result;
 }
 

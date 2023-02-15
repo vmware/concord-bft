@@ -39,7 +39,7 @@ class EdDSAVerifier : public IVerifier {
     UniqueContext ctx{EVP_MD_CTX_new()};
     ConcordAssertEQ(EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()), OPENSSL_SUCCESS);
     auto result = OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen);
-    LOG_INFO(GL, "Verification complete" << KVLOG(getPubKey(), result));
+    LOG_DEBUG(GL, "Verification complete" << KVLOG(getPubKey(), result));
     return result;
   }
 

@@ -260,21 +260,15 @@ void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
   }
 }
 
-/**
- * validateMessage This is synchronous validate message.
- *
- * @param msg : Message that can validate itself as quick as possible.
- * @return : returns true if message validation succeeds else return false.
- */
-bool ReplicaImp::validateMessage(MessageBase *msg) {
+template <typename MessageType>
+bool ReplicaImp::validateMessage(MessageType *msg) {
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onReceivedExMessage(msg->type());
   }
   try {
     if constexpr (std::is_same_v<MessageType, CheckpointMsg>) {
       msg->validate(*repsInfo, false);
-    }
-    else {
+    } else {
       msg->validate(*repsInfo);
     }
     return true;
@@ -282,26 +276,7 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
   }
-
 }
-
-/**
- * validateMessage This is synchronous validate message.
- *
- * @param msg : Message that can validate itself as quick as possible..
- * @return : returns true if message validation succeeds else return false.
- */
-/*bool ReplicaImp::validateMessage(MessageBase *msg) {
-  auto result = validateMessageGeneric(msg, [msg, this](){msg->validate(*repsInfo);});
-  LOG_INFO(GL, "Validated generic message" << KVLOG(result));
-  return result;
-}
-
-bool ReplicaImp::validateMessage(CheckpointMsg *msg) {
-  auto result = validateMessageGeneric(msg, [msg, this](){msg->validate(*repsInfo, false);});
-  LOG_INFO(GL, "Validated checkpoint message" << KVLOG(result));
-  return result;
-}*/
 
 /**
  * asyncValidateMessage<T> This is a family of asynchronous message which just schedules
@@ -321,14 +296,14 @@ void ReplicaImp::asyncValidateMessage(std::unique_ptr<MSG> msg) {
 
     threadPool.async(
         [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
-            UNUSED(this);
-            if (!validateMessage(unValidatedMsg)) {
-              delete unValidatedMsg;
-              return;
-            }
+          UNUSED(this);
+          if (!validateMessage(unValidatedMsg)) {
+            delete unValidatedMsg;
+            return;
+          }
 
-            CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
-            incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
+          CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+          incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
         },
         msg.release(),
         repsInfo,
@@ -620,9 +595,12 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds concurrency threshold ["
-                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]" <<
-                 KVLOG(primaryLastUsedSeqNum, numOfTransientPreprepareMsgs_, lastExecutedSeqNum,
-                       config_.getconcurrencyLevel(), activeExecutions_));
+                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]"
+                 << KVLOG(primaryLastUsedSeqNum,
+                          numOfTransientPreprepareMsgs_,
+                          lastExecutedSeqNum,
+                          config_.getconcurrencyLevel(),
+                          activeExecutions_));
     return false;
   }
   metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastExecutedSeqNum);
@@ -4438,7 +4416,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](bool) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey(this);
+      KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
     }
   });
   stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
@@ -4447,8 +4425,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // initial key exchange after completing ST
     if (!isCollectingState()) {
       if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-        KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
-        LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
+        KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this, lastExecutedSeqNum);
+        LOG_INFO(GL, "Send key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
     } else {
       LOG_WARN(GL, "State Transfer is still collecting! Initial key exchange cannot yet be initiated!");
@@ -4682,10 +4660,11 @@ void ReplicaImp::start() {
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-    KeyExchangeManager::instance().sendInitialKey(this);
+    KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
   } else {
-    // If key exchange is disabled, first publish the replica's main (rsa/eddsa) key to clients
-    if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
+    // If key exchange is disabled, first publish the replica's main key to clients
+    if (ReplicaConfig::instance().singleSignatureScheme ||
+        ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
       KeyExchangeManager::instance().sendMainPublicKey();
     }
   }
@@ -5104,7 +5083,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
-    LOG_INFO(GL, "Iterating request" << KVLOG(req.senderId(), req.requestSeqNum()));
+    LOG_DEBUG(GL, "Iterating request" << KVLOG(req.senderId(), req.requestSeqNum()));
 
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       InternalMessage im = RemovePendingForExecutionRequest{req.clientProxyId(), req.requestSeqNum()};
@@ -5872,23 +5851,19 @@ void ReplicaImp::primaryPushNoOpIfWedgePending(SeqNum seq) {
   if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
     // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
     // messages queue.
-    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
+    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint seq:" << seqNumToStopAt.value());
     concord::messages::ReconfigurationRequest req;
     req.sender = config_.replicaId;
     req.command = concord::messages::WedgeCommand{config_.replicaId, true};
     // Mark this request as an internal one
-    //auto siglength = 64;
     std::vector<concord::Byte> data_vec;
     concord::messages::serialize(data_vec, req);
-    LOG_INFO(GL, "wat-1" << KVLOG(data_vec.size(), SigManager::instance()->getMySigLength(), req.signature.size()));
     req.signature.resize(SigManager::instance()->getMySigLength());
-    LOG_INFO(GL, "wat0" << KVLOG(data_vec.size(), SigManager::instance()->getMySigLength(), req.signature.size()));
     SigManager::instance()->sign(
         SigManager::instance()->getReplicaLastExecutedSeq(), data_vec.data(), data_vec.size(), req.signature.data());
 
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
-    LOG_INFO(GL, "wat1" << KVLOG(data_vec.size(), req.signature.size()));
     auto requestSeqNum =
         std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
     auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
@@ -5898,7 +5873,6 @@ void ReplicaImp::primaryPushNoOpIfWedgePending(SeqNum seq) {
                                     reinterpret_cast<const char *>(data_vec.data()),
                                     60000,
                                     "wedge-noop-command-" + std::to_string(seq));
-    LOG_INFO(GL, "wat2" << KVLOG(data_vec.size(), req.signature.size()));
     // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
     onMessage(std::make_unique<ClientRequestMsg>(crm));
     tryToSendPrePrepareMsg(false);

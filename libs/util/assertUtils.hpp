@@ -23,51 +23,6 @@
 #include "util/kvstream.h"
 
 inline void printCallStack() {
-  /*const uint32_t MAX_FRAMES = 100;
-  void *addrlist[MAX_FRAMES];
-  int addrLen = backtrace(addrlist, MAX_FRAMES);
-  if (addrLen) {
-    char **symbolsList = backtrace_symbols(addrlist, addrLen);
-    if (symbolsList) {
-      std::ostringstream os;
-      const size_t MAX_FUNC_NAME_SIZE = 256;
-      // Iterate over the returned symbol lines. Skip the first, it is the address of this function.
-      for (int i = 1; i < addrLen; i++) {
-        char *beginName = nullptr, *beginOffset = nullptr, *endOffset = nullptr;
-        for (char *ptr = symbolsList[i]; *ptr; ++ptr) {
-          if (*ptr == '(')
-            beginName = ptr;
-          else if (*ptr == '+')
-            beginOffset = ptr;
-          else if (*ptr == ')' && beginOffset) {
-            endOffset = ptr;
-            break;
-          }
-        }
-        if (beginName && beginOffset && endOffset && beginName < beginOffset) {
-          *beginName++ = '\0';
-          *beginOffset++ = '\0';
-          *endOffset = '\0';
-          int status;
-          size_t demangledSize;
-          char *ret = abi::__cxa_demangle(beginName, nullptr, &demangledSize, &status);
-          if (status == 0) {
-            if (demangledSize > MAX_FUNC_NAME_SIZE) {
-              ret[MAX_FUNC_NAME_SIZE] = '\0';
-            }
-            os << " [bt] " << ret << "+" << beginOffset << std::endl;
-          }
-          free(ret);
-        }
-      }
-      LOG_INFO(GL, "\n" << os.str());
-      std::free(symbolsList);
-    }
-  }*/
-  return;
-}
-
-inline void printCallStack2() {
   const uint32_t MAX_FRAMES = 100;
   void *addrlist[MAX_FRAMES];
   int addrLen = backtrace(addrlist, MAX_FRAMES);

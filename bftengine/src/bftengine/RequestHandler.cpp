@@ -56,11 +56,15 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
                              concordUtils::SpanWrapper& parent_span) {
   bool has_pruning_request = false;
   for (auto& req : requests) {
-    LOG_INFO(GL, "Executing request: " <<
-                     KVLOG(req.clientId, req.cid, req.flags, req.requestSequenceNum,
-                           req.signature.size(), req.executionSequenceNum, req.requestSize));
+    LOG_INFO(GL,
+             "Executing request: " << KVLOG(req.clientId,
+                                            req.cid,
+                                            req.flags,
+                                            req.requestSequenceNum,
+                                            req.signature.size(),
+                                            req.executionSequenceNum,
+                                            req.requestSize));
     if (req.flags & KEY_EXCHANGE_FLAG) {
-      //TODO(yf): maybe add the mainkeyupdate block here
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_INFO(KEY_EX_LOG, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
       auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, req.executionSequenceNum, req.cid);
@@ -76,7 +80,9 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
-      LOG_INFO(GL, "Executing Reconfig request: " << KVLOG(rreq.signature.size(), rreq.command.index(), rreq.sender, rreq.id));
+      LOG_INFO(
+          GL,
+          "Executing Reconfig request: " << KVLOG(rreq.signature.size(), rreq.command.index(), rreq.sender, rreq.id));
       has_pruning_request = std::holds_alternative<concord::messages::PruneRequest>(rreq.command);
       ReconfigurationResponse rsi_res = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum, timestamp);
       // in case of read request return only a success part of and replica specific info in the response
