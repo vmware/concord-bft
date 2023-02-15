@@ -52,7 +52,7 @@ if(APPLE)
     )
 else()
     target_link_libraries(utt PUBLIC
-        ${NTL_LIBRARY} ${LIBFF_LIBRARY} pthread ${ZM_LIBRARY} gmp gmpxx xutils xassert stdc++fs OpenSSL::Crypto z
+    ${NTL_LIBRARY} ${LIBFF_LIBRARY} pthread ${ZM_LIBRARY} ${GMPXX_LIBRARY} ${GMP_LIBRARY} xutils xassert stdc++fs OpenSSL::Crypto z
     )
 endif()
 
