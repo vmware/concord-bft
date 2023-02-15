@@ -12,7 +12,7 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 #include "CheckpointInfo.hpp"
 
 namespace bftEngine::impl {

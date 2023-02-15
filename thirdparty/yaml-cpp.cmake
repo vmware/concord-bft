@@ -7,7 +7,7 @@ FetchContent_Declare(yaml-cpp
                     GIT_SUBMODULES_RECURSE TRUE
                     GIT_SHALLOW TRUE
                     GIT_PROGRESS TRUE
-                    PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp_cmakelists.patch || true
+                    PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/yaml-cpp_cmakelists.patch || true
                     CMAKE_ARGS -DYAML_CPP_BUILD_TESTS=OFF
                                -DYAML_CPP_BUILD_TOOLS=OFF
                                -DYAML_BUILD_SHARED_LIBS=OFF

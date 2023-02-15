@@ -12,7 +12,7 @@
 #include <string.h>
 #include <cstring>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
 
 #include "log/logger.hpp"

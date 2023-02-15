@@ -10,7 +10,7 @@
 // file.
 
 #include "MsgsCommunicator.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "communication/CommDefs.hpp"
 
 namespace bftEngine::impl {

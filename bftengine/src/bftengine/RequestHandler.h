@@ -14,7 +14,7 @@
 
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicasInfo.hpp"
 #include "Reconfiguration.hpp"
 #include "ReplicaConfig.hpp"

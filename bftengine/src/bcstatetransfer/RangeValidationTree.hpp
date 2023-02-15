@@ -26,8 +26,8 @@
 #include "crypto/integer.hpp"
 
 #include "crypto/digest.hpp"
-#include "Serializable.h"
-#include "Metrics.hpp"
+#include "util/serializable.hpp"
+#include "util/Metrics.hpp"
 
 namespace bftEngine::bcst::impl {
 

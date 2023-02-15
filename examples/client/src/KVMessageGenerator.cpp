@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "common.hpp"
 #include "block_metadata.hpp"
 #include "KVMessageGenerator.hpp"

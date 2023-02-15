@@ -14,7 +14,7 @@
 #include <locale>
 #include <string>
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {

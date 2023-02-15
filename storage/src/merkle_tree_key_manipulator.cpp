@@ -13,7 +13,7 @@
 
 #include "storage/merkle_tree_key_manipulator.h"
 
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "storage/db_types.h"
 
 #include <string>

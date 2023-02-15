@@ -11,7 +11,7 @@
 
 #include "ReplicaStatusHandlers.hpp"
 #include "diagnostics.h"
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 
 #include <string>
 

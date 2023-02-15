@@ -29,7 +29,7 @@
 #include "client/concordclient/event_update.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
 namespace concord::client::concordclient {

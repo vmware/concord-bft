@@ -17,7 +17,7 @@
 #include "memorydb/client.h"
 #include "storage/db_interface.h"
 #include "rocksdb/native_client.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "storage/test/storage_test_common.h"
 
 #include <string_view>

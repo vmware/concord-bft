@@ -19,9 +19,9 @@
 #include <vector>
 
 #include "log/logger.hpp"
-#include "string.hpp"
+#include "util/string.hpp"
 #include "s3/client.hpp"
-#include "config_file_parser.hpp"
+#include "util/config_file_parser.hpp"
 
 namespace concord::storage::s3 {
 

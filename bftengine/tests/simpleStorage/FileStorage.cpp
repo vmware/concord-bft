@@ -14,8 +14,8 @@
 #include "FileStorage.hpp"
 #include "ObjectsMetadataHandler.hpp"
 
-#include "errnoString.hpp"
-#include "assertUtils.hpp"
+#include "util/errnoString.hpp"
+#include "util/assertUtils.hpp"
 
 #include <cstring>
 #include <exception>

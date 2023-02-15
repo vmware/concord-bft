@@ -16,7 +16,7 @@
 #include <variant>
 
 #include "KVCommandHandler.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kv_types.hpp"
 #include "ReplicaConfig.hpp"
 #include "kvbc_key_types.hpp"

@@ -14,7 +14,7 @@ import os.path
 import sys
 from pathlib import Path
 
-sys.path.append(os.path.abspath(Path(__file__).parent.parent.parent / "util" / "pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 from bft_config import BFTConfig
 from util.test_base import ApolloTest, parameterize
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX

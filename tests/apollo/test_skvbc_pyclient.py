@@ -28,7 +28,7 @@ import unittest
 
 from util.test_base import ApolloTest
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 
 from bft_client import MofNQuorum
 from util import skvbc

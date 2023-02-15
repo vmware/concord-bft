@@ -17,7 +17,7 @@
 #include <rapidcheck/gtest.h>
 
 #include "sparse_merkle/internal_node.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 
 using concordUtils::Sliver;
 using concord::crypto::SHA3_256;

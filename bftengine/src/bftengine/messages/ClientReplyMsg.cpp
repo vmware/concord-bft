@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "ClientReplyMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 
 namespace bftEngine {

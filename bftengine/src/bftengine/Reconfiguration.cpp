@@ -15,7 +15,7 @@
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 #include "communication/StateControl.hpp"
 #include "secrets/secrets_manager_plain.h"
 #include "bftengine/DbCheckpointManager.hpp"

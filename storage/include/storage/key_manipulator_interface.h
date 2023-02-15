@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #include "db_types.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 
 namespace concord::storage {
 

@@ -15,7 +15,7 @@
 #include "commitment.hpp"
 #include "UTTParams.hpp"
 #include "common.hpp"
-#include "types.hpp"
+#include "util/types.hpp"
 #include <memory>
 #include <unordered_map>
 

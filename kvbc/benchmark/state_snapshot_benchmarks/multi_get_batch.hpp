@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "rocksdb/native_client.h"
 

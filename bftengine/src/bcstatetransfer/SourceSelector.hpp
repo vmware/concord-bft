@@ -18,9 +18,9 @@
 #include <sstream>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "TimeUtils.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 using bftEngine::impl::getMonotonicTimeMilli;
 using concordMetrics::StatusHandle;

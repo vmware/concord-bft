@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from util.skvbc import SimpleKVBCProtocol
-    sys.path.append(os.path.abspath("../../util/pyclient"))
+    sys.path.append(os.path.abspath("util/pyclient"))
     from util.pyclient.bft_client import BftClient
     from util.bft import BftTestNetwork
     from util.skvbc_history_tracker import SkvbcTracker

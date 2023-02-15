@@ -15,7 +15,7 @@
 
 #include "commitment.hpp"
 #include "UTTParams.hpp"
-#include "types.hpp"
+#include "util/types.hpp"
 #include <memory>
 #include <vector>
 #include <map>

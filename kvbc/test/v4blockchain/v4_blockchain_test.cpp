@@ -22,9 +22,9 @@
 #include <random>
 #include <functional>
 #include <limits>
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 #include "storage/test/storage_test_common.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include "categorization/db_categories.h"
 #include "block_metadata.hpp"

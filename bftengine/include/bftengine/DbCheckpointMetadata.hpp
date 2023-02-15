@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include <PrimitiveTypes.hpp>
 #include <vector>
 #include <chrono>

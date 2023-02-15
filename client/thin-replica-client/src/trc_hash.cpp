@@ -16,8 +16,8 @@
 #include <map>
 #include <set>
 
-#include "endianness.hpp"
-#include "assertUtils.hpp"
+#include "util/endianness.hpp"
+#include "util/assertUtils.hpp"
 
 using com::vmware::concord::thin_replica::Data;
 using concord::client::concordclient::EventVariant;

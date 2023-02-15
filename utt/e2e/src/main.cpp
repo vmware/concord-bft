@@ -6,7 +6,7 @@
 #include "test_scenario_transfer_above_budget.cpp"
 #include "test_scenario_transfer_above_balance.cpp"
 #include "test_scenario_convertPublicToPrivate_above_balance.cpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include <iostream>
 #include <unistd.h>
 #include <xutils/Log.h>

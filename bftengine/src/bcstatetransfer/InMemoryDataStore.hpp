@@ -19,7 +19,7 @@
 
 #include "log/logger.hpp"
 #include "DataStore.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 
 using std::map;
 

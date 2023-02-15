@@ -12,7 +12,7 @@
 // file.
 
 #include "FileStorage.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 #include <string.h>
 #include <cassert>

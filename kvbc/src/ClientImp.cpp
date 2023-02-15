@@ -12,7 +12,7 @@
 // file.
 
 #include "ClientImp.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace bftEngine;
 using bft::communication::ICommunication;

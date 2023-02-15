@@ -15,12 +15,12 @@
 
 #include "kvbc_storage_test_common.h"
 
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "kv_types.hpp"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "storage/merkle_tree_key_manipulator.h"
 

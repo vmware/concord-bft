@@ -13,7 +13,7 @@
 #pragma once
 
 #include "crypto/crypto.hpp"
-#include "SerializableByteArray.hpp"
+#include "util/SerializableByteArray.hpp"
 #include "crypto.hpp"
 
 namespace concord::crypto::openssl {

@@ -18,7 +18,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 #include "kv_types.hpp"
 #include "rocksdb/native_client.h"

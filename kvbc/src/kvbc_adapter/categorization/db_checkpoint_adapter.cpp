@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kvbc_adapter/categorization/db_checkpoint_adapter.hpp"
 
 namespace concord::kvbc::adapter::categorization {

@@ -11,7 +11,7 @@
 
 #include "bftclient/bft_client.h"
 #include "bftengine/ClientMsgs.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "secrets/secrets_manager_impl.h"
 #include "secrets/secrets_manager_enc.h"
 #include "secrets/secrets_manager_plain.h"

@@ -17,16 +17,16 @@
 #include <iterator>
 
 #include "log/logger.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "crypto/digest.hpp"
-#include "SimpleThreadPool.hpp"
+#include "util/SimpleThreadPool.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IncomingMsgsStorage.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "messages/SignedShareMsgs.hpp"
-#include "kvstream.h"
-#include "demangle.hpp"
+#include "util/kvstream.h"
+#include "util/demangle.hpp"
 #include "crypto/threshsign/IThresholdVerifier.h"
 #include "crypto/threshsign/IThresholdAccumulator.h"
 

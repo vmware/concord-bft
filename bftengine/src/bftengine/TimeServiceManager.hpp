@@ -14,11 +14,10 @@
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
 #include "TimeServiceResPageClient.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "serialize.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include <cstdlib>
 #include <limits>
 #include <memory>

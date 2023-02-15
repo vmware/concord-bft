@@ -14,7 +14,7 @@
 #include <set>
 #include <vector>
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 
 namespace bftEngine::impl {

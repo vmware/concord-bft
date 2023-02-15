@@ -14,7 +14,7 @@
 #include <future>
 #include <string>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "TlsConnectionManager.h"
 #include "AsyncTlsConnection.h"
 #include "communication/StateControl.hpp"

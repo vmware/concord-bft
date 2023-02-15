@@ -12,7 +12,7 @@
 // file.
 
 #include "kvbc_adapter/v4blockchain/blocks_deleter_adapter.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::kvbc::adapter::v4blockchain {
 

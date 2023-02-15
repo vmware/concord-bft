@@ -26,7 +26,7 @@
 #include "secrets/secrets_manager_enc.h"
 #include "secrets/secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "crypto/openssl/certificates.hpp"
 
 namespace bft::communication::tls {

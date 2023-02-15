@@ -13,7 +13,7 @@
 #include <array>
 #include <stdexcept>
 
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 namespace bftEngine {
 namespace impl {

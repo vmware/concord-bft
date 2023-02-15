@@ -12,8 +12,8 @@
 #include "SignedShareMsgs.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
-#include "kvstream.h"
+#include "util/assertUtils.hpp"
+#include "util/kvstream.h"
 #include "EpochManager.hpp"
 #include "crypto/threshsign/IThresholdSigner.h"
 

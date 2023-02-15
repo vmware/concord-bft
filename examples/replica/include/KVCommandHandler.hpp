@@ -18,8 +18,8 @@
 #include <thread>
 
 #include "log/logger.hpp"
-#include "OpenTracing.hpp"
-#include "sliver.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/sliver.hpp"
 #include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"

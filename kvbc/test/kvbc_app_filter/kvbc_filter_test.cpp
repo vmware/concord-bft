@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
 #include <cassert>
 #include <exception>
@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 #include "categorization/updates.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "gtest/gtest.h"
 
 #include "log/logger.hpp"
@@ -27,7 +27,7 @@
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
 #include "crypto/openssl/crypto.hpp"
-#include "status.hpp"
+#include "util/status.hpp"
 #include "concord_kvbc.pb.h"
 
 #include "kvbc_app_filter/kvbc_app_filter.h"

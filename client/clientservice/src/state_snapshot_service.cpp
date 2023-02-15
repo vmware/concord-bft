@@ -15,7 +15,7 @@
 #include <opentracing/tracer.h>
 #include <google/protobuf/util/time_util.h>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "client/clientservice/state_snapshot_service.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 

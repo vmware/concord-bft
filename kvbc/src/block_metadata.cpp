@@ -5,8 +5,8 @@
 
 #include "block_metadata.hpp"
 
-#include "assertUtils.hpp"
-#include "endianness.hpp"
+#include "util/assertUtils.hpp"
+#include "util/endianness.hpp"
 
 namespace concord {
 namespace kvbc {

@@ -14,7 +14,7 @@
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 #include "communication/ICommunication.hpp"
 #include <memory>
 #include <map>

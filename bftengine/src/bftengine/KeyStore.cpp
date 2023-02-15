@@ -11,7 +11,7 @@
 
 #include "KeyStore.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "crypto/digest.hpp"
 
 namespace bftEngine::impl {

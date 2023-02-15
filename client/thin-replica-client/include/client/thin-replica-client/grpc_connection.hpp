@@ -21,10 +21,10 @@
 
 #include <grpcpp/grpcpp.h>
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
 #include "replica_state_snapshot.grpc.pb.h"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 using namespace std::chrono_literals;
 

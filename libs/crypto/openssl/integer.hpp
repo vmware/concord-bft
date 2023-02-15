@@ -23,7 +23,7 @@
 
 #include <openssl/bn.h>
 #include <openssl/err.h>
-#include "scope_exit.hpp"
+#include "util/periodic_call.hpp"
 #include "crypto.hpp"
 
 #define THROW_OPENSSL_ERROR throw std::runtime_error(ERR_reason_error_string(ERR_get_error()))

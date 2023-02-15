@@ -20,8 +20,8 @@
 #include "ReplicaImp.hpp"
 
 #include "log/logger.hpp"
-#include "Timers.hpp"
-#include "assertUtils.hpp"
+#include "util/Timers.hpp"
+#include "util/assertUtils.hpp"
 #include "ControllerWithSimpleHistory.hpp"
 #include "DebugStatistics.hpp"
 #include "SysConsts.hpp"
@@ -30,10 +30,10 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "ReplicaLoader.hpp"
 #include "PersistentStorage.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "diagnostics.h"
 #include "TimeUtils.hpp"
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"

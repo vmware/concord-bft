@@ -9,10 +9,10 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "gtest/gtest.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "helper.hpp"
 #include "messages/MsgCode.hpp"
 #include "messages/AskForCheckpointMsg.hpp"

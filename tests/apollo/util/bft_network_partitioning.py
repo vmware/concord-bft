@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from itertools import combinations
 from collections import namedtuple
 from functools import partial
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 import bft_config
 
 class NetworkPartitioningAdversary(ABC):

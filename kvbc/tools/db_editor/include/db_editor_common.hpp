@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 
 #include "merkle_tree_block.h"
 #include "storage/db_types.h"

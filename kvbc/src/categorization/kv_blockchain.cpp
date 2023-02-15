@@ -18,11 +18,11 @@
 #include "performance_handler.h"
 #include "kvbc_key_types.hpp"
 #include "categorization/db_categories.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
 #include "categorization/details.h"
 #include "ReplicaConfig.hpp"
-#include "throughput.hpp"
+#include "util/throughput.hpp"
 
 #include <algorithm>
 #include <iterator>

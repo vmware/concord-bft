@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "FullCommitProofMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

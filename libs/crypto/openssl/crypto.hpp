@@ -27,8 +27,8 @@
 #include <vector>
 #include "crypto/crypto.hpp"
 
-#include "memory.hpp"
-#include "assertUtils.hpp"
+#include "util/memory.hpp"
+#include "util/assertUtils.hpp"
 
 // OpenSSL includes.
 #include <openssl/crypto.h>

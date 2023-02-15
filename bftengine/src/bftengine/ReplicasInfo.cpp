@@ -11,7 +11,7 @@
 
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine {
 namespace impl {

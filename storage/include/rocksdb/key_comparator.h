@@ -9,7 +9,7 @@
 #include "log/logger.hpp"
 #include <rocksdb/comparator.h>
 #include <rocksdb/slice.h>
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "storage/db_interface.h"
 
 namespace concord {

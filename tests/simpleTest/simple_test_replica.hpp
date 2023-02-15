@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
-#include "OpenTracing.hpp"
+#include "util/assertUtils.hpp"
+#include "util/OpenTracing.hpp"
 #include "communication/CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"

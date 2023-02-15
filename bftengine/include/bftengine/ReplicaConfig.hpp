@@ -19,10 +19,10 @@
 #include <unordered_map>
 #include <chrono>
 #include <optional>
-#include "string.hpp"
-#include "kvstream.h"
+#include "util/string.hpp"
+#include "util/kvstream.h"
 #include "crypto/crypto.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 namespace bftEngine {
 

@@ -188,7 +188,6 @@ endif()
 #link all libraries against logging by default
 add_subdirectory(libs/log)
 link_libraries(logging)
-add_subdirectory(util)
 add_subdirectory(libs)
 add_subdirectory(communication)
 add_subdirectory(kvbc)

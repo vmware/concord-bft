@@ -22,7 +22,7 @@
 #include <hdr/hdr_interval_recorder.h>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::diagnostics {
 

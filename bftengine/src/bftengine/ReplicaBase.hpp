@@ -17,8 +17,8 @@
 #include "ReplicaConfig.hpp"
 #include "SeqNumInfo.hpp"
 #include "DebugStatistics.hpp"
-#include "Metrics.hpp"
-#include "Timers.hpp"
+#include "util/Metrics.hpp"
+#include "util/Timers.hpp"
 #include "ControlStateManager.hpp"
 
 namespace bftEngine::impl {

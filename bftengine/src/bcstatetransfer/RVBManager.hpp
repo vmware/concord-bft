@@ -14,7 +14,7 @@
 #include <memory>
 
 #include "DataStore.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "SimpleBCStateTransfer.hpp"
 
 using BlockId = std::uint64_t;

@@ -12,10 +12,10 @@
 #include "ClientsManager.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "IStateTransfer.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "PersistentStorageImp.hpp"
 #include "ReplicasInfo.hpp"
 

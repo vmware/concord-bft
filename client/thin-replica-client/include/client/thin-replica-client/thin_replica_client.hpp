@@ -41,8 +41,8 @@
 
 #include "thin_replica.pb.h"
 #include "grpc_connection.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
 
 #include <opentracing/span.h>
 #include <condition_variable>

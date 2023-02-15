@@ -10,7 +10,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <endianness.hpp>
+#include "util/endianness.hpp"
 #include <future>
 #include "bftengine/ControlStateManager.hpp"
 #include "pruning_handler.hpp"

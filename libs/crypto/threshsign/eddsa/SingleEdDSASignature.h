@@ -12,7 +12,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
-#include "types.hpp"
+#include "util/types.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 
 /**

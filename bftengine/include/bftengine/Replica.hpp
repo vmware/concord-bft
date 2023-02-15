@@ -19,15 +19,15 @@
 #include <functional>
 
 #include "IStateTransfer.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "communication/ICommunication.hpp"
 #include "MetadataStorage.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "PerformanceManager.hpp"
 #include "IRequestHandler.hpp"
 #include "InternalBFTClient.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 namespace concord::cron {
 class TicksGenerator;
 }

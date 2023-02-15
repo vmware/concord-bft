@@ -18,7 +18,7 @@
 #include "categorization/column_families.h"
 #include "categorization/db_categories.h"
 #include "categorization/kv_blockchain.h"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "storage/test/storage_test_common.h"
 
 #include "util/filesystem.hpp"

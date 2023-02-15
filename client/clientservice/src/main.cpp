@@ -9,7 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <concord_prometheus_metrics.hpp>
+#include "util/concord_prometheus_metrics.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,7 +21,7 @@
 #include "client/clientservice/client_service.hpp"
 #include "client/clientservice/configuration.hpp"
 #include "client/concordclient/concord_client.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "secrets/secret_retriever.hpp"
 #include <jaegertracing/Tracer.h>
 #include "log/logger.hpp"

@@ -11,14 +11,14 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 #include "kv_types.hpp"
 #include "rocksdb/native_client.h"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 
 #include "multi_get_batch.hpp"
 

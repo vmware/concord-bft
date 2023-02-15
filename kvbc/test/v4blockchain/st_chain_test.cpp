@@ -20,7 +20,7 @@
 #include <vector>
 #include <random>
 #include "storage/test/storage_test_common.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "v4blockchain/detail/st_chain.h"
 
 using concord::storage::rocksdb::NativeClient;

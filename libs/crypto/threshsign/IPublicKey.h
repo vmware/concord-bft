@@ -14,7 +14,7 @@
 
 #include <string>
 #include <ostream>
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 class IPublicKey : public concord::serialize::IStringSerializable {
  public:

@@ -22,7 +22,7 @@
 #include "ReplicaConfig.hpp"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
-#include "MetricsServer.hpp"
+#include "util/MetricsServer.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
 #include "secrets/secrets_manager_impl.h"

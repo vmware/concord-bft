@@ -3,7 +3,7 @@
 #pragma once
 
 #include "client.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "storage/db_interface.h"
 
 #include <cstdlib>

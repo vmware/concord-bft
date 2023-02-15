@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "db_interfaces.h"
 #include "replica_adapter.hpp"
 

@@ -12,7 +12,7 @@
 #pragma once
 
 #include <type_traits>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "SysConsts.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgCode.hpp"

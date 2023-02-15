@@ -19,7 +19,7 @@
 #include "gtest/gtest.h"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
-#include "serialize.hpp"
+#include "util/serializable.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
@@ -170,7 +170,9 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   uint64_t flags = MsgFlag::EMPTY_FLAGS;
   uint64_t reqSeqNum = 100u;
   auto millis = std::chrono::system_clock::now().time_since_epoch();
-  auto request = concord::util::serialize(millis.count());
+  std::stringstream oss;
+  concord::serialize::Serializable::serialize<std::chrono::milliseconds::rep>(oss, millis.count());
+  std::string request = oss.str();
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {""};
@@ -197,9 +199,10 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
 
-  EXPECT_EQ(concord::util::deserialize<std::chrono::milliseconds::rep>(
-                originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()),
-            millis.count());
+  std::stringstream iss(std::string(originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()));
+  std::chrono::milliseconds::rep dsrz_millis;
+  concord::serialize::Serializable::deserialize<std::chrono::milliseconds::rep>(iss, dsrz_millis);
+  EXPECT_EQ(dsrz_millis, millis.count());
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }
 

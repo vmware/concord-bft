@@ -21,7 +21,7 @@
 #include "bftengine/MetadataStorage.hpp"
 #include "storage/db_interface.h"
 #include "storage/key_manipulator_interface.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 
 namespace concord {
 namespace storage {

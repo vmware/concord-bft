@@ -12,7 +12,7 @@
 // file.
 
 #include "kvbc_adapter/categorization/blocks_deleter_adapter.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::kvbc::adapter::categorization {
 

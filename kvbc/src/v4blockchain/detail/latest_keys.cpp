@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/column_families.h"
 #include "log/logger.hpp"

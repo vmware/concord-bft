@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "types.hpp"
+#include "util/types.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "SharedTypes.hpp"
 #include <list>

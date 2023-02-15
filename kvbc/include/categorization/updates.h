@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "details.h"
 #include "kv_types.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"

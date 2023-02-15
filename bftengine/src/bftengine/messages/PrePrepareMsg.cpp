@@ -11,7 +11,7 @@
 
 #include <utility>
 #include <bftengine/ClientMsgs.hpp>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "ClientRequestMsg.hpp"

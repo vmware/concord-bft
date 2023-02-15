@@ -10,7 +10,7 @@
 // file.
 
 #include "PartialCommitProofMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "EpochManager.hpp"
 #include "crypto/threshsign/IThresholdSigner.h"

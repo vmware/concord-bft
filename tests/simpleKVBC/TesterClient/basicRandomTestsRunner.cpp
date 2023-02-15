@@ -13,7 +13,7 @@
 
 #include "basicRandomTestsRunner.hpp"
 #include "simpleKVBTestsBuilder.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include <chrono>
 #include <unistd.h>
 

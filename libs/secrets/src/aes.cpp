@@ -14,7 +14,7 @@
 // This convenience header combines different block implementations.
 #include "aes.h"
 #include "crypto/openssl/crypto.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include <openssl/aes.h>
 #include <nlohmann/json.hpp>
 

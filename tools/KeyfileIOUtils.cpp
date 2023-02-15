@@ -16,10 +16,10 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
-#include <string.hpp>
+#include "util/string.hpp"
 #include <exception>
 #include "KeyfileIOUtils.hpp"
-#include "yaml_utils.hpp"
+#include "util/yaml_utils.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 
 using concord::crypto::isValidKey;

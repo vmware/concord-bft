@@ -13,14 +13,14 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
 #include "merkle_tree_block.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
-#include "Statistics.hpp"
+#include "util/Statistics.hpp"
 #include "PerformanceManager.hpp"
 
 #include <future>

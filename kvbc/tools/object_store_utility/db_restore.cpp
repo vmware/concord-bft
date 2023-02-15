@@ -12,7 +12,7 @@
 // file.
 
 #include "db_restore.hpp"
-#include "string.hpp"
+#include "util/string.hpp"
 #include "categorization/base_types.h"
 #include "categorization/db_categories.h"
 #include "kvbc_adapter/v4blockchain/blocks_utils.hpp"

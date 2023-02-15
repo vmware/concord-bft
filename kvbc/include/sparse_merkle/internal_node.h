@@ -16,7 +16,7 @@
 #include <variant>
 #include <algorithm>
 
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/keys.h"
 #include "sparse_merkle/base_types.h"
 

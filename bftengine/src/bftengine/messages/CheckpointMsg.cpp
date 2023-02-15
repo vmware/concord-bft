@@ -10,7 +10,7 @@
 // file.
 
 #include "CheckpointMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 

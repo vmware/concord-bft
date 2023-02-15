@@ -12,9 +12,9 @@
 // file.
 
 #include "internalCommandsHandler.hpp"
-#include "OpenTracing.hpp"
-#include "assertUtils.hpp"
-#include "sliver.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/assertUtils.hpp"
+#include "util/sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
 #include <unistd.h>

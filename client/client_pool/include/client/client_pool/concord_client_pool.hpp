@@ -20,7 +20,7 @@
 #include <mutex>
 #include <queue>
 
-#include "SimpleThreadPool.hpp"
+#include "util/SimpleThreadPool.hpp"
 #include "bftclient/base_types.h"
 #include "bftclient/config.h"
 #include "bftclient/quorums.h"

@@ -16,7 +16,7 @@
 #include "categorization/kv_blockchain.h"
 #include "categorization/updates.h"
 #include "db_interfaces.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "pruning_handler.hpp"
 
 #include "storage/test/storage_test_common.h"

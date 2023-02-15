@@ -28,7 +28,7 @@ from util.test_base import ApolloTest
 
 import concord_msgs as cmf_msgs
 import sys
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 import bft_client
 
 def start_replica_cmd(builddir, replica_id):

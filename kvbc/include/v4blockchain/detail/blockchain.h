@@ -24,9 +24,9 @@
 #include "kv_types.hpp"
 #include "v4blockchain/detail/blocks.h"
 #include "categorization/updates.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 #include "kv_types.hpp"
-#include "thread_pool.hpp"
+#include "util/thread_pool.hpp"
 #include "v4blockchain/detail/column_families.h"
 
 namespace concord::kvbc::v4blockchain::detail {

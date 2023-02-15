@@ -16,7 +16,7 @@
 
 #include "digest_creator.hpp"
 #include "digest_parametes.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 namespace concord::crypto {
 

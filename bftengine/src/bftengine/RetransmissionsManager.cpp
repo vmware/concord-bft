@@ -18,10 +18,10 @@
 
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "RetransmissionsManager.hpp"
-#include "SimpleThreadPool.hpp"
+#include "util/SimpleThreadPool.hpp"
 #include "IncomingMsgsStorage.hpp"
-#include "RollingAvgAndVar.hpp"
-#include "assertUtils.hpp"
+#include "util/RollingAvgAndVar.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace std::chrono;
 

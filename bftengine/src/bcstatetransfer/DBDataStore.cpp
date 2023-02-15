@@ -1,7 +1,7 @@
 #include <algorithm>
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 using concord::serialize::Serializable;
 

@@ -16,7 +16,7 @@
 #include "messages/CheckpointMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "InternalReplicaApi.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine::impl {
 

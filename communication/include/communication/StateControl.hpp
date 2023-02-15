@@ -13,13 +13,13 @@
 #pragma once
 #include <functional>
 #include <utility>
-#include "callback_registry.hpp"
+#include "util/callback_registry.hpp"
 #include <unordered_map>
 #include <variant>
 #include <memory>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bft::communication {
 struct EnumHash {

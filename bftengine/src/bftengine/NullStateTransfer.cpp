@@ -12,7 +12,7 @@
 #include "NullStateTransfer.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "crypto/digest.hpp"
 
 using concord::crypto::Digest;

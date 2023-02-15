@@ -10,10 +10,10 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "communication/CommDefs.hpp"
 
-#include "errnoString.hpp"
+#include "util/errnoString.hpp"
 
 #include <iostream>
 #include <cstddef>

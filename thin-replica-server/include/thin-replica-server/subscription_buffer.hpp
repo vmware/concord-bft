@@ -23,7 +23,7 @@
 #include <unordered_set>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"
 #include "kv_types.hpp"

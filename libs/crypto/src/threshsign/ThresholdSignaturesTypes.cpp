@@ -15,8 +15,8 @@
 #include "crypto/threshsign/IThresholdVerifier.h"
 #include "crypto/threshsign/IThresholdFactory.h"
 #include "log/logger.hpp"
-#include "yaml_utils.hpp"
-#include "string.hpp"
+#include "util/yaml_utils.hpp"
+#include "util/string.hpp"
 #include "crypto/crypto.hpp"
 
 #ifdef USE_MULTISIG_EDDSA

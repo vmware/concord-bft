@@ -13,10 +13,10 @@
 
 #pragma once
 
-#include "status.hpp"
-#include "sliver.hpp"
+#include "util/status.hpp"
+#include "util/sliver.hpp"
 #include "communication/ICommunication.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "storage/db_interface.h"
 #include "db_interfaces.h"
 #include "bftengine/Replica.hpp"

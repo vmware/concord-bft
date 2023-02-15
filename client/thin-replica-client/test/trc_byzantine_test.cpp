@@ -16,7 +16,7 @@
 #include "client/thin-replica-client/grpc_connection.hpp"
 
 #include "gtest/gtest.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "thin_replica_client_mocks.hpp"
 
 using com::vmware::concord::thin_replica::Data;

@@ -14,7 +14,7 @@
 #include <cstring>
 #include <memory>
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "gtest/gtest.h"
 
 #include "crypto/digest.hpp"

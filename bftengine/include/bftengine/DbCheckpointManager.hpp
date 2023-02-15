@@ -24,12 +24,12 @@
 #include <thread>
 #include <atomic>
 #include <PrimitiveTypes.hpp>
-#include "callback_registry.hpp"
-#include "status.hpp"
-#include "Serializable.h"
+#include "util/callback_registry.hpp"
+#include "util/status.hpp"
+#include "util/serializable.hpp"
 #include "PersistentStorage.hpp"
 #include "DbCheckpointMetadata.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "InternalBFTClient.hpp"
 #include "storage/db_interface.h"
 #include "util/filesystem.hpp"

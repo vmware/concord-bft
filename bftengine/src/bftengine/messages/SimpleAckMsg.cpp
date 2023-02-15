@@ -11,7 +11,7 @@
 
 #include "SimpleAckMsg.hpp"
 #include "ReplicasInfo.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

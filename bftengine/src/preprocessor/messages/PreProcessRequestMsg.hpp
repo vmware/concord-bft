@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "messages/MessageBase.hpp"
 #include <memory>
 

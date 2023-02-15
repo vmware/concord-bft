@@ -9,8 +9,8 @@
 // terms. Your use of these subcomponents is subject to the terms and conditions of the
 // subcomponent's license, as noted in the LICENSE file.
 
-#include "kvstream.h"
-#include "assertUtils.hpp"
+#include "util/kvstream.h"
+#include "util/assertUtils.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "msg_receiver.h"
 

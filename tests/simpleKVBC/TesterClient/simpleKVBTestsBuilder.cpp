@@ -12,8 +12,8 @@
 // file.
 
 #include "simpleKVBTestsBuilder.hpp"
-#include "endianness.hpp"
-#include "assertUtils.hpp"
+#include "util/endianness.hpp"
+#include "util/assertUtils.hpp"
 #include <chrono>
 #include <map>
 #include <set>

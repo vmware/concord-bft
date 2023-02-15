@@ -13,11 +13,11 @@
 
 #include <cstdint>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "crypto/digest.hpp"
 #include "ReplicaConfig.hpp"
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {

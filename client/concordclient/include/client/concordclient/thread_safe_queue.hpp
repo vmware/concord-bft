@@ -20,7 +20,7 @@
 #include <exception>
 #include <chrono>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::client::concordclient {
 

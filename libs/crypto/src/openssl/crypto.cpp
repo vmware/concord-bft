@@ -13,9 +13,9 @@
 
 #include "crypto/openssl/crypto.hpp"
 #include "crypto/openssl/EdDSA.hpp"
-#include "types.hpp"
-#include "assertUtils.hpp"
-#include "hex_tools.h"
+#include "util/types.hpp"
+#include "util/assertUtils.hpp"
+#include "util/hex_tools.hpp"
 
 #include <openssl/ec.h>
 #include <openssl/pem.h>

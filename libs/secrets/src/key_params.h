@@ -18,7 +18,7 @@
 #include <vector>
 #include <string>
 #include <stdint.h>
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 namespace concord::secretsmanager {
 

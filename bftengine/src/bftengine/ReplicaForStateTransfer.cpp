@@ -12,8 +12,8 @@
 #include "ReplicaForStateTransfer.hpp"
 
 #include "log/logger.hpp"
-#include "Timers.hpp"
-#include "assertUtils.hpp"
+#include "util/Timers.hpp"
+#include "util/assertUtils.hpp"
 #include "NullStateTransfer.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"

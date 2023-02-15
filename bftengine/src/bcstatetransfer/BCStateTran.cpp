@@ -20,11 +20,11 @@
 #include <iterator>
 #include <iomanip>
 
-#include "assertUtils.hpp"
-#include "hex_tools.h"
+#include "util/assertUtils.hpp"
+#include "util/hex_tools.hpp"
 #include "BCStateTran.hpp"
 #include "InMemoryDataStore.hpp"
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 #include "ReservedPagesClient.hpp"
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"

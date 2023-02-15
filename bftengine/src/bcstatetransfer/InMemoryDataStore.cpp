@@ -16,8 +16,8 @@
 #include "InMemoryDataStore.hpp"
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
-#include "kvstream.h"
+#include "util/assertUtils.hpp"
+#include "util/kvstream.h"
 
 namespace bftEngine {
 namespace bcst {

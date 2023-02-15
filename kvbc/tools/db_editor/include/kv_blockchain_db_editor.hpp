@@ -31,11 +31,11 @@
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "crypto/factory.hpp"
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 #include <unordered_map>
 

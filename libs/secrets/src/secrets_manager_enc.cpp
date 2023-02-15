@@ -16,7 +16,7 @@
 #include "secrets/secrets_manager_enc.h"
 #include "aes.h"
 #include "base64.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace concord::secretsmanager {
 

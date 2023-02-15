@@ -18,13 +18,13 @@
 #include <future>
 
 #include "log/logger.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
 #include "storage/direct_kv_key_manipulator.h"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 
 namespace bftEngine {
 

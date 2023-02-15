@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
-#include "sliver.hpp"
-#include "status.hpp"
+#include "util/assertUtils.hpp"
+#include "util/sliver.hpp"
+#include "util/status.hpp"
 #include <unordered_map>
 #include <vector>
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 namespace concord {
 namespace storage {
