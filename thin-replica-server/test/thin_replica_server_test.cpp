@@ -283,6 +283,13 @@ class FakeStorage : public concord::kvbc::IReader {
     return {};
   }
 
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(const std::string& category_id,
+                                                                      const std::string& key,
+                                                                      const BlockId snapshot_version) const override {
+    ADD_FAILURE() << "getFromSnapshot() should not be called by this test";
+    return {};
+  }
+
   BlockId getGenesisBlockId() const override { return genesis_block_id; }
 
   BlockId getLastBlockId() const override { return block_id_; }

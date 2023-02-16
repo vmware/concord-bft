@@ -19,6 +19,7 @@
 #include "rocksdb/native_client.h"
 #include "v4blockchain/detail/column_families.h"
 #include "v4blockchain/detail/latest_keys.h"
+#include "v4blockchain/detail/keys_history.h"
 
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/statistics.h>
@@ -49,6 +50,9 @@ std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
     if ((d.name == concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF) ||
         (d.name == concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF)) {
       d.options.compaction_filter = concord::kvbc::v4blockchain::detail::LatestKeys::LKCompactionFilter::getFilter();
+      LOG_DEBUG(V4_BLOCK_LOG, "Setting compaction filter for " << d.name);
+    } else if (d.name == concord::kvbc::v4blockchain::detail::KEYS_HISTORY_CF) {
+      d.options.compaction_filter = concord::kvbc::v4blockchain::detail::KeysHistory::KHCompactionFilter::getFilter();
       LOG_DEBUG(V4_BLOCK_LOG, "Setting compaction filter for " << d.name);
     }
   }

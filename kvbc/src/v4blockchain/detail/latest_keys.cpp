@@ -21,11 +21,6 @@
 using namespace concord::kvbc;
 namespace concord::kvbc::v4blockchain::detail {
 
-template <typename... Sliceable>
-auto getSliceArray(const Sliceable&... sls) {
-  return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
-}
-
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                        const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories)
     : native_client_{native_client}, category_mapping_(native_client, categories) {
@@ -208,7 +203,7 @@ void LatestKeys::revertCategoryKeysImp(const std::string& cFamily,
   std::vector<::rocksdb::Status> statuses;
 
   for (const auto& [k, _] : updates) {
-    (void)_;  // unsued
+    (void)_;  // unused
     keys.push_back(prefix + k);
   }
   native_client_->multiGet(cFamily, keys, values, statuses, ro);
@@ -226,7 +221,7 @@ void LatestKeys::revertCategoryKeysImp(const std::string& cFamily,
         data = val.GetSelf()->data();
         size = val.GetSelf()->size();
       }
-      // add the previous value , already contains currect version as postfix
+      // add the previous value, already contains correct version as postfix
       auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(data + (size - sizeof(BlockId)));
       LOG_DEBUG(V4_BLOCK_LOG,
                 "Found previous version for key " << key << " rocks sn " << sn << " version " << actual_version);
@@ -262,7 +257,7 @@ void LatestKeys::revertDeletedKeysImp(const std::string& category_id,
     auto& val = values[i];
     const auto& key = keys[i];
     if (status.ok()) {
-      // add the previous value , already contains currect version as postfix
+      // add the previous value, already contains correct version as postfix
       const char* data = nullptr;
       size_t size{};
       if (val.IsPinned()) {
@@ -317,8 +312,9 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
                            << category_id << " prefix " << prefix << " key is hex "
                            << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
   switch (category_type) {
-    case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
+    case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle: {
       return categorization::MerkleValue{{actual_version, opt_val->substr(0, total_val_size - VALUE_POSTFIX_SIZE)}};
+    }
     case concord::kvbc::categorization::CATEGORY_TYPE::immutable: {
       return categorization::ImmutableValue{{actual_version, opt_val->substr(0, total_val_size - VALUE_POSTFIX_SIZE)}};
     }

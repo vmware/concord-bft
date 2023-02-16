@@ -18,6 +18,7 @@
 namespace concord::kvbc::v4blockchain::detail {
 
 std::atomic<BlockId> Blockchain::global_genesis_block_id = INVALID_BLOCK_ID;
+std::atomic<BlockId> Blockchain::global_latest_block_id = INVALID_BLOCK_ID;
 
 Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
     : native_client_{native_client} {
@@ -29,7 +30,7 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   }
   auto last_reachable_block_id = loadLastReachableBlockId();
   if (last_reachable_block_id) {
-    last_reachable_block_id_ = last_reachable_block_id.value();
+    setLastReachable(last_reachable_block_id.value());
     LOG_INFO(V4_BLOCK_LOG, "Last reachable block was loaded from storage " << last_reachable_block_id_);
   }
   auto genesis_blockId = loadGenesisBlockId();

@@ -22,6 +22,7 @@
 #include "util/throughput.hpp"
 #include "blockchain_misc.hpp"
 #include "util/filesystem.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 namespace concord::kvbc::v4blockchain {
 
@@ -35,6 +36,7 @@ KeyValueBlockchain::KeyValueBlockchain(
       block_chain_{native_client_},
       state_transfer_chain_{native_client_},
       latest_keys_{native_client_, category_types},
+      keys_history_{native_client_, category_types},
       v4_metrics_comp_{concordMetrics::Component("v4_blockchain", std::make_shared<concordMetrics::Aggregator>())},
       blocks_deleted_{v4_metrics_comp_.RegisterGauge(
           "numOfBlocksDeleted", block_chain_.getGenesisBlockId() > 0 ? (block_chain_.getGenesisBlockId() - 1) : 0)},
@@ -108,6 +110,7 @@ BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
   BlockId block_id{};
   { block_id = block_chain_.addBlock(block, write_batch); }
   { latest_keys_.addBlockKeys(updates, block_id, write_batch); }
+  { keys_history_.addBlockKeys(updates, block_id, write_batch); }
   return block_id;
 }
 
@@ -208,6 +211,7 @@ void KeyValueBlockchain::storeLastReachableRevertBatch(const std::optional<kvbc:
                 "Reverting updates of block " << last_reachable_id << " unstable version " << unstable_version
                                               << " stable version " << stable_version);
       latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch, internal_snapshot.get());
+      keys_history_.revertLastBlockKeys(*updates, last_reachable_id, write_batch);
       // delete from blockchain
       block_chain_.deleteBlock(last_reachable_id, write_batch);
       const auto &ser_batch = write_batch.data();
@@ -579,6 +583,41 @@ std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::st
     return get(category_id, key, opt_version->version);
   }
   return latest_keys_.getValue(category_id, key);
+}
+
+std::optional<categorization::Value> KeyValueBlockchain::getFromSnapshot(const std::string &category_id,
+                                                                         const std::string &key,
+                                                                         const BlockId version) const {
+  auto opt_latest = getLatest(category_id, key);
+  if (opt_latest) {
+    BlockId latest_version;
+    std::visit([&latest_version](const auto &opt_latest) { latest_version = opt_latest.block_id; }, *opt_latest);
+    if (version >= latest_version) {
+      return opt_latest;
+    }
+  }
+
+  if (bftEngine::ReplicaConfig::instance().enableKeysHistoryCF) {
+    auto block_id = keys_history_.getVersionFromHistory(category_id, key, version);
+    if (block_id) {
+      return get(category_id, key, block_id.value());
+    }
+  } else {
+    // TODO: get() returns nullopt for a deleted key as well as for a key that was not updated at the block. So, if our
+    // key is deleted at the snapshot version, we will return its last value before it was deleted, instead of nullopt.
+    BlockId limit = 0;
+    BlockId max_blocks_to_look = bftEngine::ReplicaConfig::instance().keysHistoryMaxBlocksNum;
+    if (version > max_blocks_to_look) {
+      limit = version - max_blocks_to_look;
+    }
+    for (auto i = version; i > limit; i--) {
+      auto opt_value = get(category_id, key, i);
+      if (opt_value) {
+        return opt_value;
+      }
+    }
+  }
+  return std::nullopt;
 }
 
 void KeyValueBlockchain::multiGet(const std::string &category_id,

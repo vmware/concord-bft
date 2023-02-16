@@ -81,6 +81,12 @@ class IReader {
   // Get the last block ID in the system.
   virtual BlockId getLastBlockId() const = 0;
 
+  // Get the version of 'key' that is the closest from below or equal to 'snapshot_version'
+  // Return std::nullopt if the key doesn't exist or is deleted at given version
+  virtual std::optional<categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                               const std::string &key,
+                                                               const BlockId snapshot_version) const = 0;
+
   virtual ~IReader() = default;
 };
 
