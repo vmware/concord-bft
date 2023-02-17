@@ -2999,7 +2999,11 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       if (seqNumInfo.getPrePrepareMsg() != nullptr && seqNumInfo.isTimeCorrect()) {
         ViewsManager::PrevViewInfo x;
 
-        std::tie(x.prePrepare, x.prepareFull) = seqNumInfo.getAndReset();
+        PrepareFullMsg *fullMsg;
+        PrePrepareMsg *partialMsg;
+        std::tie(partialMsg, fullMsg) = seqNumInfo.getAndReset();
+        x.prePrepare.reset(partialMsg);
+        x.prepareFull.reset(fullMsg);
         x.hasAllRequests = true;
 
         ConcordAssertNE(x.prePrepare, nullptr);
@@ -3061,7 +3065,7 @@ void ReplicaImp::goToNextView() {
 bool ReplicaImp::tryToEnterView() {
   ConcordAssert(!currentViewIsActive());
   ConcordAssertEQ(activeExecutions_, 0);
-  std::vector<PrePrepareMsg *> prePreparesForNewView;
+  std::vector<std::shared_ptr<PrePrepareMsg>> prePreparesForNewView;
 
   bool enteredView =
       viewsManager->tryToEnterView(getCurrentView(), lastStableSeqNum, lastExecutedSeqNum, &prePreparesForNewView);
@@ -3077,7 +3081,7 @@ bool ReplicaImp::tryToEnterView() {
   return enteredView;
 }
 
-void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNewView) {
+void ReplicaImp::onNewView(const std::vector<std::shared_ptr<PrePrepareMsg>> &prePreparesForNewView) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   SeqNum firstPPSeq = 0;
   SeqNum lastPPSeq = 0;
@@ -3177,7 +3181,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   const bool primaryIsMe = (config_.getreplicaId() == repsInfo->primaryOfView(getCurrentView()));
   std::vector<SeqNum> ppSeqNumbers;
   for (size_t i = 0; i < prePreparesForNewView.size(); i++) {
-    PrePrepareMsg *pp = prePreparesForNewView[i];
+    PrePrepareMsg *pp = prePreparesForNewView[i].get();
     ConcordAssertGE(pp->seqNumber(), firstPPSeq);
     ConcordAssertLE(pp->seqNumber(), lastPPSeq);
     ConcordAssertEQ(pp->firstPath(), CommitPath::SLOW);  // TODO(GG): don't we want to use the fast path?

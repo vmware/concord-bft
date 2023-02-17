@@ -459,7 +459,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendAndIncrementMetric(MessageBase*, NodeIdType, CounterHandle&);
 
   bool tryToEnterView();
-  void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
+  void onNewView(const std::vector<std::shared_ptr<PrePrepareMsg>>& prePreparesForNewView);
   void MoveToHigherView(ViewNum nextView);  // also sends the ViewChangeMsg message
   void goToNextView();
 

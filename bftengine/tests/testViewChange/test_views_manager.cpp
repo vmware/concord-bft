@@ -27,6 +27,8 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
 
+#include <memory>
+
 namespace {
 
 using namespace bftEngine;
@@ -300,6 +302,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
     newViewMsg->addElement(i + 1, digest);
   }
   newViewMsg->finalizeMessage(replicasInfo);
+
   // Add the new view message to the views manager.
   viewsManager->add(newViewMsg);
 
@@ -308,7 +311,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   // This permits calls of the "tryToEnterView" function to be made.
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
-  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  vector<std::shared_ptr<PrePrepareMsg>> outPrePrepareMsgs;
   // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
   // added to the views manager.
@@ -395,7 +398,7 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
   // In order to change the view manager's status from Stat::IN_VIEW, exit should be called beforehand.
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
-  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  vector<std::shared_ptr<PrePrepareMsg>> outPrePrepareMsgs;
   viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs);
 
   ASSERT_EQ(viewsManager->latestActiveView(), nextView);
@@ -504,7 +507,7 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
   // This permits calls of the "tryToEnterView" function to be made.
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
-  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  vector<std::shared_ptr<PrePrepareMsg>> outPrePrepareMsgs;
   // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
   // added to the views manager.

@@ -92,21 +92,17 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(const DescriptorOfL
     ConcordAssert(e.prepareFull == nullptr || e.prepareFull->viewNumber() == d.view);
     ConcordAssert(e.prepareFull == nullptr || e.prepareFull->seqNumber() == e.prePrepare->seqNumber());
 
-    PrePrepareMsg *clonedPrePrepareMsg = nullptr;
     if (e.prePrepare != nullptr) {
-      clonedPrePrepareMsg = (PrePrepareMsg *)e.prePrepare->cloneObjAndMsg();
-      ConcordAssert(clonedPrePrepareMsg->type() == MsgCode::PrePrepare);
+      clonedElements[i].prePrepare = e.prePrepare;
+      ConcordAssert(e.prePrepare->type() == MsgCode::PrePrepare);
     }
 
-    PrepareFullMsg *clonedPrepareFull = nullptr;
     if (e.prepareFull != nullptr) {
-      clonedPrepareFull = (PrepareFullMsg *)e.prepareFull->cloneObjAndMsg();
-      ConcordAssert(clonedPrepareFull->type() == MsgCode::PrepareFull);
+      clonedElements[i].prepareFull = e.prepareFull;
+      ConcordAssert(e.prepareFull->type() == MsgCode::PrepareFull);
     }
 
-    clonedElements[i].prePrepare = clonedPrePrepareMsg;
     clonedElements[i].hasAllRequests = e.hasAllRequests;
-    clonedElements[i].prepareFull = clonedPrepareFull;
   }
 
   ViewChangeMsg *clonedViewChangeMsg = nullptr;
@@ -116,8 +112,6 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(const DescriptorOfL
   for (size_t i = 0; i < descriptorOfLastExitFromView_.elements.size(); i++) {
     const ViewsManager::PrevViewInfo &e = descriptorOfLastExitFromView_.elements[i];
     ConcordAssert(e.prePrepare != nullptr);
-    delete e.prePrepare;
-    if (e.prepareFull != nullptr) delete e.prepareFull;
   }
   if (descriptorOfLastExitFromView_.myViewChangeMsg != nullptr) delete descriptorOfLastExitFromView_.myViewChangeMsg;
 
@@ -324,10 +318,10 @@ DescriptorOfLastExitFromView DebugPersistentStorage::getAndAllocateDescriptorOfL
 
   for (size_t i = 0; i < elements.size(); i++) {
     const ViewsManager::PrevViewInfo &e = d.elements[i];
-    elements[i].prePrepare = (PrePrepareMsg *)e.prePrepare->cloneObjAndMsg();
+    elements[i].prePrepare = e.prePrepare;
     elements[i].hasAllRequests = e.hasAllRequests;
     if (e.prepareFull != nullptr)
-      elements[i].prepareFull = (PrepareFullMsg *)e.prepareFull->cloneObjAndMsg();
+      elements[i].prepareFull = e.prepareFull;
     else
       elements[i].prepareFull = nullptr;
   }
