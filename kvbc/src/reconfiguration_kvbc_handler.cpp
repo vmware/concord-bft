@@ -443,6 +443,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
           } else if (command_type == std::string{kvbc::keyTypes::reconfiguration_rep_main_key}) {
             concord::messages::ReplicaMainKeyUpdate cmd;
             concord::messages::deserialize(data_buf, cmd);
+            cmd.seq_num -= (cmd.seq_num < 2 * checkpointWindowSize ? 0 : 2 * checkpointWindowSize);
             creply.response = cmd;
           }
           auto epoch_data =

@@ -87,22 +87,19 @@ void ReplicaForStateTransfer::start() {
         if (!config_.isReadOnly) {
           // Load the public keys of the other replicas from reserved pages
           // so that their responses can be validated
-          cre_->halt();
           KeyExchangeManager::instance().loadPublicKeys();
-          // Need to update private key to match the loaded public key in case they differ (key exchange was executed
-          // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
-          // This can be done by iterating the saved cryptosystems and updating their private key if their
-          // public key matches the candidate saved in KeyExchangeManager
-
-          // Clear old keys
-          CryptoManager::instance().onCheckpoint(checkpoint);
-          auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
-          CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
 
           // Make sure to sign the reconfiguration client messages using the key
           // other replicas expect
           SigManager::instance()->setReplicaLastExecutedSeq(checkpoint * checkpointWindowSize);
-          cre_->resume();
+
+          // Need to update private key to match the loaded public key in case they differ (key exchange was executed
+          // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
+          // This can be done by iterating the saved cryptosystems and updating their private key if their
+          // public key matches the candidate saved in KeyExchangeManager
+          CryptoManager::instance().onCheckpoint(checkpoint);
+          auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
+          CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
 
           // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
           // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.

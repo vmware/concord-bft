@@ -325,7 +325,8 @@ bool SigManager::verifyOwnSignature(const concord::Byte* data,
                                     const concord::Byte* expectedSignature) const {
   std::vector<concord::Byte> sig(getMySigLength());
   if (ReplicaConfig::instance().singleSignatureScheme) {
-    for (auto signer : CryptoManager::instance().getLatestSigners()) {
+    auto signers = CryptoManager::instance().getLatestSigners();
+    for (auto& signer : signers) {
       signer->signBuffer(data, dataLength, sig.data());
 
       if (std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0) {

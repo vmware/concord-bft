@@ -26,6 +26,7 @@ namespace bftEngine::impl {
 class MsgHandlersRegistrator;
 class MsgsCommunicator;
 class ReplicasInfo;
+class CheckpointMsg;
 
 using concordMetrics::GaugeHandle;
 using concordMetrics::StatusHandle;
@@ -80,7 +81,25 @@ class ReplicaBase {
 
   void sendRaw(MessageBase* m, NodeIdType dest);
 
-  bool validateMessage(MessageBase* msg) {
+  template <typename MessageType>
+  bool validateMessage(MessageType* msg) {
+    if (config_.debugStatisticsEnabled) {
+      DebugStatistics::onReceivedExMessage(msg->type());
+    }
+    try {
+      if constexpr (std::is_same_v<MessageType, CheckpointMsg>) {
+        msg->validate(*repsInfo, false);
+      } else {
+        msg->validate(*repsInfo);
+      }
+      return true;
+    } catch (std::exception& e) {
+      onReportAboutInvalidMessage(msg, e.what());
+      return false;
+    }
+  }
+
+  /*bool validateMessage(MessageBase* msg) {
     try {
       if (config_.debugStatisticsEnabled) DebugStatistics::onReceivedExMessage(msg->type());
 
@@ -90,7 +109,7 @@ class ReplicaBase {
       onReportAboutInvalidMessage(msg, e.what());
       return false;
     }
-  }
+  }*/
 
  protected:
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;

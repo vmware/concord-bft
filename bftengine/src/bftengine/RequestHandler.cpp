@@ -161,7 +161,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         } else {
           // this replica has not reached stable seqNum yet to create snapshot at requested seqNum
           // add a callback to be called when seqNum is stable. We need to create snapshot on stable
-          // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
+          // seq num because checkpoint msg certificate is stored on stable seq num and is used for integrity
           // check of db snapshots
           const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
           DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);

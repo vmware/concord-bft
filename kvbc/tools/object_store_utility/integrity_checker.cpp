@@ -28,7 +28,6 @@ using namespace std::placeholders;
 using concordUtils::Status;
 using bftEngine::bcst::impl::BCStateTran;
 using kvbc::v1DirectKeyValue::S3StorageFactory;
-using crypto::KeyFormat;
 
 void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
   LOG_DEBUG(logger_, keys_file);

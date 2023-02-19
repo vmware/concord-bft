@@ -355,14 +355,20 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum& s) {
-  std::unique_lock<std::mutex> lock(startup_mutex_);
-  SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-  if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+void KeyExchangeManager::waitForQuorum(const ReplicaImp* repImpInstance) {
+  bool partialQuorum = !ReplicaConfig::instance().waitForFullCommOnStartup;
+  LOG_INFO(KEY_EX_LOG, "Waiting for quorum" << KVLOG(partialQuorum));
+  if (partialQuorum) {
     waitForLiveQuorum(repImpInstance);
   } else {
     waitForFullCommunication();
   }
+}
+
+void KeyExchangeManager::waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum s) {
+  std::unique_lock<std::mutex> lock(startup_mutex_);
+  SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
+  waitForQuorum(repImpInstance);
 
   generateConsensusKeyAndSendInternalClientMsg(s);
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");

@@ -519,7 +519,6 @@ class BftTestNetwork:
                 # Generate certificates for replicas, clients, and reserved clients
                 self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
-    @log_call
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
         with log.start_action(action_type="restart_clients", generate_tx_signing_keys=generate_tx_signing_keys,
                               restart_replicas=restart_replicas):

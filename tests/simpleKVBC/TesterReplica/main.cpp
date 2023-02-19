@@ -118,6 +118,10 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
+  // Start metrics server before the creation of the replica so that we handle the case where
+  // a replica waits for an unresponsive primary on startup but still updates state-transfer related metrics
+  setup->GetMetricsServer().Start();
+
   replica = std::make_shared<Replica>(
       setup->GetCommunication(),
       setup->GetReplicaConfig(),
@@ -167,10 +171,7 @@ void run_replica(int argc, char** argv) {
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
-  // Start metrics server after creation of the replica so that we ensure
-  // registration of metrics from the replica with the aggregator and don't
-  // return empty metrics from the metrics server.
-  setup->GetMetricsServer().Start();
+
   while (replica->isRunning()) {
     if (timeToExit) {
       setup->GetMetricsServer().Stop();

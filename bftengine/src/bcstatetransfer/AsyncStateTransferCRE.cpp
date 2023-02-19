@@ -130,6 +130,7 @@ class ScalingReplicaHandler : public IStateHandler {
   }
 };
 
+// TODO(yf): remove
 class MainKeyUpdateHandler : public IStateHandler {
  public:
   MainKeyUpdateHandler() { LOG_INFO(getLogger(), "Created StateTransfer CRE replica main key update handler"); }
@@ -186,8 +187,11 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(
   IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
-  if (!bftEngine::ReplicaConfig::instance().isReadOnly) cre->registerHandler(std::make_shared<ScalingReplicaHandler>());
-  cre->registerHandler(std::make_shared<MainKeyUpdateHandler>());
+  if (bftEngine::ReplicaConfig::instance().isReadOnly) {
+    cre->registerHandler(std::make_shared<MainKeyUpdateHandler>());
+  } else {
+    cre->registerHandler(std::make_shared<ScalingReplicaHandler>());
+  }
   return cre;
 }
 

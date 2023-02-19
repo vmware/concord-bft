@@ -35,8 +35,11 @@ class KeyExchangeManager {
   void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();
+
+  void waitForQuorum(const ReplicaImp* repImpInstance);
+
   // Waits for a quorum and calls generateConsensusKeyAndSendInternalClientMsg
-  void waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum& = 0);
+  void waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum s = 0);
   // The execution handler implementation that is called after a key exchange msg passed consensus.
   // The new key pair will be used from two checkpoints after kemsg.generated_sn
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);

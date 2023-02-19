@@ -60,12 +60,6 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
-  msgHandlers_->registerMsgHandler(
-      MsgCode::StateTransfer,
-      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
-  msgHandlers_->registerMsgHandler(
-      MsgCode::StateTransfer,
-      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
   SigManager::init(config_.replicaId,

@@ -260,24 +260,6 @@ void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
   }
 }
 
-template <typename MessageType>
-bool ReplicaImp::validateMessage(MessageType *msg) {
-  if (config_.debugStatisticsEnabled) {
-    DebugStatistics::onReceivedExMessage(msg->type());
-  }
-  try {
-    if constexpr (std::is_same_v<MessageType, CheckpointMsg>) {
-      msg->validate(*repsInfo, false);
-    } else {
-      msg->validate(*repsInfo);
-    }
-    return true;
-  } catch (std::exception &e) {
-    onReportAboutInvalidMessage(msg, e.what());
-    return false;
-  }
-}
-
 /**
  * asyncValidateMessage<T> This is a family of asynchronous message which just schedules
  * the validation in a thread bag and returns peacefully. This will also translate the message
@@ -4665,6 +4647,7 @@ void ReplicaImp::start() {
     // If key exchange is disabled, first publish the replica's main key to clients
     if (ReplicaConfig::instance().singleSignatureScheme ||
         ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
+      KeyExchangeManager::instance().waitForQuorum(this);
       KeyExchangeManager::instance().sendMainPublicKey();
     }
   }
