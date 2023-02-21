@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <future>
+#include <optional>
 
 #include "bftengine/IStateTransfer.hpp"
 #include "util/Metrics.hpp"
