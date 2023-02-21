@@ -559,7 +559,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
       ConcordAssert((s > currentLastExecuted) || (pp->isNull()));
     }
 
-    delete pf;  // we can't use this prepared certificate in the new view
+    // it.prepareFull.reset();  // we can't use this prepared certificate in the new view
 
     if ((allRequests) && (!pp->isNull()))
       collectionOfPrePrepareMsgs[s] = it.prePrepare;  // we may need pp for the next views
