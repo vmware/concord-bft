@@ -141,7 +141,7 @@ The CI builds and runs tests in a docker container. To add a new dependency or t
   [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L5)
   and
   [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L10)
-* Tag the new images:
+* Tag the new images (at least one):
   * For release: `docker tag concord-bft:latest concordbft/concord-bft:<version>`
   * For debug: `docker tag concord-bft-debug:latest concordbft/concord-bft-debug:<version>`
   <br>where version is `current version + 1`.
@@ -150,7 +150,9 @@ The CI builds and runs tests in a docker container. To add a new dependency or t
   clean build test`
 * Ask one of the maintainers for a temporary write permission to Docker Hub
   repository(you need to have a [Docker ID](https://docs.docker.com/docker-id/))
-* Push the image: `docker push concordbft/concord-bft:<version>`
+* Push the images (at least one):
+  * For release: `docker push concordbft/concord-bft:<version>`
+  * For debug: `docker push concordbft/concord-bft-debug:<version>`
 * Create a PR for the update:
     * The PR must contain only changes related to the updates in the image
     * PR's summary has to be similar to `Docker update to version release=<new version> debug=<new version>`

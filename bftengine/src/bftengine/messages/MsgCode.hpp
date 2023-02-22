@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "util/kvstream.h"
+
 #include <cstdint>
 #include <sstream>
 
@@ -54,6 +56,7 @@ class MsgCode {
     ClientBatchRequest = 750,
     ClientReply = 800,
     Reserved = 900,
+    LastMsgCodeVal  // always keep this last in the enum as it is used to allocate array size(s)
   };
 };
 
@@ -134,14 +137,24 @@ inline std::ostream& operator<<(std::ostream& os, const MsgCode::Type& c) {
     case MsgCode::PreProcessReply:
       os << "PreProcessReply";
       break;
+    case MsgCode::PreProcessBatchRequest:
+      os << "PreProcessBatchRequest";
+      break;
+    case MsgCode::PreProcessBatchReply:
+      os << "PreProcessBatchReply";
+      break;
     case MsgCode::ClientRequest:
       os << "ClientRequest";
+      break;
+    case MsgCode::ClientBatchRequest:
+      os << "ClientBatchRequest";
       break;
     case MsgCode::ClientReply:
       os << "ClientReply";
       break;
     default:
-      os << "UNKNOWN";
+      auto msgCode = static_cast<uint16_t>(c);
+      os << "Unknown " << KVLOG(msgCode);
   }
   return os;
 }

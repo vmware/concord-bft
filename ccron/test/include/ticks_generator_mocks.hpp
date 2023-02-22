@@ -29,6 +29,7 @@ namespace concord::cron::test {
 struct IncomingMsgsStorageMock : public bftEngine::impl::IncomingMsgsStorage {
   void start() override{};
   void stop() override{};
+  std::string status() const override { return std::string(""); };
 
   bool isRunning() const override { return true; };
 

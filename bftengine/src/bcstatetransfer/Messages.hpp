@@ -40,8 +40,12 @@ class MsgType {
 };
 
 struct BCStateTranBaseMsg {
-  BCStateTranBaseMsg(uint16_t type) : type(type) {}
+  BCStateTranBaseMsg(uint16_t type, bool isIncomingMsg = false) : type(type), isIncomingMsg_(isIncomingMsg) {}
+
   uint16_t type;
+  // this flag is for monitoring messages buffer allocs and releases so it's mutable even though incoming ST msgs objs
+  // are const during handling
+  mutable uint8_t isIncomingMsg_;
   // This struct and its derived structs are used to de/serialize message buffers sent over communication channels.
   // Since virtual methods modify the memory layout of a struct, there cannot be any for both this base struct and its
   // inheritors.
@@ -134,7 +138,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 87),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 88),
                   "Should newly added field be compared below?");
     bool cmp1 =
         ((a->maxBlockId == b->maxBlockId) && (a->checkpointNum == b->checkpointNum) &&
@@ -152,7 +156,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 87),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 88),
                   "Should newly added field be compared below?");
     if ((a->maxBlockId != b->maxBlockId) || (a->checkpointNum != b->checkpointNum) ||
         (a->digestOfMaxBlockId != b->digestOfMaxBlockId) ||

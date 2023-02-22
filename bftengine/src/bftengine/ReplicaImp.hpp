@@ -117,7 +117,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::queue<std::unique_ptr<ClientRequestMsg>> requestsQueueOfPrimary;  // only used by the primary
   size_t primaryCombinedReqSize = 0;                                     // only used by the primary
 
-  std::map<uint64_t, std::pair<Time, ClientRequestMsg*>>
+  std::map<uint64_t, std::pair<Time, std::unique_ptr<ClientRequestMsg>>>
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
   size_t NonPrimaryCombinedReqSize = 1000;
   //

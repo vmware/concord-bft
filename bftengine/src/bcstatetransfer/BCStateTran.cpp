@@ -1138,6 +1138,9 @@ void BCStateTran::setReconfigurationEngineImpl(std::shared_ptr<ClientReconfigura
 template <typename MSG>
 void BCStateTran::freeStateTransferMsg(const MSG *m) {
   const char *p_to_delete = (reinterpret_cast<const char *>(m) - sizeof(MessageBase::Header));
+  if (m->isIncomingMsg_) {
+    MessageBase::Statistics::updateDiagnosticsCountersOnBufRelease(MsgCode::StateTransfer);
+  }
   std::free(const_cast<char *>(p_to_delete));
 }
 
@@ -1148,6 +1151,7 @@ void BCStateTran::handleStateTransferMessageImpl(char *msg,
                                                  LocalTimePoint incomingEventsQPushTime) {
   // msgHeader is now the owner of msg. after getting true type of msg, the ownership will be of onMessage functions.
   auto msgHeader = STMessageUptr<BCStateTranBaseMsg>(reinterpret_cast<BCStateTranBaseMsg *>(msg));
+  msgHeader.get()->isIncomingMsg_ = true;
   if (!running_) {
     return;
   }

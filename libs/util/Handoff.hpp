@@ -21,7 +21,7 @@
 #include <exception>
 
 #include "log/logger.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 
 // uncomment to add debug prints
 // #define HANDOFF_DO_DEBUG
