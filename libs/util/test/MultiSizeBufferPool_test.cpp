@@ -319,24 +319,24 @@ TEST_F(MultiSizeBufferPoolTestFixture, validate_magic_protection) {
   // Get the header and corrupt it
   auto* header{getBufferHeader(*allocated_buffers_.begin()->second.begin())};
   auto magicField = header->magicField_;
-  memset(header, 0, sizeof(header->magicField_));
+  memset(reinterpret_cast<char*>(header), 0, sizeof(header->magicField_));
 
   // push it back - we expect an exception
   ASSERT_THROW(pushArbitraryBuffer(), std::invalid_argument);
 
   // copy back so that test can end without more exceptions
-  memcpy(header, &magicField, sizeof(magicField));
+  memcpy(reinterpret_cast<char*>(header), &magicField, sizeof(magicField));
 
   // now get the trailer and corrupt it
   auto* trailer{getBufferTrailer(*allocated_buffers_.begin()->second.begin())};
   magicField = trailer->magicField_;
-  memset(trailer, 0, sizeof(trailer->magicField_));
+  memset(reinterpret_cast<char*>(trailer), 0, sizeof(trailer->magicField_));
 
   // push it back - we expect an exception
   ASSERT_THROW(pushArbitraryBuffer(), std::invalid_argument);
 
   // copy back so that test can end without more exceptions
-  memcpy(trailer, &magicField, sizeof(trailer->magicField_));
+  memcpy(reinterpret_cast<char*>(trailer), &magicField, sizeof(trailer->magicField_));
 }
 
 // Test MultiSizeBufferPool::getBufferBySubpoolSelector by allocating numInitialBuffers from each subpool_config
