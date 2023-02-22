@@ -130,6 +130,7 @@ void run_replica(int argc, char** argv) {
       setup->GetPerformanceManager(),
       std::map<std::string, categorization::CATEGORY_TYPE>{
           {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+          {CLIENT_STATE_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
           {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
           {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
       setup->GetSecretManager());
@@ -151,6 +152,7 @@ void run_replica(int argc, char** argv) {
                                                 replica.get(),
                                                 blockMetadata,
                                                 logger,
+                                                replica->getStateTransfer(),
                                                 setup->AddAllKeysAsPublic(),
                                                 replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(cmdHandler);

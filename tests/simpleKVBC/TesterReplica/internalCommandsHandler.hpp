@@ -31,6 +31,8 @@
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
+static constexpr const char *clientReplyStateCategory = "client_state";
+static const std::string CLIENT_STATE_CAT_ID{clientReplyStateCategory};
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
@@ -38,18 +40,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                           concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger,
+                          bftEngine::IStateTransfer &st,
                           bool addAllKeysAsPublic = false,
-                          concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr)
-      : m_storage(storage),
-        m_blockAdder(blocksAdder),
-        m_blockMetadata(blockMetadata),
-        m_logger(logger),
-        m_addAllKeysAsPublic{addAllKeysAsPublic},
-        m_kvbc{kvbc} {
-    if (m_addAllKeysAsPublic) {
-      ConcordAssertNE(m_kvbc, nullptr);
-    }
-  }
+                          concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr);
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
@@ -146,6 +139,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                              uint64_t sn);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
                 concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                concord::kvbc::categorization::VersionedUpdates &clientStateUpdates,
                 uint64_t sn);
   void addKeys(const skvbc::messages::SKVBCWriteRequest &writeReq,
                uint64_t sequenceNum,

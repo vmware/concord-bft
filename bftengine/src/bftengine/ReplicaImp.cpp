@@ -3076,6 +3076,17 @@ bool ReplicaImp::tryToEnterView() {
   return enteredView;
 }
 
+size_t ReplicaImp::clearClientRequestQueue() {
+  size_t primaryCombinedReqSize = 0;
+  LOG_INFO(GL, "clearing client requests" << KVLOG(requestsQueueOfPrimary.size()));
+  // clear requestsQueueOfPrimary
+  while (!requestsQueueOfPrimary.empty()) {
+    primaryCombinedReqSize += requestsQueueOfPrimary.front()->size();
+    requestsQueueOfPrimary.pop();
+  }
+  return primaryCombinedReqSize;
+}
+
 void ReplicaImp::onNewView(std::vector<std::shared_ptr<PrePrepareMsg>> &prePreparesForNewView) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   SeqNum firstPPSeq = 0;
@@ -3202,11 +3213,7 @@ void ReplicaImp::onNewView(std::vector<std::shared_ptr<PrePrepareMsg>> &prePrepa
 
   requestsOfNonPrimary.clear();
 
-  // clear requestsQueueOfPrimary
-  while (!requestsQueueOfPrimary.empty()) {
-    primaryCombinedReqSize -= requestsQueueOfPrimary.front()->size();
-    requestsQueueOfPrimary.pop();
-  }
+  primaryCombinedReqSize -= clearClientRequestQueue();
 
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
@@ -3299,6 +3306,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
   requestsOfNonPrimary.clear();
+  clearClientRequestQueue();
+
   if (ps_) {
     ps_->beginWriteTran();
   }

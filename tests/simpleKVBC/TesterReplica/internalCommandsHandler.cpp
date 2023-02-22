@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <variant>
+#include <nlohmann/json.hpp>
 #include "ReplicaConfig.hpp"
 #include "kvbc_key_types.hpp"
 
@@ -63,6 +64,34 @@ static const std::string &keyHashToCategory(const Hash &keyHash) {
 }
 
 static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(createHash(key)); }
+
+InternalCommandsHandler::InternalCommandsHandler(concord::kvbc::IReader *storage,
+                                                 concord::kvbc::IBlockAdder *blocksAdder,
+                                                 concord::kvbc::IBlockMetadata *blockMetadata,
+                                                 logging::Logger &logger,
+                                                 bftEngine::IStateTransfer &st,
+                                                 bool addAllKeysAsPublic,
+                                                 concord::kvbc::adapter::ReplicaBlockchain *kvbc)
+    : m_storage(storage),
+      m_blockAdder(blocksAdder),
+      m_blockMetadata(blockMetadata),
+      m_logger(logger),
+      m_addAllKeysAsPublic{addAllKeysAsPublic},
+      m_kvbc{kvbc} {
+  st.addOnTransferringCompleteCallback([this](uint64_t) {
+    LOG_INFO(GL, "Synchronizing client execution state after state transfer");
+    auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {0x1});
+    ConcordAssert(data.has_value());
+    auto raw_json = std::get<concord::kvbc::categorization::VersionedValue>(data.value()).data;
+    nlohmann::json json2 = nlohmann::json::parse(raw_json);
+    nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
+    serializer.from_json(json2, m_clientToMaxExecutedReqId);
+    LOG_INFO(GL, "raw client state: " << KVLOG(raw_json));
+  });
+  if (m_addAllKeysAsPublic) {
+    ConcordAssertNE(m_kvbc, nullptr);
+  }
+}
 
 void InternalCommandsHandler::add(std::string &&key,
                                   std::string &&value,
@@ -318,7 +347,15 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
           "SKVBCWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << write_rep.latest_block);
     }
   }
-  addBlock(verUpdates, merkleUpdates, sn);
+
+  nlohmann::json json;
+  nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
+  serializer.to_json(json, m_clientToMaxExecutedReqId);
+
+  VersionedUpdates clientStateUpdate;
+  clientStateUpdate.addUpdate({0x1}, json.dump());
+
+  addBlock(verUpdates, merkleUpdates, clientStateUpdate, sn);
 }
 
 OperationResult InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -364,7 +401,10 @@ void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
   addMetadataKeyValue(verUpdates, sequenceNum);
 }
 
-void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates, uint64_t sn) {
+void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates,
+                                       BlockMerkleUpdates &merkleUpdates,
+                                       VersionedUpdates &clientStateVerUpdates,
+                                       uint64_t sn) {
   BlockId currBlock = m_storage->getLastBlockId();
   Updates updates;
 
@@ -396,6 +436,7 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
   updates.add(kConcordInternalCategoryId, std::move(internal_updates));
   updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
   updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
+  updates.add(CLIENT_STATE_CAT_ID, std::move(clientStateVerUpdates));
   const auto newBlockId = m_blockAdder->add(std::move(updates));
   ConcordAssert(newBlockId == currBlock + 1);
 }
@@ -483,19 +524,6 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
     hasConflict = hasConflict || (!isFirstClientRequest && m_clientToMaxExecutedReqId[clientId] >= requestId);
   }
 
-  if (!hasConflict) {
-    if (isBlockAccumulationEnabled) {
-      // If Block Accumulation is enabled then blocks are added after all requests are processed
-      addKeys(write_req, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
-    } else {
-      // If Block Accumulation is not enabled then blocks are added after all requests are processed
-      VersionedUpdates verUpdates;
-      BlockMerkleUpdates merkleUpdates;
-      addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
-      addBlock(verUpdates, merkleUpdates, sequenceNum);
-    }
-  }
-
   SKVBCReply reply;
   reply.reply = SKVBCWriteReply();
   SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
@@ -506,6 +534,25 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
     UNUSED(iter);
     UNUSED(isNew);
     m_clientToMaxExecutedReqId[clientId] = std::max(m_clientToMaxExecutedReqId[clientId], batchCid);
+
+    if (isBlockAccumulationEnabled) {
+      // If Block Accumulation is enabled then blocks are added after all requests are processed
+      addKeys(write_req, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
+    } else {
+      // If Block Accumulation is not enabled then blocks are added after all requests are processed
+      VersionedUpdates verUpdates;
+      BlockMerkleUpdates merkleUpdates;
+      VersionedUpdates clientVerUpdates;
+      nlohmann::json json;
+      nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
+      serializer.to_json(json, m_clientToMaxExecutedReqId);
+      auto dump = json.dump();
+      LOG_INFO(GL, KVLOG(dump));
+      clientVerUpdates.addUpdate({0x1}, json.dump());
+      addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
+      addBlock(verUpdates, merkleUpdates, clientVerUpdates, sequenceNum);
+    }
+
   } else {
     write_rep.latest_block = currBlock;
   }
