@@ -500,10 +500,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
         auto m = msg.get();
         // Adding the message to a queue for future retransmission.
         if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize) {
-          if (requestsOfNonPrimary.count(msg->requestSeqNum())) {
-            delete std::get<1>(requestsOfNonPrimary.at(msg->requestSeqNum()));
-          }
-          requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), msg.release());
+          requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), std::move(msg));
         }
 
         send(m, currentPrimary());
@@ -1121,7 +1118,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr message) {
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
         if (requestsOfNonPrimary.count(req.requestSeqNum())) {
-          delete std::get<1>(requestsOfNonPrimary.at(req.requestSeqNum()));
           requestsOfNonPrimary.erase(req.requestSeqNum());
         }
       }
@@ -2984,11 +2980,6 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   ConcordAssert(viewChangeProtocolEnabled);
   ConcordAssertLT(getCurrentView(), nextView);
 
-  // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
-  for (auto &[_, msg] : requestsOfNonPrimary) {
-    (void)_;
-    delete std::get<1>(msg);
-  }
   requestsOfNonPrimary.clear();
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(getCurrentView());
@@ -3210,11 +3201,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   clientsManager->clearAllPendingRequests();
 
-  // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
-  for (auto &[_, msg] : requestsOfNonPrimary) {
-    (void)_;
-    delete std::get<1>(msg);
-  }
   requestsOfNonPrimary.clear();
 
   // clear requestsQueueOfPrimary
@@ -3313,9 +3299,6 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
-  for (auto &req : requestsOfNonPrimary) {
-    delete std::get<1>(req.second);
-  }
   requestsOfNonPrimary.clear();
   if (ps_) {
     ps_->beginWriteTran();
@@ -4612,7 +4595,7 @@ void ReplicaImp::addTimers() {
           if (timeout > (3 * config_.clientRequestRetransmissionTimerMilli)) {
             LOG_INFO(GL, "retransmitting client request in non primary due to timeout" << KVLOG(sn, timeout));
             requestsOfNonPrimary[sn].first = getMonotonicTime();
-            send(std::get<1>(msg), currentPrimary());
+            send(std::get<1>(msg).get(), currentPrimary());
           }
         }
       });
