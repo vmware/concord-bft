@@ -97,6 +97,7 @@ void ReplicaForStateTransfer::start() {
           // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
           // This can be done by iterating the saved cryptosystems and updating their private key if their
           // public key matches the candidate saved in KeyExchangeManager
+          // TODO: persist the candidate
           CryptoManager::instance().onCheckpoint(checkpoint);
           auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
           CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
@@ -108,6 +109,8 @@ void ReplicaForStateTransfer::start() {
           auto *pbc =
               reinterpret_cast<concord::client::reconfiguration::PollBasedStateClient *>(cre_->getStateClient());
 
+          // TODO: remove loop so that state transfer doesn't hang if it cannot complete reconfiguration requests
+          // The current implementation expects f + 1 identical responses
           bool succ = false;
           while (!succ) {
             auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();

@@ -143,7 +143,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
       (repInfo.isIdOfReplica(clientId) || repInfo.isIdOfPeerRoReplica(clientId))) {
     // Allow every reconfiguration/internal message from replicas (it will be verified in the reconfiguration handler)
     LOG_INFO(CNSUS,
-             "Reconfig/Internal replica message not validated"
+             "Reconfig/Internal replica message validation skipped"
                  << KVLOG(clientId, header->flags & RECONFIG_FLAG, header->flags & INTERNAL_FLAG));
     return;
   }

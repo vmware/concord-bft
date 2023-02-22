@@ -22,7 +22,7 @@
 #include "ControlStateManager.hpp"
 #include <chrono>
 #include <thread>
-
+#include <map>
 #include "log/logger.hpp"
 #include "skvbc_messages.cmf.hpp"
 #include "SharedTypes.hpp"
@@ -150,6 +150,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
       concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
       concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const;
 
+  std::string serializeClientState() const;
+  void loadClientStateFromStorage();
+
  private:
   concord::kvbc::IReader *m_storage;
   concord::kvbc::IBlockAdder *m_blockAdder;
@@ -161,7 +164,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
   bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
   concord::kvbc::adapter::ReplicaBlockchain *m_kvbc{nullptr};
-  std::unordered_map<uint16_t, uint64_t> m_clientToMaxExecutedReqId;
+  std::map<uint16_t, uint64_t> m_clientToMaxExecutedReqId;
 
   // This string is used by clients to distinguish blocks that should be ignored by them.
   // Some tests expect every block to be created by a request issued by test clients.

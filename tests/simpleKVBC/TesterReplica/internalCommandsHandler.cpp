@@ -78,19 +78,37 @@ InternalCommandsHandler::InternalCommandsHandler(concord::kvbc::IReader *storage
       m_logger(logger),
       m_addAllKeysAsPublic{addAllKeysAsPublic},
       m_kvbc{kvbc} {
-  st.addOnTransferringCompleteCallback([this](uint64_t) {
-    LOG_INFO(GL, "Synchronizing client execution state after state transfer");
-    auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {0x1});
-    ConcordAssert(data.has_value());
-    auto raw_json = std::get<concord::kvbc::categorization::VersionedValue>(data.value()).data;
-    nlohmann::json json2 = nlohmann::json::parse(raw_json);
-    nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
-    serializer.from_json(json2, m_clientToMaxExecutedReqId);
-    LOG_INFO(GL, "raw client state: " << KVLOG(raw_json));
-  });
+  if (ReplicaConfig::instance().isReadOnly) {
+    return;
+  }
+
+  loadClientStateFromStorage();
+  st.addOnTransferringCompleteCallback([this](uint64_t) { this->loadClientStateFromStorage(); });
+
   if (m_addAllKeysAsPublic) {
     ConcordAssertNE(m_kvbc, nullptr);
   }
+}
+
+void InternalCommandsHandler::loadClientStateFromStorage() {
+  ConcordAssert(!ReplicaConfig::instance().isReadOnly);
+  LOG_INFO(GL, "Synchronizing client execution state");
+  auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {0x1});
+  if (!data.has_value()) {
+    LOG_WARN(GL, "empty client execution state, were any client requests executed?");
+    return;
+  }
+  auto raw_json = std::get<concord::kvbc::categorization::VersionedValue>(data.value()).data;
+  nlohmann::json json2 = nlohmann::json::parse(raw_json);
+  nlohmann::json::json_serializer<std::vector<std::pair<uint16_t, uint64_t>>, void> serializer;
+  std::vector<std::pair<uint16_t, uint64_t>> deserialized;
+  serializer.from_json(json2, deserialized);
+  m_clientToMaxExecutedReqId.clear();
+
+  for (auto [clientId, reqId] : deserialized) {
+    m_clientToMaxExecutedReqId[clientId] = reqId;
+  }
+  LOG_INFO(GL, "raw client state: " << KVLOG(raw_json));
 }
 
 void InternalCommandsHandler::add(std::string &&key,
@@ -348,14 +366,24 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
     }
   }
 
-  nlohmann::json json;
-  nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
-  serializer.to_json(json, m_clientToMaxExecutedReqId);
-
   VersionedUpdates clientStateUpdate;
-  clientStateUpdate.addUpdate({0x1}, json.dump());
+  clientStateUpdate.addUpdate({0x1}, serializeClientState());
 
   addBlock(verUpdates, merkleUpdates, clientStateUpdate, sn);
+}
+
+std::string InternalCommandsHandler::serializeClientState() const {
+  nlohmann::json json;
+  nlohmann::json::json_serializer<std::vector<std::pair<uint16_t, uint64_t>>, void> serializer;
+  // Need to maintain a fixed order in the blocks so that the replica state won't diverge
+  std::vector<std::pair<uint16_t, uint64_t>> serialized;
+  for (auto clientIdReqIdPair : m_clientToMaxExecutedReqId) {
+    serialized.push_back(clientIdReqIdPair);
+  }
+  serializer.to_json(json, serialized);
+  auto serialized_raw_json = json.dump();
+  LOG_INFO(GL, KVLOG(serialized_raw_json));
+  return json.dump();
 }
 
 OperationResult InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -543,12 +571,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
       VersionedUpdates verUpdates;
       BlockMerkleUpdates merkleUpdates;
       VersionedUpdates clientVerUpdates;
-      nlohmann::json json;
-      nlohmann::json::json_serializer<std::unordered_map<uint16_t, uint64_t>, void> serializer;
-      serializer.to_json(json, m_clientToMaxExecutedReqId);
-      auto dump = json.dump();
-      LOG_INFO(GL, KVLOG(dump));
-      clientVerUpdates.addUpdate({0x1}, json.dump());
+      clientVerUpdates.addUpdate({0x1}, serializeClientState());
       addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
       addBlock(verUpdates, merkleUpdates, clientVerUpdates, sequenceNum);
     }

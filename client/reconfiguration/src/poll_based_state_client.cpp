@@ -29,7 +29,14 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   concord::messages::ReconfigurationResponse rres;
   try {
     if (read_request) {
-      bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
+      // TODO: State transfer can work with f + 1 as long as there are no byzantine replicas
+      bft::client::ReadConfig read_config;
+      if (use_byzantine_quorum_) {
+        read_config = bft::client::ReadConfig{request_config, bft::client::ByzantineSafeQuorum{}};
+      } else {
+        read_config = bft::client::ReadConfig{request_config, bft::client::LinearizableQuorum{}};
+      }
+
       rep = bftclient_->send(read_config, std::move(msg));
     } else {
       bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
@@ -57,12 +64,14 @@ State PollBasedStateClient::getNextState() const {
 PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
                                            uint64_t interval_timeout_ms,
                                            uint64_t last_known_block,
-                                           const uint16_t id)
+                                           const uint16_t id,
+                                           bool use_byzantine_quorum)
     : bftclient_{client},
       id_{id},
       interval_timeout_ms_{interval_timeout_ms},
       last_known_block_{last_known_block},
-      sn_gen_(bft::client::ClientId{id}) {}
+      sn_gen_(bft::client::ClientId{id}),
+      use_byzantine_quorum_{use_byzantine_quorum} {}
 
 std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   concord::messages::ClientReconfigurationStateRequest creq{id_};

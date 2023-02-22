@@ -2373,14 +2373,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
           static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
               config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
 
-          Time timeOfLastEcecution = MinTime;
+          Time timeOfLastExecution = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
-            timeOfLastEcecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
-          if ((getMonotonicTime() - timeOfLastEcecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
+            timeOfLastExecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
+          if ((getMonotonicTime() - timeOfLastExecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
             LOG_INFO(GL,
                      "Number of stable checkpoints in current window: "
                          << numRelevant << " time since last execution: "
-                         << (getMonotonicTime() - timeOfLastEcecution).count() << " ms");
+                         << (getMonotonicTime() - timeOfLastExecution).count() << " ms");
             askForStateTransfer = true;
             startStReason = "Too much time has passed since last execution";
           }
@@ -2912,7 +2912,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(std::unique_ptr<ViewChangeMsg> message
   ViewNum maxKnownCorrectView = 0;
   ViewNum maxKnownAgreedView = 0;
   viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
-  LOG_INFO(VC_LOG, "View Number details: " << KVLOG(maxKnownCorrectView, maxKnownAgreedView));
+  LOG_INFO(VC_LOG, "View Number details: " << KVLOG(maxKnownCorrectView, maxKnownAgreedView, getCurrentView()));
 
   if (maxKnownCorrectView > getCurrentView()) {
     // we have at least f+1 view-changes with view number >= maxKnownCorrectView

@@ -29,7 +29,8 @@ class PollBasedStateClient : public IStateClient {
   PollBasedStateClient(bft::client::Client* client,
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
-                       const uint16_t id_);
+                       const uint16_t id_,
+                       bool use_byzantine_quorum = false);
   State getNextState() const override;
   bool updateState(const WriteState& state) override;
   ~PollBasedStateClient();
@@ -63,6 +64,8 @@ class PollBasedStateClient : public IStateClient {
   bool halted_ = false;
   std::condition_variable resume_cond_;
   std::mutex resume_lock_;
+  // At the end of State transfer we use a f + 1 quorum
+  bool use_byzantine_quorum_ = false;
 };
 
 }  // namespace concord::client::reconfiguration

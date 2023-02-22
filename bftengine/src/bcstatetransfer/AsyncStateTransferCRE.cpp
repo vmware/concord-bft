@@ -184,7 +184,8 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(
   Config cre_config;
   cre_config.id_ = repConfig.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
-  IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  // TODO: fix relying on f + 1, so that byzantine replicas are also handled
+  IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_, true);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
   if (bftEngine::ReplicaConfig::instance().isReadOnly) {
