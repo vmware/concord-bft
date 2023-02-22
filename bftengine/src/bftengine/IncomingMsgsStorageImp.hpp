@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <future>
 #include <utility>
+#include <string>
 
 namespace bftEngine::impl {
 
@@ -38,6 +39,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   void start() override;
   void stop() override;
+  // returns a string with status. To be used by diagnostics server
+  std::string status() const override;
 
   // Can be called by any thread
   bool pushExternalMsg(std::unique_ptr<MessageBase> msg) override;

@@ -22,8 +22,8 @@ static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.status");
 void StatusHandlers::registerHandler(const StatusHandler& handler) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (status_handlers_.count(handler.name)) {
-    LOG_FATAL(DIAG_LOGGER, "StatusHandler already exists: " << handler.name);
-    std::terminate();
+    LOG_ERROR(DIAG_LOGGER, "StatusHandler already exists: " << handler.name << ", ignoring the new handler");
+    return;
   }
   status_handlers_.insert({handler.name, handler});
 }

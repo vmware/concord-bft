@@ -9,13 +9,13 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <cstring>
-
 #include "MessageBase.hpp"
-
 #include "log/logger.hpp"
 #include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
+
+#include <cstring>
+#include <sstream>
 
 #ifdef DEBUG_MEMORY_MSG
 #include <set>
@@ -46,11 +46,66 @@ void MessageBase::printLiveMessages() {
 namespace bftEngine {
 namespace impl {
 
+// static class members for diagnostics server
+std::array<std::atomic<size_t>, MsgCode::LastMsgCodeVal> MessageBase::Statistics::AliveIncomingExtrnMsgsBufs{};
+static_assert(MsgCode::LastMsgCodeVal < 2000,
+              "MessageBase AliveIncomingExtrnMsgsBufs array too big (above 2000), check MsgCode enum definition");
+Bitmap MessageBase::Statistics::IncomingExtrnMsgReceivedAtLeastOnceFlags{MsgCode::LastMsgCodeVal};
+std::mutex MessageBase::Statistics::messagesStatsMonitoringMutex_{};
+std::atomic<size_t> MessageBase::Statistics::numIncomingExtrnMsgsBufAllocs{0};
+std::atomic<size_t> MessageBase::Statistics::numIncomingExtrnMsgsBufFrees{0};
+// End of static class members for diagnostics server
+
 MessageBase::~MessageBase() {
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.erase(this);
 #endif
-  if (owner_) std::free((char *)msgBody_);
+
+  // if this obj is not the owner of the buf (owner_ is false), the buf may have already be freed - hence access to it
+  // is prohibited
+  if (owner_) {
+    if (isIncomingMsg_) {
+      MsgCode::Type msg_code = static_cast<MsgCode::Type>(msgBody_->msgType);
+      MessageBase::Statistics::updateDiagnosticsCountersOnBufRelease(msg_code);
+    }
+    std::free((char *)msgBody_);
+  }
+}
+
+void MessageBase::Statistics::updateDiagnosticsCountersOnBufAlloc(MsgCode::Type msg_code) {
+  if (!MessageBase::Statistics::IncomingExtrnMsgReceivedAtLeastOnceFlags.get(msg_code)) {
+    // here is a very rare event - first time ever receiving msg of type msg_code, hence
+    // using a lock here shouldn't affect performnce. in other places we avoid locks where possible.
+    // It is possible that two threads will call the "set" function but it's ok since it's
+    // just a flag telling us if the message was received at least once. setting the bit twice causes
+    // no damage.
+    std::lock_guard<std::mutex> lock(MessageBase::Statistics::messagesStatsMonitoringMutex_);
+    MessageBase::Statistics::IncomingExtrnMsgReceivedAtLeastOnceFlags.set(msg_code);
+  }
+
+  // use "++" operator to ensure atomicity
+  MessageBase::Statistics::numIncomingExtrnMsgsBufAllocs++;
+  MessageBase::Statistics::AliveIncomingExtrnMsgsBufs[msg_code]++;
+}
+
+void MessageBase::Statistics::updateDiagnosticsCountersOnBufRelease(MsgCode::Type msg_code) {
+  if (MessageBase::Statistics::AliveIncomingExtrnMsgsBufs[msg_code] == 0) {
+    LOG_ERROR(GL, "Trying to dec a counter of a msg that hasn't been inserted yet, msg code: " << (msg_code));
+    return;
+  } else {
+    // use "--" operator to ensure atomicity
+    MessageBase::Statistics::AliveIncomingExtrnMsgsBufs[msg_code]--;
+  }
+  // use "++" operator to ensure atomicity
+  MessageBase::Statistics::numIncomingExtrnMsgsBufFrees++;
+}
+
+void MessageBase::releaseOwnership() {
+  if (!owner_) {
+    LOG_ERROR(GL, "Trying to release ownership of a MessageBase obj that is already not the buffer owner");
+  } else {
+    owner_ = false;
+  }
 }
 
 void MessageBase::shrinkToFit() {
@@ -102,13 +157,17 @@ MessageBase::MessageBase(NodeIdType sender, MsgType type, SpanContextSize spanCo
 #endif
 }
 
-MessageBase::MessageBase(NodeIdType sender, MessageBase::Header *body, MsgSize size, bool ownerOfStorage) {
-  msgBody_ = body;
-  msgSize_ = size;
-  storageSize_ = size;
-  sender_ = sender;
-  owner_ = ownerOfStorage;
+MessageBase::MessageBase(NodeIdType sender, MessageBase::Header *body, MsgSize size, bool ownerOfStorage)
+    : MessageBase(sender, body, size, ownerOfStorage, false) {}
 
+MessageBase::MessageBase(
+    NodeIdType sender, MessageBase::Header *body, MsgSize size, bool ownerOfStorage, bool isIncoming)
+    : msgBody_(body),
+      msgSize_(size),
+      storageSize_(size),
+      sender_(sender),
+      owner_(ownerOfStorage),
+      isIncomingMsg_(isIncoming) {
 #ifdef DEBUG_MEMORY_MSG
   liveMessagesDebug.insert(this);
 #endif
@@ -234,6 +293,39 @@ MessageBase *MessageBase::deserializeMsg(char *&buf, size_t bufLen, size_t &actu
   actualSize = msgFilledFlagSize + msgSize;
   return msg;
 }
+
+// Start methods for diagnostics server:
+std::string MessageBase::Statistics::getNumBuffsAllocatedForExtrnIncomingMsgs() {
+  return (std::string(" Num buffer allocations for external incoming messages: " +
+                      std::to_string(MessageBase::Statistics::numIncomingExtrnMsgsBufAllocs)));
+}
+std::string MessageBase::Statistics::getNumBuffsFreedForExtrnIncomingMsgs() {
+  return (std::string(" Num buffer frees for external incoming messages: " +
+                      std::to_string(MessageBase::Statistics::numIncomingExtrnMsgsBufFrees)));
+}
+std::string MessageBase::Statistics::getNumAliveExtrnIncomingMsgsObjsPerType() {
+  std::ostringstream oss;
+  oss << " Alive extrnal incoming message objects per type: " << std::endl;
+  oss << " --------------------------------------- " << std::endl;
+
+  for (int i = 0; i < MsgCode::LastMsgCodeVal; ++i) {
+    bool wasMsgEverRecieved;
+
+    {
+      std::lock_guard<std::mutex> lock(messagesStatsMonitoringMutex_);
+      wasMsgEverRecieved = MessageBase::Statistics::IncomingExtrnMsgReceivedAtLeastOnceFlags.get(i);
+    }
+
+    if (wasMsgEverRecieved) {
+      oss << " " << static_cast<MsgCode::Type>(i) << ": " << MessageBase::Statistics::AliveIncomingExtrnMsgsBufs[i]
+          << std::endl;
+    }
+  }
+
+  oss << " ** All messages not on the list were never received by replica ** ";
+  return oss.str();
+}
+// End methods for diagnostics server ^
 
 }  // namespace impl
 }  // namespace bftEngine

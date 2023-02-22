@@ -36,8 +36,8 @@ void MsgReceiver::onNewMessage(NodeNum sourceNode,
 
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
   memcpy(msgBody, message, messageLength);
-  auto pMsg = std::make_unique<MessageBase>(sourceNode, msgBody, messageLength, true);
-
+  auto pMsg = std::make_unique<MessageBase>(sourceNode, msgBody, messageLength, true, true);
+  MessageBase::Statistics::updateDiagnosticsCountersOnBufAlloc(static_cast<MsgCode::Type>(pMsg->type()));
   incomingMsgsStorage_->pushExternalMsg(std::move(pMsg));
 }
 

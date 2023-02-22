@@ -20,6 +20,7 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 
 namespace bftEngine::impl {
 
@@ -30,6 +31,8 @@ class IncomingMsgsStorage {
 
   virtual void start() = 0;
   virtual void stop() = 0;
+  // returns a string with status. To be used by diagnostics server
+  virtual std::string status() const = 0;
 
   virtual bool isRunning() const = 0;
 
