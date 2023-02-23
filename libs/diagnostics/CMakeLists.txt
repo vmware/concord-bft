@@ -9,6 +9,9 @@ find_library(HDR_HISTOGRAM_LIBRARY hdr_histogram_static HINTS /usr/local/lib REQ
 
 set_property(TARGET diagnostics PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(diagnostics PUBLIC include ${HDR_HISTOGRAM_INCLUDE_DIR})
+if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+    target_include_directories(diagnostics PUBLIC /usr/local/include/ ../ ../util/include/)
+endif()
 target_link_libraries(diagnostics ${HDR_HISTOGRAM_LIBRARY})
 
 target_sources(diagnostics PUBLIC FILE_SET diagnostics_pub_hdrs
