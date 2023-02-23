@@ -130,6 +130,7 @@ struct ConcordClientConfig {
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;
   uint64_t metrics_dump_interval_ms = 600;
+  std::uint32_t max_reply_buffer_size;
 };
 
 struct StateSnapshotRequest {
@@ -180,6 +181,9 @@ class ConcordClient {
 
   // Get subscription id.
   std::string getSubscriptionId() const { return config_.subscribe_config.id; }
+
+  // Get max reply buffer size
+  std::uint32_t getMaxReplyBufferSize() const { return config_.max_reply_buffer_size; }
 
   // Get client-pool health status
   // The caller has the responsibility of making sure that client_pool_ object exists before the method is called.
