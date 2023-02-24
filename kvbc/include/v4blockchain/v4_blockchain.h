@@ -18,6 +18,7 @@
 #include "v4blockchain/detail/st_chain.h"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/blockchain.h"
+#include "v4blockchain/detail/merkle_management_layer.h"
 #include "v4blockchain/detail/keys_history.h"
 #include <memory>
 #include <string>
@@ -86,6 +87,7 @@ class KeyValueBlockchain {
   const v4blockchain::detail::Blockchain &getBlockchain() const { return block_chain_; };
   const v4blockchain::detail::StChain &getStChain() const { return state_transfer_chain_; };
   const v4blockchain::detail::LatestKeys &getLatestKeys() const { return latest_keys_; };
+  v4blockchain::detail::MerkleManagementLayer &getMerkleManagementLayer() { return merkle_management_layer_; }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReader
   std::optional<categorization::Value> get(const std::string &category_id,
@@ -274,6 +276,8 @@ class KeyValueBlockchain {
   v4blockchain::detail::StChain state_transfer_chain_;
   v4blockchain::detail::LatestKeys latest_keys_;
   v4blockchain::detail::KeysHistory keys_history_;
+  v4blockchain::detail::MerkleManagementLayer merkle_management_layer_;
+
   // flag to mark whether a checkpoint is being taken.
   std::optional<uint64_t> last_block_sn_;
   const float updates_to_final_size_ration_{2.5};
