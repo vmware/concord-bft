@@ -97,6 +97,7 @@ message GetStateRequest {
 message GetStateResponse {
     uint64 budget = 1[jstype = JS_STRING];
     uint64 balance = 2[jstype = JS_STRING];
+    string user_id = 3;
 }
 
 message PrivacyWalletRequest {
