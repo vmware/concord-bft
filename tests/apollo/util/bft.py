@@ -33,7 +33,7 @@ import trio
 
 from util.test_base import repeat_test
 
-sys.path.append(os.path.abspath("util/pyclient"))
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyclient")) 
 
 import util.bft_debug_tool
 import bft_config
