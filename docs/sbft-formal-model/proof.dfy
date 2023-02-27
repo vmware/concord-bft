@@ -97,9 +97,20 @@ module Proof {
              && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
              && !certificate.empty()
              && certificate.prototype().view >= commitMsg.payload.view
-            //  && (certificate.prototype().view == commitMsg.payload.view 
-            //      ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+             && (certificate.prototype().view == commitMsg.payload.view 
+                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
              )
+  }
+
+  predicate {:opaque} ViewChangeMsgsFromHonestInNetworkAreValid(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall viewChangeMsg |
+                && viewChangeMsg in v.network.sentMsgs
+                && viewChangeMsg.payload.ViewChangeMsg?
+                && var replicaIdx := viewChangeMsg.sender;
+                && IsHonestReplica(c, replicaIdx)
+                   :: && var replicaIdx := viewChangeMsg.sender;
+                      && viewChangeMsg.payload.checked(c.clusterConfig, v.network.sentMsgs))
   }
 
   predicate {:opaque} TemporarilyDisableCheckpointing(c:Constants, v:Variables) {
@@ -342,10 +353,12 @@ module Proof {
     && HonestReplicasLeaveViewsBehind(c, v)
     && RecordedNewViewMsgsContainSentVCMsgs(c, v)
     && RecordedViewChangeMsgsCameFromNetwork(c, v)
-    && SentViewChangesMsgsComportWithSentCommits(c, v)//Unfinished proof.
+    && SentViewChangesMsgsComportWithSentCommits(c, v)//Unfinished proof. This predicate is false.
     && EveryCommitMsgIsRememberedByItsSender(c, v)//Unfinished proof.
     && RecordedViewChangeMsgsAreValid(c, v)
+    && ViewChangeMsgsFromHonestInNetworkAreValid(c, v)//Unfinished proof.
     && TemporarilyDisableCheckpointing(c, v)
+    // && NewViewMsgsReflectPriorCommitCertificates(c, v)
     // && CommitCertificateEstablishesUncommitableInView(c, v)
     // "AllPreparedCertsInWorkingWindowAreValid"
   }
@@ -1125,24 +1138,43 @@ module Proof {
                                                                   v.network.sentMsgs))
   }
 
+  // This predicate is false and will be refactored to SentViewChangesMsgsComportWithUncommitableInView
   predicate {:opaque} SentViewChangesMsgsComportWithSentCommits(c:Constants, v:Variables) {
+    && true
+    // && v.WF(c)
+    // && (forall viewChangeMsg, commitMsg |
+    //       && viewChangeMsg in v.network.sentMsgs
+    //       && commitMsg in v.network.sentMsgs
+    //       && viewChangeMsg.payload.ViewChangeMsg?
+    //       && commitMsg.payload.Commit?
+    //       && commitMsg.payload.view <= viewChangeMsg.payload.newView
+    //       && commitMsg.sender == viewChangeMsg.sender
+    //       //TODO: add Shift consequences (this works only if no one advances the WW)
+    //       && IsHonestReplica(c, viewChangeMsg.sender)
+    //         :: && commitMsg.payload.seqID in viewChangeMsg.payload.certificates
+    //            && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
+    //            && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
+    //            && !certificate.empty()
+    //            && certificate.prototype().view >= commitMsg.payload.view
+    //           //  && (commitMsg.payload.view == viewChangeMsg.payload.newView) ==> 
+    //           //             certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper
+    //            )
+  }
+
+  predicate {:opaque} SentViewChangesMsgsComportWithUncommitableInView(c:Constants, v:Variables) {
     && v.WF(c)
-    && (forall viewChangeMsg, commitMsg |
-                            && viewChangeMsg in v.network.sentMsgs
-                            && commitMsg in v.network.sentMsgs
-                            && viewChangeMsg.payload.ViewChangeMsg?
-                            && commitMsg.payload.Commit?
-                            && commitMsg.payload.view <= viewChangeMsg.payload.newView
-                            && commitMsg.sender == viewChangeMsg.sender
-                            //TODO: add Shift consequences (this works only if no one advances the WW)
-                            && IsHonestReplica(c, viewChangeMsg.sender)
-                              :: && commitMsg.payload.seqID in viewChangeMsg.payload.certificates
-                                 && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
-                                 && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
-                                 && !certificate.empty()
-                                 && certificate.prototype().view >= commitMsg.payload.view
-                                 // && certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper
-                                 )
+    && (forall viewChangeMsg, 
+               seqID:Messages.SequenceID,
+               view:nat,
+               operationWrapper:Messages.OperationWrapper |
+          && viewChangeMsg in v.network.sentMsgs
+          && viewChangeMsg.payload.ViewChangeMsg?
+          && IsHonestReplica(c, viewChangeMsg.sender)
+          && view < viewChangeMsg.payload.view
+          && var certificate := viewChangeMsg.payload.certificates[seqID];
+          && !certificate.empty()
+          && operationWrapper != certificate.prototype().operationWrapper
+            :: && UnCommitableInView(c, v, seqID, view, operationWrapper))
   }
 
 //TODO: write a predicate Prepare matches Commit
@@ -1466,7 +1498,11 @@ module Proof {
           }
           assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             // Need to finish this proof
-            reveal_SentViewChangesMsgsComportWithSentCommits();
+            // viewchangemessages from honest sender comport with uncommitable in view
+            reveal_SentViewChangesMsgsComportWithUncommitableInView();
+            assume SentViewChangesMsgsComportWithUncommitableInView(c, v);
+            assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
+            // Left off here.
             // assume false;
           }
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
@@ -1511,6 +1547,32 @@ module Proof {
     ensures SentViewChangesMsgsComportWithSentCommits(c, v')
   {
     reveal_SentViewChangesMsgsComportWithSentCommits();
+
+    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    reveal_RecordedPreparesHaveValidSenderID();
+    reveal_RecordedPrePreparesRecvdCameFromNetwork();
+    reveal_RecordedPreparesMatchHostView();
+    reveal_RecordedPreparesClientOpsMatchPrePrepare();
+    reveal_RecordedCommitsClientOpsMatchPrePrepare();
+    reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+    reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
+    reveal_HonestReplicasLockOnPrepareForGivenView();
+    reveal_HonestReplicasLockOnCommitForGivenView();
+    reveal_CommitMsgsFromHonestSendersAgree();
+    reveal_RecordedCheckpointsRecvdCameFromNetwork();
+    reveal_HonestReplicasLockOnCommitForGivenView();
+    reveal_EveryCommitMsgIsSupportedByAQuorumOfPrepares();
+    h_v.workingWindow.reveal_Shift();
+  }
+
+ lemma HonestPreservesViewChangeMsgsFromHonestInNetworkAreValid(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures ViewChangeMsgsFromHonestInNetworkAreValid(c, v')
+  {
+    reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
     assume false;
   }
 
@@ -1616,6 +1678,7 @@ module Proof {
       HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesSentViewChangesMsgsComportWithSentCommits(c, v, v', step, h_v, h_step);
       HonestPreservesEveryCommitMsgIsRememberedByItsSender(c, v, v', step, h_v, h_step);
+      HonestPreservesViewChangeMsgsFromHonestInNetworkAreValid(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedViewChangeMsgsAreValid(c, v, v', step, h_v, h_step);
       assume TemporarilyDisableCheckpointing(c, v');
     } else {
@@ -1708,6 +1771,9 @@ module Proof {
     assert RecordedViewChangeMsgsAreValid(c, v') by {
       reveal_RecordedViewChangeMsgsAreValid();
     }
+    assert ViewChangeMsgsFromHonestInNetworkAreValid(c, v') by {
+      reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
+    }
     assume TemporarilyDisableCheckpointing(c, v');
   }
 
@@ -1741,6 +1807,7 @@ module Proof {
       reveal_SentViewChangesMsgsComportWithSentCommits();
       reveal_EveryCommitMsgIsRememberedByItsSender();
       reveal_RecordedViewChangeMsgsAreValid();
+      reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
       reveal_TemporarilyDisableCheckpointing();
     }
   }
