@@ -20,20 +20,20 @@
 #include "v4blockchain/detail/categories.h"
 #include <rocksdb/compaction_filter.h>
 #include "rocksdb/snapshot.h"
-#include "merkle_builder/IMerkleBuilder.h"
+#include "proof_builder/IProofBuilder.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 
-using namespace concord::kvbc::sparse_merkle;
+using namespace concord::kvbc;
 
-class MerkleManagementLayer {
+class VerifiabilityManagementLayer {
  public:
-  MerkleManagementLayer();
+  VerifiabilityManagementLayer();
 
-  IMerkleBuilder* getBuilder() { return merkleBuilder_.get(); }
+  IProofBuilder* getBuilder() { return proofBuilder_.get(); }
 
  private:
-  std::unique_ptr<IMerkleBuilder> merkleBuilder_;
+  std::unique_ptr<IProofBuilder> proofBuilder_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

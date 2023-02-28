@@ -11,12 +11,12 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "v4blockchain/detail/merkle_management_layer.h"
+#include "v4blockchain/detail/verifiability_management_layer.h"
 #include "v4blockchain/detail/column_families.h"
 #include "log/logger.hpp"
 #include "v4blockchain/detail/blockchain.h"
 #include "rocksdb/details.h"
-#include "merkle_builder/EmptyMerkleBuilder.h"
+#include "proof_builder/EmptyProofBuilder.h"
 #include "merkle_builder/SyncMerkleBuilder.h"
 
 using namespace concord::kvbc;
@@ -24,11 +24,11 @@ namespace concord::kvbc::v4blockchain::detail {
 
 static const int NUM_MAINTAINED_TREE_VERSIONS = 10;
 
-MerkleManagementLayer::MerkleManagementLayer() {
+VerifiabilityManagementLayer::VerifiabilityManagementLayer() {
   // TODO: instantiate based on configuration.
-  merkleBuilder_ = std::make_unique<EmptyMerkleBuilder>();
+  proofBuilder_ = std::make_unique<EmptyProofBuilder>();
   // TODO: get configuration parameters from config manager
-  merkleBuilder_->Init(NUM_MAINTAINED_TREE_VERSIONS);
+  proofBuilder_->Init(NUM_MAINTAINED_TREE_VERSIONS);
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail

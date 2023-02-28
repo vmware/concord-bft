@@ -33,8 +33,9 @@ class SyncMerkleBuilder : public BaseMerkleBuilder {
 
   virtual std::vector<std::string> GetAccountMerkleRootPath(const address& addr) override;
   virtual std::vector<std::string> GetAccountStorageKeyMerklePath(const address& addr, const std::string& key) override;
+  virtual std::string GetProof(const std::string& key) override;
   virtual bool VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) override;
-  virtual void WaitForScheduledMerkleUpdatesToBeApplied() override;
+  virtual void WaitForScheduledTasks() override;
 };
 
 }  // namespace sparse_merkle

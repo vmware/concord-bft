@@ -41,11 +41,13 @@ std::vector<std::string> SyncMerkleBuilder::GetAccountStorageKeyMerklePath(const
   return {};
 }
 
+std::string SyncMerkleBuilder::GetProof(const std::string& key) { return {}; }
+
 bool SyncMerkleBuilder::VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) {
   return true;
 }
 
-void SyncMerkleBuilder::WaitForScheduledMerkleUpdatesToBeApplied() {}
+void SyncMerkleBuilder::WaitForScheduledTasks() {}
 
 }  // namespace sparse_merkle
 }  // namespace kvbc

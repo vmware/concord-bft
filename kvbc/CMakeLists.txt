@@ -58,7 +58,7 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/v4blockchain/detail/blocks.cpp
                                 src/v4blockchain/detail/st_chain.cpp
                                 src/v4blockchain/detail/blockchain.cpp
-                                src/v4blockchain/detail/merkle_management_layer.cpp
+                                src/v4blockchain/detail/verifiability_management_layer.cpp
                                 src/merkle_builder/SyncMerkleBuilder.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
