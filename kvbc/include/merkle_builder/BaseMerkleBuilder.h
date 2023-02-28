@@ -24,14 +24,14 @@ using Hasher = concord::kvbc::categorization::Hasher;
 
 class BaseMerkleBuilder : public IMerkleBuilder {
  public:
-  bool needProcessing(char t) {
-    if (t == kKvbKeyEthBalance || t == kKvbKeyEthCode || t == kKvbKeyEthStorage || t == kKvbKeyEthNonce) {
+  bool needProcessing(char type) const {
+    if (type == kKvbKeyEthBalance || type == kKvbKeyEthCode || type == kKvbKeyEthStorage || type == kKvbKeyEthNonce) {
       return true;
     }
     return false;
   }
 
-  address getAddress(std::string key) {
+  address getAddress(const std::string& key) const {
     ConcordAssert(key.size() > IMerkleBuilder::address_size);  // Include 1 byte indicating key type
     return address(&key[1], IMerkleBuilder::address_size);
   }
