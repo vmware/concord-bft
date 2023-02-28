@@ -87,6 +87,7 @@ def parameterize(**parameterize_kwargs):
 
     return decorator
 
+
 def repeat_test(max_repeats: int, break_on_first_failure: bool, break_on_first_success: bool, test_name=None):
     """
     Runs a test  max_repeats times when both break_on_first_failure and break_on_first_success et to False.

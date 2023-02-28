@@ -3431,9 +3431,9 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           LOG_ERROR(logger_, "Setting RVB digests into RVB manager failed!");
           badDataFromCurrentSourceReplica = true;
         } else {
-    #ifdef ENABLE_ALL_METRICS
+#ifdef ENABLE_ALL_METRICS
           metrics_.overall_rvb_digest_groups_validated_++;
-    #endif
+#endif
         }
       }
 

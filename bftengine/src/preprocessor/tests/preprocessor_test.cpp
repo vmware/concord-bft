@@ -23,7 +23,7 @@
 #include "ReplicaConfig.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "gtest/gtest.h"
-#include "threshsign/eddsa/EdDSAMultisigFactory.h"
+#include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "CryptoManager.hpp"
 #include "tests/messages/helper.hpp"
 #include "tests/config/test_comm_config.hpp"
@@ -216,6 +216,7 @@ void setUpConfiguration_4() {
                                      concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      nullptr,
                                      concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                     {},
                                      *replicasInfo[i].get());
     cryptoManager[i] =
         CryptoManager::init(std::make_unique<TestMultisigCryptoSystem>(i, publicKeysVector, replicaPrivKeys.at(i)));

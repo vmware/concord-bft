@@ -371,9 +371,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void recoverRequests();
 
-  template <typename MessageType>
-  bool validateMessage(MessageType* msg);
-
   std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
@@ -633,7 +630,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsgShPtr& pp, bool isCreatedEarlier);
   void startConsensusProcess(PrePrepareMsgShPtr& pp);
-  void clearClientRequestQueue();
+  size_t clearClientRequestQueue();
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo

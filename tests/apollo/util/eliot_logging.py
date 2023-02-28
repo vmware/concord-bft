@@ -34,6 +34,9 @@ def set_file_destination():
         now = logdir_timestamp()
         test_name = f"apollo_run_{now}"
 
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4":
+        test_name = test_name + "_v4"
+
     relative_apollo_logs = 'tests/apollo/logs'
     relative_current_run_logs = f'{relative_apollo_logs}/{logdir_timestamp()}'
     logs_dir = f'../../build/{relative_current_run_logs}'

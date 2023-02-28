@@ -89,9 +89,9 @@ void KeyExchangeManager::registerNewKeyPair(uint16_t repID,
   candidate_private_keys_.generated.clear();
   // erasing seqnum from the map
   seq_candidate_map_.erase(sn);
-  ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
+  ConcordAssert(private_keys_.key_data().generated.pub == pubkey);
   private_keys_.onKeyExchange(cid, sn);
-  for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], kemsg.pubkey, sn);
+  for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], pubkey, sn);
   metrics_->self_key_exchange_counter++;
 }
 

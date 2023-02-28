@@ -58,6 +58,7 @@ std::shared_ptr<bftEngine::impl::SigManager> createSigManagerWithTransactionSign
                           replicasKeysFormat,
                           publicKeysOfClients,
                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                          {},
                           replicasInfo);
 }
 

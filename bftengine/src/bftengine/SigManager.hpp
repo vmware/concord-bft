@@ -14,10 +14,10 @@
 #include "PrimitiveTypes.hpp"
 #include "util/assertUtils.hpp"
 #include "util/Metrics.hpp"
+#include "util/memory.hpp"
 #include "crypto/crypto.hpp"
 #include "crypto/signer.hpp"
 #include "crypto/verifier.hpp"
-#include "util/memory.hpp"
 #include "SysConsts.hpp"
 #include <utility>
 #include <vector>

@@ -4439,7 +4439,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                    concord::crypto::KeyFormat::PemFormat,
                                    {{repsInfo->getIdOfOperator(),
                                      ReplicaConfig::instance().getOperatorPublicKey(),
-                                     concord::crypto::KeyFormat::PemFormat}}
+                                     concord::crypto::KeyFormat::PemFormat}},
                                    *repsInfo);
     viewsManager = new ViewsManager(repsInfo);
   } else {

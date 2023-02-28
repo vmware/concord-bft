@@ -49,14 +49,15 @@ SigManager* SigManager::instance() {
 
 void SigManager::reset(std::shared_ptr<SigManager> other) { s_sm = other; }
 
-std::shared_ptr<SigManager> SigManager::init(ReplicaId myId,
-                             const Key& mySigPrivateKey,
-                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                             KeyFormat replicasKeysFormat,
-                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                             KeyFormat clientsKeysFormat,
-                             const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
-                             const ReplicasInfo& replicasInfo) {
+std::shared_ptr<SigManager> SigManager::init(
+    ReplicaId myId,
+    const Key& mySigPrivateKey,
+    const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+    KeyFormat replicasKeysFormat,
+    const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+    KeyFormat clientsKeysFormat,
+    const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
+    const ReplicasInfo& replicasInfo) {
   vector<pair<Key, KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
@@ -102,14 +103,14 @@ std::shared_ptr<SigManager> SigManager::init(ReplicaId myId,
   }
 
   LOG_INFO(GL, "Done Compute Start ctor for SigManager with " << KVLOG(publickeys.size(), publicKeysMapping.size()));
-  auto ret = std::shared_ptr<SigManager>{new SigManager(
-      myId,
-      make_pair(mySigPrivateKey, replicasKeysFormat),
-      publickeys,
-      publicKeysMapping,
-      ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
-      operatorKey,
-      replicasInfo)};
+  auto ret = std::shared_ptr<SigManager>{
+      new SigManager(myId,
+                     make_pair(mySigPrivateKey, replicasKeysFormat),
+                     publickeys,
+                     publicKeysMapping,
+                     ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
+                     operatorKey,
+                     replicasInfo)};
 
   reset(ret);
   return ret;
@@ -120,7 +121,7 @@ SigManager::SigManager(PrincipalId myId,
                        const vector<pair<Key, KeyFormat>>& publickeys,
                        const map<PrincipalId, KeyIndex>& publicKeysMapping,
                        bool clientTransactionSigningEnabled,
-                       const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey
+                       const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
                        const ReplicasInfo& replicasInfo)
     : myId_(myId),
       clientTransactionSigningEnabled_(clientTransactionSigningEnabled),

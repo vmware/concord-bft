@@ -18,6 +18,7 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "crypto/signer.hpp"
 
 namespace bftEngine::bcst::asyncCRE {
 class CreFactory {

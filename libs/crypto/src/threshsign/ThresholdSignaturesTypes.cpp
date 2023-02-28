@@ -33,7 +33,7 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
       subtype_(sysSubtype),
       numSigners_(sysNumSigners),
       threshold_(sysThreshold),
-      signerID_(NID),
+      signerID_(INVALID_SIGNER_ID),
       publicKey_("uninitialized") {
   if (!isValidCryptosystemSelection(sysType, sysSubtype, sysNumSigners, sysThreshold)) {
     throw std::runtime_error(

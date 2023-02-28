@@ -17,7 +17,8 @@ namespace bftEngine::impl {
 /* This class is a hack to enable the validation of replica signatures
    using fixed keys without initializing a CryptoManager object.
    Messages such as CheckpointMsg use a global singleton to expose their validation logic,
-   thus an instance of this class can be used to succeed in performing the validation.
+   thus an instance of this class can be registered as a global SigManager to succeed in performing CheckpointMsg
+   validations.
 */
 class ValidationOnlyIdentityManager : public SigManager {
  public:

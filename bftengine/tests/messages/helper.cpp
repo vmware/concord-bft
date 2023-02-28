@@ -84,7 +84,7 @@ class TestSigManager : public bftEngine::impl::SigManager {
                  const ReplicasInfo& replicasInfo,
                  bool transactionSigningEnabled = false)
       : bftEngine::impl::SigManager(
-            myId, mySigPrivateKey, publickeys, publicKeysMapping, transactionSigningEnabled, replicasInfo) {}
+            myId, mySigPrivateKey, publickeys, publicKeysMapping, transactionSigningEnabled, {}, replicasInfo) {}
 
   static std::shared_ptr<TestSigManager> init(size_t myId,
                                               std::string& myPrivateKey,

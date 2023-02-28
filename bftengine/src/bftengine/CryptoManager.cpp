@@ -10,7 +10,6 @@
 // file.
 
 #include "ReplicaConfig.hpp"
-#include "Logger.hpp"
 #include "CryptoManager.hpp"
 #include <experimental/map>
 
@@ -57,8 +56,6 @@ std::unique_ptr<Cryptosystem>& CryptoManager::getLatestCryptoSystem() const {
  */
 concord::crypto::SignatureAlgorithm CryptoManager::getLatestSignatureAlgorithm() const {
   const std::unordered_map<std::string, concord::crypto::SignatureAlgorithm> typeToAlgorithm{
-      {MULTISIG_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
-      {THRESHOLD_BLS_SCHEME, concord::crypto::SignatureAlgorithm::BLS},
       {MULTISIG_EDDSA_SCHEME, concord::crypto::SignatureAlgorithm::EdDSA},
   };
   auto currentType = getLatestCryptoSystem()->getType();

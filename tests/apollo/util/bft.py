@@ -623,7 +623,6 @@ class BftTestNetwork:
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
-        log_message(message_type=f"Creating client {client_id}", config=str(config))
         ro_replicas = [r.id for r in self.ro_replicas]
         return client_class(config, self.replicas, self.background_nursery, ro_replicas=ro_replicas)
 

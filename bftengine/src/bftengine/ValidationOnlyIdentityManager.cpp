@@ -24,6 +24,7 @@ ValidationOnlyIdentityManager::ValidationOnlyIdentityManager(
                  publickeys,
                  publicKeysMapping,
                  false,
+                 {},
                  replicasInfo) {}
 
 bool ValidationOnlyIdentityManager::verifySig(

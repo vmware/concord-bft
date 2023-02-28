@@ -152,6 +152,7 @@ static void resetSigManager() {
                                                           kKeyFormatForTesting,
                                                           &kInitialPublicKeysOfClientsForTesting,
                                                           kKeyFormatForTesting,
+                                                          {},
                                                           *sigManagerReplicasInfoForTesting);
 }
 

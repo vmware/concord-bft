@@ -99,18 +99,6 @@ class ReplicaBase {
     }
   }
 
-  /*bool validateMessage(MessageBase* msg) {
-    try {
-      if (config_.debugStatisticsEnabled) DebugStatistics::onReceivedExMessage(msg->type());
-
-      msg->validate(*repsInfo);
-      return true;
-    } catch (std::exception& e) {
-      onReportAboutInvalidMessage(msg, e.what());
-      return false;
-    }
-  }*/
-
  protected:
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
 

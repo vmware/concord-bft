@@ -26,7 +26,7 @@
 #include "crypto/threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
 #include "SigManager.hpp"
-#include "threshsign/eddsa/EdDSAMultisigFactory.h"
+#include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
 
 using bftEngine::impl::ReplicasInfo;
 

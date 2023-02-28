@@ -61,7 +61,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
 
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.
-  // Therefore the first called will create ca CryptoSys
+  // Therefore the first called will create a CryptoSys
   void onPrivateKeyExchange(const std::string& secretKey,
                             const std::string& verificationKey,
                             const SeqNum& sn) override;
@@ -77,8 +77,8 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    * @param secretKey
    * @param verificationKey
    * @note: Assumes all keys are formatted as hex strings
-   * @note: TODO: Current implementation is not crash consistent, a ST which was completed after the replica process
-   *        will lose the new private key
+   * @note: TODO: Current implementation is not crash consistent, a ST which was completed after the termination
+   *              of the replica process will lose the new private key
    */
   void syncPrivateKeyAfterST(const std::string& secretKey, const std::string& verificationKey);
 
