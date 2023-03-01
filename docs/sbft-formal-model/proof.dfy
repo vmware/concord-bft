@@ -1582,7 +1582,81 @@ module Proof {
     ensures EveryCommitMsgIsRememberedByItsSender(c, v')
   {
     reveal_EveryCommitMsgIsRememberedByItsSender();
-    assume false;
+
+    forall commitMsg | && commitMsg in v'.network.sentMsgs 
+                           && commitMsg.payload.Commit? 
+                           && IsHonestReplica(c, commitMsg.sender)
+                           && var h_c := c.hosts[commitMsg.sender].replicaConstants;
+                           && var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
+                           && commitMsg.payload.seqID in h_v'.workingWindow.getActiveSequenceIDs(h_c)
+     ensures && var h_c := c.hosts[commitMsg.sender].replicaConstants;
+             && var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
+             && var certificate := Replica.ExtractCertificateForSeqID(h_c, h_v', commitMsg.payload.seqID);
+             && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
+             && !certificate.empty()
+             && certificate.prototype().view >= commitMsg.payload.view
+             && (certificate.prototype().view == commitMsg.payload.view 
+                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+    {
+
+      /*
+    | SendPrePrepareStep(seqID:SequenceID)
+    | RecvPrePrepareStep()
+    | SendPrepareStep(seqID:SequenceID)
+    | RecvPrepareStep()
+    | SendCommitStep(seqID:SequenceID)
+    | RecvCommitStep()
+    | DoCommitStep(seqID:SequenceID)
+    | ExecuteStep(seqID:SequenceID)
+    | SendCheckpointStep(seqID:SequenceID)
+    | RecvCheckpointStep()
+    | AdvanceWorkingWindowStep(seqID:SequenceID, checkpointsQuorum:CheckpointsQuorum)
+    | PerformStateTransferStep(seqID:SequenceID, checkpointsQuorum:CheckpointsQuorum)
+    //| SendReplyToClient(seqID:SequenceID)
+    // TODO: uncomment those steps when we start working on the proof
+    | LeaveViewStep(newView:ViewNum)
+    | SendViewChangeMsgStep()
+    | RecvViewChangeMsgStep()
+    | SelectQuorumOfViewChangeMsgsStep(viewChangeMsgsSelectedByPrimary:ViewChangeMsgsSelectedByPrimary)
+    | SendNewViewMsgStep()
+    | RecvNewViewMsgStep()
+      */
+      var h_c := c.hosts[step.id].replicaConstants;
+      var h_v' := v'.hosts[step.id].replicaVariables;
+      reveal_TemporarilyDisableCheckpointing();
+      if(h_step.LeaveViewStep?) {
+        assume false;
+      } else if(h_step.SendCommitStep?) {
+        assume false;
+      } else if(h_step.RecvPrepareStep?) {
+        assume false;
+      } else if(h_step.PerformStateTransferStep?) {
+        assume false;
+      } else if(h_step.SendViewChangeMsgStep?) {
+        assume false;
+      } else if(h_step.RecvPrePrepareStep?) {
+        assume false;
+      } else if(h_step.AdvanceWorkingWindowStep?) {
+        assume false;
+      } else if(h_step.RecvCommitStep?) {
+        assert h_v.workingWindow.getActiveSequenceIDs(h_c) == h_v'.workingWindow.getActiveSequenceIDs(h_c);
+        assert Replica.RecvCommit(h_c, h_v, h_v', step.msgOps);
+        assert h_v'.workingWindow == 
+               h_v.workingWindow.(commitsRcvd := h_v'.workingWindow.commitsRcvd);
+        assert h_v.workingWindow.preparesRcvd == h_v'.workingWindow.preparesRcvd;
+        var workingWindowPreparesRecvd := set key | key in h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID]
+                                                :: h_v.workingWindow.preparesRcvd[commitMsg.payload.seqID][key];
+        var workingWindowPreparesRecvd' := set key | key in h_v'.workingWindow.preparesRcvd[commitMsg.payload.seqID]
+                                                :: h_v'.workingWindow.preparesRcvd[commitMsg.payload.seqID][key];
+        assert workingWindowPreparesRecvd == workingWindowPreparesRecvd';
+        assert Replica.ExtractCertificateForSeqID(h_c, h_v, commitMsg.payload.seqID) == 
+               Replica.ExtractCertificateForSeqID(h_c, h_v', commitMsg.payload.seqID);
+      } else {
+        assume false;
+      }
+    }
+
+    //assume false;
     // reveal_RecordedNewViewMsgsAreValid();
     // reveal_RecordedPreparesHaveValidSenderID();
     // reveal_RecordedPrePreparesRecvdCameFromNetwork();
