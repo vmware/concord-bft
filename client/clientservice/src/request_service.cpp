@@ -97,6 +97,7 @@ void RequestServiceCallData::sendToConcordClient() {
   req_config.pre_execute = request_.pre_execute();
   req_config.timeout = timeout;
   req_config.correlation_id = request_.correlation_id();
+  req_config.primary_only = request_.primary_only();
 
   auto callback = [this, req_config, is_any_request_type](concord::client::concordclient::SendResult&& send_result) {
     grpc::Status status;

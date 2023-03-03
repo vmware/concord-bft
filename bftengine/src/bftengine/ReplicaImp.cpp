@@ -4699,6 +4699,18 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   ClientReplyMsg reply(currentPrimary(), request->requestSeqNum(), config_.getreplicaId());
   uint16_t clientId = request->clientProxyId();
   int status = 0;
+
+  // Set isPrimaryOnly flag on Reply as well
+  if (request->isPrimaryOnly()) {
+    reply.b()->isPrimaryOnly = true;
+  }
+
+  // Send dummy reply to clients if this is not primary replica, as primary replica will only process the request
+  if (request->isPrimaryOnly() && !isCurrentPrimary()) {
+    send(&reply, clientId);
+    return;
+  }
+
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
                                                                               static_cast<uint64_t>(lastExecutedSeqNum),
@@ -4728,6 +4740,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,
                                                     status));
+
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
   if (!status) {
     if (actualReplyLength > 0) {

@@ -62,6 +62,7 @@ struct ClientReplyMsgHeader {
   // information. The offset of the replica specific information from the start of the reply message
   // is `replyLength - replicaSpecificInfoLength`.
   uint32_t replicaSpecificInfoLength = 0;
+  bool isPrimaryOnly = false;
 };
 
 #pragma pack(pop)

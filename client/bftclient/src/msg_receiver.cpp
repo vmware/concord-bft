@@ -83,6 +83,7 @@ void MsgReceiver::onNewMessage(bft::communication::NodeNum source,
   reply.metadata = metadata;
   reply.rsi = std::move(rsi);
   reply.data = Msg(start_of_body, start_of_rsi);
+  reply.isPrimaryOnly = header->isPrimaryOnly;
 
   queue_.push(std::move(reply));
 }

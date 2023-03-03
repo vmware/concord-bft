@@ -92,6 +92,11 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   if (config.reconfiguration) {
     flags |= RECONFIG_FLAG;
   }
+
+  if (config.primary_only) {
+    flags |= PRIMARY_ONLY_REQ;
+  }
+
   auto header_size = sizeof(ClientRequestMsgHeader);
   auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size();
   if (transaction_signer_) {
@@ -318,10 +323,25 @@ void Client::wait(SeqNumToReplyMap& replies) {
       auto request = reply_certificates_.find(reply.metadata.seq_num);
       if (request == reply_certificates_.end()) continue;
       if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
-      if (auto match = request->second.onReply(std::move(reply))) {
-        primary_ = request->second.getPrimary();
-        replies.insert(std::make_pair(request->first, match->reply));
-        reply_certificates_.erase(request->first);
+
+      if (!reply.isPrimaryOnly) {
+        // Generic case
+        if (auto match = request->second.onReply(std::move(reply))) {
+          primary_ = request->second.getPrimary();
+          replies.insert(std::make_pair(request->first, match->reply));
+          reply_certificates_.erase(request->first);
+        }
+      } else {
+        // isPrimaryOnly flag set case
+        if (reply.metadata.primary.value().val == reply.rsi.from.val) {
+          // isPrimaryOnly flag set case - Primary Node
+          primary_ = reply.metadata.primary;
+          std::map<ReplicaId, Msg> trsi = {{reply.rsi.from, reply.rsi.data}};
+          replies.insert(std::make_pair(request->first, Reply{reply.metadata.result, reply.data, trsi}));
+          reply_certificates_.erase(request->first);
+        } else {
+          // // isPrimaryOnly flag set case - Non-Primary Node
+        }
       }
     }
   }
@@ -346,10 +366,8 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
 
   if (std::holds_alternative<LinearizableQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<LinearizableQuorum>(read_config.quorum));
-
   } else if (std::holds_alternative<ByzantineSafeQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<ByzantineSafeQuorum>(read_config.quorum));
-
   } else if (std::holds_alternative<All>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<All>(read_config.quorum));
     for (const auto& r : std::get<All>(read_config.quorum).destinations) {
