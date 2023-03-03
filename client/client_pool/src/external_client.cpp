@@ -62,9 +62,9 @@ ConcordClient::ConcordClient(int client_id, std::shared_ptr<concordMetrics::Aggr
 ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
-  LOG_INFO(
-      logger_,
-      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+  LOG_INFO(logger_,
+           "Rachit: Write Request processing started"
+               << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
@@ -91,9 +91,9 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
 }
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
-  LOG_INFO(
-      logger_,
-      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+  LOG_INFO(logger_,
+           "Rachit:Read Request processing started"
+               << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {

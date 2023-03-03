@@ -77,6 +77,7 @@ void RequestServiceCallData::sendToConcordClient() {
   bool is_any_request_type = false;
   bft::client::Msg msg;
   if (request_.has_typed_request()) {
+    LOG_INFO(logger_, "Rachit:typed request:");
     ConcordClientRequest concord_request;
     concord_request.set_client_service_id(client_->getSubscriptionId());
     concord_request.mutable_application_request()->CopyFrom(request_.typed_request());
@@ -165,6 +166,7 @@ void RequestServiceCallData::sendToConcordClient() {
     auto reply = std::get<bft::client::Reply>(send_result);
     // We need to copy because there is no implicit conversion between vector<uint8> and std::string
     std::string data(reply.matched_data.begin(), reply.matched_data.end());
+    LOG_INFO(logger_, "Rachit:data:" << data);
 
     // Check if the application response is of Any Type then set it to Any response.
     if (is_any_request_type) {
@@ -199,6 +201,7 @@ void RequestServiceCallData::sendToConcordClient() {
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
+    LOG_INFO(logger_, "Rachit:Read only request:");
     client_->send(config, std::move(msg), callback);
   } else {
     bft::client::WriteConfig config;
@@ -210,6 +213,7 @@ void RequestServiceCallData::sendToConcordClient() {
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
+    LOG_INFO(logger_, "Rachit:Write only request:");
     client_->send(config, std::move(msg), callback);
   }
   metrics_.num_incoming_requests++;
