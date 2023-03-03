@@ -235,8 +235,15 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
-  auto request_flag =
-      config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
+
+  bftEngine::ClientMsgFlag request_flag;
+
+  if (config.request.primary_only) {
+    request_flag = ClientMsgFlag::PRIMARY_ONLY_REQ;
+  } else {
+    request_flag =
+        config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
+  }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      request_flag,
                      config.request.timeout,
@@ -474,6 +481,7 @@ void SingleRequestProcessingJob::execute() {
       read_config_.request.max_reply_size = max_reply_size_;
     }
     read_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
+    read_config_.request.primary_only = ((flags_ & PRIMARY_ONLY_REQ) == PRIMARY_ONLY_REQ);
     res = processing_client_->SendRequest(read_config_, std::move(request_));
   } else {
     write_config_.request.timeout = timeout_ms_;
