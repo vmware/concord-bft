@@ -87,6 +87,13 @@ class ReplicaBase {
       DebugStatistics::onReceivedExMessage(msg->type());
     }
     try {
+      /* Checkpoint messages are used by replicas to initiate state transfer.
+       * Since a replica which initiates state transfer might not have the most
+       * public keys of other replicas, it might not be able to validate the signature
+       * of checkpoint messages. State transfer only requires that a replica has a valid
+       * communication channel.
+       * Therefore, replicas don't validate signatures of checkpoint messages.
+       */
       if constexpr (std::is_same_v<MessageType, CheckpointMsg>) {
         msg->validate(*repsInfo, false);
       } else {

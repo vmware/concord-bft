@@ -32,6 +32,7 @@ class KeyExchangeManager {
  public:
   void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
+  // TODO: persist the candidate
   void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();

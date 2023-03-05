@@ -268,10 +268,7 @@ size_t SigManager::sign(SeqNum seq, const concord::Byte* data, size_t dataLength
     rawSigner = mySigner_.get();
   }
   auto result = rawSigner->signBuffer(data, dataLength, outSig);
-  // TODO(yf): remove private key and change to debug
-  LOG_DEBUG(
-      GL,
-      "Signing as replica with " << KVLOG(myId_, seq, rawSigner->getPrivKey(), rawSigner->signatureLength(), result));
+  LOG_DEBUG(GL, "Signing as replica with " << KVLOG(myId_, seq, rawSigner->signatureLength(), result));
   return result;
 }
 
@@ -388,11 +385,15 @@ std::shared_ptr<EdDSAMultisigSigner> SigManager::getLastReplicaSigner() const {
 }
 
 std::pair<SeqNum, std::string> SigManager::getMyLatestPublicKey() const {
-  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
+
+  if (!ReplicaConfig::instance().singleSignatureScheme) {
+    return {0, getVerifier(myId_).getPubKey()};
+  }
+
   auto [seq, latestVerifier] = CryptoManager::instance().getLatestVerifiers()[0];
   auto pubKey = latestVerifier->getVerifier(myId_).getPubKey();
-  LOG_DEBUG(GL, KVLOG(pubKey));
+  LOG_DEBUG(GL, KVLOG(seq, pubKey));
   return {seq, pubKey};
 }
 

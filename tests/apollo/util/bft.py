@@ -416,7 +416,7 @@ class BftTestNetwork:
         return bft_network
 
     @classmethod
-    def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None):
+    def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None, builddir=None):
         certdir = None
         builddir = tempfile.mkdtemp(prefix='builddir')
         if not client_factory:

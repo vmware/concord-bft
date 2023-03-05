@@ -73,11 +73,6 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 }
 
 void ReplicaForStateTransfer::start() {
-  /* TODO: Transaction signing needs to be disabled for replicas, as state transfer may change
-   * the a replica's consensus (and therefore main) key. Apollo tests currently run with transaction signing enabled,
-   * we therefore use the latest key published by this replica.
-   * If a key exchange consensus was reached by this replica, the other replicas are guaranteed to be able to use
-   * its latest key upon honest execution of the exchange */
   cre_ = bftEngine::bcst::asyncCRE::CreFactory::create(
       msgsCommunicator_, msgHandlers_, std::make_unique<bftEngine::bcst::asyncCRE::ReplicaCRESigner>());
   stateTransfer->setReconfigurationEngine(cre_);
@@ -97,7 +92,6 @@ void ReplicaForStateTransfer::start() {
           // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
           // This can be done by iterating the saved cryptosystems and updating their private key if their
           // public key matches the candidate saved in KeyExchangeManager
-          // TODO: persist the candidate
           CryptoManager::instance().onCheckpoint(checkpoint);
           auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
           CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
@@ -123,11 +117,12 @@ void ReplicaForStateTransfer::start() {
                 succ = false;
                 break;
               }  // else if (!isGettingBlocks)
-              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transferred
-              // blocks that haven't been handled yet
-              cre_->halt();
             }
           }  // while (!succ)
+
+          // 2. Now we can safely halt cre. We know for sure that there are no update in the state transferred
+          // blocks that haven't been handled yet
+          cre_->halt();
         }
       },
       IStateTransfer::StateTransferCallBacksPriorities::HIGH);

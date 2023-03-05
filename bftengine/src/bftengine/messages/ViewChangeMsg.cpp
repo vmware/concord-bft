@@ -183,7 +183,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
   if (!sigManager->verifySig(
           idOfGeneratedReplica(), std::string_view{body(), dataLength}, std::string_view{body() + dataLength, sigLen}))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig(replica)"));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
   if (!checkComplaints(sigLen))  // check list of complaints

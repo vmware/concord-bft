@@ -49,6 +49,8 @@ using Hash = Hasher::Digest;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
 
+constexpr char CLIENT_STATE_KEY = 0x1;
+
 template <typename Span>
 static Hash createHash(const Span &span) {
   return Hasher{}.digest(span.data(), span.size());
@@ -93,7 +95,7 @@ InternalCommandsHandler::InternalCommandsHandler(concord::kvbc::IReader *storage
 void InternalCommandsHandler::loadClientStateFromStorage() {
   ConcordAssert(!ReplicaConfig::instance().isReadOnly);
   LOG_INFO(GL, "Synchronizing client execution state");
-  auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {0x1});
+  auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {CLIENT_STATE_KEY});
   if (!data.has_value()) {
     LOG_WARN(GL, "empty client execution state, were any client requests executed?");
     return;
@@ -367,7 +369,7 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
   }
 
   VersionedUpdates clientStateUpdate;
-  clientStateUpdate.addUpdate({0x1}, serializeClientState());
+  clientStateUpdate.addUpdate({CLIENT_STATE_KEY}, serializeClientState());
 
   addBlock(verUpdates, merkleUpdates, clientStateUpdate, sn);
 }
@@ -571,7 +573,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
       VersionedUpdates verUpdates;
       BlockMerkleUpdates merkleUpdates;
       VersionedUpdates clientVerUpdates;
-      clientVerUpdates.addUpdate({0x1}, serializeClientState());
+      clientVerUpdates.addUpdate({CLIENT_STATE_KEY}, serializeClientState());
       addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
       addBlock(verUpdates, merkleUpdates, clientVerUpdates, sequenceNum);
     }

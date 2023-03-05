@@ -218,7 +218,6 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const 
   LOG_INFO(logger(),
            "Created new cryptosystem for checkpoint: " << chckp << ", insertion success: " << insert_result.second
                                                        << KVLOG(cryptoSystems_.size()));
-  assertMapSizeValid();
   return ret;
 }
 

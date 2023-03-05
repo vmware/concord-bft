@@ -87,7 +87,7 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
                                concord::crypto::SHA3_256::SIZE_IN_BYTES,
                                reinterpret_cast<concord::Byte*>(msgBody()) + headerSize,
                                sigLen))
-      throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig(replica) failed"));
+      throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig failed"));
   }
 }  // namespace preprocessor
 

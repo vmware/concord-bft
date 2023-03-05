@@ -80,7 +80,7 @@ void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
 
   if (!sigManager->verifySig(
           idOfSenderReplica, std::string_view{body(), dataSize}, std::string_view{body() + dataSize, sigLen}))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig(replica)"));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 
 }  // namespace impl

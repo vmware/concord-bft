@@ -72,8 +72,6 @@ class Communication : public ICommunication {
   uint16_t repId_;
 };
 
-// Implement cryptomanager update handler
-
 class ScalingReplicaHandler : public IStateHandler {
  public:
   ScalingReplicaHandler() {}
@@ -130,7 +128,6 @@ class ScalingReplicaHandler : public IStateHandler {
   }
 };
 
-// TODO(yf): remove
 class MainKeyUpdateHandler : public IStateHandler {
  public:
   MainKeyUpdateHandler() { LOG_INFO(getLogger(), "Created StateTransfer CRE replica main key update handler"); }

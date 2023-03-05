@@ -39,19 +39,6 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
     std::istringstream iss(buffer_);
     PublicKeys ks;
     PublicKeys::deserialize(iss, ks);
-    // std::vector<SeqNum> keysToRemove;
-    for (auto [sn, pk] : ks.keys) {
-      /*if (ks.keys.size() - keysToRemove.size() > 2) {
-        keysToRemove.push_back(sn);
-      }*/
-      LOG_INFO(KEY_EX_LOG, "Deserialized public key from reserved pages: " << KVLOG(repID, sn, pk));
-    }
-
-    /*for (auto sn : keysToRemove) {
-      LOG_INFO(KEY_EX_LOG, "Removing stale key from keystore" << KVLOG(sn, ks.keys[sn]));
-      ks.remove(sn);
-    }*/
-
     return ks;
   } catch (const std::exception& e) {
     LOG_FATAL(KEY_EX_LOG,

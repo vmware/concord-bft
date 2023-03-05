@@ -64,7 +64,7 @@ void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   if (!sigManager->verifySig(idOfGeneratedReplica(),
                              std::string_view{body(), sizeof(Header)},
                              std::string_view{body() + totalSize, sigLen}))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySigAsReplica"));
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 
 }  // namespace impl

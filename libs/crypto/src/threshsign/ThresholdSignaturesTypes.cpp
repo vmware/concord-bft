@@ -126,13 +126,17 @@ std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
     throw std::out_of_range(__PRETTY_FUNCTION__ + std::string(" Signer index out of range: ") +
                             std::to_string(signerIndex));
 
-  if (privateKeys_.size() < 1) {
-    throw std::runtime_error(
-        "Private keys have not been"
-        " generated or loaded for this cryptosystem.");
+  if (privateKeys_.size() == 1) {
+    return privateKeys_[0];
   }
 
-  return privateKeys_[signerIndex];
+  if (privateKeys_.size() == numSigners_) {
+    return privateKeys_[signerIndex];
+  }
+
+  throw std::runtime_error(
+      "Private keys have not been"
+      " generated or loaded for this cryptosystem.");
 }
 
 void Cryptosystem::loadKeys(const std::string& publicKey, const std::vector<std::string>& verificationKeys) {
