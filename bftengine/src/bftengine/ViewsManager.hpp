@@ -121,7 +121,7 @@ class ViewsManager {
 
   ViewChangeMsg *exitFromCurrentView(SeqNum currentLastStable,
                                      SeqNum currentLastExecuted,
-                                     const std::vector<PrevViewInfo> &prevViewInfo);
+                                     std::vector<PrevViewInfo> &prevViewInfo);
   // TODO(GG): prevViewInfo is defined and used in a confusing way (because it
   // contains both executed and non-executed items) - TODO: improve by using two
   // different arguments
@@ -133,9 +133,9 @@ class ViewsManager {
   bool tryToEnterView(ViewNum v,
                       SeqNum currentLastStable,
                       SeqNum currentLastExecuted,
-                      std::vector<std::shared_ptr<PrePrepareMsg>> *outPrePrepareMsgsOfView);
+                      std::vector<std::shared_ptr<PrePrepareMsg>> &outPrePrepareMsgsOfView);
 
-  bool addPotentiallyMissingPP(PrePrepareMsg *p, SeqNum currentLastStable);
+  bool addPotentiallyMissingPP(std::shared_ptr<PrePrepareMsg> &p, SeqNum currentLastStable);
 
   PrePrepareMsg *getPrePrepare(SeqNum s);
 
@@ -166,7 +166,7 @@ class ViewsManager {
                                                       const bool wasInPrevViewNumber,
                                                       SeqNum lastStableSeqNum = 0,
                                                       SeqNum lastExecutedSeqNum = 0,
-                                                      const std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
+                                                      std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
 
   void processComplaintsFromViewChangeMessage(ViewChangeMsg *msg,
                                               const std::function<bool(MessageBase *)> &msgValidator);

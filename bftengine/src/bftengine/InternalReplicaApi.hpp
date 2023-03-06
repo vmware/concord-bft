@@ -18,7 +18,8 @@
 #include "IncomingMsgsStorage.hpp"
 
 using PrePrepareMsgUPtr = std::unique_ptr<PrePrepareMsg>;
-using PrePrepareMsgCreationResult = std::pair<PrePrepareMsgUPtr, bool>;
+using PrePrepareMsgShPtr = std::shared_ptr<PrePrepareMsg>;
+using PrePrepareMsgCreationResult = std::pair<PrePrepareMsgShPtr, bool>;
 
 class IThresholdVerifier;
 namespace concord::util {

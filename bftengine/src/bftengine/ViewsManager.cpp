@@ -464,7 +464,7 @@ SeqNum ViewsManager::stableLowerBoundWhenEnteredToView() const {
 
 ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
                                                  SeqNum currentLastExecuted,
-                                                 const std::vector<PrevViewInfo>& prevViewInfo) {
+                                                 std::vector<PrevViewInfo>& prevViewInfo) {
   ConcordAssert(stat == Stat::IN_VIEW);
   ConcordAssert(myLatestActiveView == myLatestPendingView);
   ConcordAssert(prevViewInfo.size() <= kWorkWindowSize);
@@ -559,10 +559,13 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
       ConcordAssert((s > currentLastExecuted) || (pp->isNull()));
     }
 
-    // it.prepareFull.reset();  // we can't use this prepared certificate in the new view
+    it.prepareFull = nullptr;  // we can't use this prepared certificate in the new view
 
-    if ((allRequests) && (!pp->isNull()))
+    if ((allRequests) && (!pp->isNull())) {
       collectionOfPrePrepareMsgs[s] = it.prePrepare;  // we may need pp for the next views
+    } else {
+      it.prePrepare = nullptr;
+    }
   }
 
   ConcordAssert((debugExpected - currentLastStable) <= kWorkWindowSize);
@@ -581,11 +584,11 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
 bool ViewsManager::tryToEnterView(ViewNum v,
                                   SeqNum currentLastStable,
                                   SeqNum currentLastExecuted,
-                                  std::vector<std::shared_ptr<PrePrepareMsg>>* outPrePrepareMsgsOfView) {
+                                  std::vector<std::shared_ptr<PrePrepareMsg>>& outPrePrepareMsgsOfView) {
   ConcordAssert(stat != Stat::IN_VIEW);
   ConcordAssert(v > myLatestActiveView);
   ConcordAssert(v >= myLatestPendingView);
-  ConcordAssert(outPrePrepareMsgsOfView->empty());
+  ConcordAssert(outPrePrepareMsgsOfView.empty());
 
   // debug lines
   ConcordAssert((v >= debugHighestViewNumberPassedByClient) && (currentLastStable >= debugHighestKnownStable));
@@ -723,14 +726,14 @@ bool ViewsManager::tryToEnterView(ViewNum v,
         nbNoopPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
         auto pp = std::make_shared<PrePrepareMsg>(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
-        outPrePrepareMsgsOfView->push_back(pp);
+        outPrePrepareMsgsOfView.push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx].get();
         ConcordAssert(pp != nullptr && pp->seqNumber() == i);
         nbActualRequestPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
         pp->updateView(myLatestActiveView);
-        outPrePrepareMsgsOfView->push_back(prePrepareMsgsOfRestrictions[idx]);
+        outPrePrepareMsgsOfView.push_back(prePrepareMsgsOfRestrictions[idx]);
         prePrepareMsgsOfRestrictions[idx] = nullptr;
 
         // if needed, remove from collectionOfPrePrepareMsgs (because we don't
@@ -978,7 +981,7 @@ void ViewsManager::resetDataOfLatestPendingAndKeepMyViewChange() {
   newViewMsgOfOfPendingView = nullptr;
 }
 
-bool ViewsManager::addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastStable) {
+bool ViewsManager::addPotentiallyMissingPP(std::shared_ptr<PrePrepareMsg>& p, SeqNum currentLastStable) {
   ConcordAssert(stat == Stat::PENDING_WITH_RESTRICTIONS);
   ConcordAssert(!p->isNull());
 
@@ -993,7 +996,7 @@ bool ViewsManager::addPotentiallyMissingPP(PrePrepareMsg* p, SeqNum currentLastS
     ViewChangeSafetyLogic::Restriction& r = restrictionsOfPendingView[idx];
     // if we need this message
     if (prePrepareMsgsOfRestrictions[idx] == nullptr && !r.isNull && r.digest == p->digestOfRequests()) {
-      prePrepareMsgsOfRestrictions[idx].reset(p);
+      prePrepareMsgsOfRestrictions[idx] = p;
       return true;
     }
   }
@@ -1084,7 +1087,7 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
                                                                   const bool wasInPrevViewNumber,
                                                                   SeqNum lastStableSeqNum,
                                                                   SeqNum lastExecutedSeqNum,
-                                                                  const std::vector<PrevViewInfo>* const prevViewInfo) {
+                                                                  std::vector<PrevViewInfo>* const prevViewInfo) {
   ConcordAssertLT(myCurrentView, nextView);
 
   ViewChangeMsg* pVC = nullptr;
@@ -1094,9 +1097,6 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
     ConcordAssertNE(pVC, nullptr);
     pVC->setNewViewNumber(nextView);
     pVC->clearAllComplaints();
-    // for (auto& it : *prevViewInfo) {
-    //   delete it.prePrepare;
-    // }
   } else {
     ConcordAssertNE(prevViewInfo, nullptr);
     pVC = exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, *prevViewInfo);

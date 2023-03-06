@@ -255,8 +255,8 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
                                              (uint64_t)1000000);
 
   // Create a Pre-Prepare message and add the client request to it.
-  PrePrepareMsg* prePrepareMsg =
-      new PrePrepareMsg(rc.getreplicaId(), initialView, lastExecutedSeqNum, CommitPath::SLOW, clientRequest->size());
+  std::shared_ptr<PrePrepareMsg> prePrepareMsg = std::make_shared<PrePrepareMsg>(
+      rc.getreplicaId(), initialView, lastExecutedSeqNum, CommitPath::SLOW, clientRequest->size());
 
   prePrepareMsg->addRequest(clientRequest->body(), clientRequest->size());
   prePrepareMsg->finishAddingRequests();
@@ -316,7 +316,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
   // added to the views manager.
   // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
-  ASSERT_FALSE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+  ASSERT_FALSE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, outPrePrepareMsgs));
 
   // Change the view so that the current view becomes pending.
   // While the current view is pending, the function "fillPropertiesOfStatusMessage" reflects missing Pre-Prepare
@@ -334,7 +334,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
 
   // After the missing Pre-Prepare message has been added there is no longer any obstacle that prevents from entering
   // the next view.
-  ASSERT_TRUE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+  ASSERT_TRUE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, outPrePrepareMsgs));
 
   // Fill the necessary information in the second status message so that it designates that there are no longer missing
   // Pre-Prepare messages.
@@ -399,7 +399,7 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
   vector<std::shared_ptr<PrePrepareMsg>> outPrePrepareMsgs;
-  viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs);
+  viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, outPrePrepareMsgs);
 
   ASSERT_EQ(viewsManager->latestActiveView(), nextView);
 }
@@ -428,7 +428,7 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
   const uint32_t expectedLastValue = 123450;
   uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
 
-  PrePrepareMsg** prePrepareMessages = new PrePrepareMsg*[2];
+  std::shared_ptr<PrePrepareMsg> prePrepareMessages[2];
   const uint8_t kPrePrepareWithoutCertificateIdx = 0, kPrePrepareWithCertificateIdx = 1;
 
   // Create two sample client requests and Pre-Prepare messages.
@@ -442,11 +442,11 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
                                               (const char*)requestBuffer,
                                               (uint64_t)1000000);
     // Create a Pre-Prepare message and add the client request to it.
-    prePrepareMessages[i] = new PrePrepareMsg(replicasInfo.primaryOfView(viewsManagerInitialView),
-                                              i ? preparedCertificateView : viewsManagerInitialView,
-                                              lastExecutedSeqNum,
-                                              i ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST,
-                                              clientRequest->size());
+    prePrepareMessages[i] = std::make_shared<PrePrepareMsg>(replicasInfo.primaryOfView(viewsManagerInitialView),
+                                                            i ? preparedCertificateView : viewsManagerInitialView,
+                                                            lastExecutedSeqNum,
+                                                            i ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST,
+                                                            clientRequest->size());
     prePrepareMessages[i]->addRequest(clientRequest->body(), clientRequest->size());
     prePrepareMessages[i]->finishAddingRequests();
   }
@@ -512,7 +512,7 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
   // added to the views manager.
   // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
-  ASSERT_FALSE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+  ASSERT_FALSE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, outPrePrepareMsgs));
 
   // Add the missing Pre-Prepare message.
   ASSERT_TRUE(
@@ -524,12 +524,10 @@ TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
 
   // After the missing Pre-Prepare message has been added there is no longer any obstacle that prevents from entering
   // the next view.
-  ASSERT_TRUE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+  ASSERT_TRUE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, outPrePrepareMsgs));
 
   // Verify that the target view has been activated.
   ASSERT_EQ(viewsManager->latestActiveView(), targetView);
-
-  delete[] prePrepareMessages;
 }
 
 }  // namespace

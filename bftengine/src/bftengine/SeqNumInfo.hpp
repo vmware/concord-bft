@@ -38,10 +38,10 @@ class SeqNumInfo {
   void resetCommitSignatures(CommitPath cPath);
   void resetPrepareSignatures();
   void resetAndFree();  // TODO(GG): name
-  std::pair<PrePrepareMsg*, PrepareFullMsg*> getAndReset();
+  std::pair<PrePrepareMsgShPtr, PrepareFullMsg*> getAndReset();
 
-  bool addMsg(PrePrepareMsgUPtr m, bool directAdd = false, bool isTimeCorrect = true);
-  bool addSelfMsg(PrePrepareMsgUPtr m, bool directAdd = false);
+  bool addMsg(PrePrepareMsgShPtr& m, bool directAdd = false, bool isTimeCorrect = true);
+  bool addSelfMsg(PrePrepareMsgShPtr& m, bool directAdd = false);
 
   bool addMsg(PreparePartialMsg* m);
   bool addSelfMsg(PreparePartialMsg* m, bool directAdd = false);
@@ -243,7 +243,7 @@ class SeqNumInfo {
 
   InternalReplicaApi* replica = nullptr;
 
-  PrePrepareMsgUPtr prePrepareMsg;
+  PrePrepareMsgShPtr prePrepareMsg;
 
   // Slow path
   CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector;
