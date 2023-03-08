@@ -738,6 +738,10 @@ PrePrepareMsgCreationResult ReplicaImp::finishAddingRequestsToPrePrepareMsg(PreP
                                                                             uint32_t maxSpaceForReqs,
                                                                             uint32_t requiredRequestsSize,
                                                                             uint32_t requiredRequestsNum) {
+  if (getReplicaConfig().timeServiceEnabled) {
+    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
+  }
+
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
     return std::make_pair(nullptr, false);
@@ -824,10 +828,6 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessage() {
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
   }
 
-  if (getReplicaConfig().timeServiceEnabled) {
-    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
-  }
-
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, 0);
 }
 
@@ -844,10 +844,6 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByRequestsNum(uint
   ClientRequestMsg *nextRequest = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
-
-  if (getReplicaConfig().timeServiceEnabled) {
-    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
-  }
 
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, requiredRequestsNum);
 }
@@ -866,10 +862,6 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByBatchSize(uint32
   while (nextRequest != nullptr &&
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
-
-  if (getReplicaConfig().timeServiceEnabled) {
-    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
-  }
 
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
