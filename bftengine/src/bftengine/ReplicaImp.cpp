@@ -823,6 +823,11 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessage() {
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
   }
+
+  if (getReplicaConfig().timeServiceEnabled) {
+    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
+  }
+
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, 0);
 }
 
@@ -839,6 +844,10 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByRequestsNum(uint
   ClientRequestMsg *nextRequest = (requestsQueueOfPrimary.empty() ? nullptr : requestsQueueOfPrimary.front().get());
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
+
+  if (getReplicaConfig().timeServiceEnabled) {
+    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
+  }
 
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, requiredRequestsNum);
 }
@@ -858,6 +867,10 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessageByBatchSize(uint32
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
 
+  if (getReplicaConfig().timeServiceEnabled) {
+    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
+  }
+
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
 
@@ -871,7 +884,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarli
     return;
   }
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
-  if (getReplicaConfig().timeServiceEnabled) {
+  if (getReplicaConfig().timeServiceEnabled && pp->getTime() == 0) {
     pp->setTime(time_service_manager_->getClockTimePoint());
   }
 
