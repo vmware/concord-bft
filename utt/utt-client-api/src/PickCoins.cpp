@@ -20,12 +20,17 @@
 
 namespace utt::client {
 
-std::vector<size_t> PickCoinsPreferExactMatch(const std::vector<libutt::api::Coin>& coins, uint64_t targetAmount) {
+std::vector<std::string> PickCoinsPreferExactMatch(const std::unordered_map<std::string, libutt::api::Coin>& coins,
+                                                   uint64_t targetAmount) {
   // Precondition: 0 < targetAmount <= balance
   if (targetAmount == 0) throw std::runtime_error("Target amount cannot be zero!");
   uint64_t sum = 0;
-  for (const auto& coin : coins) {
+  using CoinRef = std::pair<size_t, std::string>;  // [coinValue, coin nullifier]
+  std::vector<CoinRef> aux;
+
+  for (const auto& [nullifier, coin] : coins) {
     sum += coin.getVal();
+    aux.emplace_back(coin.getVal(), nullifier);
   }
   if (targetAmount > sum)
     throw std::runtime_error("Expected targetAmount to be less than or equal to the value of the coins!");
@@ -63,29 +68,21 @@ std::vector<size_t> PickCoinsPreferExactMatch(const std::vector<libutt::api::Coi
   // Note: We use exact match over an inexact match and if neither exists we merge the
   // top two coins and try again.
 
-  using CoinRef = std::pair<size_t, size_t>;  // [coinValue, coinIdx]
-
-  std::vector<CoinRef> aux;
-
-  for (size_t i = 0; i < coins.size(); ++i) {
-    aux.emplace_back(coins[i].getVal(), i);
-  }
-
   auto cmpCoinValue = [](const CoinRef& lhs, const CoinRef& rhs) { return lhs.first < rhs.first; };
   std::sort(aux.begin(), aux.end(), cmpCoinValue);
 
-  auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{targetAmount, -1}, cmpCoinValue);
+  auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{targetAmount, ""}, cmpCoinValue);
   if (lb != aux.end()) {
     // We can pay with one coin (>= targetAmount)
-    return std::vector<size_t>{lb->second};
+    return std::vector<std::string>{lb->second};
   } else {  // Try to pay with two coins
     // We know that our balance is enough and no coin is >= payment (because lower_bound == end)
     // Then we may have two coins that satisfy the payment
     // If we don't have two coins we must merge
     size_t low = 0;
     size_t high = aux.size() - 1;
-    std::optional<std::pair<size_t, size_t>> match;
-    std::optional<std::pair<size_t, size_t>> exactMatch;
+    std::optional<std::pair<std::string, std::string>> match;
+    std::optional<std::pair<std::string, std::string>> exactMatch;
 
     while (low < high) {
       const auto sum = aux[low].first + aux[high].first;
@@ -103,16 +100,16 @@ std::vector<size_t> PickCoinsPreferExactMatch(const std::vector<libutt::api::Coi
 
     // Prefer an exact match over an inexact
     if (exactMatch) {
-      return std::vector<size_t>{exactMatch->first, exactMatch->second};
+      return std::vector<std::string>{exactMatch->first, exactMatch->second};
     } else if (match) {
-      return std::vector<size_t>{match->first, match->second};
+      return std::vector<std::string>{match->first, match->second};
     }
   }
 
   // At this point no one or two coins are sufficient for the target amount
   // so we merge the top two coins
   const auto lastIdx = aux.size() - 1;
-  return std::vector<size_t>{aux[lastIdx - 1].second, aux[lastIdx].second};
+  return std::vector<std::string>{aux[lastIdx - 1].second, aux[lastIdx].second};
 }
 
 }  // namespace utt::client

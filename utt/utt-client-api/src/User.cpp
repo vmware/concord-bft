@@ -92,8 +92,8 @@ struct User::Impl {
   std::unique_ptr<libutt::RSAEncryptor>
       selfTxEncryptor_;  // Encryptor with own's public key for self transactions (computed once for convenience)
 
-  std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
-  std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
+  std::unordered_map<std::string, libutt::api::Coin> coins_;  // User's unspent UTT coins (tokens)
+  std::optional<libutt::api::Coin> budgetCoin_;               // User's current UTT budget coin (token)
   std::set<std::string> budgetNullifiers_;
   std::shared_ptr<IStorage> storage_;
   bool is_registered_ = false;
@@ -309,7 +309,7 @@ void User::recoverFromStorage(IStorage& storage) {
   for (const auto& c : coins) {
     if (!pImpl_->client_->validate(c)) throw std::runtime_error("client has failed to validate its own stored coins");
     if (c.getType() == libutt::api::Coin::Normal) {
-      pImpl_->coins_.push_back(c);
+      pImpl_->coins_.emplace(c.getNullifier(), c);
     } else if (c.getType() == libutt::api::Coin::Budget) {
       if (pImpl_->budgetNullifiers_.size() >= 1) {
         throw std::runtime_error("Currently multiple budget coins are not supported");
@@ -386,7 +386,8 @@ void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
 
 uint64_t User::getBalance() const {
   uint64_t sum = 0;
-  for (const auto& coin : pImpl_->coins_) {
+  for (const auto& [_, coin] : pImpl_->coins_) {
+    (void)_;
     sum += coin.getVal();
   }
   return sum;
@@ -417,13 +418,10 @@ void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
 
     // Slash spent coins
     for (const auto& null : uttTx.getNullifiers()) {
-      auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&null](const libutt::api::Coin& coin) {
-        return coin.getNullifier() == null;
-      });
-      if (it != pImpl_->coins_.end()) {
-        logdbg_user << "slashing spent coin " << dbgPrintCoins({*it}) << endl;
-        pImpl_->storage_->removeCoin(*it);
-        pImpl_->coins_.erase(it);
+      if (pImpl_->coins_.find(null) != pImpl_->coins_.end()) {
+        logdbg_user << "slashing spent coin " << dbgPrintCoins({pImpl_->coins_.at(null)}) << endl;
+        pImpl_->storage_->removeCoin(pImpl_->coins_.at(null));
+        pImpl_->coins_.erase(null);
       }
     }
 
@@ -435,7 +433,7 @@ void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
       pImpl_->storage_->setCoin(coin);
       if (coin.getType() == libutt::api::Coin::Type::Normal) {
         logdbg_user << "claimed normal coin: " << dbgPrintCoins({coin}) << endl;
-        pImpl_->coins_.emplace_back(std::move(coin));
+        pImpl_->coins_.emplace(coin.getNullifier(), std::move(coin));
       } else if (coin.getType() == libutt::api::Coin::Type::Budget) {
         // Replace budget coin
         if (coin.getVal() > 0) {
@@ -466,7 +464,7 @@ void User::updateMintTx(const Transaction& tx, const TxOutputSig& sig) {
       if (claimedCoins.size() != 1) throw std::runtime_error("Expected single coin in mint tx!");
       if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
       pImpl_->storage_->setCoin(claimedCoins[0]);
-      pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
+      pImpl_->coins_.emplace(claimedCoins[0].getNullifier(), std::move(claimedCoins[0]));
     }
   }
 }
@@ -484,13 +482,10 @@ void User::updateBurnTx(const Transaction& tx) {
     } else {
       auto nullifier = burn.getNullifier();
       if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
-
-      auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
-        return coin.getNullifier() == nullifier;
-      });
-      if (it == pImpl_->coins_.end()) throw std::runtime_error("Burned token missing in wallet!");
-      pImpl_->storage_->removeCoin(*it);
-      pImpl_->coins_.erase(it);
+      if (pImpl_->coins_.find(nullifier) == pImpl_->coins_.end())
+        throw std::runtime_error("Burned token missing in wallet!");
+      pImpl_->storage_->removeCoin(pImpl_->coins_.at(nullifier));
+      pImpl_->coins_.erase(nullifier);
     }
   }
 }
@@ -583,7 +578,8 @@ void User::debugOutput() const {
     std::cout << '\n';
   };
 
-  for (const auto& coin : pImpl_->coins_) {
+  for (const auto& [_, coin] : pImpl_->coins_) {
+    (void)_;
     dbgOutputCoin(coin);
   }
   std::cout << "]\n";
