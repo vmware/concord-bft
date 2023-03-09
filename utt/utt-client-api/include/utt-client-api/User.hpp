@@ -30,6 +30,11 @@ struct TxResult {
   bool isFinal_ = true;
 };
 
+struct CoinDescriptor {
+  std::string nullifier_;
+  uint64_t value_;
+};
+
 class User {
  public:
   User();  // Default empty user object
@@ -107,6 +112,7 @@ class User {
   /// to transfer the desired amount.
   TxResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
 
+  std::vector<CoinDescriptor> getCoinsDescriptors() const;
   void debugOutput() const;
 
  private:

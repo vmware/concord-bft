@@ -24,7 +24,6 @@ namespace fs = std::experimental::filesystem;
 
 #include "testUtils/testUtils.hpp"
 #include "gtest/gtest.h"
-#include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
 
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
@@ -296,6 +295,10 @@ TEST_F(test_privacy_wallet_grpc_service, test_get_state) {
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(response.get_state_response().balance(), 1000);
   ASSERT_EQ(response.get_state_response().budget(), 1000);
+  ASSERT_EQ(response.get_state_response().coins_size(), 1);
+  for (const auto& [_, val] : response.get_state_response().coins()) {
+    ASSERT_EQ(val, 1000);
+  }
 }
 
 TEST_F(test_privacy_wallet_grpc_service, test_mint_cycle) {

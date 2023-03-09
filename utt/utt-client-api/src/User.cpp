@@ -562,6 +562,14 @@ TxResult User::transfer(const std::string& userId, const std::string& destPK, ui
   }
 }
 
+std::vector<CoinDescriptor> User::getCoinsDescriptors() const {
+  std::vector<CoinDescriptor> ret;
+  for (const auto& [nullifier, coin] : pImpl_->coins_) {
+    ret.push_back({nullifier, coin.getVal()});
+  }
+  return ret;
+}
+
 void User::debugOutput() const {
   std::cout << "------ USER DEBUG OUTPUT START -------------\n";
   if (!pImpl_->client_) {

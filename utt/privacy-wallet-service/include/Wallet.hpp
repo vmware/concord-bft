@@ -18,7 +18,6 @@
 #include <tuple>
 #include <optional>
 #include <grpcpp/grpcpp.h>
-#include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-library/proto/api
 #include <utt-client-api/ClientApi.hpp>
 #include <utt-common-api/CommonApi.hpp>
 namespace utt::walletservice {
@@ -47,6 +46,7 @@ class Wallet {
   uint64_t getBalance() const;
   uint64_t getBudget() const;
   bool isRegistered() const;
+  std::vector<utt::client::CoinDescriptor> getCoinsDescriptors() const;
 
  private:
   std::string userId_;
