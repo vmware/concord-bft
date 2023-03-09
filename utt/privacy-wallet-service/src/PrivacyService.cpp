@@ -360,6 +360,9 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   state_resp->set_budget(wallet_->getBudget());
   state_resp->set_balance(wallet_->getBalance());
   state_resp->set_user_id(wallet_->getUserId());
+  for (const auto& coin : wallet_->getCoinsDescriptors()) {
+    (*(state_resp->mutable_coins()))[coin.nullifier_] = coin.value_;
+  }
   return grpc::Status::OK;
 }
 }  // namespace utt::walletservice

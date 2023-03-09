@@ -14,8 +14,9 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 #include <cstdint>
-
+#include <string>
 namespace libutt::api {
 class Coin;
 }  // namespace libutt::api
@@ -26,6 +27,7 @@ namespace utt::client {
 /// @param coins The available coins to pick from
 /// @param amount The target amount
 /// @return Up to two coins that satisfy the amount (preferring exact matches) or need to be merged
-std::vector<size_t> PickCoinsPreferExactMatch(const std::vector<libutt::api::Coin>& coins, uint64_t targetAmount);
+std::vector<std::string> PickCoinsPreferExactMatch(const std::unordered_map<std::string, libutt::api::Coin>& coins,
+                                                   uint64_t targetAmount);
 
 }  // namespace utt::client
