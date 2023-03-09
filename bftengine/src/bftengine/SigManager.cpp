@@ -213,10 +213,11 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 bool SigManager::verifyNonReplicaSig(
     PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
   LOG_DEBUG(GL, "Validating NON-replica with: " << KVLOG(myId_, pid, sigLength));
+  ConcordAssert(!replicasInfo_.isIdOfReplica(myId_) || !ReplicaConfig::instance().singleSignatureScheme ||
+                !replicasInfo_.isIdOfReplica(pid));
   bool result = false;
   {
     std::shared_lock lock(mutex_);
-    ConcordAssert(!replicasInfo_.isIdOfReplica(myId_) || !replicasInfo_.isIdOfReplica(pid));
 
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
       result = pos->second->verifyBuffer(data, dataLength, sig, sigLength);
