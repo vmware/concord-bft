@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <string>
+
 namespace concord {
 namespace kvbc {
 namespace sparse_merkle {
@@ -28,7 +30,7 @@ class IDBReader {
   virtual ~IDBReader() = default;
 
   // Return the latest root node in the system
-  virtual BatchedInternalNode get_latest_root() const = 0;
+  virtual BatchedInternalNode get_latest_root(std::string address = "") const = 0;
 
   // Retrieve a BatchedInternalNode given an InternalNodeKey.
   //

@@ -36,7 +36,7 @@ void Walker::descend(const Hash& key, Version next_version) {
   stack_.push(current_node_);
   Nibble next_nibble = key.getNibble(depth());
   nibble_path_.append(next_nibble);
-  InternalNodeKey next_internal_key{next_version, nibble_path_};
+  InternalNodeKey next_internal_key{next_version, nibble_path_, address_};
   current_node_ = cache_.getInternalNode(next_internal_key);
   stale_version_ = current_node_.version();
 }
@@ -68,7 +68,7 @@ void Walker::ascend() {
 
 std::optional<Nibble> Walker::removeCurrentNode() {
   markCurrentNodeStale();
-  cache_.remove(nibble_path_);
+  cache_.remove({stale_version_, nibble_path_, address_});
   if (!atRoot()) {
     return pop().first;
   }
@@ -78,7 +78,7 @@ std::optional<Nibble> Walker::removeCurrentNode() {
 void Walker::insertEmptyRootAtCurrentVersion() {
   auto children = BatchedInternalNode::Children{};
   children[0] = InternalChild{PLACEHOLDER_HASH, cache_.version()};
-  cache_.put(NibblePath{}, BatchedInternalNode{children});
+  cache_.put({cache_.version(), NibblePath{}, address_}, BatchedInternalNode{children});
 }
 
 std::pair<Nibble, Hash> Walker::pop() {
@@ -97,10 +97,10 @@ void Walker::markCurrentNodeStale() {
   // Don't mark the initial root stale, and don't mark an already cached node
   // stale.
   if (stale_version_ != Version(0) && stale_version_ != version()) {
-    cache_.putStale(InternalNodeKey(stale_version_, nibble_path_));
+    cache_.putStale(InternalNodeKey(stale_version_, nibble_path_, address_));
   }
 }
 
-void Walker::cacheCurrentNode() { cache_.put(nibble_path_, current_node_); }
+void Walker::cacheCurrentNode() { cache_.put({cache_.version(), nibble_path_, address_}, current_node_); }
 
 }  // namespace concord::kvbc::sparse_merkle::detail

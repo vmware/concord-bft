@@ -15,7 +15,7 @@
 namespace concord::kvbc::sparse_merkle::detail {
 
 BatchedInternalNode UpdateCache::getInternalNode(const InternalNodeKey& key) {
-  auto it = internal_nodes_.find(key.path());
+  auto it = internal_nodes_.find(key);
   if (it != internal_nodes_.end()) {
     return it->second;
   }
@@ -29,17 +29,17 @@ void UpdateCache::putStale(const std::optional<LeafKey>& key) {
 }
 
 const BatchedInternalNode& UpdateCache::getRoot() {
-  auto it = internal_nodes_.find(NibblePath());
+  auto it = internal_nodes_.find({version_, NibblePath(), address_});
   if (it != internal_nodes_.end()) {
     return it->second;
   }
   return original_root_;
 }
 
-void UpdateCache::put(const NibblePath& path, const BatchedInternalNode& node) { internal_nodes_[path] = node; }
+void UpdateCache::put(const InternalNodeKey& key, const BatchedInternalNode& node) { internal_nodes_[key] = node; }
 
 void UpdateCache::putStale(const InternalNodeKey& key) { stale_.internal_keys.insert(key); }
 
-void UpdateCache::remove(const NibblePath& path) { internal_nodes_.erase(path); }
+void UpdateCache::remove(const InternalNodeKey& key) { internal_nodes_.erase(key); }
 
 }  // namespace concord::kvbc::sparse_merkle::detail

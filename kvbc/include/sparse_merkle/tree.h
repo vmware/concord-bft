@@ -43,11 +43,15 @@ namespace sparse_merkle {
 class Tree {
  public:
   Tree() = default;
-  explicit Tree(std::shared_ptr<IDBReader> db_reader) : db_reader_(db_reader) { reset(); }
+  explicit Tree(std::shared_ptr<IDBReader> db_reader, std::string address = "")
+      : db_reader_(db_reader), address_(address) {
+    reset();
+  }
 
   const Hash& get_root_hash() const { return root_.hash(); }
   Version get_version() const { return root_.version(); }
   bool empty() const { return root_.numChildren() == 0; }
+  std::string toString() { return root_.toString(); }
 
   // Add or update key-value pairs given in `updates`, and remove keys in
   // `deleted_keys`.
@@ -74,7 +78,7 @@ class Tree {
   //
   // This is necessary to do before updates, as we only allow updating the
   // latest tree.
-  void reset() { root_ = db_reader_->get_latest_root(); }
+  void reset() { root_ = db_reader_->get_latest_root(address_); }
 
   UpdateBatch update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
                           const concord::kvbc::KeysVector& deleted_keys,
@@ -82,6 +86,7 @@ class Tree {
 
   std::shared_ptr<IDBReader> db_reader_;
   BatchedInternalNode root_;
+  std::string address_;
 };
 
 }  // namespace sparse_merkle

@@ -24,15 +24,23 @@ namespace sparse_merkle {
 // are part of the batch by pointing to their containing BatchedInternalNode.
 class InternalNodeKey {
  public:
-  InternalNodeKey(Version version, const NibblePath& path) : version_(version), path_(path) {}
+  template <class T>
+  InternalNodeKey(Version version, const NibblePath& path, T&& address)
+      : version_(version), path_(path), address_(std::forward<T>(address)) {}
 
   // Return the root of a sparse merkle tree at a given version.
-  static InternalNodeKey root(Version version) { return InternalNodeKey(version, NibblePath()); }
+  template <class T>
+  static InternalNodeKey root(Version version, T&& address) {
+    return InternalNodeKey(version, NibblePath(), std::forward<T>(address));
+  }
 
   bool operator==(const InternalNodeKey& other) const { return version_ == other.version_ && path_ == other.path_; }
 
   // Compare by version then by path
   bool operator<(const InternalNodeKey& other) const {
+    if (version_ == other.version_ && path_ == other.path_) {
+      return address_ < other.address_;
+    }
     if (version_ == other.version_) {
       return path_ < other.path_;
     }
@@ -48,12 +56,15 @@ class InternalNodeKey {
 
   Version version() const { return version_; }
 
+  const std::string& address() const { return address_; }
+
   const NibblePath& path() const { return path_; }
   NibblePath& path() { return path_; }
 
  private:
   Version version_;
   NibblePath path_;
+  std::string address_;
 };
 
 // The key for a leaf node of a sparse merkle tree.

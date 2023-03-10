@@ -182,7 +182,7 @@ TEST(key_manipulator, internal_key_even) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
@@ -201,7 +201,7 @@ TEST(key_manipulator, internal_key_odd) {
   path.append(0x02);
   // second byte of the nibble path is 0x30 (by appending 0x03)
   path.append(0x03);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
@@ -292,7 +292,7 @@ TEST(key_manipulator, stale_db_key_internal) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +

@@ -133,14 +133,14 @@ UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
   histograms.num_deleted_keys->record(deleted_keys.size());
   TimeRecorder scoped_timer(*histograms.update);
   reset();
-  UpdateCache cache(root_, db_reader_);
+  UpdateCache cache(root_, db_reader_, address_);
   return update_impl(updates, deleted_keys, cache);
 }
 
 std::pair<UpdateBatch, UpdateCache> Tree::update_with_cache(const concord::kvbc::SetOfKeyValuePairs& updates,
                                                             const concord::kvbc::KeysVector& deleted_keys) {
   reset();
-  UpdateCache cache(root_, db_reader_);
+  UpdateCache cache(root_, db_reader_, address_);
   auto batch = update_impl(updates, deleted_keys, cache);
   return std::make_pair(batch, cache);
 }
@@ -155,7 +155,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
   // Deletes come before inserts because it makes more semantic sense. A user can delete a key and then write a new
   // version, but it makes no sense to add a new version and then delete a key.
   for (auto& key : deleted_keys) {
-    Walker walker(cache);
+    Walker walker(cache, address_);
     auto key_hash = hasher.hash(key.data(), key.length());
     sparse_merkle::remove(walker, key_hash);
   }
@@ -171,7 +171,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
     LeafNode leaf_node{val};
     LeafKey leaf_key{hasher.hash(key.data(), key.length()), version};
     LeafChild child{leaf_hash, leaf_key};
-    Walker walker(cache);
+    Walker walker(cache, address_);
     insert(walker, child);
     batch.leaf_nodes.emplace_back(leaf_key, leaf_node);
   }
@@ -180,7 +180,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
   batch.stale = cache.stale();
   batch.stale.stale_since_version = version;
   for (auto& it : cache.internalNodes()) {
-    batch.internal_nodes.emplace_back(InternalNodeKey(version, it.first), it.second);
+    batch.internal_nodes.emplace_back(it.first, it.second);
   }
   updateBatchHistograms(batch);
 

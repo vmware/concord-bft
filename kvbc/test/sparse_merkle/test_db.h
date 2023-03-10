@@ -15,32 +15,35 @@
 #include "sparse_merkle/keys.h"
 #include "sparse_merkle/db_reader.h"
 #include "sparse_merkle/internal_node.h"
+#include "kvbc/include/categorization/details.h"
 
 using namespace std;
 using namespace concord::kvbc::sparse_merkle;
 
-class TestDB : public concord::kvbc::sparse_merkle::IDBReader {
+class TestDB : public IDBReader {
  public:
   void put(const LeafKey& key, const LeafNode& val) { leaf_nodes_[key] = val; }
   void put(const InternalNodeKey& key, const BatchedInternalNode& val) {
+    assert(internal_nodes_.find(key) == internal_nodes_.end());
+
     internal_nodes_[key] = val;
-    if (latest_version_ < key.version()) {
-      latest_version_ = key.version();
+    if (latest_version_[key.address()] < key.version()) {
+      latest_version_[key.address()] = key.version();
     }
   }
 
-  BatchedInternalNode get_latest_root() const override {
-    if (latest_version_ == 0) {
+  BatchedInternalNode get_latest_root(std::string address = "") const override {
+    if (latest_version_.find(address) == latest_version_.end()) {
       return BatchedInternalNode();
     }
-    auto root_key = InternalNodeKey::root(latest_version_);
+    auto root_key = InternalNodeKey::root(latest_version_.at(address), address);
     return internal_nodes_.at(root_key);
   }
 
   BatchedInternalNode get_internal(const InternalNodeKey& key) const override { return internal_nodes_.at(key); }
 
  private:
-  Version latest_version_ = 0;
+  map<std::string, Version> latest_version_;
   map<LeafKey, LeafNode> leaf_nodes_;
   map<InternalNodeKey, BatchedInternalNode> internal_nodes_;
 };

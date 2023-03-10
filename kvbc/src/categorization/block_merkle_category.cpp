@@ -76,12 +76,12 @@ BatchedInternalNodeKey toBatchedInternalNodeKey(const sparse_merkle::InternalNod
 
 BatchedInternalNodeKey toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey&& key) {
   auto path = NibblePath{static_cast<uint8_t>(key.path().length()), key.path().move_data()};
-  return BatchedInternalNodeKey{key.version().value(), std::move(path)};
+  return BatchedInternalNodeKey{key.version().value(), std::move(path), key.address()};
 }
 
-std::vector<uint8_t> rootKey(uint64_t version) {
+std::vector<uint8_t> rootKey(uint64_t version, std::string address = "") {
   auto v = sparse_merkle::Version(version);
-  return serialize(toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey::root(v)));
+  return serialize(toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey::root(v, address)));
 }
 
 // A key used in tree_.update()
@@ -775,8 +775,8 @@ uint64_t BlockMerkleCategory::getLatestTreeVersion() const {
   return 0;
 }
 
-sparse_merkle::BatchedInternalNode BlockMerkleCategory::Reader::get_latest_root() const {
-  if (auto latest_root_key = db_.get(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0))) {
+sparse_merkle::BatchedInternalNode BlockMerkleCategory::Reader::get_latest_root(std::string address) const {
+  if (auto latest_root_key = db_.get(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0, address))) {
     if (auto serialized = db_.get(BLOCK_MERKLE_INTERNAL_NODES_CF, *latest_root_key)) {
       return deserializeBatchedInternalNode(*serialized);
     }

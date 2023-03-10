@@ -219,7 +219,7 @@ class DBAdapter : public IDbAdapter {
     Reader(const DBAdapter &adapter) : adapter_{adapter} {}
 
     // Return the latest root node in the system.
-    sparse_merkle::BatchedInternalNode get_latest_root() const override;
+    sparse_merkle::BatchedInternalNode get_latest_root(std::string address = "") const override;
 
     // Retrieve a BatchedInternalNode given an InternalNodeKey.
     //
