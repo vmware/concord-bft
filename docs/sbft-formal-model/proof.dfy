@@ -673,6 +673,19 @@ module Proof {
     }
   }
 
+  lemma CountPrepareMessagesInWorkingWindow(c:Constants, v:Variables, replicaId:HostId, seqID:Messages.SequenceID)
+    requires v.WF(c)
+    requires RecordedPreparesHaveValidSenderID(c, v)
+    requires IsHonestReplica(c, replicaId)
+    ensures |v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd.Values| == |v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd.Keys|
+  {
+    reveal_RecordedPreparesHaveValidSenderID();
+    CountPrepareMessages(v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd[seqID]);
+    // assert forall sender | && sender in v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd
+    //               :: && c.clusterConfig.IsReplica(sender)
+    //                  && v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
+  }
+
   lemma HonestPreservesEveryPrepareClientOpMatchesRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -1663,7 +1676,16 @@ module Proof {
           var seqID := commitMsg.payload.seqID;
           var workingWindowPreparesRecvd := set key | key in h_v.workingWindow.preparesRcvd[seqID]
                                             :: h_v.workingWindow.preparesRcvd[seqID][key];
-          assert |workingWindowPreparesRecvd| == |h_v.workingWindow.preparesRcvd[seqID]|;
+          reveal_RecordedPreparesHaveValidSenderID();
+          assert RecordedPreparesHaveValidSenderID(c, v);
+          assert IsHonestReplica(c, step.id);
+          assert var prepareMap := v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd;
+             seqID in prepareMap;
+          assert forall sender | && sender in v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd
+                   :: && c.clusterConfig.IsReplica(sender)
+                      && v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
+          CountPrepareMessages(h_v.workingWindow.preparesRcvd[seqID]);
+          assert |workingWindowPreparesRecvd| <= |h_v.workingWindow.preparesRcvd[seqID].Keys|;
           assert Messages.PreparedCertificate(workingWindowPreparesRecvd).validFull(c.clusterConfig, seqID);
         }
       } else if(h_step.RecvPrepareStep?) {
