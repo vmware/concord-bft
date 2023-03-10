@@ -76,7 +76,6 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
     for (const auto& sod : sigOrDigestOfRequest) {
       sigOrDig.append(sod.first, sod.second);
     }
-    LOG_INFO(GL, "Block timestamp: " << b()->time << "sigOrDig");
     sigOrDig.append(std::to_string(b()->time));
 
     // compute and set digest
@@ -175,7 +174,6 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->viewNum = v;
   b()->time = 0;
 
-  // b()->time = ready ? *((int64_t*)(spanContext.data().c_str() + 6 + 8 + 8 + 8 + 2)) : 0;
   char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
   position += spanContext.data().size();

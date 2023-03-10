@@ -148,7 +148,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   for (const auto& s : dv) {
     dod.append(s);
   }
-  dod.append(std::to_string((int64_t)0));
+  dod.append(1, '0');
 
   Digest d;
   DigestGenerator().compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
