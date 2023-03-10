@@ -1911,23 +1911,25 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
     if (preProcessResult == OperationResult::SUCCESS) {
       break;
     }
-    LOG_ERROR(logger(),
-              "Pre-execution failed" << KVLOG(clientId,
-                                              reqSeqNum,
-                                              batchCid,
-                                              reqCid,
-                                              reqOffsetInBatch,
-                                              (uint32_t)preProcessResult,
-                                              resultLen,
-                                              request.outActualReplySize,
-                                              request.outRequiredReplySize,
-                                              maxReplySize,
-                                              resultBufferEntry.get().buffer,
-                                              request.maxReplySize,
-                                              request.requestSize));
+    LOG_WARN(logger(),
+             "Pre-execution failed" << KVLOG(clientId,
+                                             reqSeqNum,
+                                             batchCid,
+                                             reqCid,
+                                             reqOffsetInBatch,
+                                             (uint32_t)preProcessResult,
+                                             resultLen,
+                                             request.outActualReplySize,
+                                             request.outRequiredReplySize,
+                                             maxReplySize,
+                                             resultBufferEntry.get().buffer,
+                                             request.maxReplySize,
+                                             request.requestSize));
     if ((memoryPoolMode_ != PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL) ||
         (OperationResult::EXEC_DATA_TOO_LARGE != preProcessResult)) {
       // do not retry pre-execute if not using a memory pool OR if error is not due to response buffer size
+      LOG_ERROR(logger(),
+                "Will not retry pre-execute:" << KVLOG(clientId, reqSeqNum, batchCid, (uint32_t)preProcessResult));
       break;
     }
 
