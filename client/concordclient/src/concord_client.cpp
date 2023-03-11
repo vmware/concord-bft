@@ -130,6 +130,7 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
 void ConcordClient::send(const bft::client::ReadConfig& config,
                          bft::client::Msg&& msg,
                          const std::function<void(SendResult&&)>& callback) {
+  LOG_INFO(logger_, "Log message until config is used f=" << config_.topology.f_val);
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 

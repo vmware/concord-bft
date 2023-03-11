@@ -480,6 +480,9 @@ void SingleRequestProcessingJob::execute() {
       read_config_.request.max_reply_size = max_reply_size_;
     }
     read_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
+    if ((flags_ & PRIMARY_ONLY_REQ) == PRIMARY_ONLY_REQ) {
+      read_config_.request.primary_only = true;
+    }
     res = processing_client_->SendRequest(read_config_, std::move(request_));
   } else {
     write_config_.request.timeout = timeout_ms_;

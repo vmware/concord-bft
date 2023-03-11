@@ -4740,7 +4740,6 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,
                                                     status));
-
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
   if (!status) {
     if (actualReplyLength > 0) {

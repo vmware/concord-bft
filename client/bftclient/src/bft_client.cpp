@@ -78,7 +78,7 @@ Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<c
 }
 
 Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {
-  uint8_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
+  uint64_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
   size_t expected_sig_len = 0;
   bool write_req_with_pre_exec = !read_only && config.pre_execute;
 
@@ -335,12 +335,14 @@ void Client::wait(SeqNumToReplyMap& replies) {
         // isPrimaryOnly flag set case
         if (reply.metadata.primary.value().val == reply.rsi.from.val) {
           // isPrimaryOnly flag set case - Primary Node
+          LOG_DEBUG(logger_, "Reply received with isPrimaryOnly flag from Primary node");
           primary_ = reply.metadata.primary;
           std::map<ReplicaId, Msg> trsi = {{reply.rsi.from, reply.rsi.data}};
           replies.insert(std::make_pair(request->first, Reply{reply.metadata.result, reply.data, trsi}));
           reply_certificates_.erase(request->first);
         } else {
           // // isPrimaryOnly flag set case - Non-Primary Node
+          LOG_DEBUG(logger_, "Reply received with isPrimaryOnly flag from Non-Primary node");
         }
       }
     }
@@ -366,8 +368,10 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
 
   if (std::holds_alternative<LinearizableQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<LinearizableQuorum>(read_config.quorum));
+
   } else if (std::holds_alternative<ByzantineSafeQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<ByzantineSafeQuorum>(read_config.quorum));
+
   } else if (std::holds_alternative<All>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<All>(read_config.quorum));
     for (const auto& r : std::get<All>(read_config.quorum).destinations) {
