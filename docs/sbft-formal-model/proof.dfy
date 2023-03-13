@@ -1657,7 +1657,6 @@ module Proof {
     //           :: Replica.IsRecordedViewChangeMsgForView(committer_c, committer_v', committer_v'.view, vcMsg) ==
     //              Replica.IsRecordedViewChangeMsgForView(committer_c, stepper_v, stepper_v.view, vcMsg);
     if(commitMsg !in v.network.sentMsgs) {
-      //assume false;
       assert commitMsg.sender == step.id; // Committer and stepper are same in this branch
       Messages.reveal_UniqueSenders();
       var seqID := commitMsg.payload.seqID;
@@ -1667,43 +1666,8 @@ module Proof {
       reveal_RecordedPreparesRecvdCameFromNetwork();
       reveal_RecordedPreparesClientOpsMatchPrePrepare();
       reveal_RecordedPreparesMatchHostView();
-      assert RecordedPreparesHaveValidSenderID(c, v);
-      assert IsHonestReplica(c, step.id);
-      assert var prepareMap := v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd;
-         seqID in prepareMap;
-      assert forall sender | && sender in v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd[seqID]
-               :: && c.clusterConfig.IsReplica(sender)
-                  && v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
       CountPrepareMessages(stepper_v.workingWindow.preparesRcvd[seqID]);
       assert workingWindowPreparesRecvd == stepper_v.workingWindow.preparesRcvd[seqID].Values; // Extentionality
-      assert |workingWindowPreparesRecvd| <= |stepper_v.workingWindow.preparesRcvd[seqID].Keys|;
-      assert certificate == Messages.PreparedCertificate(workingWindowPreparesRecvd);
-      //view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper
-      assert forall m1, m2 | && m1 in certificate.votes
-                             && m2 in certificate.votes
-                                :: && m1.payload.view == m2.payload.view;
-      assert forall m1, m2 | && m1 in certificate.votes
-                             && m2 in certificate.votes
-                                :: && m1.payload.operationWrapper == m2.payload.operationWrapper;
-      assert forall m1, m2 | && m1 in certificate.votes
-                             && m2 in certificate.votes
-                                :: && m1.payload.seqID == m2.payload.seqID;
-      assert certificate.validFull(c.clusterConfig, seqID);
-
-
-      assert certificate == Replica.ExtractCertificateForSeqID(committer_c, committer_v', commitMsg.payload.seqID);
-      assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID);
-      assert !certificate.empty();
-      assert certificate.prototype().view >= commitMsg.payload.view;
-      assert (certificate.prototype().view == commitMsg.payload.view
-                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper);
-    } else {
-      assert certificate == Replica.ExtractCertificateForSeqID(committer_c, committer_v', commitMsg.payload.seqID);
-      assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID);
-      assert !certificate.empty();
-      assert certificate.prototype().view >= commitMsg.payload.view;
-      assert (certificate.prototype().view == commitMsg.payload.view
-                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper);
     }
   }
 
@@ -1760,6 +1724,16 @@ module Proof {
       if(h_step.LeaveViewStep?) {
         assume false;
       } else if(h_step.SendCommitStep?) {
+        var res := HonestPreservesEveryCommitMsgIsRememberedByItsSenderForCommitStep(
+                      c,
+                      v,
+                      v',
+                      step,
+                      h_v,
+                      h_step,
+                      commitMsg,
+                      h_c,
+                      h_v');
         assert forall vcMsg
                   :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
                      Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
