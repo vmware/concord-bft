@@ -148,6 +148,8 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   for (const auto& s : dv) {
     dod.append(s);
   }
+  dod.append(1, '0');
+
   Digest d;
   DigestGenerator().compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
   EXPECT_EQ(d, msg.digestOfRequests());

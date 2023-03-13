@@ -738,6 +738,10 @@ PrePrepareMsgCreationResult ReplicaImp::finishAddingRequestsToPrePrepareMsg(PreP
                                                                             uint32_t maxSpaceForReqs,
                                                                             uint32_t requiredRequestsSize,
                                                                             uint32_t requiredRequestsNum) {
+  if (getReplicaConfig().timeServiceEnabled) {
+    prePrepareMsg->setTime(time_service_manager_->getClockTimePoint());
+  }
+
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
     return std::make_pair(nullptr, false);
@@ -823,6 +827,7 @@ PrePrepareMsgCreationResult ReplicaImp::buildPrePrepareMessage() {
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg.get(), maxSpaceForReqs);
   }
+
   return finishAddingRequestsToPrePrepareMsg(std::move(prePrepareMsg), maxSpaceForReqs, 0, 0);
 }
 
@@ -871,7 +876,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarli
     return;
   }
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
-  if (getReplicaConfig().timeServiceEnabled) {
+  if (getReplicaConfig().timeServiceEnabled && pp->getTime() == 0) {
     pp->setTime(time_service_manager_->getClockTimePoint());
   }
 

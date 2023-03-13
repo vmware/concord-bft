@@ -76,6 +76,7 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
     for (const auto& sod : sigOrDigestOfRequest) {
       sigOrDig.append(sod.first, sod.second);
     }
+    sigOrDig.append(std::to_string(b()->time));
 
     // compute and set digest
     DigestGenerator().compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
