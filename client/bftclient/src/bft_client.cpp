@@ -230,12 +230,16 @@ Reply Client::send(const MatchConfig& match_config,
   auto end = start + request_config.timeout;
   while (std::chrono::steady_clock::now() < end) {
     bft::client::Msg msg(orig_msg);  // create copy here due to the loop
+    LOG_INFO(logger_, "Rachit:send:Is " << (primary_ ? "Primary" : "Not Primary"));
     if (primary_ && !read_only) {
+      LOG_INFO(logger_, "Rachit:If:send:primary:" << read_only);
       communication_->send(primary_.value().val, std::move(msg), config_.id.val);
     } else {
+      LOG_INFO(logger_, "Rachit:else:send:read only:" << read_only);
       std::set<bft::communication::NodeNum> dests;
       for (const auto& d : match_config.quorum.destinations) {
         dests.emplace(d.val);
+        LOG_INFO(logger_, "Rachit:else:send:destination id:" << d.val);
       }
       communication_->send(dests, std::move(msg), config_.id.val);
     }
@@ -249,6 +253,7 @@ Reply Client::send(const MatchConfig& match_config,
     metrics_.retransmissions++;
   }
 
+  LOG_INFO(logger_, "Rachit:exception:");
   expected_commit_time_ms_.add(request_config.timeout.count());
   reply_certificates_.clear();
   throw TimeoutException(request_config.sequence_number, request_config.correlation_id);
@@ -291,14 +296,19 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
 std::optional<Reply> Client::wait() {
   SeqNumToReplyMap replies;
   wait(replies);
+  LOG_INFO(logger_, "Rachit:optional wait ");
   if (replies.empty()) {
     static const size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 2 * config_.f_val + config_.c_val + 1;
     // reply_certificates_ should hold just one request when using this wait method
     auto req = reply_certificates_.begin();
+    LOG_INFO(logger_,
+             "Rachit:different replies" << req->second.numDifferentReplies()
+                                        << "Thresh:" << CLEAR_MATCHER_REPLIES_THRESHOLD);
     if (req->second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
       req->second.clearReplies();
       metrics_.repliesCleared++;
     }
+    LOG_INFO(logger_, "Rachit:replies empty");
     primary_ = std::nullopt;
     return std::nullopt;
   }
@@ -310,15 +320,29 @@ void Client::wait(SeqNumToReplyMap& replies) {
   auto now = std::chrono::steady_clock::now();
   auto retry_timeout = std::chrono::milliseconds(expected_commit_time_ms_.upperLimit());
   auto end_wait = now + retry_timeout;
+  LOG_INFO(logger_, "Rachit:wait " << pending_requests_.size());
   // Keep trying to receive messages until we get quorum or a retry timeout.
   while ((now = std::chrono::steady_clock::now()) < end_wait && !reply_certificates_.empty()) {
     auto wait_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_wait - now);
     auto unmatched_requests = receiver_.wait(wait_time);
     for (auto&& reply : unmatched_requests) {
       auto request = reply_certificates_.find(reply.metadata.seq_num);
-      if (request == reply_certificates_.end()) continue;
+      if (request == reply_certificates_.end()) continue;  // oh this means, request was not found.
+      LOG_INFO(logger_, "Rachit:size " << pending_requests_.size() << "replies size" << replies.size());
       if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
-      if (auto match = request->second.onReply(std::move(reply))) {
+      LOG_INFO(logger_, "Rachit:reply from:" << reply.rsi.from.val);
+      if (request->second.oneNodeMatch()) {
+        LOG_INFO(logger_, "Rachit: expected reply node:" << (request->second.firstNodeTag())->val);
+        if (reply.rsi.from.val == (request->second.firstNodeTag())->val) {
+          primary_ = reply.metadata.primary;
+          std::map<ReplicaId, Msg> trsi = {{reply.rsi.from, reply.rsi.data}};
+          replies.insert(std::make_pair(request->first, Reply{reply.metadata.result, reply.data, trsi}));
+          reply_certificates_.erase(request->first);
+        } else {
+          LOG_ERROR(logger_, "Received reply from: " << reply.rsi.from.val << "Ignore this one.");
+        }
+      } else if (auto match = request->second.onReply(std::move(reply))) {
+        LOG_INFO(logger_, "Rachit:IF onReply");
         primary_ = request->second.getPrimary();
         replies.insert(std::make_pair(request->first, match->reply));
         reply_certificates_.erase(request->first);
@@ -326,6 +350,7 @@ void Client::wait(SeqNumToReplyMap& replies) {
     }
   }
   if (!reply_certificates_.empty()) primary_ = std::nullopt;
+  LOG_INFO(logger_, "Rachit:wait non empty");
 }
 
 MatchConfig Client::writeConfigToMatchConfig(const WriteConfig& write_config) {
@@ -344,14 +369,19 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
   MatchConfig mc;
   mc.sequence_number = read_config.request.sequence_number;
 
-  if (std::holds_alternative<LinearizableQuorum>(read_config.quorum)) {
+  if (read_config.request.firstnode_only) {
+    mc.quorum = quorum_converter_.toMofN();
+    mc.first_node = true;
+    LOG_INFO(logger_, "Rachit:readConfig:OneNode");
+  } else if (std::holds_alternative<LinearizableQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<LinearizableQuorum>(read_config.quorum));
-
+    LOG_INFO(logger_, "Rachit:readConfig:Linearizable - 2f+1");
   } else if (std::holds_alternative<ByzantineSafeQuorum>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<ByzantineSafeQuorum>(read_config.quorum));
-
+    LOG_INFO(logger_, "Rachit:readConfig:Byzantine - f+1");
   } else if (std::holds_alternative<All>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<All>(read_config.quorum));
+    LOG_INFO(logger_, "Rachit:readConfig:All");
     for (const auto& r : std::get<All>(read_config.quorum).destinations) {
       if (config_.ro_replicas.find(r) != config_.ro_replicas.end()) {
         // We are about to send a read request to ro replica, so we must ignore the primary in the replies

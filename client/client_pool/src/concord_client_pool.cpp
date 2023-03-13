@@ -235,8 +235,16 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
-  auto request_flag =
-      config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
+
+  bftEngine::ClientMsgFlag request_flag;
+  if (config.request.firstnode_only) {
+    LOG_INFO(logger_, "Rachit:client_pool:firstnode_only:" << config.request.firstnode_only);
+    request_flag = ClientMsgFlag::FIRSTNODE_ONLY_REQ;
+  } else {
+    LOG_INFO(logger_, "Rachit:client_pool:Not:firstnode_only:" << config.request.firstnode_only);
+    request_flag =
+        config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
+  }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      request_flag,
                      config.request.timeout,
@@ -473,6 +481,7 @@ void SingleRequestProcessingJob::execute() {
     if (max_reply_size_ > 0) {
       read_config_.request.max_reply_size = max_reply_size_;
     }
+    read_config_.request.firstnode_only = (flags_ & FIRSTNODE_ONLY_REQ) == FIRSTNODE_ONLY_REQ;
     read_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
   } else {

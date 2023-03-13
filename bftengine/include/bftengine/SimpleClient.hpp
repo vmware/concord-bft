@@ -40,7 +40,7 @@ struct SimpleClientParams {
 };
 
 // Possible values for 'flags' parameter
-enum ClientMsgFlag : uint8_t {
+enum ClientMsgFlag : uint64_t {
   EMPTY_FLAGS_REQ = 0x0,
   READ_ONLY_REQ = 0x1,
   PRE_PROCESS_REQ = 0x2,
@@ -49,6 +49,7 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10,
   RECONFIG_FLAG_REQ = 0x20,
   RECONFIG_READ_ONLY_REQ = 0x21,  // Same as READ_ONLY_REQ | RECONFIG_FLAG_REQ
+  FIRSTNODE_ONLY_REQ = 0x401
 };
 
 // Call back for request - at this point we know for sure that a client is handling the request, so we can assure that

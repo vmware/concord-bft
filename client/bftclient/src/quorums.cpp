@@ -10,7 +10,7 @@
 // subcomponent's license, as noted in the LICENSE file.
 
 #include <algorithm>
-
+#include <iostream>
 #include "bftclient/quorums.h"
 #include "bftclient/exception.h"
 
@@ -21,6 +21,7 @@ MofN QuorumConverter::toMofN(const LinearizableQuorum& quorum) const {
   new_quorum.wait_for = linearizable_quorum_size_;
   if (quorum.destinations.empty()) {
     // If the user doesn't provide destinations, send to all replicas
+    std::cout << "Rachit:Linearizable:toMofN Empty quorum" << std::endl;
     new_quorum.destinations = all_replicas_;
   } else if (quorum.destinations.size() < new_quorum.wait_for) {
     throw BadQuorumConfigException(
@@ -28,6 +29,7 @@ MofN QuorumConverter::toMofN(const LinearizableQuorum& quorum) const {
         std::to_string(quorum.destinations.size()) +
         "is less than 2f + c + 1 = " + std::to_string(new_quorum.wait_for));
   } else {
+    std::cout << "Rachit:Linearizable:toMofN:validate destinations" << std::endl;
     validateDestinations(quorum.destinations);
     new_quorum.destinations = quorum.destinations;
   }
@@ -40,11 +42,13 @@ MofN QuorumConverter::toMofN(const ByzantineSafeQuorum& quorum) const {
   if (quorum.destinations.empty()) {
     // If the user doesn't provide a destination, send to all replicas
     new_quorum.destinations = all_replicas_;
+    std::cout << "Rachit:Byzantine:toMofN Empty quorum" << std::endl;
   } else if (quorum.destinations.size() < new_quorum.wait_for) {
     throw BadQuorumConfigException(
         "Destination does not contain enough replicas for a byzantine fault tolerant quorum. Destination size: " +
         std::to_string(quorum.destinations.size()) + "is less than f + 1 = " + std::to_string(new_quorum.wait_for));
   } else {
+    std::cout << "Rachit:Byzantine:toMofN validate destinations" << std::endl;
     validateDestinations(quorum.destinations);
     new_quorum.destinations = quorum.destinations;
   }
@@ -62,6 +66,14 @@ MofN QuorumConverter::toMofN(const All& quorum) const {
     new_quorum.wait_for = quorum.destinations.size();
     new_quorum.destinations = quorum.destinations;
   }
+  return new_quorum;
+}
+
+MofN QuorumConverter::toMofN() const {
+  MofN new_quorum;
+  new_quorum.wait_for = 1;
+  new_quorum.destinations.insert(*(all_replicas_.begin()));
+  std::cout << "Rachit:OneNode:toMofN validate destinations" << std::endl;
   return new_quorum;
 }
 

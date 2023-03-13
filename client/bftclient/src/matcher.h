@@ -12,6 +12,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iostream>
 #include <map>
 #include <optional>
 #include <set>
@@ -27,6 +28,7 @@ struct MatchConfig {
   MofN quorum;
   uint64_t sequence_number;
   bool include_primary_ = true;  // by default part of the match is the current primary
+  bool first_node = false;       // by default first node from all_replicas will be used for matching the reply
 };
 
 // The parts of data that must match in a reply for quorum to be reached
@@ -70,6 +72,15 @@ class Matcher {
   std::optional<ReplicaId> getPrimary() {
     if (!config_.include_primary_) return std::nullopt;
     return primary_;
+  }
+  bool oneNodeMatch() const {
+    std::cout << "Rachit:OneNode:Match" << std::endl;
+    return config_.first_node;
+  }
+
+  std::optional<ReplicaId> firstNodeTag() const {
+    std::cout << "Rachit:firstNodetag" << std::endl;
+    return *(config_.quorum.destinations.begin());
   }
 
  private:

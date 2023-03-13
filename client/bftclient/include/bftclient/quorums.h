@@ -70,6 +70,7 @@ class QuorumConverter {
   MofN toMofN(const ByzantineSafeQuorum& quorum) const;
   MofN toMofN(const All& quorum) const;
   MofN toMofN(const MofN& quorum) const;
+  MofN toMofN() const;
 
  private:
   // Ensure that each replica in `destination` is part of `all_replicas`
