@@ -181,7 +181,17 @@ void RequestServiceCallData::sendToConcordClient() {
     } else {
       this->response_.set_raw_response(std::move(data));
     }
-
+    if (!reply.rsi.empty()) {
+      for (const auto& [id, sig] : reply.rsi) {
+        if (sig.empty()) {
+          continue;
+        }
+        auto obj = this->response_.add_signatures();
+        obj->set_id(id.val);
+        obj->set_signature(std::string(sig.begin(), sig.end()));
+        LOG_TRACE(logger, "received rsi:" << id.val << " " << std::string(sig.begin(), sig.end()));
+      }
+    }
     metrics_.num_completed_requests++;
     updateAggregator();
     this->populateResult(grpc::Status::OK);

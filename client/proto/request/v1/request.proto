@@ -74,12 +74,18 @@ message Request {
   optional bool primary_only = 7;
 }
 
+message Signature {
+  int32 id = 1;
+  bytes signature = 2;
+}
+
 message Response {
   // Application data returned by the execution engine.
   oneof application_response {
     bytes raw_response = 1;
     google.protobuf.Any typed_response = 6;
-  } 
+  }
+  repeated Signature signatures = 7;
 }
 
 //Error messages corresponding to the error returned by request service. 
