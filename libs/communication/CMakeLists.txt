@@ -35,12 +35,17 @@ endif()
 
 target_link_libraries(bftcommunication PUBLIC util concord-crypto)
 
-target_include_directories(bftcommunication PUBLIC ../bftengine/include/bftengine)
-target_include_directories(bftcommunication PUBLIC include)
-target_include_directories(bftcommunication PUBLIC ${util}/include)
+target_include_directories(bftcommunication PUBLIC . ../../bftengine/include)
 
-
-install(DIRECTORY include/communication DESTINATION include)
+target_sources(bftcommunication PUBLIC FILE_SET comm_pub_hdrs
+                                       TYPE HEADERS
+                                       FILES CommDefs.hpp
+                                             CommFactory.hpp
+                                             ICommunication.hpp
+                                             StateControl.hpp
+                                             StatusInfo.hpp
+             )
+install(TARGETS bftcommunication FILE_SET comm_pub_hdrs DESTINATION communication)
 
 if (BUILD_TESTING)
     add_subdirectory(tests)

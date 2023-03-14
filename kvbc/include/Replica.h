@@ -18,7 +18,7 @@
 #include "bftengine/Replica.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "communication/StatusInfo.h"
+#include "communication/StatusInfo.hpp"
 #include "KVBCInterfaces.h"
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter_interface.h"
