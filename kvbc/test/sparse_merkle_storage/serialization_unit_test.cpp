@@ -187,8 +187,9 @@ TEST(key_manipulator, internal_key_even) {
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
                                  serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{4}) +
-                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x34}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2);
+                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x34}) +
+                                 serializeIntegral(std::uint8_t{0x0}));
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1);
   ASSERT_TRUE(key == expected);
 }
 
@@ -206,8 +207,9 @@ TEST(key_manipulator, internal_key_odd) {
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
                                  serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
-                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2);
+                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}) +
+                                 serializeIntegral(std::uint8_t{0x0}));
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1);
   ASSERT_TRUE(key == expected);
 }
 
@@ -297,7 +299,7 @@ TEST(key_manipulator, stale_db_key_internal) {
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genInternalDbKey(internalKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1);
   ASSERT_TRUE(key == expected);
 }
 
