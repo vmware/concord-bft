@@ -1,50 +1,91 @@
-<img src="logoConcord.png"/>
+# Contributing to concord-bft
 
-# Concord-BFT: A Distributed Trust Infrastructure
+The concord-bft project team welcomes contributions from the community. If you wish to contribute code and you have not
+signed our contributor license agreement (CLA), our bot will update the issue when you open a Pull Request. For any
+questions about the CLA process, please refer to our [FAQ](https://cla.vmware.com/faq).
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28gcc%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
-[![codecoverage](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml)
+## Contribution Flow
 
-<!-- ![Concored-bft Logo](TBD) -->
+This is a rough outline of what a contributor's workflow looks like:
 
-<!-- <img src="TODO.jpg" width="200" height="200" /> -->
+- Fork the repository
+- Create a topic branch on *your fork*<sup>\*</sup> from where you want to base your work
+- Make commits of logical units
+- Make sure your commit messages are in the proper format (see below)
+- Push your changes to a topic branch in your fork of the repository
+- Submit a pull request
 
-## Overview
+<sup>\*</sup> Make sure that you create a branch on your fork and not the main repository. 
+If you push your changes together with your PR from a branch you created on the main repository, it would 
+trigger the CI twice (on push and on PR), resulting in unecessary load on Github Actions.
 
-**Concord-bft** is a generic state machine replication library that can handle malicious (byzantine) replicas.
+Example:
 
-BFT-based systems require substantial communication between nodes and, thus, don’t scale well. Project Concord-bft solves this problem by simplifying and streamlining communication between nodes, enabling greater scalability while increasing overall network throughput.
+```shell
+git remote add upstream https://github.com/vmware/concord-bft.git
+git checkout -b my-new-feature master
+git commit -a
+git push origin my-new-feature
+```
 
-Project Concord’s BFT engine obtains significant scaling improvements via three major advances:
+### Staying In Sync With Upstream
 
-1. It uses a linear communication consensus protocol while many other BFT consensus protocols (including PBFT) require quadratic communication
-2. It exploits optimism to provide a common case fast-path execution
-3. It uses modern cryptographic algorithms (BLS threshold signatures)
+When your branch gets out of sync with the vmware/master branch, use the following to update:
 
-Its implementation is based on the algorithm described in the paper [SBFT: a Scalable Decentralized Trust Infrastructure for
-Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
+```shell
+git checkout my-new-feature
+git fetch -a
+git pull --rebase upstream master
+git push --force-with-lease origin my-new-feature
+```
 
-It is designed to be used as a core building block for replicated distributed data stores, and is especially suited to serve as the basis of permissioned Blockchain systems.
+### Updating pull requests
 
-For a real-life integration example, please take a look at [Project Concord](https://github.com/vmware/concord), a highly scalable and energy-efficient distributed trust infrastructure for consensus and smart contract execution.
+If your PR fails to pass CI or needs changes based on code review, you'll most likely want to squash these changes into
+existing commits.
 
-Start with example usage here: https://github.com/concord-bft/examples/
+If your pull request contains a single commit or your changes are related to the most recent commit, you can simply
+amend the commit.
 
-## Documentation
+```shell
+git add .
+git commit --amend
+git push --force-with-lease origin my-new-feature
+```
 
-See the github [wiki](https://github.com/concord-bft/wiki/) for detailed explanation.
+If you need to squash changes into an earlier commit, you can use:
 
-## Community
+```shell
+git add .
+git commit --fixup <commit>
+git rebase -i --autosquash master
+git push --force-with-lease origin my-new-feature
+```
 
-[Concord-BFT Slack](https://concordbft.slack.com/).
+Be sure to add a comment to the PR indicating your new changes are ready to review, as GitHub does not generate a
+notification when you git push.
 
-Request a Slack invitation via <concordbft@gmail.com>.
+### Formatting Commit Messages
 
-## License
+We follow the conventions on [How to Write a Git Commit Message](http://chris.beams.io/posts/git-commit/).
 
-Concord-bft is available under the [Apache 2 license](LICENSE).
+Be sure to include any related GitHub issue references in the commit message.  See
+[GFM syntax](https://guides.github.com/features/mastering-markdown/#GitHub-flavored-markdown) for referencing issues
+and commits.
+
+### Formatting Code
+
+We *mostly* follow the guidelines outlined by the
+[Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html).
+If you use emacs, consider installing
+[google-c-style.el](https://raw.githubusercontent.com/google/styleguide/gh-pages/google-c-style.el).
+
+Our code style has the following exceptions that differ from the google C++ style guidelines.
+
+* We use `camelCase` function and method names, rather than `PascalCase`.
+* We allow, and encourage the use of exceptions.
+* We allow and prefer `#pragma once` over include guards
+
+## Reporting Bugs and Creating Issues
+
+When opening a new issue, try to roughly follow the commit message format conventions above.
