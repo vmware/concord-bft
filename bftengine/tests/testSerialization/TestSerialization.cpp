@@ -265,8 +265,10 @@ void testSetDescriptors(bool toSet) {
   ViewsManager::PrevViewInfo element;
   ReplicaId senderId = 1;
   element.hasAllRequests = true;
-  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
-  element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0);
+  element.prePrepare =
+      std::make_shared<PrePrepareMsg>(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
+  element.prepareFull =
+      std::make_shared<PrepareFullMsg>(PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0));
   for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
     elements.push_back(element);
   }
@@ -313,8 +315,6 @@ void testSetDescriptors(bool toSet) {
   for (auto *v : msgs) {
     delete v;
   }
-  delete element.prePrepare;
-  delete element.prepareFull;
   lastExitFromView.clean();
   lastNewView.clean();
   delete viewChangeMsg;

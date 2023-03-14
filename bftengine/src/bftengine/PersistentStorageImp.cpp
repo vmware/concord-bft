@@ -959,7 +959,7 @@ void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const Descripto
 }
 
 void PersistentStorageImp::verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const {
-  for (auto elem : desc.elements) {
+  for (auto &elem : desc.elements) {
     ConcordAssertEQ(elem.prePrepare->viewNumber(), desc.view);
     ConcordAssertOR((elem.prepareFull == nullptr), (elem.prepareFull->viewNumber() == desc.view));
     ConcordAssertOR((elem.prepareFull == nullptr), (elem.prepareFull->seqNumber() == elem.prePrepare->seqNumber()));

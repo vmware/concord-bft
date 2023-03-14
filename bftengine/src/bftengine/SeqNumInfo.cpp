@@ -81,24 +81,22 @@ void SeqNumInfo::resetAndFree() {
   commitUpdateTime = getMonotonicTime();  // TODO(GG): TBD
 }
 
-std::pair<PrePrepareMsg*, PrepareFullMsg*> SeqNumInfo::getAndReset() {
-  auto outPrePrepare = prePrepareMsg.release();
-
+std::pair<PrePrepareMsgShPtr, PrepareFullMsg*> SeqNumInfo::getAndReset() {
   PrepareFullMsg* outPrepareFullMsg = nullptr;
   prepareSigCollector->getAndReset(outPrepareFullMsg);
-
+  auto m = prePrepareMsg;
   resetAndFree();
-  return std::make_pair(outPrePrepare, outPrepareFullMsg);
+  return std::make_pair(m, outPrepareFullMsg);
 }
 
-bool SeqNumInfo::addMsg(PrePrepareMsgUPtr m, bool directAdd, bool isTimeCorrect) {
+bool SeqNumInfo::addMsg(PrePrepareMsgShPtr& m, bool directAdd, bool isTimeCorrect) {
   if (prePrepareMsg != nullptr) return false;
 
   ConcordAssert(primary == false);
   ConcordAssert(!forcedCompleted);
   ConcordAssert(!prepareSigCollector->hasPartialMsgFromReplica(replica->getReplicasInfo().myId()));
 
-  prePrepareMsg = std::move(m);
+  prePrepareMsg = m;
   isTimeCorrect_ = isTimeCorrect;
 
   // set expected
@@ -115,7 +113,7 @@ bool SeqNumInfo::addMsg(PrePrepareMsgUPtr m, bool directAdd, bool isTimeCorrect)
   return true;
 }
 
-bool SeqNumInfo::addSelfMsg(PrePrepareMsgUPtr m, bool directAdd) {
+bool SeqNumInfo::addSelfMsg(PrePrepareMsgShPtr& m, bool directAdd) {
   ConcordAssert(primary == false);
   ConcordAssert(replica->getReplicasInfo().myId() == replica->getReplicasInfo().primaryOfView(m->viewNumber()));
   ConcordAssert(!forcedCompleted);
@@ -124,7 +122,7 @@ bool SeqNumInfo::addSelfMsg(PrePrepareMsgUPtr m, bool directAdd) {
   // ConcordAssert(me->id() == m->senderId()); // GG: incorrect assert - because after a view change it may has been
   // sent by another replica
 
-  prePrepareMsg = std::move(m);
+  prePrepareMsg = m;
   primary = true;
 
   // set expected
