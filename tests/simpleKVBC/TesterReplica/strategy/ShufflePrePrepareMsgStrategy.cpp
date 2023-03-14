@@ -11,9 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <random>
-#include <tuple>
-
 #include "ShufflePrePrepareMsgStrategy.hpp"
 #include "StrategyUtils.hpp"
 
@@ -21,8 +18,9 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 
+using concord::crypto::DigestGenerator;
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;
@@ -74,7 +72,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
         }
       } else {
         Digest d;
-        DigestUtil::compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+        DigestGenerator().compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
         if (idx == swapIdx) {
           sigOrDigestOfRequest[idx + 1].append(d.content(), sizeof(Digest));
         } else if (idx == (swapIdx + 1)) {
@@ -98,7 +96,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
     }
 
     Digest d;
-    DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+    DigestGenerator().compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
     LOG_INFO(logger_,
              "Finally the PrePrepare Message with correlation id : "

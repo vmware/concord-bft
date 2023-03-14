@@ -15,6 +15,7 @@ import trio
 import os.path
 import random
 
+from util.test_base import ApolloTest
 from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
@@ -36,17 +37,34 @@ def start_replica_cmd(builddir, replica_id):
     """
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", viewChangeTimeoutMilli
+            "-V",blockchain_version,
+            "-v", viewChangeTimeoutMilli 
             ]
 
+def start_replica_cmd_with_slowdown(builddir, replica_id):
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
 
-class SkvbcPersistenceTest(unittest.TestCase):
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "--delay-state-transfer-messages-millisec", '8'
+            ]
+
+class SkvbcPersistenceTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -104,6 +122,44 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
+    async def test_rvt_construction_in_absense_of_metadata(self, bft_network):
+        """
+        This test aims to validate the upgrade scenario by removing metadata
+        1) Write 4 checkpoints to the blockchain
+        2) Stop all replicas
+        3) Remove metadata
+        4) Start all replicas
+        5) Wait for the RVT root values to be in sync
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+                bft_network.all_replicas(),
+                num_of_checkpoints_to_add=4,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False)
+
+        await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
+
+        bft_network.stop_all_replicas()
+
+        [ bft_network.remove_metadata(i) for i in bft_network.all_replicas() ]
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+                bft_network.all_replicas(),
+                num_of_checkpoints_to_add=4,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False)
+
+        await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
     @verify_linearizability()
     async def test_read_written_data_after_restart_of_all_nodes(self, bft_network, tracker):
         """
@@ -115,12 +171,31 @@ class SkvbcPersistenceTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+
+        # Pre-write a number of blocks to the chain to avoid the situation where
+        # a replica fails to execute and needs to recover from the genesis block - this is an unhandled
+        # edge case. This is possible when only a single write is used because
+        # a reply guarantees 2f + 1 executions while the remaining f replicas race
+        # to execute concurrently with the shutdown. By pre-writing to the chain we make sure
+        # some number of blocks > 1 are created on every replica.
+        # See BC-17607 for more info.
+        
+        # Important: block accumulation is assumed to be turned off!
+        for _ in range(5):
+            await skvbc.send_write_kv_set()
+        
+        client = bft_network.random_client()
+        
+        # Check that we've created more than 1 block
+        last_block_id = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+        self.assertGreater(last_block_id, 1) 
+
         (key, val) = await skvbc.send_write_kv_set()
 
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
 
-        kv_reply = await skvbc.send_read_kv_set(bft_network.random_client(), key)
+        kv_reply = await skvbc.send_read_kv_set(client, key)
 
         self.assertEqual({key: val}, kv_reply)
 
@@ -169,7 +244,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await skvbc.read_your_writes()
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_slowdown)
     @verify_linearizability()
     async def test_st_when_fetcher_crashes(self, bft_network, tracker):
         """
@@ -189,8 +264,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         client, known_key, known_val = \
-            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
-
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node}, checkpoints_num=10)
         # Start the empty replica, wait for it to start fetching, then stop
         # it.
         bft_network.start_replica(stale_node)
@@ -244,10 +318,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
-    @skip_for_tls
-    @unittest.skip("Fails because of BC-7264")
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_slowdown,
                       selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability()
     async def test_st_when_fetcher_and_sender_crash(self, bft_network, tracker):
@@ -273,15 +345,15 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         client, known_key, known_val = \
             await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
-                                                           num_of_checkpoints_to_add=4)
+                                                           checkpoints_num=random.randint(10, 13))
 
         # exclude the primary and the stale node
-        unstable_replicas = bft_network.all_replicas(without={0, stale_node})
+        non_primary_replicas = bft_network.all_replicas(without={0, stale_node})
 
         await self._run_state_transfer_while_crashing_non_primary(
             bft_network=bft_network,
             primary=0, stale=stale_node,
-            unstable_replicas=unstable_replicas
+            non_primary_replicas=non_primary_replicas
         )
 
         await bft_network.force_quorum_including_replica(stale_node)
@@ -294,20 +366,14 @@ class SkvbcPersistenceTest(unittest.TestCase):
     async def _run_state_transfer_while_crashing_non_primary(
             self, bft_network,
             primary, stale,
-            unstable_replicas):
+            non_primary_replicas):
 
         source_replica_id = \
-            await self._restart_stale_until_fetches_from_unstable(
-                bft_network, stale, unstable_replicas
+            await self._restart_stale_until_non_primary_chosen_as_source(
+                bft_network, primary, stale, non_primary_replicas
             )
 
-        self.assertTrue(
-            expr=source_replica_id != primary,
-            msg="The source must NOT be the primary "
-                "(to avoid triggering a view change)"
-        )
-
-        if source_replica_id in unstable_replicas:
+        if source_replica_id in non_primary_replicas:
             log.log_message(message_type=f'Stopping source replica {source_replica_id}')
             bft_network.stop_replica(source_replica_id)
 
@@ -333,7 +399,6 @@ class SkvbcPersistenceTest(unittest.TestCase):
             log.log_message(message_type="State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
@@ -525,13 +590,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(skvbc.send_indefinite_write_requests)
 
-    async def _restart_stale_until_fetches_from_unstable(
-            self, bft_network, stale, unstable_replicas):
+    async def _restart_stale_until_non_primary_chosen_as_source(
+            self, bft_network, primary, stale, non_primary_replicas):
 
         source_replica_id = inf
 
         log.log_message(message_type=f'Restarting stale replica until '
-              f'it fetches from {unstable_replicas}...')
+              f'it fetches from {non_primary_replicas}...')
         with trio.move_on_after(10):  # seconds
             while True:
                 bft_network.start_replica(stale)
@@ -539,13 +604,14 @@ class SkvbcPersistenceTest(unittest.TestCase):
                     replica_id=stale
                 )
                 bft_network.stop_replica(stale)
-                if source_replica_id in unstable_replicas:
-                    # Nice! The source is a replica we can crash
+                if source_replica_id in non_primary_replicas:
+                    self.assertTrue(
+                        expr=source_replica_id != primary,
+                        msg="The source must NOT be the primary "
+                        "(to avoid triggering a view change)"
+                    )
+                    log.log_message(message_type=f'Stale replica fetching from {source_replica_id}')
                     break
-
-        if source_replica_id < inf:
-            log.log_message(message_type=f'Stale replica now fetching from {source_replica_id}')
-        else:
-            log.log_message(message_type=f'Stale replica is not fetching right now.')
-
+        
+        self.assertTrue(source_replica_id != inf, msg="Stale replica is not fetching right now.")
         return source_replica_id

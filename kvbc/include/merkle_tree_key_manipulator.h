@@ -13,9 +13,9 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "kv_types.hpp"
-#include "Logger.hpp"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/keys.h"
 #include "storage/db_types.h"

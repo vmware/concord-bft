@@ -17,13 +17,14 @@
 #include "replica_state_sync_imp.hpp"
 #include "block_metadata.hpp"
 #include "SimpleBCStateTransfer.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "bftengine/ControlStateManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/cre_interfaces.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
+#include "diagnostics_server.h"
 #include <csignal>
 
 #ifdef USE_ROCKSDB
@@ -33,6 +34,8 @@
 
 #include <memory>
 #include <unistd.h>
+
+using namespace std;
 
 namespace concord::kvbc::test {
 std::shared_ptr<concord::kvbc::Replica> replica;
@@ -71,15 +74,15 @@ class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHa
   }
 };
 
-void cronSetup(TestSetup& setup, const Replica& replica) {
+void cronSetup(TestSetup& setup, const Replica& main_replica) {
   if (!setup.GetCronEntryNumberOfExecutes()) {
     return;
   }
   const auto numberOfExecutes = *setup.GetCronEntryNumberOfExecutes();
 
   using namespace concord::cron;
-  const auto cronTableRegistry = replica.cronTableRegistry();
-  const auto ticksGenerator = replica.ticksGenerator();
+  const auto cronTableRegistry = main_replica.cronTableRegistry();
+  const auto ticksGenerator = main_replica.ticksGenerator();
 
   auto& cronTable = cronTableRegistry->operator[](TestSetup::kCronTableComponentId);
 
@@ -115,15 +118,18 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
-  replica = std::make_shared<Replica>(setup->GetCommunication(),
-                                      setup->GetReplicaConfig(),
-                                      setup->GetStorageFactory(),
-                                      setup->GetMetricsServer().GetAggregator(),
-                                      setup->GetPerformanceManager(),
-                                      std::map<std::string, categorization::CATEGORY_TYPE>{
-                                          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                      setup->GetSecretManager());
+  replica = std::make_shared<Replica>(
+      setup->GetCommunication(),
+      setup->GetReplicaConfig(),
+      setup->GetStorageFactory(),
+      setup->GetMetricsServer().GetAggregator(),
+      setup->GetPerformanceManager(),
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+          {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
+          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
+      setup->GetSecretManager());
+
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->stop();
@@ -136,15 +142,31 @@ void run_replica(int argc, char** argv) {
 
   if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
-  auto cmdHandler = std::make_shared<InternalCommandsHandler>(replica.get(), replica.get(), blockMetadata, logger);
+  auto cmdHandler =
+      std::make_shared<InternalCommandsHandler>(replica.get(),
+                                                replica.get(),
+                                                blockMetadata,
+                                                logger,
+                                                setup->AddAllKeysAsPublic(),
+                                                replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(cmdHandler);
+  replica->setStateSnapshotValueConverter([](std::string&& v) -> std::string { return std::move(v); });
   replica->start();
-  if (setup->GetReplicaConfig().isReadOnly)
+
+  auto& replicaConfig = setup->GetReplicaConfig();
+  if (replicaConfig.isReadOnly)
     replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
+
+  std::unique_ptr<concord::diagnostics::Server> diagnostics_server(nullptr);
+  if (replicaConfig.diagnosticsServerPort > 0) {
+    // Start the diagnostics server
+    diagnostics_server = std::make_unique<concord::diagnostics::Server>();
+    diagnostics_server->start(
+        concord::diagnostics::RegistrarSingleton::getInstance(), INADDR_ANY, replicaConfig.diagnosticsServerPort);
+  }
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
-
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
   // return empty metrics from the metrics server.
@@ -160,22 +182,27 @@ void run_replica(int argc, char** argv) {
 }
 }  // namespace concord::kvbc::test
 
-using namespace std;
-
 namespace {
 static void signal_handler(int signal_num) {
   LOG_INFO(GL, "Program received signal " << signal_num);
   concord::kvbc::test::timeToExit = true;
 }
 }  // namespace
+
 int main(int argc, char** argv) {
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
+  struct sigaction sa;
+  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) starting...");
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = signal_handler;
+  sigfillset(&sa.sa_mask);
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
 
   try {
     concord::kvbc::test::run_replica(argc, argv);
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }
+  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) shutting down...");
   return 0;
 }

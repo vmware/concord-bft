@@ -11,6 +11,8 @@
 # file.
 
 import unittest
+
+from util.test_base import ApolloTest
 from util import skvbc, skvbc_history_tracker
 
 from util.skvbc_exceptions import(
@@ -21,10 +23,11 @@ from util.skvbc_exceptions import(
     PhantomBlockError
 )
 
-class TestCompleteHistories(unittest.TestCase):
+class TestCompleteHistories(ApolloTest):
     """Test histories where no blocks are unknown"""
 
     def setUp(self):
+        super().setUp()
         self.tracker = skvbc_history_tracker.SkvbcTracker()
 
     def test_sucessful_write(self):
@@ -327,7 +330,7 @@ class TestCompleteHistories(unittest.TestCase):
 
 
 
-class TestPartialHistories(unittest.TestCase):
+class TestPartialHistories(ApolloTest):
     """
     Test histories where some writes don't return replies.
 
@@ -336,6 +339,7 @@ class TestPartialHistories(unittest.TestCase):
     tester informs it of the missing blocks values.
     """
     def setUp(self):
+        super().setUp()
         self.tracker = skvbc_history_tracker.SkvbcTracker()
 
     def test_sucessful_write(self):
@@ -522,7 +526,7 @@ class TestPartialHistories(unittest.TestCase):
         self.assertEqual(1, len(err.exception.matched_blocks))
         self.assertEqual(0, len(err.exception.unmatched_requests))
 
-class TestUnit(unittest.TestCase):
+class TestUnit(ApolloTest):
 
     def test_num_blocks_to_linearize_over(self):
         """

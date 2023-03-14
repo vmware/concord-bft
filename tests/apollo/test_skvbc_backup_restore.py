@@ -15,6 +15,7 @@ import unittest
 
 import trio
 
+from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
 from util import eliot_logging as log
@@ -29,10 +30,17 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
     statusTimerMilli = "500"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
+
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
+            "-V",blockchain_version,
             "-v", view_change_timeout_milli
             ]
 
@@ -43,7 +51,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
     return wrapper
 
 
-class SkvbcBackupRestoreTest(unittest.TestCase):
+class SkvbcBackupRestoreTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

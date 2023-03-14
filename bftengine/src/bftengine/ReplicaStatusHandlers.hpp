@@ -13,7 +13,7 @@
 
 #include "ReplicaConfig.hpp"
 #include "InternalReplicaApi.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 
 namespace bftEngine::impl {
 

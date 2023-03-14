@@ -33,6 +33,7 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                        request,
                        reqTimeoutMilli,
                        cid,
+                       1,
                        spanContext,
                        requestSignature,
                        requestSignatureLen) {
@@ -48,6 +49,7 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            requestBuf(),
                                                                            requestTimeoutMilli(),
                                                                            getCid(),
+                                                                           result(),
                                                                            spanContext<ClientRequestMsg>(),
                                                                            emptyReq ? nullptr : requestSignature(),
                                                                            emptyReq ? 0 : requestSignatureLength());

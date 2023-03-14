@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
-
+#include <unordered_set>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -24,7 +24,11 @@
 
 #include "communication/ICommunication.hpp"
 #include "communication/StatusInfo.h"
-#include "secret_data.h"
+#include "util/assertUtils.hpp"
+
+#ifdef USE_COMM_TLS_TCP
+#include "secrets/secret_data.h"
+#endif
 
 namespace bft::communication {
 typedef struct sockaddr_in Addr;
@@ -35,90 +39,180 @@ struct NodeInfo {
   bool isReplica;
 };
 
+#pragma pack(push, 1)
+struct Header {
+  uint32_t msg_size;
+  NodeNum endpoint_num;
+};
+#pragma pack(pop)
+
+static constexpr size_t MSG_HEADER_SIZE = sizeof(Header);
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
-enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
+enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp, TlsMultiplex };
+const static std::unordered_map<CommType, const char *> commTypeToName = {
+    {PlainUdp, "PlainUdp"},
+    {SimpleAuthUdp, "SimpleAuthUdp"},
+    {PlainTcp, "PlainTcp"},
+    {SimpleAuthTcp, "SimpleAuthTcp"},
+    {TlsTcp, "TlsTcp"},
+    {TlsMultiplex, "TlsMultiplex"},
+};
 
-struct BaseCommConfig {
-  CommType commType;
-  std::string listenHost;
-  uint16_t listenPort;
-  uint32_t bufferLength;
-  NodeMap nodes;
-  UPDATE_CONNECTIVITY_FN statusCallback;
-  NodeNum selfId;
-
+class BaseCommConfig {
+ public:
   BaseCommConfig(CommType type,
                  const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : commType{type},
-        listenHost{host},
-        listenPort{port},
-        bufferLength{bufLength},
-        nodes{std::move(_nodes)},
-        statusCallback{std::move(_statusCallback)},
-        selfId{_selfId} {}
+                 NodeMap nodes,
+                 NodeNum selfId,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : commType_{type},
+        listenHost_{host},
+        listenPort_{port},
+        bufferLength_{bufLength},
+        nodes_{nodes},
+        statusCallback_{std::move(statusCallback)},
+        selfId_{selfId} {
+    const auto myNode = nodes_.find(selfId_);
+    // A replica node is always a part of the configuration. A client node is presented only in replicas' configuration.
+    if (myNode != nodes_.end()) amIReplica_ = myNode->second.isReplica;
+  }
 
+  bool isClient(NodeNum nodeNum) const {
+    const auto node = nodes_.find(nodeNum);
+    if (node != nodes_.end()) return !(node->second.isReplica);
+    // A client node is presented only in replicas' configuration.
+    return false;
+  }
   virtual ~BaseCommConfig() = default;
+
+ public:
+  CommType commType_;
+  std::string listenHost_;
+  uint16_t listenPort_;
+  uint32_t bufferLength_;
+  NodeMap nodes_;
+  UPDATE_CONNECTIVITY_FN statusCallback_;
+  NodeNum selfId_;
+  bool amIReplica_ = false;
 };
 
-struct PlainUdpConfig : BaseCommConfig {
+#ifdef USE_COMM_UDP
+class PlainUdpConfig : public BaseCommConfig {
+ public:
   PlainUdpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainUdp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)) {}
+                 NodeMap nodes,
+                 NodeNum selfId,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, nodes, selfId, std::move(statusCallback)) {}
+};
+#endif
+
+struct TcpKeepAliveConfig {
+  bool enableSocketKeepAlive = false;
+  uint32_t socketKeepAliveIdleTime = 60;
+  uint32_t socketKeepAliveInterval = 2;
+  uint32_t socketKeepAliveProbesNum = 10;
 };
 
-struct PlainTcpConfig : BaseCommConfig {
-  int32_t maxServerId;
-
+#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
+class PlainTcpConfig : public BaseCommConfig {
+ public:
   PlainTcpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 int32_t _maxServerId,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainTcp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)),
-        maxServerId{_maxServerId} {}
+                 NodeMap nodes,
+                 int32_t maxServerId,
+                 NodeNum selfId,
+                 const TcpKeepAliveConfig *tcpKeepAliveConfig,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainTcp, host, port, bufLength, nodes, selfId, std::move(statusCallback)),
+        maxServerId_{maxServerId} {
+    if (tcpKeepAliveConfig != nullptr) {
+      tcpKeepAliveConfig_ = *tcpKeepAliveConfig;
+    }
+  }
+
+ public:
+  int32_t maxServerId_;
+  TcpKeepAliveConfig tcpKeepAliveConfig_;
 };
+#endif
 
-struct TlsTcpConfig : PlainTcpConfig {
-  std::string certificatesRootPath;
-
-  // set specific suite or list of suites, as described in OpenSSL
+#ifdef USE_COMM_TLS_TCP
+class TlsTcpConfig : public PlainTcpConfig {
+ public:
+  // Set specific suite or list of suites, as described in OpenSSL
   // https://www.openssl.org/docs/man1.1.1/man1/ciphers.html
-  std::string cipherSuite;
-
-  std::optional<concord::secretsmanager::SecretData> secretData;
-
   TlsTcpConfig(const std::string &host,
                uint16_t port,
                uint32_t bufLength,
-               NodeMap _nodes,
-               int32_t _maxServerId,
-               NodeNum _selfId,
+               NodeMap nodes,
+               int32_t maxServerId,
+               NodeNum selfId,
                const std::string &certRootPath,
-               const std::string &ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr,
+               const std::string &cipherSuite,
+               bool useUnifiedCerts,
+               const TcpKeepAliveConfig *tcpKeepAliveConfig,
+               UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
-      : PlainTcpConfig(host, port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
-        certificatesRootPath{certRootPath},
-        cipherSuite{ciphSuite},
-        secretData{std::move(decryptionSecretData)} {
-    commType = CommType::TlsTcp;
+      : PlainTcpConfig(
+            host, port, bufLength, nodes, maxServerId, selfId, tcpKeepAliveConfig, std::move(statusCallback)),
+        certificatesRootPath_{certRootPath},
+        cipherSuite_{cipherSuite},
+        useUnifiedCertificates_{useUnifiedCerts},
+        secretData_{std::move(decryptionSecretData)} {
+    commType_ = CommType::TlsTcp;
   }
+
+ public:
+  std::string certificatesRootPath_;
+  std::string cipherSuite_;
+  bool useUnifiedCertificates_;
+  std::optional<concord::secretsmanager::SecretData> secretData_;
 };
 
+class TlsMultiplexConfig : public TlsTcpConfig {
+ public:
+  TlsMultiplexConfig(const std::string &host,
+                     uint16_t port,
+                     uint32_t bufLength,
+                     NodeMap &nodes,
+                     int32_t maxServerId,
+                     NodeNum selfId,
+                     const std::string &certRootPath,
+                     const std::string &cipherSuite,
+                     bool useUnifiedCerts,
+                     std::unordered_map<NodeNum, NodeNum> &endpointIdToNodeIdMap,
+                     const TcpKeepAliveConfig *tcpKeepAliveConfig,
+                     UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
+                     std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
+      : TlsTcpConfig(host,
+                     port,
+                     bufLength,
+                     nodes,
+                     maxServerId,
+                     selfId,
+                     certRootPath,
+                     cipherSuite,
+                     useUnifiedCerts,
+                     tcpKeepAliveConfig,
+                     std::move(statusCallback),
+                     secretData),
+        endpointIdToNodeIdMap_(endpointIdToNodeIdMap) {
+    commType_ = CommType::TlsMultiplex;
+  }
+
+ public:
+  std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap_;
+};
+#endif
+
+#ifdef USE_COMM_UDP
 class PlainUDPCommunication : public ICommunication {
  public:
   static PlainUDPCommunication *create(const PlainUdpConfig &config);
@@ -128,24 +222,22 @@ class PlainUDPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
-
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
-  void dispose(NodeNum i) override{};
+  void restartCommunication(NodeNum i) override{};
   ~PlainUDPCommunication() override;
 
  private:
   class PlainUdpImpl;
 
-  // TODO(IG): convert to smart ptr
-  PlainUdpImpl *_ptrImpl = nullptr;
+  PlainUdpImpl *ptrImpl_ = nullptr;
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
 };
+#endif
 
+#ifdef USE_COMM_PLAIN_TCP
 class PlainTCPCommunication : public ICommunication {
  public:
   static PlainTCPCommunication *create(const PlainTcpConfig &config);
@@ -155,26 +247,24 @@ class PlainTCPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
-
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
-  void dispose(NodeNum i) override {}
+  void restartCommunication(NodeNum i) override {}
   ~PlainTCPCommunication() override;
 
  private:
   class PlainTcpImpl;
-  PlainTcpImpl *_ptrImpl = nullptr;
+  PlainTcpImpl *ptrImpl_ = nullptr;
 
   explicit PlainTCPCommunication(const PlainTcpConfig &config);
 };
+#endif
 
+#ifdef USE_COMM_TLS_TCP
 namespace tls {
 class Runner;
 }
-
 class TlsTCPCommunication : public ICommunication {
  public:
   static TlsTCPCommunication *create(const TlsTcpConfig &config);
@@ -184,20 +274,56 @@ class TlsTCPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
-
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
-  void dispose(NodeNum i) override;
+  void restartCommunication(NodeNum i) override;
   ~TlsTCPCommunication() override;
 
- private:
-  TlsTcpConfig config_;
+ protected:
+  logging::Logger logger_;
+  TlsTcpConfig *config_;
   std::unique_ptr<tls::Runner> runner_;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
 
+class TlsMultiplexCommunication : public TlsTCPCommunication {
+ public:
+  static TlsMultiplexCommunication *create(const TlsMultiplexConfig &config);
+
+  int start() override;
+  NodeNum getConnectionByEndpointNum(NodeNum destNode, NodeNum endpointNum);
+  ConnectionStatus getCurrentConnectionStatus(NodeNum nodeNum) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
+  virtual ~TlsMultiplexCommunication() = default;
+
+ private:
+  class TlsMultiplexReceiver : public IReceiver {
+   public:
+    TlsMultiplexReceiver(std::shared_ptr<TlsMultiplexConfig> multiplexConfig)
+        : logger_(logging::getLogger("concord-bft.tls.multiplex")), multiplexConfig_(multiplexConfig) {}
+    virtual ~TlsMultiplexReceiver() = default;
+    void setReceiver(NodeNum receiverNum, IReceiver *receiver);
+    void onNewMessage(NodeNum sourceNode,
+                      const char *const message,
+                      size_t messageLength,
+                      NodeNum endpointNum) override;
+    void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override;
+
+   private:
+    logging::Logger logger_;
+    std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
+    std::unordered_map<NodeNum, IReceiver *> receiversMap_;  // Source endpoint -> receiver object
+  };
+
+ private:
+  logging::Logger logger_;
+  std::shared_ptr<TlsMultiplexReceiver> ownReceiver_;
+  std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
+  explicit TlsMultiplexCommunication(const TlsMultiplexConfig &config);
+};
+#endif
 }  // namespace bft::communication

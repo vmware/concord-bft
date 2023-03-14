@@ -33,14 +33,16 @@ struct ClientBatchRequestMsgHeader {
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint32_t spanContextSize = 0u;
-  uint16_t idOfClientProxy;  // TODO - rename - now used mostly as id of external client
-  uint64_t flags;            // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
-  uint64_t reqSeqNum;
-  uint32_t requestLength;
-  uint64_t timeoutMilli;
+  uint16_t idOfClientProxy = 0;  // TODO - rename - now used mostly as id of external client
+  uint64_t flags = 0;            // bit 0 == isReadOnly, bit 1 = preProcess ...
+  uint32_t result = 1;           // UNKNOWN
+  uint64_t reqSeqNum = 0;
+  uint32_t requestLength = 0;
+  uint64_t timeoutMilli = 0;
   uint32_t cidLength = 0;
   uint16_t reqSignatureLength = 0;
   uint32_t extraDataLength = 0;
+  uint16_t indexInBatch = 0;
 
   // followed by the request (security information, such as signatures, should be part of the request)
 
@@ -53,10 +55,9 @@ struct ClientReplyMsgHeader {
   uint32_t spanContextSize = 0u;
   uint16_t currentPrimaryId;
   uint64_t reqSeqNum;
-
+  uint32_t result = 0;  // Request execution result; SUCCESS
   // Reply length is the total length of the reply, including any replica specific info.
   uint32_t replyLength;
-
   // This is the size of the replica specific information. If it is 0, there is no replica specific
   // information. The offset of the replica specific information from the start of the reply message
   // is `replyLength - replicaSpecificInfoLength`.

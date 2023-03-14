@@ -11,7 +11,8 @@
 
 #include "KeyStore.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
+#include "crypto/digest.hpp"
 
 namespace bftEngine::impl {
 
@@ -63,18 +64,18 @@ void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID)
 
 // Save clients keys to res pages and sets `published` to true.
 void ClientKeyStore::save(const std::string& keys) {
-  auto hashed_keys = concord::util::SHA3_256().digest(keys.c_str(), keys.size());
+  auto hashed_keys = concord::crypto::SHA3_256().digest(keys.c_str(), keys.size());
   auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
-  ConcordAssertEQ(strHashed_keys.size(), concord::util::SHA3_256::SIZE_IN_BYTES);
+  ConcordAssertEQ(strHashed_keys.size(), concord::crypto::SHA3_256::SIZE_IN_BYTES);
   saveReservedPage(0, strHashed_keys.size(), strHashed_keys.c_str());
   published_ = true;
   LOG_INFO(KEY_EX_LOG, "Clients keys were updated, size " << keys.size());
 }
 
 std::string ClientKeyStore::load() {
-  std::string res_page_version(concord::util::SHA3_256::SIZE_IN_BYTES, '\0');
+  std::string res_page_version(concord::crypto::SHA3_256::SIZE_IN_BYTES, '\0');
   loadReservedPage(0, res_page_version.length(), res_page_version.data());
-  return res_page_version == std::string(concord::util::SHA3_256::SIZE_IN_BYTES, '\0') ? "" : res_page_version;
+  return res_page_version == std::string(concord::crypto::SHA3_256::SIZE_IN_BYTES, '\0') ? "" : res_page_version;
 }
 
 }  // namespace bftEngine::impl

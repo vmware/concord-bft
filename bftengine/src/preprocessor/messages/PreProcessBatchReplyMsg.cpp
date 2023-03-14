@@ -11,7 +11,7 @@
 
 #include "PreProcessBatchReplyMsg.hpp"
 #include "SigManager.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace preprocessor {
 
@@ -23,10 +23,11 @@ PreProcessBatchReplyMsg::PreProcessBatchReplyMsg(uint16_t clientId,
                                                  NodeIdType senderId,
                                                  const PreProcessReplyMsgsList& batch,
                                                  const std::string& cid,
-                                                 uint32_t repliesSize)
+                                                 uint32_t repliesSize,
+                                                 ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessBatchReply, 0, sizeof(Header) + repliesSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(senderId, clientId, numOfMessagesInBatch, repliesSize);
+  setParams(senderId, clientId, numOfMessagesInBatch, repliesSize, viewNum);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -46,24 +47,34 @@ void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessBatchReply) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  const auto numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  if (!numOfMessagesInBatch) {
+    LOG_WARN(logger(), "Number of messages in the batch is zero" << KVLOG(msgBody()->senderId, getCid()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (numOfMessagesInBatch > MAX_BATCH_SIZE) {
+    LOG_WARN(logger(), "Too many messages in the batch" << KVLOG(numOfMessagesInBatch, msgBody()->senderId, getCid()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 }
 
-void PreProcessBatchReplyMsg::setParams(NodeIdType senderId,
-                                        uint16_t clientId,
-                                        uint32_t numOfMessagesInBatch,
-                                        uint32_t repliesSize) {
+void PreProcessBatchReplyMsg::setParams(
+    NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize, ViewNum viewNum) {
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->numOfMessagesInBatch = numOfMessagesInBatch;
   msgBody()->repliesSize = repliesSize;
+  msgBody()->viewNum = viewNum;
 }
 
 std::string PreProcessBatchReplyMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
@@ -92,7 +103,9 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       (const uint8_t*)&singleMsgHeader.resultsHash,
                                                       sigPosition,
                                                       cid,
-                                                      (ReplyStatus)singleMsgHeader.status);
+                                                      singleMsgHeader.status,
+                                                      singleMsgHeader.preProcessResult,
+                                                      singleMsgHeader.viewNum);
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }

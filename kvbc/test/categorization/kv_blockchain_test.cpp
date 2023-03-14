@@ -12,6 +12,8 @@
 // file.
 
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
+
 #include "categorization/column_families.h"
 #include "categorization/updates.h"
 #include "categorization/kv_blockchain.h"
@@ -23,16 +25,17 @@
 #include <vector>
 #include <random>
 #include "storage/test/storage_test_common.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::categorization::detail;
 using namespace concord::kvbc;
+using namespace ::testing;
 
 namespace {
 
-class categorized_kvbc : public ::testing::Test {
+class categorized_kvbc : public Test {
  protected:
   void SetUp() override {
     destroyDb();
@@ -2286,9 +2289,132 @@ TEST_F(categorized_kvbc, root_hash) {
   }
 }
 
+TEST_F(categorized_kvbc, local_write_batch) {
+  SetUp();
+  auto cf1 = std::string("Default");
+  auto key1 = std::string("key1");
+  auto val1 = std::string("val1");
+
+  auto cf2 = std::string("Version");
+  auto key2 = std::string("key2");
+  auto val2 = std::string("val2");
+
+  auto key3 = std::string("key3");
+  auto val3 = std::string("val3");
+
+  auto key4 = std::string("key4");
+  auto val4 = std::string("val4");
+  db->createColumnFamily(cf1);
+  db->createColumnFamily(cf2);
+
+  concord::kvbc::categorization::detail::LocalWriteBatch localBatch;
+  localBatch.put(cf1, key1, val1);
+  ASSERT_EQ(localBatch.puts_.size(), 1);
+  {
+    const auto& put_update = localBatch.puts_.front();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key1);
+    ASSERT_EQ(put_update.value, val1);
+  }
+  ASSERT_EQ(localBatch.dels_.size(), 0);
+  ASSERT_EQ(localBatch.operations_.size(), 1);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.put_op_);
+
+  localBatch.put(cf1, key2, val2);
+  {
+    const auto& put_update = localBatch.puts_.back();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key2);
+    ASSERT_EQ(put_update.value, val2);
+  }
+  ASSERT_EQ(localBatch.puts_.size(), 2);
+  ASSERT_EQ(localBatch.dels_.size(), 0);
+  ASSERT_EQ(localBatch.operations_.size(), 2);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.put_op_);
+
+  localBatch.del(cf1, key1);
+  {
+    const auto& put_update = localBatch.dels_.back();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key1);
+  }
+  ASSERT_EQ(localBatch.puts_.size(), 2);
+  ASSERT_EQ(localBatch.dels_.size(), 1);
+  ASSERT_EQ(localBatch.operations_.size(), 3);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.delete_op_);
+
+  auto batch = db->getBatch();
+  localBatch.moveToBatch(batch);
+  ASSERT_EQ(batch.count(), 3);
+
+  concord::kvbc::categorization::detail::LocalWriteBatch localBatch2;
+  localBatch2.put(cf2, key3, val3);
+  localBatch2.del(cf2, key4);
+  localBatch2.moveToBatch(batch);
+  ASSERT_EQ(batch.count(), 5);
+}
+
+TEST_F(categorized_kvbc, trim_blocks_from_snapshot) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 1);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 2);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 3);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 3);
+  kvbc.trimBlocksFromSnapshot(1);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 1);
+}
+
+TEST_F(categorized_kvbc, no_need_to_trim_blocks_from_snapshot) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 1);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 2);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 3);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 3);
+  kvbc.trimBlocksFromSnapshot(3);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 3);
+}
+
+TEST_F(categorized_kvbc, trim_blocks_from_snapshot_called_with_0) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 1);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 2);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 3);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 3);
+  ASSERT_DEATH(kvbc.trimBlocksFromSnapshot(0), "");
+}
+
+TEST_F(categorized_kvbc, trim_blocks_from_snapshot_called_with_bigger_block_id) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 1);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 2);
+  ASSERT_EQ(kvbc.addBlock(Updates{}), 3);
+  ASSERT_EQ(kvbc.getLastReachableBlockId(), 3);
+  ASSERT_DEATH(kvbc.trimBlocksFromSnapshot(4), "");
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
+  InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

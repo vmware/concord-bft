@@ -126,6 +126,14 @@ TEST_F(ccron_ticks_generator_test, is_generating) {
   ASSERT_FALSE(gen_->isGenerating(kComponentId1));
 }
 
+TEST_F(ccron_ticks_generator_test, is_start_0_stopping) {
+  ASSERT_FALSE(gen_->isGenerating(kComponentId1));
+  gen_->start(kComponentId1, 1s);
+  ASSERT_TRUE(gen_->isGenerating(kComponentId1));
+  gen_->start(kComponentId1, 0s);
+  ASSERT_FALSE(gen_->isGenerating(kComponentId1));
+}
+
 TEST_F(ccron_ticks_generator_test, client_request_msg_is_generated) {
   // Generate an internal tick.
   gen_->onInternalTick({kComponentId1});

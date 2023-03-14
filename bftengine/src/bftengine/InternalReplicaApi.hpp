@@ -17,6 +17,10 @@
 #include "PrimitiveTypes.hpp"
 #include "IncomingMsgsStorage.hpp"
 
+using PrePrepareMsgUPtr = std::unique_ptr<PrePrepareMsg>;
+using PrePrepareMsgShPtr = std::shared_ptr<PrePrepareMsg>;
+using PrePrepareMsgCreationResult = std::pair<PrePrepareMsgShPtr, bool>;
+
 class IThresholdVerifier;
 namespace concord::util {
 class SimpleThreadPool;
@@ -31,6 +35,8 @@ class ReplicasInfo;
 class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
 {
  public:
+  virtual ~InternalReplicaApi() = default;
+
   virtual const ReplicasInfo& getReplicasInfo() const = 0;
   virtual bool isValidClient(NodeIdType clientId) const = 0;
   virtual bool isIdOfReplica(NodeIdType id) const = 0;
@@ -44,23 +50,22 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual SeqNum getPrimaryLastUsedSeqNum() const = 0;
   virtual uint64_t getRequestsInQueue() const = 0;
   virtual SeqNum getLastExecutedSeqNum() const = 0;
-  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMessage() { return std::make_pair(nullptr, false); }
+  virtual PrePrepareMsgCreationResult buildPrePrepareMessage() { return std::make_pair(nullptr, false); }
   virtual bool tryToSendPrePrepareMsg(bool batchingLogic) { return false; }
-  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+  // register a components' stop function to be run at the beginning of ReplicaImp's stop function.
+  // all components dependent on ReplicaImp running (and only those components) must register a stop func
+  virtual void registerStopCallback(std::function<void(void)> stopCallback) = 0;
+  virtual PrePrepareMsgCreationResult buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
     return std::make_pair(nullptr, false);
   }
-  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+  virtual PrePrepareMsgCreationResult buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
     return std::make_pair(nullptr, false);
   }
-
+  virtual void stop() = 0;
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
   virtual concord::util::SimpleThreadPool& getInternalThreadPool() = 0;
-
   virtual bool isCollectingState() const = 0;
-
   virtual const ReplicaConfig& getReplicaConfig() const = 0;
-
-  virtual ~InternalReplicaApi() = default;
 };
 
 }  // namespace impl

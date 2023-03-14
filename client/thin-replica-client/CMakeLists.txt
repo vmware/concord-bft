@@ -16,16 +16,17 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(thin_replica_client_lib STATIC
   "src/thin_replica_client.cpp"
+  "src/replica_state_snapshot_client.cpp"
   "src/trace_contexts.cpp"
-  "src/trs_connection.cpp"
+  "src/grpc_connection.cpp"
   "src/trc_hash.cpp")
 target_include_directories(thin_replica_client_lib PUBLIC include)
-target_include_directories(thin_replica_client_lib PRIVATE
-  "${secretsmanager_SOURCE_DIR}/include")
 target_link_libraries(thin_replica_client_lib
   opentracing
   util
+  concord-crypto
   thin-replica-proto
+  replica-state-snapshot-proto
   concordclient-event-api
 )
 

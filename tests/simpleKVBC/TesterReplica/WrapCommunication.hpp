@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -12,10 +12,10 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "communication/ICommunication.hpp"
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
 #include "messages/MessageBase.hpp"
 
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
@@ -37,14 +37,14 @@ class WrapCommunication : public ICommunication {
     return communication_->getCurrentConnectionStatus(node);
   }
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum = MAX_ENDPOINT_NUM) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override {
     communication_->setReceiver(receiverNum, receiver);
   }
 
-  void dispose(NodeNum i) override {}
+  void restartCommunication(NodeNum i) override {}
   static void addStrategies(
       std::string const &strategies,
       char delim,

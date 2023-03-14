@@ -11,7 +11,7 @@
 // LICENSE file.
 
 #include "gtest/gtest.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "bftclient/fake_comm.h"
 #include "concord.cmf.hpp"
 #include "client/reconfiguration/config.hpp"
@@ -122,6 +122,7 @@ class ClientApiTestFixture : public ::testing::Test {
                                1,
                                0,
                                RetryTimeoutConfig{},
+                               0,
                                std::nullopt};
 
   Config cre_config{5, 10};

@@ -4,15 +4,17 @@
 
 #pragma once
 
-#include "block_digest.h"
 #include "kv_types.hpp"
 #include <utility>
+#include "crypto/digest.hpp"
 
 namespace concord::storage {
 class IDBClient;
 }
 
 namespace concord::kvbc {
+
+using concord::crypto::BlockDigest;
 
 class NotFoundException : public std::runtime_error {
  public:
@@ -24,6 +26,9 @@ class IDbAdapter {
  public:
   // Returns the added block ID.
   virtual BlockId addBlock(const SetOfKeyValuePairs& updates) = 0;
+
+  // Try to link the blockchain until the given block ID.
+  virtual void linkUntilBlockId(BlockId until_block_id) = 0;
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received and needs to be added.

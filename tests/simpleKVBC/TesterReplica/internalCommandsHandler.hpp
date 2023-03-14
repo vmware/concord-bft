@@ -13,10 +13,8 @@
 
 #pragma once
 
-#include "Logger.hpp"
-#include "OpenTracing.hpp"
-#include "sliver.hpp"
-#include "simpleKVBTestsBuilder.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/sliver.hpp"
 #include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
@@ -25,59 +23,87 @@
 #include <chrono>
 #include <thread>
 
-static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
-static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
+#include "log/logger.hpp"
+#include "skvbc_messages.cmf.hpp"
+#include "SharedTypes.hpp"
+#include "categorization/db_categories.h"
+#include "kvbc_adapter/replica_adapter.hpp"
+
+static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
+static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::kvbc::IReader *storage,
                           concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
-                          logging::Logger &logger)
-      : m_storage(storage), m_blockAdder(blocksAdder), m_blockMetadata(blockMetadata), m_logger(logger) {}
+                          logging::Logger &logger,
+                          bool addAllKeysAsPublic = false,
+                          concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr)
+      : m_storage(storage),
+        m_blockAdder(blocksAdder),
+        m_blockMetadata(blockMetadata),
+        m_logger(logger),
+        m_addAllKeysAsPublic{addAllKeysAsPublic},
+        m_kvbc{kvbc} {
+    if (m_addAllKeysAsPublic) {
+      ConcordAssertNE(m_kvbc, nullptr);
+    }
+  }
 
-  virtual void execute(ExecutionRequestsQueue &requests,
-                       std::optional<bftEngine::Timestamp> timestamp,
-                       const std::string &batchCid,
-                       concordUtils::SpanWrapper &parent_span) override;
+  void execute(ExecutionRequestsQueue &requests,
+               std::optional<bftEngine::Timestamp> timestamp,
+               const std::string &batchCid,
+               concordUtils::SpanWrapper &parent_span) override;
+
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<bftEngine::Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override;
 
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
-  bool executeWriteCommand(uint32_t requestSize,
-                           const char *request,
-                           uint64_t sequenceNum,
-                           uint8_t flags,
-                           size_t maxReplySize,
-                           char *outReply,
-                           uint32_t &outReplySize,
-                           bool isBlockAccumulationEnabled,
-                           concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
-                           concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
+  void add(std::string &&key,
+           std::string &&value,
+           concord::kvbc::categorization::VersionedUpdates &,
+           concord::kvbc::categorization::BlockMerkleUpdates &) const;
 
-  bool executeReadOnlyCommand(uint32_t requestSize,
-                              const char *request,
-                              size_t maxReplySize,
-                              char *outReply,
-                              uint32_t &outReplySize,
-                              uint32_t &specificReplicaInfoOutReplySize);
+  bftEngine::OperationResult executeWriteCommand(
+      uint32_t requestSize,
+      const char *request,
+      uint64_t sequenceNum,
+      uint8_t flags,
+      size_t maxReplySize,
+      char *outReply,
+      uint32_t &outReplySize,
+      bool isBlockAccumulationEnabled,
+      concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
+      concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
 
-  bool verifyWriteCommand(uint32_t requestSize,
-                          const uint8_t *request,
-                          size_t maxReplySize,
-                          uint32_t &outReplySize) const;
+  bftEngine::OperationResult executeReadOnlyCommand(uint32_t requestSize,
+                                                    const char *request,
+                                                    size_t maxReplySize,
+                                                    char *outReply,
+                                                    uint32_t &outReplySize,
+                                                    uint32_t &specificReplicaInfoOutReplySize);
 
-  bool executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
-                          size_t maxReplySize,
-                          char *outReply,
-                          uint32_t &outReplySize);
+  bftEngine::OperationResult verifyWriteCommand(uint32_t requestSize,
+                                                const uint8_t *request,
+                                                size_t maxReplySize,
+                                                uint32_t &outReplySize) const;
 
-  bool executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
-                                  size_t maxReplySize,
-                                  char *outReply,
-                                  uint32_t &outReplySize);
+  bftEngine::OperationResult executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
+                                                size_t maxReplySize,
+                                                char *outReply,
+                                                uint32_t &outReplySize);
 
-  bool executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
+                                                        size_t maxReplySize,
+                                                        char *outReply,
+                                                        uint32_t &outReplySize);
+
+  bftEngine::OperationResult executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
 
@@ -89,9 +115,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
   void writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
                              concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                             uint64_t sn);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                uint64_t sn);
   void addKeys(const skvbc::messages::SKVBCWriteRequest &writeReq,
                uint64_t sequenceNum,
                concord::kvbc::categorization::VersionedUpdates &verUpdates,
@@ -110,4 +138,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
+  bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
+  concord::kvbc::adapter::ReplicaBlockchain *m_kvbc{nullptr};
 };

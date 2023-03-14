@@ -13,12 +13,11 @@
 
 #include <cstdint>
 
-#include "assertUtils.hpp"
-#include "Digest.hpp"
+#include "util/assertUtils.hpp"
+#include "crypto/digest.hpp"
 #include "ReplicaConfig.hpp"
-
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -51,6 +50,8 @@ class ReplicaAsksToLeaveViewMsg : public MessageBase {
                                            const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
+
+  bool shouldValidateAsync() const override { return true; }
 
  protected:
   template <typename MessageT>

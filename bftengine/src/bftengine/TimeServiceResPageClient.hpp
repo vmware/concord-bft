@@ -25,6 +25,8 @@ class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient
 
   // saves the timestamp in reserved pages
   void setLastTimestamp(ConsensusTime timestamp);
+  // saves the timestamp in reserved pages from ticks
+  void setTimestampFromTicks(ConsensusTickRep ticks);
 
   // loads the timestamp from reserved pages, to be called on ST completed
   void load();

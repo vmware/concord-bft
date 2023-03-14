@@ -27,9 +27,9 @@
 #include <thread>
 #include <unistd.h>
 
-#include "Logger.hpp"
-#include "errnoString.hpp"
-#include "kvstream.h"
+#include "log/logger.hpp"
+#include "util/errnoString.hpp"
+#include "util/kvstream.h"
 #include "protocol.h"
 
 using concordUtils::errnoString;
@@ -158,6 +158,7 @@ class Server {
   }
 
   void stop() {
+    LOG_INFO(logger, std::boolalpha << KVLOG(shutdown_));
     if (!shutdown_) {
       LOG_INFO(logger, "Shutting down diagnostics server main thread.");
       shutdown_.store(true);

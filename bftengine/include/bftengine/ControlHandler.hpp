@@ -16,30 +16,37 @@
 #include <functional>
 
 namespace bftEngine {
-
+using CallbackPriorities = IControlHandler::CallbackPriorities;
 // The controlHandler class is the default implementation of the IControlHandler.
 // It mark and defines who the system behaves on superStableCheckpoint, stableCheckpoint and pruning
 class ControlHandler : public IControlHandler {
  public:
   void onSuperStableCheckpoint() override {
     onNoutOfNCheckpoint_ = true;
-    for (auto& cb : onSuperStableCheckpointCallBack) cb();
+    for (auto& [prio, cbs] : onSuperStableCheckpointCallBack) {
+      (void)prio;
+      for (auto& cb : cbs) cb();
+    }
   };
   void onStableCheckpoint() override {
     onNMinusFOutOfNCheckpoint_ = true;
-    for (auto& cb : onStableCheckpointCallBack) cb();
-
+    for (auto& [prio, cbs] : onStableCheckpointCallBack) {
+      (void)prio;
+      for (auto& cb : cbs) cb();
+    }
     ControlStateManager::instance().checkForReplicaReconfigurationAction();
   }
   bool onPruningProcess() override { return onPruningProcess_; }
   bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint_; }
   bool isOnStableCheckpoint() const override { return onNMinusFOutOfNCheckpoint_; }
   void setOnPruningProcess(bool inProcess) override { onPruningProcess_ = inProcess; }
-  void addOnSuperStableCheckpointCallBack(const std::function<void()>& cb) override {
-    onSuperStableCheckpointCallBack.emplace_back(cb);
+  void addOnSuperStableCheckpointCallBack(const std::function<void()>& cb,
+                                          CallbackPriorities prio = IControlHandler::DEFAULT) override {
+    onSuperStableCheckpointCallBack[prio].emplace_back(cb);
   }
-  void addOnStableCheckpointCallBack(const std::function<void()>& cb) override {
-    onStableCheckpointCallBack.emplace_back(cb);
+  void addOnStableCheckpointCallBack(const std::function<void()>& cb,
+                                     CallbackPriorities prio = IControlHandler::DEFAULT) override {
+    onStableCheckpointCallBack[prio].emplace_back(cb);
   }
 
   void resetState() override {
@@ -54,8 +61,8 @@ class ControlHandler : public IControlHandler {
   bool onNoutOfNCheckpoint_ = false;
   bool onNMinusFOutOfNCheckpoint_ = false;
   bool onPruningProcess_ = false;
-  std::vector<std::function<void()>> onSuperStableCheckpointCallBack;
-  std::vector<std::function<void()>> onStableCheckpointCallBack;
+  std::map<CallbackPriorities, std::vector<std::function<void()>>> onSuperStableCheckpointCallBack;
+  std::map<CallbackPriorities, std::vector<std::function<void()>>> onStableCheckpointCallBack;
 };
 
 }  // namespace bftEngine

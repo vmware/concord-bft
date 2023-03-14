@@ -1,0 +1,135 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// Privacy Wallet's api
+
+syntax = "proto3";
+package vmware.concord.privacy.wallet.api.v1; 
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
+
+// Privacy Wallet Service Interface
+service PrivacyWalletService {
+    rpc PrivacyWalletService(PrivacyWalletRequest) returns (PrivacyWalletResponse);
+}
+
+enum TxType {
+    MINT = 0;
+    BURN = 1;
+    TRANSFER = 2;
+    BUDGET = 3;
+}
+
+message PrivacyAppConfigRequest {
+    bool budget = 1;
+    uint32 numValidators = 2; // The number of validator shares required to reconstruct a signature
+    // These are public keys for replicas to encrypt their secret shares
+    // TODO: needs to get integrated with encrypting shares currently shares on UTT configuration are clear
+    repeated string validatorPublicKey = 3;
+}
+
+message PrivacyAppConfigResponse {
+    bytes configuration = 1; // Blob of privacy configuration data
+}
+
+message PrivacyWalletConfigRequest {
+    string private_key = 1;
+    string public_key = 2;
+    string user_id = 3;
+    bytes public_application_config = 4;
+}
+
+message PrivacyWalletConfigResponse {
+    bool succ = 1;
+}
+
+message UserRegistrationRequest {
+}
+
+message UserRegistrationResponse {
+    string pid = 1;
+    bytes rcm1 = 2;
+    bytes rcm1_sig = 3;
+}
+
+message UserRegistrationUpdateRequest {
+    bytes rcm_sig = 1;
+    repeated uint64 s2 = 2[jstype = JS_STRING];
+}
+
+message UserRegistrationUpdateResponse {
+    bool succ = 1;
+}
+
+message ClaimCoinsRequest {
+    bytes tx = 1;
+    repeated bytes sigs = 2;
+    TxType type = 3;
+}
+
+message ClaimCoinsReponse {
+    bool succ = 1;
+}
+
+message GenerateMintTx {
+    uint64 amount = 1[jstype = JS_STRING];
+}
+
+message GenerateBurnTx {
+    uint64 amount = 1[jstype = JS_STRING];
+}
+
+message GenerateTransferTx {
+    uint64 amount = 1[jstype = JS_STRING];
+    string recipient_pid = 2;
+    bytes recipient_public_key = 3;
+}
+
+message GenerateTxResponse {
+    bytes tx = 1;
+    bool final = 2;
+    uint32 num_of_output_coins = 3;
+}
+
+message GetStateRequest {    
+}
+
+message GetStateResponse {
+    uint64 budget = 1[jstype = JS_STRING];
+    uint64 balance = 2[jstype = JS_STRING];
+    string user_id = 3;
+    map<string, uint64> coins = 4;
+}
+
+message PrivacyWalletRequest {
+    oneof req {
+        PrivacyAppConfigRequest privacy_app_config = 1;
+        PrivacyWalletConfigRequest privacy_wallet_config_request = 2;
+        UserRegistrationRequest user_registration_request = 3;
+        UserRegistrationUpdateRequest user_registration_update_request = 4;
+        ClaimCoinsRequest claim_coins_request = 5;
+        GenerateMintTx generate_mint_tx_request = 6;
+        GenerateBurnTx generate_burn_tx_request = 7;
+        GenerateTransferTx generate_transfer_tx_request = 8;
+        GetStateRequest get_state_request = 9;
+
+    }
+    // Required timeout which defines the maximum amount of time the caller is
+     // willing to wait for the request to be processed by a quorum of replicas.
+    // Returns DEADLINE_EXCEEDED if the request times out.
+    // Returns INVALID_ARGUMENT if the timeout is zero.
+    google.protobuf.Duration timeout = 10;    
+}
+
+message PrivacyWalletResponse {
+    optional string err = 1;
+    oneof resp {
+        PrivacyAppConfigResponse privacy_app_config_response = 2;
+        PrivacyWalletConfigResponse privacy_wallet_config_response = 3;
+        UserRegistrationResponse user_registration_response = 4;
+        UserRegistrationUpdateResponse user_registration_update_response = 5;
+        ClaimCoinsReponse claim_coins_response = 6;
+        GenerateTxResponse generate_tx_response = 7;
+        GetStateResponse get_state_response = 8;
+    }
+}

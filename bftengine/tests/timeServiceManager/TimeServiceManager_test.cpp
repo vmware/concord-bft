@@ -10,10 +10,9 @@
 // file.
 
 #include "TimeServiceManager.hpp"
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "gtest/gtest.h"
-#include "serialize.hpp"
 #include <chrono>
 #include <memory>
 
@@ -22,7 +21,7 @@ using namespace bftEngine::impl;
 
 struct ReservedPagesMock : public IReservedPages {
   mutable bool is_first_load = true;
-  std::string page_ = std::string(sizeof(ConsensusTime::rep), 0);
+  std::string page_ = std::string(sizeof(ConsensusTickRep), 0);
   ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(this); }
   ~ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(nullptr); }
   virtual uint32_t numberOfReservedPages() const { return 1; };
@@ -42,7 +41,7 @@ struct ReservedPagesMock : public IReservedPages {
   };
   virtual void zeroReservedPage(uint32_t reservedPageId) {
     (void)reservedPageId;
-    page_ = std::string(sizeof(ConsensusTime::rep), 0);
+    page_ = std::string(sizeof(ConsensusTickRep), 0);
   };
 };
 
@@ -66,9 +65,9 @@ TEST(TimeServiceManager, TimeWithinLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto msg = manager.createClientRequestMsg();
+  const auto time = manager.getClockTimePoint();
 
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
@@ -88,13 +87,13 @@ TEST(TimeServiceManager, TimeOutOfHardLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto msg = manager.createClientRequestMsg();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceHardLimitMillis + std::chrono::milliseconds{1};
-  EXPECT_FALSE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_FALSE(manager.isPrimarysTimeWithinBounds(time));
 
   FakeClock::current_time = now - config.timeServiceHardLimitMillis - std::chrono::milliseconds{1};
-  EXPECT_FALSE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_FALSE(manager.isPrimarysTimeWithinBounds(time));
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 2);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
@@ -114,13 +113,13 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfHardLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto msg = manager.createClientRequestMsg();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceHardLimitMillis;
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   FakeClock::current_time = now - config.timeServiceHardLimitMillis;
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 2);
@@ -141,13 +140,13 @@ TEST(TimeServiceManager, TimeOutOfSoftLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto msg = manager.createClientRequestMsg();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceSoftLimitMillis + std::chrono::milliseconds{1};
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   FakeClock::current_time = now - config.timeServiceSoftLimitMillis - std::chrono::milliseconds{1};
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 2);
@@ -168,13 +167,13 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfSoftLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto msg = manager.createClientRequestMsg();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceSoftLimitMillis;
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   FakeClock::current_time = now - config.timeServiceSoftLimitMillis;
-  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(*msg));
+  EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
 
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
@@ -182,7 +181,7 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfSoftLimits) {
   EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
 }
 
-TEST(TimeServiceManager, CompareAndSwap) {
+TEST(TimeServiceManager, CompareAndUpdate) {
   ReservedPagesMock m;
   auto& config = ReplicaConfig::instance();
   config.timeServiceEnabled = true;
@@ -196,17 +195,17 @@ TEST(TimeServiceManager, CompareAndSwap) {
 
   // check that if now does not move, the manager increases it by epsilon
   for (size_t i = 0U; i < 10; ++i) {
-    EXPECT_EQ(now + (config.timeServiceEpsilonMillis * i), manager.compareAndSwap(now));
+    EXPECT_EQ(now + (config.timeServiceEpsilonMillis * i), manager.compareAndUpdate(now));
   }
 
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  // DD: The first time compareAndSwap is called there is no saved value, so TS accepts the given one.
+  // DD: The first time compareAndUpdate is called there is no saved value, so TS accepts the given one.
   EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 9);
   EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
 }
 
-TEST(TimeServiceManager, CreateClientRequestMsg) {
+TEST(TimeServiceManager, recoverTime) {
   ReservedPagesMock m;
   auto& config = ReplicaConfig::instance();
   config.timeServiceEnabled = true;
@@ -215,117 +214,19 @@ TEST(TimeServiceManager, CreateClientRequestMsg) {
   config.timeServiceSoftLimitMillis = std::chrono::milliseconds{500};
 
   const auto now = ConsensusTime{1000};
-  FakeClock::current_time = now;
-
-  auto aggregator = std::make_shared<concordMetrics::Aggregator>();
-  auto manager = TimeServiceManager<FakeClock>{aggregator};
-
-  const auto msg = manager.createClientRequestMsg();
-  EXPECT_EQ(now,
-            concord::util::deserialize<ConsensusTime>(msg->requestBuf(), msg->requestBuf() + msg->requestLength()));
-  EXPECT_EQ(MsgFlag::TIME_SERVICE_FLAG, msg->flags());
-
-  EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
-}
-
-TEST(TimeServiceManager, hasTimeRequest_positive) {
-  ReservedPagesMock m;
-  ReplicaConfig::instance();
-  const auto now = ConsensusTime{1000};
-  FakeClock::current_time = now;
-
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<std::chrono::system_clock>{aggregator};
+  auto update = manager.compareAndUpdate(now);
+  EXPECT_EQ(update, now);
 
-  const auto msg = manager.createClientRequestMsg();
-  size_t req_size = msg->size();
-  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
-  const std::string request_bytes = "bla-bla";
-  for (size_t i = 0; i < 10; ++i) {
-    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
-        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
-    req_size += client_request.back()->size();
-  }
-
-  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
-  pp_msg.addRequest(msg->body(), msg->size());
-  for (const auto& c : client_request) {
-    pp_msg.addRequest(c->body(), c->size());
-  }
-  pp_msg.finishAddingRequests();
-  EXPECT_TRUE(manager.hasTimeRequest(pp_msg));
-
-  EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
-}
-
-TEST(TimeServiceManager, hasTimeRequest_ts_in_the_end) {
-  ReservedPagesMock m;
-  ReplicaConfig::instance();
-  const auto now = ConsensusTime{1000};
-  FakeClock::current_time = now;
-
-  auto aggregator = std::make_shared<concordMetrics::Aggregator>();
-  auto manager = TimeServiceManager<std::chrono::system_clock>{aggregator};
-
-  const auto msg = manager.createClientRequestMsg();
-  size_t req_size = msg->size();
-  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
-  const std::string request_bytes = "bla-bla";
-  for (size_t i = 0; i < 10; ++i) {
-    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
-        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
-    req_size += client_request.back()->size();
-  }
-
-  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
-  for (const auto& c : client_request) {
-    pp_msg.addRequest(c->body(), c->size());
-  }
-  pp_msg.addRequest(msg->body(), msg->size());
-  pp_msg.finishAddingRequests();
-  EXPECT_FALSE(manager.hasTimeRequest(pp_msg));
-
-  EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 1);
-}
-
-TEST(TimeServiceManager, hasTimeRequest_no_ts_msg) {
-  ReservedPagesMock m;
-  ReplicaConfig::instance();
-  const auto now = ConsensusTime{1000};
-  FakeClock::current_time = now;
-
-  auto aggregator = std::make_shared<concordMetrics::Aggregator>();
-  auto manager = TimeServiceManager<std::chrono::system_clock>{aggregator};
-
-  size_t req_size = 0;
-  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
-  const std::string request_bytes = "bla-bla";
-  for (size_t i = 0; i < 10; ++i) {
-    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
-        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
-    req_size += client_request.back()->size();
-  }
-
-  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
-  for (const auto& c : client_request) {
-    pp_msg.addRequest(c->body(), c->size());
-  }
-  pp_msg.finishAddingRequests();
-  EXPECT_FALSE(manager.hasTimeRequest(pp_msg));
-
-  EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
-  EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 1);
+  auto ticksFromRecovery = now.count() - 10;
+  EXPECT_LT(ticksFromRecovery, update.count());
+  // scenario 1 - recover time is the same as the stored
+  manager.recoverTime(now.count());
+  EXPECT_EQ(manager.getTime(), now);
+  // scenario 2 - recover time is smaller than stored - replace
+  manager.recoverTime(ticksFromRecovery);
+  EXPECT_EQ(ticksFromRecovery, manager.getTime().count());
 }
 
 int main(int argc, char** argv) {

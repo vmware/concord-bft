@@ -26,7 +26,7 @@ class DebugPersistentStorage : public PersistentStorage {
 
   // Inherited via PersistentStorage
   uint8_t beginWriteTran() override;
-  uint8_t endWriteTran() override;
+  uint8_t endWriteTran(bool sync = false) override;
   bool isInWriteTran() const override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;
@@ -48,6 +48,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
   void setUserDataAtomically(const void* data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void* data, std::size_t numberOfBytes) override;
+  bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t>& data) override;
+  std::vector<uint8_t> getReplicaSpecificInfo(uint32_t index) override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -72,6 +74,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setEraseMetadataStorageFlag() override {}
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
+  void setDbCheckpointMetadata(const std::vector<std::uint8_t>&) override{};
+  std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t&) override { return std::nullopt; }
 
   void setNewEpochFlag(bool flag) override {}
   bool getNewEpochFlag() override { return false; };
@@ -95,12 +99,12 @@ class DebugPersistentStorage : public PersistentStorage {
 
   bool hasDescriptorOfLastExitFromView_ = false;
   DescriptorOfLastExitFromView descriptorOfLastExitFromView_ =
-      DescriptorOfLastExitFromView{0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0};
+      DescriptorOfLastExitFromView{0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0, {}};
   bool hasDescriptorOfLastNewView_ = false;
   DescriptorOfLastNewView descriptorOfLastNewView_ =
       DescriptorOfLastNewView{0, nullptr, std::vector<ViewChangeMsg*>(0), nullptr, 0, 0};
   bool hasDescriptorOfLastExecution_ = false;
-  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap(), 0};
 
   SeqNum lastStableSeqNum_ = 0;
 

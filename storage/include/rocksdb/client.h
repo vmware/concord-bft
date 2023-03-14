@@ -18,10 +18,11 @@
 #pragma once
 
 #ifdef USE_ROCKSDB
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include <rocksdb/db.h>
 #include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
+#include <rocksdb/utilities/checkpoint.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
 
@@ -94,7 +95,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
   concordUtils::Status del(const concordUtils::Sliver& _key) override;
   concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
-  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
+  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
@@ -103,6 +104,14 @@ class Client : public concord::storage::IDBClient {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }
+  std::string getPath() const override { return m_dbPath; }
+  void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
+  std::string getCheckpointPath() const override { return dbCheckpointPath_; }
+  std::string getPathForCheckpoint(std::uint64_t checkpointId) const override;
+  concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
+  std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
+  void removeCheckpoint(const uint64_t& checkPointId) const override;
+  void removeAllCheckpoints() const override;
 
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
@@ -131,7 +140,7 @@ class Client : public concord::storage::IDBClient {
   void openRocksDB(bool readOnly,
                    const ::rocksdb::Options& db_options,
                    std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs);
-  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
+  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob, bool sync = false);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
   bool columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle*) const;
@@ -153,6 +162,8 @@ class Client : public concord::storage::IDBClient {
 
   // Database path on directory (used for connection).
   std::string m_dbPath;
+  // Database checkpoint directory
+  std::string dbCheckpointPath_;  // default val = m_dbPath + "_checkpoint"
 
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
@@ -162,6 +173,7 @@ class Client : public concord::storage::IDBClient {
 
   // Metrics
   mutable RocksDbStorageMetrics storage_metrics_;
+  std::unique_ptr<::rocksdb::Checkpoint> dbCheckPoint_;
 
   friend class NativeClient;
 };

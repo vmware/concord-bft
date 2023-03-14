@@ -18,24 +18,49 @@ import sys
 sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
 import concord_msgs as cmf_msgs
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyclient")) 
 
-import bft_client
+# For EdDSA algorithm.
+from cryptography.hazmat.primitives import serialization
+
+# For ECDSA algorithm.
 from ecdsa import SigningKey
 from ecdsa import SECP256k1
 import hashlib
-from Crypto.PublicKey import RSA
+
+import bft_client
+
+import util.eliot_logging as log
+
+# NOTE: When the value is changed, then ensure to change in ReplicaConfig class'
+# 'operatorMsgSigningAlgo' value also.
+operator_msg_signing_algo = "eddsa" # or "ecdsa"
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
-        with open(priv_key_dir + "/operator_priv.pem") as f:
-            self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Read ECDSA signing key.
+            with open(priv_key_dir + "/operator_priv.pem") as f:
+                self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+        elif ("eddsa" == operator_msg_signing_algo):
+            # Read EdDSA signing key.
+            txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
+            if txn_signing_key_path:
+                with open(txn_signing_key_path, 'rb') as f:
+                    self.private_key = serialization.load_pem_private_key(f.read(), password=None)
 
     def _sign_reconf_msg(self, msg):
-        return self.private_key.sign_deterministic(msg.serialize())
-
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Return ECDSA signature.
+            return self.private_key.sign_deterministic(msg.serialize())
+        elif ("eddsa" == operator_msg_signing_algo):
+            signature = b''
+            if self.private_key:
+                signature = self.private_key.sign(bytes(msg.serialize()))
+            return signature
 
     def  _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()
@@ -47,10 +72,10 @@ class Operator:
         return reconf_msg
 
     def _construct_reconfiguration_wedge_command(self):
-            wedge_cmd = cmf_msgs.WedgeCommand()
-            wedge_cmd.sender = 1000
-            wedge_cmd.noop = False
-            return self._construct_basic_reconfiguration_request(wedge_cmd)
+        wedge_cmd = cmf_msgs.WedgeCommand()
+        wedge_cmd.sender = 1000
+        wedge_cmd.noop = False
+        return self._construct_basic_reconfiguration_request(wedge_cmd)
 
     def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
@@ -83,6 +108,7 @@ class Operator:
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
         prune_cmd.tick_period_seconds = tick_period_seconds
         prune_cmd.batch_blocks_num = batch_blocks_num
+        prune_cmd.delete_files_in_range = False
         return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):
@@ -107,7 +133,7 @@ class Operator:
         command.version = version
         command.bft_support = bft
         return self._construct_basic_reconfiguration_request(command)
-    
+
     def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, token, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
@@ -166,13 +192,49 @@ class Operator:
         client_restart_status = cmf_msgs.ClientsRestartStatus()
         client_restart_status.sender_id = 1000
         return self._construct_basic_reconfiguration_request(client_restart_status)
-    
+
+    def _construct_reconfiguration_get_dbcheckpoint_info_request(self):
+        cpinfo_command = cmf_msgs.GetDbCheckpointInfoRequest()
+        cpinfo_command.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(cpinfo_command)
+
+    def _construct_reconfiguration_create_dbcheckpoint_command(self):
+        cp_command = cmf_msgs.CreateDbCheckpointCommand()
+        cp_command.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(cp_command)
+
+    def _construct_reconfiguration_signed_public_state_hash_req(self, snapshot_id):
+        req = cmf_msgs.SignedPublicStateHashRequest()
+        req.snapshot_id = snapshot_id
+        req.participant_id = 'apollo_test_participant_id'
+        return self._construct_basic_reconfiguration_request(req)
+
+    def _construct_reconfiguration_state_snapshot_read_as_of_req(self, snapshot_id, keys):
+        req = cmf_msgs.StateSnapshotReadAsOfRequest()
+        req.snapshot_id = snapshot_id
+        req.participant_id = 'apollo_test_participant_id'
+        req.keys = keys
+        return self._construct_basic_reconfiguration_request(req)
+
+    def _construct_reconfiguration_state_snapshot_req(self):
+        req = cmf_msgs.StateSnapshotRequest()
+        req.checkpoint_kv_count = 0
+        req.participant_id = 'apollo_test_participant_id'
+        return self._construct_basic_reconfiguration_request(req)
+
+    def _construct_db_size_req(self):
+        req = cmf_msgs.DbSizeReadRequest()
+        req.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(req)
+
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
-    
+
     async def wedge(self):
-        reconf_msg = self._construct_reconfiguration_wedge_command()
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        seq_num = self.client.req_seq_num.next()
+        with log.start_action(action_type="wedge", client=self.client.client_id, seq_num=seq_num):
+            reconf_msg = self._construct_reconfiguration_wedge_command()
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True, seq_num=seq_num)
 
     async def wedge_status(self, quorum=None, fullWedge=True):
         if quorum is None:
@@ -265,8 +327,9 @@ class Operator:
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def restart(self, data, bft=True, restart=True):
-        reconf_msg = self._construct_reconfiguration_restart_command(bft, restart, data)
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        with log.start_action(action_type="restart", bft=bft, restart=restart):
+            reconf_msg = self._construct_reconfiguration_restart_command(bft, restart, data)
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):
         reconf_msg = self._construct_reconfiguration_addRemoveStatus_command()
@@ -279,3 +342,36 @@ class Operator:
             quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
         reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_command()
         return await self.client.read(reconf_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+
+    async def get_dbcheckpoint_info_request(self, bft=False):
+        if bft is True:
+            quorum = bft_client.MofNQuorum.LinearizableQuorum(self.client.config, [r for r in range(self.config.n)])
+        else:
+            quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
+        cpinfo_msg = self._construct_reconfiguration_get_dbcheckpoint_info_request()
+        return await self.client.read(cpinfo_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+    
+    async def create_dbcheckpoint_cmd(self):
+        cp = self._construct_reconfiguration_create_dbcheckpoint_command()
+        return await self.client.write(cp.serialize(), reconfiguration=True)
+
+    async def state_snapshot_req(self):
+        req = self._construct_reconfiguration_state_snapshot_req()
+        return await self.client.write(req.serialize(), reconfiguration=True)
+
+    async def signed_public_state_hash_req(self, snapshot_id):
+        req = self._construct_reconfiguration_signed_public_state_hash_req(snapshot_id)
+        return await self.client.read(req.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
+                                        [r for r in range(self.config.n)]), reconfiguration=True)
+
+    async def state_snapshot_read_as_of_req(self, snapshot_id, keys):
+        req = self._construct_reconfiguration_state_snapshot_read_as_of_req(snapshot_id, keys)
+        return await self.client.read(req.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
+                                        [r for r in range(self.config.n)]), reconfiguration=True)
+                              
+    async def get_db_size(self):
+        quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
+        msg = self._construct_db_size_req()
+        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+        
+        

@@ -19,11 +19,11 @@
 #include "gtest/gtest.h"
 
 #include "bftengine/ReplicaConfig.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "messages/MessageBase.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
-#include "threshsign/IPublicKey.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
 #include "SigManager.hpp"
 
@@ -58,7 +58,7 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   void setExpectedDigest(const unsigned char *msg, int len) override {}
   bool hasShareVerificationEnabled() const override { return true; }
   int getNumValidShares() const override { return 0; }
-  void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
+  size_t getFullSignedData(char *outThreshSig, int threshSigLen) override { return 0; }
   std::set<ShareID> getInvalidShareIds() const override { return {}; }
 };
 
@@ -116,7 +116,7 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
 
 bftEngine::impl::SigManager *createSigManager(size_t myId,
                                               std::string &myPrivateKey,
-                                              concord::util::crypto::KeyFormat replicasKeysFormat,
+                                              concord::crypto::KeyFormat replicasKeysFormat,
                                               std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
                                               ReplicasInfo &replicasInfo);
 

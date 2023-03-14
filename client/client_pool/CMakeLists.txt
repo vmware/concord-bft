@@ -14,3 +14,7 @@ target_link_libraries(concord_client_pool PUBLIC
       	)
 
 install (TARGETS concord_client_pool DESTINATION lib${LIB_SUFFIX})
+
+if (BUILD_TESTING)
+  add_subdirectory(test)
+endif()

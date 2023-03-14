@@ -13,15 +13,14 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
-#include "Logger.hpp"
 #include "merkle_tree_block.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
-#include "Statistics.hpp"
+#include "util/Statistics.hpp"
 #include "PerformanceManager.hpp"
 
 #include <future>
@@ -29,6 +28,7 @@
 #include <optional>
 #include <unordered_set>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v2MerkleTree {
 
@@ -88,6 +88,8 @@ class DBAdapter : public IDbAdapter {
   // Empty blocks (i.e. an empty 'deletes' set) are supported.
   // Returns the added block ID.
   BlockId addBlock(const OrderedKeysSet &deletes);
+
+  void linkUntilBlockId(BlockId until_block_id) override;
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received.

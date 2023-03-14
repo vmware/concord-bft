@@ -14,19 +14,23 @@
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/ControlStateManager.hpp"
-#include "json_output.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "kvbc_key_types.hpp"
 #include "categorization/db_categories.h"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
+#include "migrations/block_merkle_latest_ver_cf_migration.h"
+#include "categorization/details.h"
+#include "ReplicaConfig.hpp"
+#include "util/throughput.hpp"
 
+#include <algorithm>
+#include <iterator>
 #include <stdexcept>
 
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
-using concordUtils::toPair;
 
 template <typename T>
 void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
@@ -68,9 +72,19 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
-  linkSTChainFrom(getLastReachableBlockId() + 1);
+  LOG_INFO(CAT_BLOCK_LOG, "Try to link ST temporary chain, this might take some time...");
+  auto old_last_reachable_block_id = getLastReachableBlockId();
+  linkSTChainFrom(old_last_reachable_block_id + 1);
+  auto new_last_reachable_block_id = getLastReachableBlockId();
+  LOG_INFO(CAT_BLOCK_LOG,
+           "Done linking ST temporary chain:" << KVLOG(old_last_reachable_block_id, new_last_reachable_block_id));
   delete_metrics_comp_.Register();
   add_metrics_comp_.Register();
+
+  // When we use this version of the code that uses the migrated DB format (or a completely fresh blockchain), we no
+  // longer need migration. That assumes we never run this version of the code on an old DB format (before migrating).
+  native_client_->put(migrations::BlockMerkleLatestVerCfMigration::migrationKey(),
+                      migrations::BlockMerkleLatestVerCfMigration::kStateMigrationNotNeededOrCompleted);
 }
 
 void KeyValueBlockchain::initNewBlockchainCategories(
@@ -167,7 +181,7 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
   addGenesisBlockKey(updates);
-  auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
+  auto block_id = addBlock(updates.categoryUpdates(), write_batch);
   native_client_->write(std::move(write_batch));
   block_chain_.setAddedBlockId(block_id);
   return block_id;
@@ -371,6 +385,34 @@ std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStal
   return stale_keys;
 }
 
+std::map<std::string, std::set<std::string>> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id) const {
+  // Get block node from storage
+  auto block = block_chain_.getBlock(block_id);
+  if (!block) {
+    const auto msg = "Failed to get block node for block ID = " + std::to_string(block_id);
+    throw std::runtime_error{msg};
+  }
+
+  std::map<std::string, std::set<std::string>> stale_keys;
+  for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
+    stale_keys[category_id] =
+        std::visit([&block_id, category_id = category_id, this](
+                       const auto& update_info) { return getStaleActiveKeys(block_id, category_id, update_info); },
+                   update_info);
+  }
+  return stale_keys;
+}
+
+void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
+  ConcordAssertGE(block_id_at_checkpoint, INITIAL_GENESIS_BLOCK_ID);
+  ConcordAssertLE(block_id_at_checkpoint, getLastReachableBlockId());
+  while (block_id_at_checkpoint < getLastReachableBlockId()) {
+    LOG_INFO(GL,
+             "Deleting last reachable block = " << getLastReachableBlockId() << ", DB checkpoint = " << db()->path());
+    deleteLastReachableBlock();
+  }
+}
+
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   diagnostics::TimeRecorder scoped_timer(*histograms_.deleteBlock);
@@ -385,9 +427,6 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   if (latest_block_id == 0 || block_id > latest_block_id) {
     return false;
   }
-
-  // Lets update the delete metrics component
-  delete_metrics_comp_.UpdateAggregator();
 
   const auto last_reachable_block_id = block_chain_.getLastReachableBlockId();
 
@@ -426,13 +465,14 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
     throw std::logic_error{"Deleting the only block in the system is not supported"};
   } else if (block_id == last_reachable_block_id) {
     deleteLastReachableBlock();
-    return true;
   } else if (block_id == genesis_block_id) {
     deleteGenesisBlock();
-    return true;
   } else {
     throw std::invalid_argument{"Cannot delete blocks in the middle of the blockchain"};
   }
+  // Lets update the delete metrics component
+  delete_metrics_comp_.UpdateAggregator();
+  return true;
 }
 
 void KeyValueBlockchain::deleteStateTransferBlock(const BlockId block_id) {
@@ -449,6 +489,9 @@ void KeyValueBlockchain::deleteStateTransferBlock(const BlockId block_id) {
 void KeyValueBlockchain::deleteGenesisBlock() {
   // We assume there are blocks in the system.
   auto genesis_id = block_chain_.getGenesisBlockId();
+  // If a versioned/Merkle category contains more keys than concurrent_threshold
+  // It will be executed in a separate thread.
+  const auto concurrent_threshold = 10;
   ConcordAssertGE(genesis_id, INITIAL_GENESIS_BLOCK_ID);
   // And we assume this is not the only block in the blockchain. That excludes ST temporary blocks as they are not yet
   // part of the blockchain.
@@ -466,13 +509,55 @@ void KeyValueBlockchain::deleteGenesisBlock() {
 
   // Iterate over groups and call corresponding deleteGenesisBlock,
   // Each group is responsible to fill its deltetes to the batch
+  const auto start = std::chrono::steady_clock::now();
+  std::vector<std::future<void>> futures;
+  futures.reserve((*block).data.categories_updates_info.size());
+  std::vector<detail::LocalWriteBatch> write_batches;
+  write_batches.reserve((*block).data.categories_updates_info.size());
   for (auto&& [category_id, update_info] : (*block).data.categories_updates_info) {
-    std::visit([&genesis_id, category_id = category_id, &write_batch, this](
-                   const auto& update_info) { deleteGenesisBlock(genesis_id, category_id, update_info, write_batch); },
-               update_info);
+    uint64_t num_of_keys = 0;
+    // Decide whether to perform the deletion on a separate thread based on the number of keys
+    // Immutable category, should always be sequential as its deletion is fast.
+    if (std::holds_alternative<VersionedOutput>(update_info)) {
+      num_of_keys = std::get<VersionedOutput>(update_info).keys.size();
+    } else if (std::holds_alternative<BlockMerkleOutput>(update_info)) {
+      num_of_keys = std::get<BlockMerkleOutput>(update_info).keys.size();
+    }
+    std::visit(
+        [genesis_id, category_id = category_id, &write_batches, &futures, &num_of_keys, this](const auto& update_info) {
+          write_batches.push_back(detail::LocalWriteBatch());
+          if (num_of_keys > concurrent_threshold) {
+            futures.push_back(prunning_thread_pool_.async(
+                [&](BlockId genesis_id,
+                    std::string category_id,
+                    const auto& update_info,
+                    detail::LocalWriteBatch& write_batch) {
+                  LOG_DEBUG(CAT_BLOCK_LOG, "Deletion of " << category_id << " will be performed in a seperate thread");
+                  deleteGenesisBlock(genesis_id, category_id, update_info, write_batch);
+                },
+                genesis_id,
+                category_id,
+                std::ref(update_info),
+                std::ref(write_batches.back())));
+
+          } else {
+            deleteGenesisBlock(genesis_id, category_id, update_info, write_batches.back());
+          }
+        },
+        update_info);
+  }
+  for (auto& future : futures) {
+    future.get();
+  }
+  for (auto& write_batche : write_batches) {
+    write_batche.moveToBatch(write_batch);
   }
 
   native_client_->write(std::move(write_batch));
+
+  auto jobDuration =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LOG_INFO(CAT_BLOCK_LOG, "CONC_DEL deleteGenesisBlock took " << jobDuration << " micro, block " << genesis_id);
   // Increment the genesis block ID cache.
   block_chain_.setGenesisBlockId(genesis_id + 1);
 }
@@ -544,32 +629,49 @@ std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
   return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getBlockStaleKeys(block_id, updates_info);
 }
 
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const ImmutableOutput& updates_info) const {
+  return std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+      .getStaleActiveKeys(block_id, updates_info);
+}
+
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const VersionedOutput& updates_info) const {
+  return std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+      .getStaleActiveKeys(block_id, updates_info);
+}
+
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const BlockMerkleOutput& updates_info) const {
+  return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getStaleActiveKeys(block_id, updates_info);
+}
+
 // Deletes per category
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const ImmutableOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  immutable_num_of_deleted_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  immutable_num_of_deleted_keys_ += std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+                                        .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const VersionedOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  versioned_num_of_deletes_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  versioned_num_of_deletes_keys_ += std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+                                        .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const BlockMerkleOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  merkle_num_of_deleted_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  merkle_num_of_deleted_keys_ += std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
+                                     .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
@@ -600,7 +702,6 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 }
 
 // Updates per category
-
 void KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id, const CATEGORY_TYPE type) {
   // check if we know this category type already
   ConcordAssertEQ(category_types_.count(cat_id), 0);
@@ -724,12 +825,66 @@ std::optional<Hash> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   return block_chain_.parentDigest(block_id);
 }
 
+std::optional<Hash> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+  // get the block from ST chain or block chain.
+  auto raw_block = getRawBlock(block_id);
+  if (raw_block) {
+    auto my_block = categorization::RawBlock::serialize(raw_block.value());
+    return computeBlockDigest(block_id, reinterpret_cast<const char*>(my_block.data()), my_block.size());
+  }
+  return std::nullopt;
+}
+
 bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
     return state_transfer_block_chain_.hasBlock(block_id);
   }
   return block_chain_.hasBlock(block_id);
+}
+
+size_t KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
+  static constexpr uint64_t report_thresh{1000};
+  static uint64_t report_counter{};
+  const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
+
+  if (last_block_id == 0) {
+    return 0;
+  }
+
+  concord::util::DurationTracker<std::chrono::milliseconds> link_duration("link_duration", true);
+  for (auto i = from_block_id; i <= until_block_id; ++i) {
+    auto raw_block = state_transfer_block_chain_.getRawBlock(i);
+    if (!raw_block) {
+      // we didn't find the next block
+      return i - from_block_id;
+    }
+
+    // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
+    // deletes relative to block adds on source and destination replicas.
+    pruneOnSTLink(*raw_block);
+    writeSTLinkTransaction(i, *raw_block);
+    if ((++report_counter % report_thresh) == 0) {
+      auto elapsed_time_ms = link_duration.totalDuration();
+      uint64_t blocks_linked_per_sec{};
+      uint64_t blocks_left_to_link{};
+      uint64_t estimated_time_left_sec{};
+      if (elapsed_time_ms > 0) {
+        blocks_linked_per_sec = (((i - from_block_id + 1) * 1000) / (elapsed_time_ms));
+        blocks_left_to_link = until_block_id - i;
+        estimated_time_left_sec = blocks_left_to_link / blocks_linked_per_sec;
+      }
+      LOG_INFO(CAT_BLOCK_LOG,
+               "Last block ID connected: " << i << ","
+                                           << KVLOG(from_block_id,
+                                                    until_block_id,
+                                                    elapsed_time_ms,
+                                                    blocks_linked_per_sec,
+                                                    blocks_left_to_link,
+                                                    estimated_time_left_sec));
+    }
+  }
+  return until_block_id - from_block_id + 1;
 }
 
 // tries to remove blocks form the state transfer chain to the blockchain
@@ -747,6 +902,7 @@ void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
     pruneOnSTLink(*raw_block);
     writeSTLinkTransaction(i, *raw_block);
   }
+
   // Linking has fully completed and we should not have any more ST temporary blocks left. Therefore, make sure we don't
   // have any value for the latest ST temporary block ID cache.
   state_transfer_block_chain_.resetChain();
@@ -761,9 +917,10 @@ void KeyValueBlockchain::pruneOnSTLink(const RawBlock& block) {
   auto key_it = internal_kvs.find(keyTypes::genesis_block_key);
   if (key_it != internal_kvs.cend()) {
     const auto block_genesis_id = concordUtils::fromBigEndianBuffer<BlockId>(key_it->second.data.data());
-    while (getGenesisBlockId() >= INITIAL_GENESIS_BLOCK_ID && getGenesisBlockId() < getLastReachableBlockId() &&
-           block_genesis_id > getGenesisBlockId()) {
-      deleteGenesisBlock();
+    if (getGenesisBlockId() >= INITIAL_GENESIS_BLOCK_ID && getGenesisBlockId() < getLastReachableBlockId()) {
+      for (auto i = getGenesisBlockId(); i < block_genesis_id; i++) {
+        ConcordAssert(deleteBlock(i));
+      }
     }
   }
 }
@@ -776,24 +933,6 @@ void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, RawBlock
   native_client_->write(std::move(write_batch));
 
   block_chain_.setAddedBlockId(new_block_id);
-}
-
-std::string KeyValueBlockchain::getPruningStatus() {
-  std::ostringstream oss;
-  std::unordered_map<std::string, std::string> result;
-
-  result.insert(toPair("versionedNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
-  result.insert(toPair("immutableNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
-  result.insert(toPair("merkleNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
-  result.insert(toPair("getGenesisBlockId()", getGenesisBlockId()));
-  result.insert(toPair("getLastReachableBlockId()", getLastReachableBlockId()));
-  result.insert(toPair("isPruningInProgress", bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
-
-  oss << concordUtils::kContainerToJson(result);
-  return oss.str();
 }
 
 }  // namespace concord::kvbc::categorization

@@ -18,6 +18,9 @@
 #include <unordered_map>
 
 namespace bftEngine::impl {
+
+using SequenceOfComplaints = std::vector<std::shared_ptr<ReplicaAsksToLeaveViewMsg>>;
+
 class ReplicasAskedToLeaveViewInfo {
  public:
   ReplicasAskedToLeaveViewInfo(const int16_t fVal) : f_val(fVal) {}
@@ -36,6 +39,13 @@ class ReplicasAskedToLeaveViewInfo {
     msgs.emplace(msg->idOfGeneratedReplica(), std::move(msg));
   }
 
+  void populateFromSequenceOfComplaints(const SequenceOfComplaints& sequenceOfComplaints) {
+    msgs.clear();
+    for (auto& msg : sequenceOfComplaints) {
+      msgs[msg->idOfGeneratedReplica()] = msg;
+    }
+  }
+
   void clear() { msgs.clear(); }
 
   bool empty() const { return msgs.empty(); }
@@ -48,7 +58,21 @@ class ReplicasAskedToLeaveViewInfo {
     return nullptr;
   }
 
-  const auto& getAllMsgs() const { return msgs; }
+  SequenceOfComplaints getAllMsgs(bool sortedByIssuerID) const {
+    SequenceOfComplaints retval;
+    for (auto& msg : msgs) {
+      retval.emplace_back(msg.second);
+    }
+    if (sortedByIssuerID) {
+      std::sort(retval.begin(),
+                retval.end(),
+                [](const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& lhs,
+                   const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& rhs) {
+                  return lhs->idOfGeneratedReplica() < rhs->idOfGeneratedReplica();
+                });
+    }
+    return retval;
+  }
 
  private:
   const int16_t f_val;

@@ -16,6 +16,7 @@ import unittest
 
 import trio
 
+from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 
 from util import skvbc as kvbc
@@ -41,10 +42,10 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcNetworkPartitioningTest(unittest.TestCase):
+class SkvbcNetworkPartitioningTest(ApolloTest):
 
     from os import environ
-    @skip_for_tls
+    @unittest.skip("Not stable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()

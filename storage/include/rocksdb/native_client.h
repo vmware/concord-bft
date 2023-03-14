@@ -19,7 +19,8 @@
 #include "native_iterator.h"
 #include "native_write_batch.h"
 #include "rocksdb_exception.h"
-
+#include "rocksdb/snapshot.h"
+#include "util/endianness.hpp"
 #include "client.h"
 
 #include <rocksdb/slice.h>
@@ -82,6 +83,8 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const std::string &cFamily, const KeySpan &key) const;
+  template <typename KeySpan>
+  std::optional<std::string> get(const std::string &cFamily, const KeySpan &key, ::rocksdb::ReadOptions ro) const;
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<::rocksdb::PinnableSlice> getSlice(const std::string &cFamily, const KeySpan &key) const;
@@ -103,8 +106,18 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   void del(const KeySpan &key);
 
   // Batching interface.
-  NativeWriteBatch getBatch() const;
+  NativeWriteBatch getBatch(size_t reserved_bytes = 0) const;
+  NativeWriteBatch getBatch(std::string &&data) const;
   void write(NativeWriteBatch &&);
+
+  // Compaction interface
+  template <typename BeginSpan, typename EndSpan>
+  void compactRange(const std::string &cFamily, const BeginSpan &startKey, const EndSpan &endKey);
+  template <typename BeginSpan, typename EndSpan>
+  void deleteFilesInRange(const std::string &cFamily,
+                          const BeginSpan &startKey,
+                          const EndSpan &endKey,
+                          bool include_end);
 
   // MultiGet interface
   //
@@ -122,6 +135,13 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
                 const std::vector<KeySpan> &keys,
                 std::vector<::rocksdb::PinnableSlice> &values,
                 std::vector<::rocksdb::Status> &statuses) const;
+
+  template <typename KeySpan>
+  void multiGet(const std::string &cFamily,
+                const std::vector<KeySpan> &keys,
+                std::vector<::rocksdb::PinnableSlice> &values,
+                std::vector<::rocksdb::Status> &statuses,
+                ::rocksdb::ReadOptions ro) const;
 
   // Iterator interface.
   // Iterators initially don't point to a key value, i.e. they convert to false.
@@ -154,6 +174,12 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Throws if the column family already exists.
   void createColumnFamily(const std::string &cFamily,
                           const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});
+  // Create a column family by importing previously exported SST files.
+  void createColumnFamilyWithImport(const std::string &cFamily,
+                                    const ::rocksdb::ImportColumnFamilyOptions &importOpts,
+                                    const ::rocksdb::ExportImportFilesMetaData &metadata,
+                                    const ::rocksdb::ColumnFamilyOptions &cfOpts = ::rocksdb::ColumnFamilyOptions{});
+  bool createColumnFamilyIfNotExisting(const std::string &cf, const ::rocksdb::CompactionFilter *filter = nullptr);
   // Return the column family options for an existing column family in this client.
   ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
   // Drops a column family and its data. It is not an error if the column family doesn't exist or if the client is not
@@ -162,6 +188,11 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
 
   ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
   ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
+
+  void createCheckpointNative(const uint64_t &checkPointId);
+  std::vector<uint64_t> getListOfCreatedCheckpointsNative() const;
+  void removeCheckpointNative(const uint64_t &checkPointId) const;
+  void setCheckpointDirNative(const std::string &path);
 
  private:
   NativeClient(const std::string &path, bool readOnly, const DefaultOptions &);

@@ -12,11 +12,11 @@
 #pragma once
 
 #include <cstdint>
-#include "assert.h"
-#include "assertUtils.hpp"
+#include <cassert>
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "MessageBase.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -55,6 +55,8 @@ class ReplicaRestartReadyMsg : public MessageBase {
                                         const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
+
+  bool shouldValidateAsync() const override { return true; }
 
   static uint32_t sizeOfHeader() { return sizeof(Header); }
 

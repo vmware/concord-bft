@@ -5,11 +5,11 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "key_manipulator_interface.h"
 
 #include "db_interface.h"
 #include "storage/db_types.h"
-#include "Logger.hpp"
 
 namespace concord::storage::v1DirectKeyValue {
 
@@ -25,6 +25,15 @@ class DBKeyGeneratorBase {
 class MetadataKeyManipulator : public DBKeyGeneratorBase, public IMetadataKeyManipulator {
  public:
   concordUtils::Sliver generateMetadataKey(ObjectId objectId) const override;
+};
+
+class S3MetadataKeyManipulator : public IMetadataKeyManipulator {
+ public:
+  S3MetadataKeyManipulator(const std::string& prefix = "") : prefix_(prefix.size() ? prefix + std::string("/") : "") {}
+  concordUtils::Sliver generateMetadataKey(const concordUtils::Sliver&) const override;
+
+ protected:
+  std::string prefix_;
 };
 
 class STKeyManipulator : public DBKeyGeneratorBase, public ISTKeyManipulator {

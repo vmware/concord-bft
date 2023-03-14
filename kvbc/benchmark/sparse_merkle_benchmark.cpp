@@ -15,14 +15,12 @@
 
 #include <benchmark/benchmark.h>
 
-#include "endianness.hpp"
-#include "Handoff.hpp"
-#include "Logger.hpp"
+#include "util/endianness.hpp"
+#include "util/Handoff.hpp"
 #include "memorydb/client.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "sha_hash.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 
@@ -36,6 +34,7 @@
 #include <type_traits>
 #include <vector>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace {
 
@@ -149,6 +148,7 @@ void copyChildVariantContainingLeafChild(benchmark::State &state) {
   const Child src = leafChild;
 
   for (auto _ : state) {
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const auto copy = src;
     benchmark::DoNotOptimize(copy);
   }
@@ -158,6 +158,7 @@ void copyChildVariantContainingInteranlChild(benchmark::State &state) {
   const Child src = internalChild;
 
   for (auto _ : state) {
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const auto copy = src;
     benchmark::DoNotOptimize(copy);
   }
@@ -262,7 +263,7 @@ void calculateSha2(benchmark::State &state) {
 
 void calculateSha3(benchmark::State &state) {
   const auto value = randomBuffer(state.range(0));
-  auto hasher = SHA3_256{};
+  auto hasher = concord::crypto::SHA3_256{};
 
   for (auto _ : state) {
     const auto hash = hasher.digest(value.data(), value.size());

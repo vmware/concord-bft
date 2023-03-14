@@ -49,6 +49,8 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  bool shouldValidateAsync() const override { return true; }
+
   bool checkElements(const ReplicasInfo& repInfo, uint16_t sigSize) const;
 
  protected:

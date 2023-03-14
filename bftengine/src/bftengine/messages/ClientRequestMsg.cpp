@@ -11,11 +11,10 @@
 
 #include "bftengine/SimpleClient.hpp"
 #include "ClientRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "SigManager.hpp"
 #include "Replica.hpp"
-
 #include <cstring>
 
 namespace bftEngine::impl {
@@ -43,10 +42,12 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const char* request,
                                    uint64_t reqTimeoutMilli,
                                    const std::string& cid,
+                                   uint32_t result,
                                    const concordUtils::SpanContext& spanContext,
                                    const char* requestSignature,
                                    uint32_t requestSignatureLen,
-                                   const uint32_t extraBufSize)
+                                   uint32_t extraBufSize,
+                                   uint16_t indexInBatch)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
                   spanContext.data().size(),
@@ -54,7 +55,16 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
   // logical XOR - if requestSignatureLen is zero requestSignature must be null and vise versa
   ConcordAssert((requestSignature == nullptr) == (requestSignatureLen == 0));
   // set header
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, requestSignatureLen, extraBufSize);
+  setParams(sender,
+            reqSeqNum,
+            requestLength,
+            flags,
+            reqTimeoutMilli,
+            result,
+            cid,
+            requestSignatureLen,
+            extraBufSize,
+            indexInBatch);
 
   // set span context
   char* position = body() + sizeof(ClientRequestMsgHeader);
@@ -85,61 +95,90 @@ ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
 
 bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
+bool ClientRequestMsg::shouldValidateAsync() const {
+  // Reconfiguration messages are validated in their own handler, so we should not do its validation in an asynchronous
+  // manner, as that will lead to overhead. Similarly, key exchanges should happen rarely, and thus we should validate
+  // as quick as possible, in sync.
+  const auto* header = msgBody();
+  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0) ||
+      (header->flags & INTERNAL_FLAG) != 0) {
+    return false;
+  }
+  return true;
+}
+
 void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto* header = msgBody();
+  const auto msgSize = size();
+
+  std::stringstream msg;
+  // Check message size is greater than minimum header size
+  if (msgSize < sizeof(ClientRequestMsgHeader) + spanContextSize()) {
+    msg << "Invalid Message Size " << KVLOG(msgSize, sizeof(ClientRequestMsgHeader), spanContextSize());
+    LOG_ERROR(CNSUS, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+
   PrincipalId clientId = header->idOfClientProxy;
-  ConcordAssert(this->senderId() != repInfo.myId());
+  if ((header->flags & RECONFIG_FLAG) == 0 && (header->flags & INTERNAL_FLAG) == 0)
+    ConcordAssert(this->senderId() != repInfo.myId());
+
   /// to do - should it be just the header?
   auto minMsgSize = sizeof(ClientRequestMsgHeader) + header->cidLength + spanContextSize() + header->reqSignatureLength;
-  const auto msgSize = size();
+  if (msgSize < minMsgSize) {
+    msg << "Invalid msgSize: " << KVLOG(msgSize, minMsgSize);
+    LOG_WARN(CNSUS, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+
   uint16_t expectedSigLen = 0;
-  std::stringstream msg;
   auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   bool isIdOfExternalClient = repInfo.isIdOfExternalClient(clientId);
   bool doSigVerify = false;
   bool emptyReq = (header->requestLength == 0);
-  if ((header->flags & RECONFIG_FLAG) != 0 &&
+  if (((header->flags & RECONFIG_FLAG) != 0 || (header->flags & INTERNAL_FLAG) != 0) &&
       (repInfo.isIdOfReplica(clientId) || repInfo.isIdOfPeerRoReplica(clientId))) {
-    // Allow every reconfiguration message from replicas (it will be verified in the reconfiguration handler)
+    // Allow every reconfiguration/internal message from replicas (it will be verified in the reconfiguration handler)
     return;
   }
   if (!repInfo.isValidPrincipalId(clientId)) {
     msg << "Invalid clientId " << clientId;
-    LOG_ERROR(GL, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   if (!repInfo.isValidPrincipalId(this->senderId())) {
     msg << "Invalid senderId " << this->senderId();
-    LOG_ERROR(GL, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
-  if (isIdOfExternalClient && isClientTransactionSigningEnabled) {
-    // Skip signature validation if:
-    // 1) request has been pre-processed (validation done already on pre-processor) or
-    // 2) request is empty. empty requests are sent from pre-processor in some cases - skip signature
-    if (emptyReq) {
-      expectedSigLen = 0;
-    } else if ((header->flags & RECONFIG_FLAG) != 0) {
+  if (isIdOfExternalClient) {
+    if ((header->flags & RECONFIG_FLAG) != 0) {
+      // This message arrived from operator/cre - no need at this stage to verify the request, since operator/cre
+      // verifies its own signatures on requests in the reconfiguration handler.
       expectedSigLen = header->reqSignatureLength;
-      // This message arrived from operator - no need at this stage to verifiy the request, since operator
-      // verifies it's own signatures on requests in the reconfiguration handler
       doSigVerify = false;
-    } else {
-      expectedSigLen = sigManager->getSigLength(clientId);
-      if (0 == expectedSigLen) {
-        msg << "Invalid expectedSigLen " << KVLOG(clientId, this->senderId());
-        LOG_ERROR(GL, msg.str());
-        throw std::runtime_error(msg.str());
-      }
-      if ((header->flags & HAS_PRE_PROCESSED_FLAG) == 0) {
-        doSigVerify = true;
+    } else if (isClientTransactionSigningEnabled) {
+      // Skip signature validation if:
+      // 1) request has been pre-processed (validation done already on pre-processor) or
+      // 2) request is empty. empty requests are sent from pre-processor in some cases - skip signature
+      if (emptyReq) {
+        expectedSigLen = 0;
+      } else {
+        expectedSigLen = sigManager->getSigLength(clientId);
+        if (0 == expectedSigLen) {
+          msg << "Invalid expectedSigLen" << KVLOG(clientId, this->senderId());
+          LOG_ERROR(GL, msg.str());
+          throw std::runtime_error(msg.str());
+        }
+        if ((header->flags & HAS_PRE_PROCESSED_FLAG) == 0) {
+          doSigVerify = true;
+        }
       }
     }
   }
-
   if (expectedSigLen != header->reqSignatureLength) {
-    msg << "Unexpected request signature length: "
+    msg << "Unexpected request signature length:"
         << KVLOG(clientId,
                  this->senderId(),
                  header->reqSeqNum,
@@ -147,22 +186,32 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
                  header->reqSignatureLength,
                  isIdOfExternalClient,
                  isClientTransactionSigningEnabled);
-    LOG_ERROR(GL, msg.str());
+    LOG_ERROR(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   auto expectedMsgSize = sizeof(ClientRequestMsgHeader) + header->requestLength + header->cidLength +
                          spanContextSize() + expectedSigLen + header->extraDataLength;
 
   if ((msgSize < minMsgSize) || (msgSize != expectedMsgSize)) {
-    msg << "Invalid msgSize: " << KVLOG(msgSize, minMsgSize, expectedMsgSize);
-    LOG_ERROR(GL, msg.str());
+    msg << "Invalid msgSize:"
+        << KVLOG(msgSize,
+                 minMsgSize,
+                 expectedMsgSize,
+                 sizeof(ClientRequestMsgHeader),
+                 header->requestLength,
+                 header->cidLength,
+                 expectedSigLen,
+                 spanContextSize(),
+                 header->extraDataLength);
+    LOG_ERROR(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   if (doSigVerify) {
-    if (!sigManager->verifySig(
-            clientId, requestBuf(), header->requestLength, requestSignature(), header->reqSignatureLength)) {
+    if (!sigManager->verifySig(clientId,
+                               std::string_view{requestBuf(), header->requestLength},
+                               std::string_view{requestSignature(), header->reqSignatureLength})) {
       std::stringstream msg;
-      LOG_ERROR(GL, "Signature verification failed for " << KVLOG(header->reqSeqNum, this->senderId(), clientId));
+      LOG_WARN(CNSUS, "Signature verification failed for" << KVLOG(header->reqSeqNum, this->senderId(), clientId));
       msg << "Signature verification failed for: "
           << KVLOG(clientId,
                    this->senderId(),
@@ -173,7 +222,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
                    this->senderId());
       throw std::runtime_error(msg.str());
     }
-    LOG_TRACE(GL, "Signature verified for " << KVLOG(header->reqSeqNum, this->senderId(), clientId));
+    LOG_TRACE(CNSUS, "Signature verified for" << KVLOG(header->reqSeqNum, this->senderId(), clientId));
   }
 }
 
@@ -182,18 +231,22 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint32_t requestLength,
                                  uint64_t flags,
                                  uint64_t reqTimeoutMilli,
+                                 uint32_t result,
                                  const std::string& cid,
                                  uint32_t requestSignatureLen,
-                                 uint32_t extraBufSize) {
+                                 uint32_t extraBufSize,
+                                 uint16_t indexInBatch) {
   auto* header = msgBody();
   header->idOfClientProxy = sender;
   header->timeoutMilli = reqTimeoutMilli;
   header->reqSeqNum = reqSeqNum;
   header->requestLength = requestLength;
   header->flags = flags;
+  header->result = result;
   header->cidLength = cid.size();
   header->reqSignatureLength = requestSignatureLen;
   header->extraDataLength = extraBufSize;
+  header->indexInBatch = indexInBatch;
 }
 
 std::string ClientRequestMsg::getCid() const {

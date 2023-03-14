@@ -18,10 +18,11 @@
 #include <vector>
 #include <unordered_map>
 #include <chrono>
-#include "string.hpp"
-#include "kvstream.h"
-
-#include "Serializable.h"
+#include <optional>
+#include "util/string.hpp"
+#include "util/kvstream.h"
+#include "crypto/crypto.hpp"
+#include "util/serializable.hpp"
 
 namespace bftEngine {
 
@@ -58,8 +59,13 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "replicaId should also represent this replica in ICommunication.");
   CONFIG_PARAM(numOfClientProxies, uint16_t, 0, "number of objects that represent clients, numOfClientProxies >= 1");
   CONFIG_PARAM(numOfExternalClients, uint16_t, 0, "number of objects that represent external clients");
+  CONFIG_PARAM(numOfClientServices, uint16_t, 0, "number of objects that represent client services");
   CONFIG_PARAM(sizeOfInternalThreadPool, uint16_t, 8, "number of threads in the internal replica thread pool");
   CONFIG_PARAM(statusReportTimerMillisec, uint16_t, 0, "how often the replica sends a status report to other replicas");
+  CONFIG_PARAM(clientRequestRetransmissionTimerMilli,
+               uint16_t,
+               1000,
+               "how often the replica tries to retransmit client request received by non primary");
   CONFIG_PARAM(concurrencyLevel,
                uint16_t,
                0,
@@ -67,7 +73,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "1 <= concurrencyLevel <= 30");
   CONFIG_PARAM(numWorkerThreadsForBlockIO,
                uint16_t,
-               0,
+               8,
                "Number of workers threads to be used for blocks IO"
                "operations. When set to 0, std::thread::hardware_concurrency() is set by default");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
@@ -117,10 +123,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(adaptiveBatchingDecCond, std::string, "0.5", "The decrease condition");
 
   // Crypto system
-  // RSA public keys of all replicas. map from replica identifier to a public key
+
+  // Public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
-  // RSA public keys of all clients. Each public key holds set of distinct client (principal) ids which are expected to
+  // Public keys of clients. Each public key holds set of distinct client ids which are expected to
   // sign with the matching private key
   std::set<std::pair<const std::string, std::set<uint16_t>>> publicKeysOfClients;
   std::unordered_map<uint16_t, std::set<uint16_t>> clientGroups;
@@ -142,6 +149,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   // Reconfiguration credentials
   CONFIG_PARAM(pathToOperatorPublicKey_, std::string, "", "Path to the operator public key pem file");
+  CONFIG_PARAM(operatorEnabled_, bool, true, "true if operator is enabled");
   // Pruning parameters
   CONFIG_PARAM(pruningEnabled_, bool, false, "Enable pruning");
   CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
@@ -163,6 +171,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Keys Management
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
+  // Configuration Management
+  // Keys Management
+  CONFIG_PARAM(configurationViewFilePath,
+               std::string,
+               ".",
+               "The path where we write all previous configuration in a file");
   // Time Service
   CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
   CONFIG_PARAM(timeServiceSoftLimitMillis,
@@ -188,17 +202,88 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, true, "Enabling asynchronous preprepare finishing");
 
-  CONFIG_PARAM(threadbagConcurrency,
-               uint32_t,
-               64u,
-               "Number of threads given to thread pool that is created for any request processing");
+  CONFIG_PARAM(
+      threadbagConcurrencyLevel1,
+      uint32_t,
+      40u,
+      "Number of threads given to thread pool that is created for any request processing for the parent of validation");
+
+  CONFIG_PARAM(
+      threadbagConcurrencyLevel2,
+      uint32_t,
+      24u,
+      "Number of threads given to thread pool that is created for any request processing for actual validation");
 
   CONFIG_PARAM(timeoutForPrimaryOnStartupSeconds,
                uint32_t,
                60,
                "timeout we ready to wait for primary to be ready on the system first startup");
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
+  CONFIG_PARAM(publishReplicasMasterKeyOnStartup,
+               bool,
+               false,
+               "If true, replicas will publish their master key on startup");
+  // Db checkpoint
+  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, false, "Feature flag for rocksDb checkpoints");
+  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 2u, "Max number of db checkpoints to be created");
+  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 30000u, "Db checkpoint window size in bft sequence number");
+  CONFIG_PARAM(dbCheckpointDirPath, std::string, "", "Db checkpoint directory path");
+  CONFIG_PARAM(dbSnapshotIntervalSeconds,
+               std::chrono::seconds,
+               std::chrono::seconds{3600},
+               "Interval time to create db snapshot in seconds");
+  CONFIG_PARAM(dbCheckpointMonitorIntervalSeconds,
+               std::chrono::seconds,
+               std::chrono::seconds{60},
+               "Time interval in seconds to monitor disk usage by db checkpoints");
+  CONFIG_PARAM(dbCheckpointDiskSpaceThreshold,
+               std::string,
+               "0.5",
+               "Free disk space threshold for db checkpoint cleanup");
+  CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution thread separation feature flag");
+  CONFIG_PARAM(postExecutionQueuesSize, uint16_t, 50, "Post-execution deferred message queues size");
 
+  // Parameter to enable/disable waiting for transaction data to be persisted.
+  CONFIG_PARAM(syncOnUpdateOfMetadata,
+               bool,
+               true,
+               "When set to true this parameter will cause endWriteTran to block until "
+               "the transaction is persisted every time we update the metadata.");
+
+  CONFIG_PARAM(stateIterationMultiGetBatchSize,
+               std::uint32_t,
+               30u,
+               "Amount of keys to get at once via multiGet when iterating state");
+
+  CONFIG_PARAM(enableMultiplexChannel, bool, true, "whether multiplex communication channel is enabled")
+
+  CONFIG_PARAM(useUnifiedCertificates, bool, true, "A flag to use unified Certificates");
+
+  CONFIG_PARAM(enableEventGroups, bool, false, "A flag to specify whether event groups are enabled or not.");
+
+  CONFIG_PARAM(preProcessorMemoryPoolMode,
+               uint32_t,
+               1,
+               "0: do not use a memory pool in PreProcessor, 1: use multi size buffer pool, 2: use raw memory pool");
+
+  CONFIG_PARAM(diagnosticsServerPort,
+               int,
+               0,
+               "Port to be used to communicate with the diagnostic server using"
+               "the concord-ctl script");
+  CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
+
+  CONFIG_PARAM(replicaMsgSigningAlgo,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
+               "A flag to specify the replica message signing algorithm. It is defaulted to use EDDSA algo.");
+
+  CONFIG_PARAM(operatorMsgSigningAlgo,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
+               "A flag to specify the operator message signing algorithm. It is defaulted to use EDDSA algo.");
+
+  // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);
@@ -215,6 +300,19 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     if (auto it = config_params_.find(param); it != config_params_.end()) return concord::util::to<T>(it->second);
     return defaultValue;
   }
+  inline std::set<std::pair<const std::string, std::set<uint16_t>>>* getPublicKeysOfClients() {
+    return (clientTransactionSigningEnabled || !clientsKeysPrefix.empty()) ? &publicKeysOfClients : nullptr;
+  }
+
+  std::string getOperatorPublicKey() {
+    std::ifstream op_key_file(pathToOperatorPublicKey_);
+    if (!op_key_file.fail()) {
+      std::stringstream buffer;
+      buffer << op_key_file.rdbuf();
+      return buffer.str();
+    }
+    return std::string();
+  }
 
  protected:
   ReplicaConfig() = default;
@@ -230,6 +328,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, replicaId);
     serialize(outStream, numOfClientProxies);
     serialize(outStream, numOfExternalClients);
+    serialize(outStream, numOfClientServices);
     serialize(outStream, statusReportTimerMillisec);
     serialize(outStream, concurrencyLevel);
     serialize(outStream, numWorkerThreadsForBlockIO);
@@ -271,6 +370,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, thresholdVerificationKeys_);
 
     serialize(outStream, pathToOperatorPublicKey_);
+    serialize(outStream, operatorEnabled_);
     serialize(outStream, pruningEnabled_);
     serialize(outStream, numBlocksToKeep_);
 
@@ -286,6 +386,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, blockAccumulation);
     serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
+    serialize(outStream, configurationViewFilePath);
     serialize(outStream, timeServiceEnabled);
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
@@ -293,10 +394,30 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, ticksGeneratorPollPeriod);
     serialize(outStream, preExecutionResultAuthEnabled);
     serialize(outStream, prePrepareFinalizeAsyncEnabled);
-    serialize(outStream, threadbagConcurrency);
+    serialize(outStream, threadbagConcurrencyLevel1);
+    serialize(outStream, threadbagConcurrencyLevel2);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
+    serialize(outStream, publishReplicasMasterKeyOnStartup);
+    serialize(outStream, dbCheckpointFeatureEnabled);
+    serialize(outStream, maxNumberOfDbCheckpoints);
+    serialize(outStream, dbCheckPointWindowSize);
+    serialize(outStream, dbCheckpointDirPath);
+    serialize(outStream, dbSnapshotIntervalSeconds);
+    serialize(outStream, dbCheckpointMonitorIntervalSeconds);
+    serialize(outStream, dbCheckpointDiskSpaceThreshold);
+    serialize(outStream, enablePostExecutionSeparation);
+    serialize(outStream, postExecutionQueuesSize);
+    serialize(outStream, stateIterationMultiGetBatchSize);
     serialize(outStream, config_params_);
+    serialize(outStream, enableMultiplexChannel);
+    serialize(outStream, enableEventGroups);
+    serialize(outStream, preProcessorMemoryPoolMode);
+    serialize(outStream, diagnosticsServerPort);
+    serialize(outStream, useUnifiedCertificates);
+    serialize(outStream, kvBlockchainVersion);
+    serialize(outStream, operatorMsgSigningAlgo);
+    serialize(outStream, replicaMsgSigningAlgo);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -307,6 +428,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, replicaId);
     deserialize(inStream, numOfClientProxies);
     deserialize(inStream, numOfExternalClients);
+    deserialize(inStream, numOfClientServices);
     deserialize(inStream, statusReportTimerMillisec);
     deserialize(inStream, concurrencyLevel);
     deserialize(inStream, numWorkerThreadsForBlockIO);
@@ -348,6 +470,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, thresholdVerificationKeys_);
 
     deserialize(inStream, pathToOperatorPublicKey_);
+    deserialize(inStream, operatorEnabled_);
     deserialize(inStream, pruningEnabled_);
     deserialize(inStream, numBlocksToKeep_);
 
@@ -363,6 +486,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, blockAccumulation);
     deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
+    deserialize(inStream, configurationViewFilePath);
     deserialize(inStream, timeServiceEnabled);
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
@@ -370,10 +494,30 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, ticksGeneratorPollPeriod);
     deserialize(inStream, preExecutionResultAuthEnabled);
     deserialize(inStream, prePrepareFinalizeAsyncEnabled);
-    deserialize(inStream, threadbagConcurrency);
+    deserialize(inStream, threadbagConcurrencyLevel1);
+    deserialize(inStream, threadbagConcurrencyLevel2);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
+    deserialize(inStream, publishReplicasMasterKeyOnStartup);
+    deserialize(inStream, dbCheckpointFeatureEnabled);
+    deserialize(inStream, maxNumberOfDbCheckpoints);
+    deserialize(inStream, dbCheckPointWindowSize);
+    deserialize(inStream, dbCheckpointDirPath);
+    deserialize(inStream, dbSnapshotIntervalSeconds);
+    deserialize(inStream, dbCheckpointMonitorIntervalSeconds);
+    deserialize(inStream, dbCheckpointDiskSpaceThreshold);
+    deserialize(inStream, enablePostExecutionSeparation);
+    deserialize(inStream, postExecutionQueuesSize);
+    deserialize(inStream, stateIterationMultiGetBatchSize);
     deserialize(inStream, config_params_);
+    deserialize(inStream, enableMultiplexChannel);
+    deserialize(inStream, enableEventGroups);
+    deserialize(inStream, preProcessorMemoryPoolMode);
+    deserialize(inStream, diagnosticsServerPort);
+    deserialize(inStream, useUnifiedCertificates);
+    deserialize(inStream, kvBlockchainVersion);
+    deserialize(inStream, operatorMsgSigningAlgo);
+    deserialize(inStream, replicaMsgSigningAlgo);
   }
 
  private:
@@ -445,8 +589,33 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
   os << KVLOG(rc.ticksGeneratorPollPeriod.count(),
               rc.preExecutionResultAuthEnabled,
               rc.prePrepareFinalizeAsyncEnabled,
-              rc.threadbagConcurrency);
-
+              rc.threadbagConcurrencyLevel1,
+              rc.threadbagConcurrencyLevel2,
+              rc.enablePostExecutionSeparation,
+              rc.postExecutionQueuesSize,
+              rc.stateIterationMultiGetBatchSize,
+              rc.numOfClientServices,
+              rc.dbCheckpointFeatureEnabled,
+              rc.maxNumberOfDbCheckpoints,
+              rc.dbCheckPointWindowSize,
+              rc.dbCheckpointDirPath,
+              rc.dbSnapshotIntervalSeconds.count());
+  os << ",";
+  const auto replicaMsgSignAlgo =
+      (concord::crypto::SignatureAlgorithm::EdDSA == rc.replicaMsgSigningAlgo) ? "eddsa" : "undefined";
+  const auto operatorMsgSignAlgo = "eddsa";
+  os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
+              rc.dbCheckpointDiskSpaceThreshold,
+              rc.enableMultiplexChannel,
+              rc.enableEventGroups,
+              rc.operatorEnabled_,
+              rc.preProcessorMemoryPoolMode,
+              rc.diagnosticsServerPort,
+              rc.useUnifiedCertificates,
+              rc.kvBlockchainVersion,
+              replicaMsgSignAlgo,
+              operatorMsgSignAlgo);
+  os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
 }

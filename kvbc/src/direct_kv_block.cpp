@@ -1,10 +1,9 @@
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "direct_kv_block.h"
 #include "kv_types.hpp"
-#include "Logger.hpp"
-
 #include <cassert>
 #include <cstring>
+#include "log/logger.hpp"
 
 using concordUtils::Sliver;
 using concord::kvbc::SetOfKeyValuePairs;
@@ -43,8 +42,8 @@ Sliver create(const SetOfKeyValuePairs &updates,
     Sliver blockSliver(blockBuffer, blockSize);
 
     auto header = (detail::Header *)blockBuffer;
-    std::memcpy(header->parentDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);
-    header->parentDigestLength = BLOCK_DIGEST_SIZE;
+    std::memcpy(header->parentDigest, parentDigest.data(), DIGEST_SIZE);
+    header->parentDigestLength = DIGEST_SIZE;
 
     std::int16_t idx = 0;
     header->numberOfElements = numOfElements;
@@ -116,9 +115,9 @@ SetOfKeyValuePairs getData(const Sliver &block) {
 
 BlockDigest getParentDigest(const Sliver &block) {
   const auto *bh = reinterpret_cast<const detail::Header *>(block.data());
-  ConcordAssert(BLOCK_DIGEST_SIZE == bh->parentDigestLength);
+  ConcordAssert(DIGEST_SIZE == bh->parentDigestLength);
   BlockDigest digest;
-  std::memcpy(digest.data(), bh->parentDigest, BLOCK_DIGEST_SIZE);
+  std::memcpy(digest.data(), bh->parentDigest, DIGEST_SIZE);
   return digest;
 }
 

@@ -16,6 +16,7 @@ from os import environ
 
 import trio
 
+from util.test_base import ApolloTest
 from util import blinking_replica
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
@@ -31,16 +32,23 @@ def start_replica_cmd(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
+
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
+            "-V",blockchain_version,
             "-v", viewChangeTimeoutMilli,
             "-e", str(True)
             ]
 
 
-class SkvbcTest(unittest.TestCase):
+class SkvbcTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -57,7 +65,7 @@ class SkvbcTest(unittest.TestCase):
         """
 
         if exchange_keys:
-            await bft_network.check_initital_key_exchange(full_key_exchange=False)
+            await bft_network.check_initial_key_exchange(full_key_exchange=False)
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -104,7 +112,7 @@ class SkvbcTest(unittest.TestCase):
         2. Make sure that eventually we are able to add blocks
         """
         replicas_to_start = [r for r in range(1, bft_network.config.n)]
-        await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
+        await bft_network.check_initial_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
         for i in replicas_to_start:
             view = await bft_network.get_metric(i, bft_network, "Gauges", "view")
             assert int(view) == 1
@@ -144,8 +152,8 @@ class SkvbcTest(unittest.TestCase):
                 bft_network.all_replicas(without={0}))
             bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-            blinking.start_blinking(bft_network.start_replica_cmd(br))
+            start_cmd, replica_binary_path = bft_network.start_replica_cmd(br)
+            blinking.start_blinking(start_cmd)
 
             for _ in range(300):
                 # Perform an unconditional KV put.

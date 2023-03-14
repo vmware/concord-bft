@@ -20,9 +20,9 @@
 #include <stack>
 #include <utility>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kv_types.hpp"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/db_reader.h"
 #include "sparse_merkle/internal_node.h"

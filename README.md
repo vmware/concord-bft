@@ -76,12 +76,17 @@ See [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) for an example. Thi
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-sudo ./install_deps.sh # Installs all dependencies and 3rd parties
+sudo ./install_deps_release.sh # Installs all dependencies and 3rd parties
 mkdir build
 cd build
 cmake ..
 make
 sudo make test
+```
+
+By default the build chooses the active compiler on the native build platform. In order to force compilation by clang you can use the following command.
+```sh
+CC=clang CXX=clang++ cmake ..
 ```
 
 In order to turn on or off various options, you need to change your cmake configuration. This is
@@ -130,21 +135,27 @@ The CI builds and runs tests in a docker container. To add a new dependency or t
 
 * Rebase against master
 * In order to add/remove dependencies update the file
-  [install_deps.sh](https://github.com/vmware/concord-bft/blob/master/install_deps.sh)
-* Build a new image: `make build-docker-image`
-* Check image current version in the
-  [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L3)
-* Tag the new image: `docker tag concord-bft:latest concordbft/concord-bft:<version>`,
+  [install_deps_release.sh](https://github.com/vmware/concord-bft/blob/master/install_deps_release.sh)
+* Build new release/debug images: `make build-docker-images`
+* Check images current version in
+  [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L5)
+  and
+  [Makefile](https://github.com/vmware/concord-bft/blob/master/Makefile#L10)
+* Tag the new images (at least one):
+  * For release: `docker tag concord-bft:latest concordbft/concord-bft:<version>`
+  * For debug: `docker tag concord-bft-debug:latest concordbft/concord-bft-debug:<version>`
   <br>where version is `current version + 1`.
 * Update the version in the Makefile
-* Make sure that Concord-BFT is built and tests pass with the new image: `make
-  stop-c build test`
+* Make sure that Concord-BFT is built and tests pass with the new images: `RUN_WITH_DEBUG_IMAGE=TRUE make
+  clean build test`
 * Ask one of the maintainers for a temporary write permission to Docker Hub
   repository(you need to have a [Docker ID](https://docs.docker.com/docker-id/))
-* Push the image: `docker push concordbft/concord-bft:<version>`
+* Push the images (at least one):
+  * For release: `docker push concordbft/concord-bft:<version>`
+  * For debug: `docker push concordbft/concord-bft-debug:<version>`
 * Create a PR for the update:
     * The PR must contain only changes related to the updates in the image
-    * PR's summary has to be similar to `Docker update to version <new version>`
+    * PR's summary has to be similar to `Docker update to version release=<new version> debug=<new version>`
     * PR's message has to list the changes made in the image content and
       preferably the reason
     * Submit the PR
@@ -193,16 +204,27 @@ You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
 Please find more information [here](./tests/simpleTest/README.md)
 
+### Example application
+This example demo application shows some capabilities of the Concord-BFT consensus-based byzantine fault-tolerant state machine replication library.
+For Concord-BFT users who are interested in learning more about Concord-BFT and its uses, this application offers a demonstration and instruction.
+Overall, any blockchain application based on concord-bft consensus may be created using this example application.
+<br>
+
+Use the [test_example.sh](example/scripts/test_example.sh) script to run the example application. This script is also used to perform this demo via the command line interface with different configurations.
+<br>
+
+Please see [here](example/README.md) for more information about the example/demo application.
+
 ## Directory Structure
 
 
 - [bftengine](./bftengine): concord-bft codebase
-	- [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
-	- [src](./bftengine/src): internal implementation of concord-bft
+  - [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
+  - [src](./bftengine/src): internal implementation of concord-bft
     - [tests](./bftengine/tests): tests and usage examples
 - [threshsign](./threshsign): crypto library that supports digital threshold signatures
-	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
-	- [src](./threshsign/src): internal implementation of threshsign
+  - [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
+  - [src](./threshsign/src): internal implementation of threshsign
     - [tests](./threshsign/tests): tests and usage examples
 - [scripts](./scripts): build scripts
 - [tests](./tests): BFT engine system tests

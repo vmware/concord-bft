@@ -11,10 +11,11 @@
 
 #pragma once
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "messages/MessageBase.hpp"
-#include "Logger.hpp"
 #include <memory>
+
+#include "log/logger.hpp"
 
 namespace preprocessor {
 
@@ -30,11 +31,13 @@ class PreProcessRequestMsg : public MessageBase {
                        uint64_t reqRetryId,
                        uint32_t reqLength,
                        const char* request,
-                       const std::string& cid,
+                       const std::string& reqCid,
                        const char* requestSignature,
                        uint16_t requestSignatureLength,
                        uint64_t blockid,
-                       const concordUtils::SpanContext& span_context = concordUtils::SpanContext{});
+                       ViewNum viewNum,
+                       const concordUtils::SpanContext& span_context = concordUtils::SpanContext{},
+                       uint32_t result = 1);  // UNKNOWN
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessRequestMsg)
 
@@ -48,6 +51,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   const uint64_t primaryBlockId() const { return msgBody()->primaryBlockId; }
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
+  const ViewNum viewNum() const { return msgBody()->viewNum; }
   std::string getCid() const;
   inline char* requestSignature() const {
     auto* header = msgBody();
@@ -55,6 +59,7 @@ class PreProcessRequestMsg : public MessageBase {
       return body() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength;
     return nullptr;
   }
+  const uint32_t result() const { return msgBody()->result; }
 
  public:
 #pragma pack(push, 1)
@@ -71,6 +76,8 @@ class PreProcessRequestMsg : public MessageBase {
     uint64_t reqRetryId;
     uint16_t reqSignatureLength;
     uint64_t primaryBlockId;
+    uint32_t result;
+    ViewNum viewNum;
   };
 #pragma pack(pop)
 
@@ -93,10 +100,13 @@ class PreProcessRequestMsg : public MessageBase {
                  uint64_t reqRetryId,
                  uint32_t reqLength,
                  uint16_t reqSignatureLength,
-                 uint64_t blockId);
+                 uint64_t blockId,
+                 uint32_t result,
+                 ViewNum viewNum);
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 
-typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
+using PreProcessRequestMsgUniquePtr = std::unique_ptr<PreProcessRequestMsg>;
+using PreProcessRequestMsgSharedPtr = std::shared_ptr<PreProcessRequestMsg>;
 
 }  // namespace preprocessor

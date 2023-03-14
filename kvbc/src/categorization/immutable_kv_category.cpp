@@ -13,7 +13,7 @@
 
 #include "categorization/immutable_kv_category.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 #include "rocksdb/details.h"
@@ -95,12 +95,16 @@ ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
       key_hash = hash(key);
       value_hash = hash(value.data);
     }
-
-    // Persist the key-value.
-    const auto header =
-        toSlice(serializeThreadLocal(ImmutableDbValueHeader{block_id, static_cast<std::uint32_t>(value.data.size())}));
-    const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value.data)};
-    batch.put(cf_, key, slices);
+    try {
+      // Persist the key-value.
+      const auto header = toSlice(
+          serializeThreadLocal(ImmutableDbValueHeader{block_id, static_cast<std::uint32_t>(value.data.size())}));
+      const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value.data)};
+      batch.put(cf_, key, slices);
+    } catch (const std::bad_variant_access &e) {
+      LOG_ERROR(CAT_BLOCK_LOG, "Bad variant access exception detected: " << std::string_view(e.what()) << "\n");
+      return ImmutableOutput{};  // Return empty due to exception occurred.
+    }
 
     // Move the key and the tags to the update info and (optionally) update hashes per tag.
     auto &key_tags = update_info.tagged_keys.emplace(std::move(key), std::vector<std::string>{}).first->second;
@@ -129,7 +133,7 @@ std::vector<std::string> ImmutableKeyValueCategory::getBlockStaleKeys(BlockId,
 
 size_t ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
                                                      const ImmutableOutput &updates_info,
-                                                     storage::rocksdb::NativeWriteBatch &batch) {
+                                                     detail::LocalWriteBatch &batch) {
   deleteBlock(updates_info, batch);
   return updates_info.tagged_keys.size();
 }
@@ -138,13 +142,6 @@ void ImmutableKeyValueCategory::deleteLastReachableBlock(BlockId,
                                                          const ImmutableOutput &updates_info,
                                                          storage::rocksdb::NativeWriteBatch &batch) {
   deleteBlock(updates_info, batch);
-}
-
-void ImmutableKeyValueCategory::deleteBlock(const ImmutableOutput &updates_info,
-                                            storage::rocksdb::NativeWriteBatch &batch) {
-  for (const auto &kv : updates_info.tagged_keys) {
-    batch.del(cf_, kv.first);
-  }
 }
 
 std::optional<Value> ImmutableKeyValueCategory::get(const std::string &key, BlockId block_id) const {

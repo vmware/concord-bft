@@ -12,9 +12,8 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
-#include "Logger.hpp"
 #include "ReplicaConfig.hpp"
-#include "SimpleThreadPool.hpp"
+#include "util/SimpleThreadPool.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "KeyfileIOUtils.hpp"
@@ -35,6 +34,7 @@
 #include "gtest/gtest.h"
 
 #include <memory>
+#include "log/logger.hpp"
 
 using namespace std;
 using namespace bftEngine;
@@ -87,7 +87,7 @@ void setUpConfiguration_4() {
 
   sigManager_.reset(createSigManager(0,
                                      replicaConfig[0].replicaPrivateKey,
-                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                     concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      replicaConfig[0].publicKeysOfReplicas,
                                      *pRepInfo));
 }

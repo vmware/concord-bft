@@ -1,10 +1,11 @@
 project("Concord Client")
 
+add_subdirectory("bftclient")
 add_subdirectory("reconfiguration")
 add_subdirectory("client_pool")
 
 if(USE_GRPC)
-  if (USE_PROMETHEUS)
+  if (USE_PROMETHEUS AND USE_JAEGER)
     add_subdirectory("clientservice")
   endif()
   add_subdirectory("concordclient")

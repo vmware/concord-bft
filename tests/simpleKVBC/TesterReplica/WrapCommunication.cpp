@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -25,18 +25,18 @@ using bftEngine::ReplicaConfig;
 
 std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> WrapCommunication::changeStrategy;
 
-int WrapCommunication::send(NodeNum destNode, std::vector<uint8_t>&& msg) {
+int WrapCommunication::send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum) {
   std::shared_ptr<MessageBase> newMsg;
   if (changeMesssage(msg, newMsg) && newMsg) {
     std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
     LOG_INFO(logger_, "Sending the changed message to destNode : " << destNode);
-    return communication_->send(destNode, std::move(chgMsg));
+    return communication_->send(destNode, std::move(chgMsg), endpointNum);
   } else {
-    return communication_->send(destNode, std::move(msg));
+    return communication_->send(destNode, std::move(msg), endpointNum);
   }
 }
 
-std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) {
+std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum srcEndpointNum) {
   if (separate_communication_) {
     std::set<NodeNum> failedNodes;
     for (auto dst : dests) {

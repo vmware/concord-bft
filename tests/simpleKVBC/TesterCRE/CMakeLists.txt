@@ -3,7 +3,6 @@ project(skvbc_cre VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(cre_sources
     main.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
 add_executable(skvbc_cre ${cre_sources})

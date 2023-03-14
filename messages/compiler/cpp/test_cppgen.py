@@ -217,15 +217,20 @@ def testSerializationStr(msg_name):
     s = "void {}() {{\n".format(test_name(msg_name))
     for i in range(0, MAX_SIZE):
         instance = instance_name(msg_name, i)
-        s += """
+        s += f"""
   {{
+    {msg_name} {instance}_computed;
     std::vector<uint8_t> output;
-    serialize(output, {});
-    {} {}_computed;
-    deserialize(output, {}_computed);
-    assert({} == {}_computed);
+    serialize(output, {instance});
+    deserialize(output, {instance}_computed);
+    assert({instance} == {instance}_computed);
+    {msg_name} {instance}_str_computed;
+    std::string output_str;
+    serialize(output_str, {instance});
+    deserialize(output_str, {instance}_str_computed);
+    assert({instance} == {instance}_str_computed);
   }}
-""".format(instance, msg_name, instance, instance, instance, instance)
+"""
     s += "}\n"
     return s
 

@@ -28,17 +28,21 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include "Logger.hpp"
-#include "Metrics.hpp"
+#include <fstream>
 
+#include "log/logger.hpp"
+#include "util/Metrics.hpp"
 #include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
+#include "crypto/openssl/certificates.hpp"
 
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
 #include "trs_metrics.hpp"
+#include "util/filesystem.hpp"
+#include "util/hex_tools.hpp"
 
 using google::protobuf::util::TimeUtil;
 using namespace std::chrono_literals;
@@ -67,6 +71,7 @@ struct ThinReplicaServerConfig {
   std::unordered_set<std::string> client_id_set;
   // the threshold after which metrics aggregator is updated
   const uint16_t update_metrics_aggregator_thresh;
+  const bool use_unified_certs = false;
   // the time duration the TRS waits before printing warning logs when
   // subscription status for live updates is not ok
   std::chrono::seconds no_live_subscription_warn_duration;
@@ -77,6 +82,7 @@ struct ThinReplicaServerConfig {
                           SubBufferList& subscriber_list_,
                           std::unordered_set<std::string>& client_id_set_,
                           const uint16_t update_metrics_aggregator_thresh_ = 100,
+                          bool use_unified_certs_ = false,
                           std::chrono::seconds no_live_subscription_warn_duration_ = kNoLiveSubscriptionWarnDuration)
       : is_insecure_trs(is_insecure_trs_),
         tls_trs_cert_path(tls_trs_cert_path_),
@@ -84,6 +90,7 @@ struct ThinReplicaServerConfig {
         subscriber_list(subscriber_list_),
         client_id_set(client_id_set_),
         update_metrics_aggregator_thresh(update_metrics_aggregator_thresh_),
+        use_unified_certs(use_unified_certs_),
         no_live_subscription_warn_duration(no_live_subscription_warn_duration_) {}
 
  private:
@@ -101,12 +108,18 @@ class ThinReplicaImpl {
     StreamCancelled(const std::string& msg) : std::runtime_error(msg){};
   };
 
+  class UpdatePruned : public std::runtime_error {
+   public:
+    UpdatePruned(const std::string& msg) : std::runtime_error(msg){};
+  };
+
   using KvbAppFilterPtr = std::shared_ptr<kvbc::KvbAppFilter>;
   static constexpr size_t kSubUpdateBufferSize{1000u};
   const std::chrono::milliseconds kWaitForUpdateTimeout{100};
   const std::string kCorrelationIdTag = "cid";
   // last timestamp when subscription status for live updates was not ok
   std::optional<std::chrono::steady_clock::time_point> last_failed_subscribe_status_time;
+  uint16_t update_aggregator_counter{0};
 
  public:
   ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
@@ -127,11 +140,14 @@ class ThinReplicaImpl {
       return status;
     }
 
-    // TODO: Determine oldest block available (pruning)
+    ThinReplicaServerMetrics metrics("data", getClientId(context));
+    metrics.setAggregator(aggregator_);
+
     kvbc::BlockId start = 1;
     // E.L saw race condition where subscribe to live updates got a block that
     // wasn't added yet
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
+    metrics.num_storage_reads++;
 
     if (end == 0) {
       std::string msg{"No blocks available"};
@@ -142,7 +158,7 @@ class ThinReplicaImpl {
     LOG_DEBUG(logger_, "ReadState start " << start << " end " << end);
 
     try {
-      readFromKvbAndSendData(logger_, context, stream, start, end, kvb_filter);
+      readFromKvbAndSendData(logger_, context, stream, start, end, kvb_filter, metrics);
     } catch (StreamCancelled& error) {
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
@@ -161,10 +177,17 @@ class ThinReplicaImpl {
       return status;
     }
 
+    ThinReplicaServerMetrics metrics("hash", getClientId(context));
+    metrics.setAggregator(aggregator_);
+
+    std::stringstream msg;
+    if (isRequestOutOfRange(request, kvb_filter, metrics))
+      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isUpdatePruned(request, msg, kvb_filter, metrics)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
+
     LOG_DEBUG(logger_, "ReadStateHash");
 
     if (request->has_events()) {
-      // TODO: Determine oldest block available (pruning)
       kvbc::BlockId block_id_start = 1;
       kvbc::BlockId block_id_end = request->events().block_id();
 
@@ -178,6 +201,8 @@ class ThinReplicaImpl {
       std::string kvb_hash;
       try {
         kvb_hash = kvb_filter->readBlockRangeHash(block_id_start, block_id_end);
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
+        metrics.updateAggregator();
       } catch (std::exception& error) {
         LOG_ERROR(logger_, error.what());
         std::stringstream msg;
@@ -204,6 +229,8 @@ class ThinReplicaImpl {
     std::string kvb_eg_hash;
     try {
       kvb_eg_hash = kvb_filter->readEventGroupRangeHash(event_group_id_start);
+      metrics.num_storage_reads += kvb_filter->num_storage_reads;
+      metrics.updateAggregator();
     } catch (std::exception& error) {
       LOG_ERROR(logger_, error.what());
       std::stringstream msg;
@@ -228,7 +255,6 @@ class ThinReplicaImpl {
   grpc::Status SubscribeToUpdates(ServerContextT* context,
                                   const com::vmware::concord::thin_replica::SubscriptionRequest* request,
                                   ServerWriterT* stream) {
-    LOG_DEBUG(logger_, "SubscribeToUpdates " << (request->has_events() ? "legacy" : "event groups"));
     std::string stream_type;
     if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
       stream_type = "data";
@@ -243,6 +269,16 @@ class ThinReplicaImpl {
                                                              << "): " << kvb_status.error_message());
       return kvb_status;
     }
+
+    // TRS metrics
+    ThinReplicaServerMetrics metrics(stream_type, getClientId(context));
+    metrics.setAggregator(aggregator_);
+    update_aggregator_counter = 0;
+
+    std::stringstream msg;
+    if (isRequestOutOfRange(request, kvb_filter, metrics))
+      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isUpdatePruned(request, msg, kvb_filter, metrics)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
 
     auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context), kvb_filter);
     if (!subscribe_status.ok()) {
@@ -264,11 +300,17 @@ class ThinReplicaImpl {
       return subscribe_status;
     }
 
-    // TRS metrics
-    ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
-    metrics_.setAggregator(aggregator_);
-    uint16_t update_aggregator_counter = 0;
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+    metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+
+#define CLEANUP_SUBSCRIPTION()                                               \
+  {                                                                          \
+    config_->subscriber_list.removeBuffer(live_updates);                     \
+    live_updates->removeAllUpdates();                                        \
+    live_updates->removeAllEventGroupUpdates();                              \
+    metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size()); \
+    metrics.num_storage_reads += kvb_filter->num_storage_reads;              \
+    metrics.updateAggregator();                                              \
+  }
 
     // If legacy event request then mark whether we need to transition into event groups
     bool is_event_group_transition = false;
@@ -283,26 +325,96 @@ class ThinReplicaImpl {
       }
     }
 
+    // If last_known + 1 update requested keep waiting until we have at least one live update
+    // Note that TRS considers last_known + 1 update request as valid, even if the requested
+    // update doesn't exist in storage yet.
+    if (is_event_group_transition) {
+      // For an event group transition we need to check if the first/oldest external event group is available.
+      // If not then we wait because it is similar to waiting for X+1 whereby X is 0.
+      auto oldest_eg_id = kvb_filter->oldestExternalEventGroupId();
+      while (not oldest_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the first live event group.");
+          CLEANUP_SUBSCRIPTION();
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          oldest_eg_id = kvb_filter->oldestExternalEventGroupId();
+        }
+      }
+    } else if (request->has_event_groups()) {
+      auto requested_eg_id = request->event_groups().event_group_id();
+      auto newest_eg_id = kvb_filter->newestExternalEventGroupId();
+      // We already know that the request is valid hence the requested id can only be newest + 1 or less
+      while (newest_eg_id < requested_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the next live event group.");
+          CLEANUP_SUBSCRIPTION();
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          newest_eg_id = kvb_filter->newestExternalEventGroupId();
+        }
+      }
+    } else {
+      ConcordAssert(request->has_events());
+      auto last_block_id = (config_->rostorage)->getLastBlockId();
+      metrics.num_storage_reads++;
+      if (request->events().block_id() == last_block_id + 1) {
+        // `last_block_id + 1` is an acceptable requested block ID (not flagged with OUT_OF_RANGE exception),
+        // even though it can not have been written to storage at the time of the request.
+        // To ensure TRS doesn't try to read a non-existent block ID from storage, it must wait on the
+        // live update queue until a block with ID greater than or equal to last_block_id + 1 gets added.
+        // Note that, before a block gets pushed to the live update queue, it must be written to storage.
+        bool is_update_available = false;
+        while (not is_update_available) {
+          if (context->IsCancelled()) {
+            LOG_DEBUG(logger_, "StreamCancelled while waiting for the next live update.");
+            CLEANUP_SUBSCRIPTION();
+            return grpc::Status::CANCELLED;
+          }
+          is_update_available = live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout);
+          if (is_update_available && live_updates->oldestBlockId() < last_block_id + 1) {
+            SubUpdate update;
+            live_updates->Pop(update);
+            LOG_DEBUG(logger_,
+                      "Dropping block ID: " << update.block_id << " from live_updates, requested block ID: "
+                                            << request->events().block_id());
+            is_update_available = false;
+          }
+        }
+      }
+    }
+
     if (request->has_events() && !is_event_group_transition) {
+      // Requested block ID received by the TRS must always be greater than zero.
+      // Currently TRS expects TRC to take care of requests with block ID zero
+      // TODO: Replace the assert with INVALID_ARGUMENT error thrown when block ID zero is requested
+      ConcordAssertGT(start_block_id, 0);
       try {
-        syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
+        syncAndSend<ServerContextT, ServerWriterT, DataT>(
+            context, start_block_id, live_updates, stream, kvb_filter, metrics);
       } catch (concord::kvbc::NoLegacyEvents& error) {
         LOG_WARN(logger_, error.what());
         is_event_group_transition = true;
       } catch (StreamCancelled& error) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
+        CLEANUP_SUBSCRIPTION();
+        return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
+      } catch (UpdatePruned& error) {
+        LOG_WARN(logger_, "Requested update pruned in syncAndSend: " << error.what());
+        CLEANUP_SUBSCRIPTION();
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
+      } catch (StreamClosed& error) {
+        LOG_INFO(logger_, "StreamClosed in syncAndSend: " << error.what());
+        CLEANUP_SUBSCRIPTION();
         return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
       } catch (std::exception& error) {
         LOG_ERROR(logger_, error.what());
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
-
+        CLEANUP_SUBSCRIPTION();
         std::stringstream msg;
         msg << "Couldn't transition from block id " << start_block_id << " to new blocks";
         return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
@@ -311,7 +423,7 @@ class ThinReplicaImpl {
       SubUpdate update;
       try {
         while (!context->IsCancelled() && !is_event_group_transition) {
-          metrics_.queue_size.Get().Set(live_updates->Size());
+          metrics.queue_size.Get().Set(live_updates->Size());
           bool is_update_available = false;
           is_update_available = live_updates->TryPop(update, kWaitForUpdateTimeout);
           if (not is_update_available) {
@@ -320,8 +432,11 @@ class ThinReplicaImpl {
           auto kvb_update =
               kvbc::KvbUpdate{update.block_id, update.correlation_id, std::move(update.immutable_kv_pairs)};
           const auto& filtered_update = kvb_filter->filterUpdate(kvb_update);
+          const auto num_events = filtered_update.kv_pairs.size();
+          const auto block_id = filtered_update.block_id;
+          const auto client_id = getClientId(context);
           if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-            LOG_DEBUG(logger_, "Live updates send data");
+            LOG_DEBUG(logger_, "Sending updates (live, data)" << KVLOG(client_id, block_id, num_events));
             auto correlation_id = filtered_update.correlation_id;
             if (update.parent_span) {
               sendData(stream, filtered_update, {*update.parent_span});
@@ -338,28 +453,27 @@ class ThinReplicaImpl {
               sendData(stream, filtered_update, {propagated_span_context});
             }
           } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
-            LOG_DEBUG(logger_, "Live updates send hash");
+            LOG_DEBUG(logger_, "Sending updates (live, hash)" << KVLOG(client_id, block_id, num_events));
             sendHash(stream, update.block_id, kvb_filter->hashUpdate(filtered_update));
           }
-          metrics_.last_sent_block_id.Get().Set(update.block_id);
+          metrics.last_sent_block_id.Get().Set(update.block_id);
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
           if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-            metrics_.updateAggregator();
+            metrics.updateAggregator();
             update_aggregator_counter = 0;
           }
-        }
-        if (!is_event_group_transition) {
-          config_->subscriber_list.removeBuffer(live_updates);
-          live_updates->removeAllUpdates();
-          metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-          metrics_.updateAggregator();
         }
       } catch (std::exception& error) {
         LOG_INFO(logger_, "Subscription stream closed: " << error.what());
       }
-      if (context->IsCancelled()) {
-        return grpc::Status::CANCELLED;
-      }
-      if (not is_event_group_transition) {
+
+      // Clean up if we need to return
+      if (not is_event_group_transition || context->IsCancelled()) {
+        CLEANUP_SUBSCRIPTION();
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "Subscription cancelled");
+          return grpc::Status::CANCELLED;
+        }
         return grpc::Status::OK;
       }
     }
@@ -370,32 +484,35 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
       // Therefore, we start at the beginning.
-      // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
-      event_group_id = 1;
-      LOG_INFO(logger_, "Legacy event request will receive event groups");
+      event_group_id = kvb_filter->oldestExternalEventGroupId();
+      // If an event group transition is happening then we already confirmed that event groups are available.
+      ConcordAssertNE(event_group_id, 0);
+      LOG_INFO(logger_, "Legacy event request will receive event groups starting at id " << event_group_id);
     } else {
       ConcordAssert(request->has_event_groups());
       event_group_id = request->event_groups().event_group_id();
     }
 
+    // Requested event group ID must always be greater than 0
+    ConcordAssertGT(event_group_id, 0);
     try {
       syncAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
-          context, event_group_id, live_updates, stream, kvb_filter);
+          context, event_group_id, live_updates, stream, kvb_filter, metrics);
     } catch (StreamCancelled& error) {
       LOG_WARN(logger_, "StreamCancelled in syncAndSendEventGroups: " << error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
+      CLEANUP_SUBSCRIPTION();
+      return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
+    } catch (UpdatePruned& error) {
+      LOG_WARN(logger_, "Requested update pruned in syncAndSendEventGroups: " << error.what());
+      CLEANUP_SUBSCRIPTION();
+      return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
+    } catch (StreamClosed& error) {
+      LOG_INFO(logger_, "StreamClosed in syncAndSendEventGroups: " << error.what());
+      CLEANUP_SUBSCRIPTION();
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
       LOG_ERROR(logger_, "Exception in syncAndSendEventGroups: " << error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
-
+      CLEANUP_SUBSCRIPTION();
       std::stringstream msg;
       msg << "Couldn't transition from event_group_id " << event_group_id << " to new event groups";
       return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
@@ -405,37 +522,58 @@ class ThinReplicaImpl {
     SubEventGroupUpdate sub_eg_update;
     try {
       while (not context->IsCancelled()) {
-        metrics_.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
+        metrics.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
         bool is_update_available = false;
         is_update_available = live_updates->TryPopEventGroup(sub_eg_update, kWaitForUpdateTimeout);
         if (not is_update_available) {
           continue;
         }
+        const auto& [last_ext_eg_id_read, last_global_eg_id_read] = kvb_filter->getLastEgIdsRead();
+        // Event group read from live update queue should always be greater than last global event group ID read and
+        // sent
+        ConcordAssertGT(sub_eg_update.event_group_id, last_global_eg_id_read);
+
         auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
-        const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
-        if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-          //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
-          // TODO (Shruti) : Get and propagate span context
-          sendEventGroupData(stream, filtered_eg_update);
-        } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
-          sendEventGroupHash(
-              stream, sub_eg_update.event_group_id, kvb_filter->hashEventGroupUpdate(filtered_eg_update));
+
+        auto next_ext_eg_id = last_ext_eg_id_read + 1;
+        // TODO (Shruti):
+        // We read and filter the first event group for the client from the live update queue twice.
+        // Once in syncAndSendEventGroups() and once here. Do this only once.
+        auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
+        if (!filtered_eg_update) {
+          metrics.num_skipped_event_groups++;
+          continue;
         }
-        metrics_.last_sent_event_group_id.Get().Set(sub_eg_update.event_group_id);
+        // Overwrite event group ID in the filtered update to external event group ID
+        // We don't want to expose the global event group ID to the client
+        filtered_eg_update.value().event_group_id = next_ext_eg_id;
+
+        if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
+          sendEventGroupData(stream, filtered_eg_update.value(), sub_eg_update.parent_span);
+        } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
+          sendEventGroupHash(stream,
+                             filtered_eg_update.value().event_group_id,
+                             kvb_filter->hashEventGroupUpdate(filtered_eg_update.value()));
+        }
+
+        kvb_filter->setLastEgIdsRead(next_ext_eg_id, sub_eg_update.event_group_id);
+
+        metrics.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
         if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-          metrics_.updateAggregator();
+          metrics.updateAggregator();
           update_aggregator_counter = 0;
         }
       }
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
     } catch (std::exception& error) {
       LOG_INFO(logger_, "Subscription stream closed: " << error.what());
     }
+
+    CLEANUP_SUBSCRIPTION();
+#undef CLEANUP_SUBSCRIPTION
+
     if (context->IsCancelled()) {
-      LOG_WARN(logger_, "Subscription cancelled");
+      LOG_INFO(logger_, "Subscription cancelled");
       return grpc::Status::CANCELLED;
     }
     return grpc::Status::OK;
@@ -450,11 +588,73 @@ class ThinReplicaImpl {
     return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Unsubscribe");
   }
 
-  // Parses the value of the OU field i.e., the client id from the subject
+  template <typename RequestT>
+  bool isRequestOutOfRange(RequestT* request, KvbAppFilterPtr kvb_filter, ThinReplicaServerMetrics& metrics) {
+    // A request is considered out of range iff the requested update ID is greater than
+    // `last_known_update_id + 1`, i.e.; TRS allows an application to subscribe to
+    // `last_known_update_id + 1` without throwing an error, with the expectation that
+    // TRC would resubscribe.
+    if (request->has_events()) {
+      // Determine latest block available
+      auto last_block_id = (config_->rostorage)->getLastBlockId();
+      metrics.num_storage_reads++;
+      if (request->events().block_id() > last_block_id + 1) {
+        return true;
+      }
+    } else {
+      // Determine latest event group available
+      auto last_eg_id = kvb_filter->newestExternalEventGroupId();
+      if (request->event_groups().event_group_id() > last_eg_id + 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  template <typename RequestT>
+  bool isUpdatePruned(RequestT* request,
+                      std::stringstream& msg,
+                      KvbAppFilterPtr kvb_filter,
+                      ThinReplicaServerMetrics& metrics) {
+    if (request->has_events()) {
+      // Determine oldest block available (pruning)
+      auto first_block_id = (config_->rostorage)->getGenesisBlockId();
+      metrics.num_storage_reads++;
+      if (request->events().block_id() < first_block_id) {
+        msg << "Block ID " << request->events().block_id() << " has been pruned."
+            << " First block_id is " << first_block_id;
+        LOG_WARN(logger_, msg.str());
+        return true;
+      }
+    } else {
+      // Determine oldest event group available (pruning)
+      auto first_eg_id = kvb_filter->oldestExternalEventGroupId();
+      auto last_eg_id = kvb_filter->newestExternalEventGroupId();
+      // When handling requests after pruning, TRS must take into account the following two scenarios:
+      // 1. New event groups have been added for the participant
+      // 2. No new event group has been added for the participant
+      // For e.g., assume 1-10 event groups have been pruned (event group IDs here are external event group IDs)
+      // In scenario 1, assume one more event group has been added. Hence, first_eg_id is now 11, any request for eg
+      // ID < 11 is invalid due to pruning.
+      // In scenario 2, first_eg_id is set to 0 after pruning and has not yet updated
+      // as there are no new event groups for the participant. we must therefore check against last_eg_id (10) to
+      // identify whether the requested eg ID has been pruned. i.e., any requested eg ID <= 10 is invalid due to pruning
+      // iff first_eg_id == 0.
+      if (request->event_groups().event_group_id() < first_eg_id ||
+          (!first_eg_id && request->event_groups().event_group_id() <= last_eg_id)) {
+        msg << "Event group ID " << request->event_groups().event_group_id() << " has been pruned."
+            << " First event_group_id is " << first_eg_id << " and last event_group_id is " << last_eg_id;
+        LOG_WARN(logger_, msg.str());
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Parses the value of given delimiter field i.e., the client id from the subject
   // string
-  static std::string parseClientIdFromSubject(const std::string& subject_str) {
-    std::string delim = "OU = ";
-    size_t start = subject_str.find(delim) + delim.length();
+  static std::string parseClientIdFromSubject(const std::string& subject_str, const std::string& delimiter) {
+    size_t start = subject_str.find(delimiter) + delimiter.length();
     size_t end = subject_str.find(',', start);
     std::string raw_str = subject_str.substr(start, end - start);
     size_t fstart = 0;
@@ -507,8 +707,10 @@ class ThinReplicaImpl {
     char* subj = X509_NAME_oneline(X509_get_subject_name(certificate), NULL, 0);
     std::string result(subj);
 
-    // parse the OU field i.e., the client_id from the certificate
-    std::string delim = "OU=";
+    LOG_DEBUG(logger_, "TRS Subject: " << result);
+    // parse the O field i.e., the client_id from the certificate when use_unified_certs is enabled
+    // else parse OU field
+    std::string delim = (config_->use_unified_certs) ? "O=" : "OU=";
     size_t start = result.find(delim) + delim.length();
     size_t end = result.find('/', start);
     client_id = result.substr(start, end - start);
@@ -520,27 +722,28 @@ class ThinReplicaImpl {
 
   static void getClientIdFromRootCert(logging::Logger logger_,
                                       const std::string& root_cert_path,
-                                      std::unordered_set<std::string>& cert_ou_field_set) {
-    std::array<char, 128> buffer;
-    std::string result;
-    // Openssl doesn't provide a method to fetch all the x509 certificates
-    // directly from a bundled cert, due to the assumption of one certificate
-    // per file. But for some reason openssl supports displaying multiple certs
-    // from a pkcs7 file. So we generate an intermediate pkcs7 file using
-    // crl2pkcs7 openssl command to get the subject fields of all the certs from
-    // the bundled root cert.
-    std::string cmd =
-        "openssl crl2pkcs7 -nocrl -certfile " + root_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
-    std::unique_ptr<FILE, decltype(&pclose)> pipe_ptr(popen(cmd.c_str(), "r"), pclose);
-    if (!pipe_ptr) {
-      LOG_ERROR(logger_, "Failed to read from root cert - popen() failed, error: " << strerror(errno));
-      throw std::runtime_error("Failed to read from root cert - popen() failed!");
+                                      std::unordered_set<std::string>& cert_ou_field_set,
+                                      bool use_unified_certs) {
+    auto field_name = (use_unified_certs ? "O" : "OU");
+    auto attribute_list = crypto::getSubjectFieldListByName(root_cert_path, field_name);
+    for (auto& val : attribute_list) {
+      cert_ou_field_set.emplace(std::move(val));
     }
-    while (fgets(buffer.data(), buffer.size(), pipe_ptr.get()) != nullptr) {
-      result = buffer.data();
-      // parse the OU i.e., the client id from the subject field
-      cert_ou_field_set.insert(parseClientIdFromSubject(result));
+  }
+
+  static void getClientIdSetFromRootCert(logging::Logger logger_,
+                                         const std::string& root_cert_path,
+                                         std::unordered_set<std::string>& cert_ou_field_set) {
+    for (auto& p : fs::recursive_directory_iterator(root_cert_path)) {
+      if ((p.path().filename().string()).compare("node.cert") == 0) {
+        getClientIdFromRootCert(logger_, p.path().string(), cert_ou_field_set, true);
+      }
     }
+  }
+
+  static std::string getClientIdFromCertificate(const std::string& client_cert_path, bool use_unified_certs = false) {
+    auto field_name = (use_unified_certs ? "O" : "OU");
+    return crypto::getSubjectFieldByName(client_cert_path, field_name);
   }
 
  private:
@@ -550,10 +753,10 @@ class ThinReplicaImpl {
                               ServerWriterT* stream,
                               kvbc::BlockId start,
                               kvbc::BlockId end,
-                              std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                              std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                              ThinReplicaServerMetrics& metrics) {
     boost::lockfree::spsc_queue<kvbc::KvbFilteredUpdate> queue{10};
     std::atomic_bool close_stream = false;
-
     auto kvb_reader = std::async(std::launch::async,
                                  &kvbc::KvbAppFilter::readBlockRange,
                                  kvb_filter,
@@ -569,11 +772,24 @@ class ThinReplicaImpl {
         while (!queue.empty()) {
           queue.pop(kvb_update);
         }
+        // update metrics before throwing the error
+        metrics.num_storage_reads += kvb_filter->num_storage_reads;
+        metrics.updateAggregator();
         throw StreamCancelled("Kvb data stream cancelled");
       }
       while (queue.pop(kvb_update)) {
         try {
+          auto block_id = kvb_update.block_id;
+          auto num_events = kvb_update.kv_pairs.size();
+          auto client_id = getClientId(context);
+          LOG_DEBUG(logger_, "Sending updates (history, data)" << KVLOG(client_id, block_id, num_events));
           sendData(stream, kvb_update);
+          metrics.last_sent_block_id.Get().Set(block_id);
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
+          if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
+            metrics.updateAggregator();
+            update_aggregator_counter = 0;
+          }
         } catch (StreamClosed& error) {
           LOG_WARN(logger, "Data stream closed at block " << kvb_update.block_id);
 
@@ -582,6 +798,9 @@ class ThinReplicaImpl {
           while (!queue.empty()) {
             queue.pop(kvb_update);
           }
+          // update metrics before throwing the error
+          metrics.num_storage_reads += kvb_filter->num_storage_reads;
+          metrics.updateAggregator();
           throw;
         }
       }
@@ -677,12 +896,13 @@ class ThinReplicaImpl {
                           ServerWriterT* stream,
                           kvbc::BlockId start,
                           kvbc::BlockId end,
-                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                          ThinReplicaServerMetrics& metrics) {
     static_assert(std::is_same<DataT, com::vmware::concord::thin_replica::Data>() ||
                       std::is_same<DataT, com::vmware::concord::thin_replica::Hash>(),
                   "We expect either a Data or Hash type");
     if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-      readFromKvbAndSendData(logger, context, stream, start, end, kvb_filter);
+      readFromKvbAndSendData(logger, context, stream, start, end, kvb_filter, metrics);
     } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
       readFromKvbAndSendHashes(logger, context, stream, start, end, kvb_filter);
     }
@@ -710,21 +930,30 @@ class ThinReplicaImpl {
   // returns when the next update can be taken from the given live updates.
   // We assume that the Commands handler is already filling the queue. Also, we
   // don't care if the queue fills up. In that case, the caller won't be able to
-  // use the queue as soon as he consumes it.
+  // use the queue as soon as they consume it.
   template <typename ServerContextT, typename ServerWriterT, typename DataT>
   void syncAndSend(ServerContextT* context,
                    kvbc::BlockId start,
                    std::shared_ptr<SubUpdateBuffer>& live_updates,
                    ServerWriterT* stream,
                    std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
-                   bool event_group_enabled = false) {
+                   ThinReplicaServerMetrics& metrics) {
+    kvbc::BlockId first_block_id = (config_->rostorage)->getGenesisBlockId();
+    metrics.num_storage_reads++;
+    if (start < first_block_id) {
+      std::stringstream msg;
+      msg << "Requested block ID: " << start << " has been pruned, the current oldest block ID is: " << first_block_id;
+      LOG_ERROR(logger_, msg.str());
+      throw UpdatePruned(msg.str());
+    }
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
-    ConcordAssert(start <= end);
+    metrics.num_storage_reads++;
+    ConcordAssertLE(start, end);
 
     // Let's not wait for a live update yet due to there might be lots of
     // history we have to catch up with first
     LOG_INFO(logger_, "Sync reading from KVB [" << start << ", " << end << "]");
-    readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
+    readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter, metrics);
 
     // Let's wait until we have at least one live update
     bool is_update_available = false;
@@ -756,17 +985,17 @@ class ThinReplicaImpl {
       end = live_updates->newestBlockId();
 
       LOG_INFO(logger_, "Sync filling gap [" << start << ", " << end << "]");
-      readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
+      readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter, metrics);
     }
 
     // Overlap:
     // If we read updates from KVB that were added to the live updates already
     // then we just need to drop the overlap and return
-    ConcordAssert(live_updates->oldestBlockId() <= end);
+    ConcordAssertLE(live_updates->oldestBlockId(), end);
     SubUpdate update;
     do {
       live_updates->Pop(update);
-      LOG_INFO(logger_, "Sync dropping " << update.block_id);
+      LOG_DEBUG(logger_, "Sync dropping " << update.block_id);
     } while (update.block_id < end);
   }
 
@@ -774,72 +1003,114 @@ class ThinReplicaImpl {
   // returns when the next update can be taken from the given live updates.
   // We assume that the Commands handler is already filling the queue. Also, we
   // don't care if the queue fills up. In that case, the caller won't be able to
-  // use the queue as soon as he consumes it.
+  // use the queue as soon as they consume it.
   template <typename ServerContextT, typename ServerWriterT, typename DataT>
   void syncAndSendEventGroups(ServerContextT* context,
                               kvbc::EventGroupId start,
                               std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
-                              std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
-    uint64_t current_oldest_start = kvb_filter->oldestTagSpecificPublicEventGroupId();
-    if (start < current_oldest_start) {
+                              std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
+                              ThinReplicaServerMetrics& metrics) {
+    auto start_ext_storage_eg_id = kvb_filter->oldestExternalEventGroupId();
+    auto end_ext_storage_eg_id = kvb_filter->newestExternalEventGroupId();
+    if (start < start_ext_storage_eg_id || (end_ext_storage_eg_id && !start_ext_storage_eg_id)) {
       std::stringstream msg;
-      msg << "Request event group ID: " << start
-          << " has been pruned, the current oldest event group ID is: " << current_oldest_start;
+      msg << "Requested event group ID: " << start
+          << " has been pruned, the current oldest event group ID is: " << start_ext_storage_eg_id;
       LOG_ERROR(logger_, msg.str());
-      throw std::runtime_error(msg.str());
+      throw UpdatePruned(msg.str());
     }
-    auto end = kvb_filter->newestTagSpecificPublicEventGroupId();
-    if (!end) {
+    if (!end_ext_storage_eg_id) {
       std::stringstream msg;
       msg << "No event group exists in KVB yet for client: " << getClientId(context);
       LOG_ERROR(logger_, msg.str());
     }
-    ConcordAssert(current_oldest_start <= end);
-    ConcordAssert(start <= end);
+    ConcordAssertLE(start_ext_storage_eg_id, end_ext_storage_eg_id);
+    ConcordAssertLE(start, end_ext_storage_eg_id);
 
-    // Let's not wait for a live update yet due to there might be lots of
+    // Let's not wait for a live update yet as there might be lots of
     // history we have to catch up with first
-    LOG_INFO(logger_, "Sync reading event groups from KVB [" << start << ", " << end << "]");
-    readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
+    LOG_INFO(logger_, "Sync reading event groups from KVB [" << start << ", " << end_ext_storage_eg_id << "]");
+    readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
+        logger_, context, stream, start, end_ext_storage_eg_id, kvb_filter);
 
-    // Let's wait until we have at least one live update
     bool is_update_available = false;
+    auto next_global_eg_id_to_read = kvb_filter->getLastEgIdsRead().second + 1;
     while (not is_update_available) {
       is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
       if (context->IsCancelled()) {
         throw StreamCancelled("StreamCancelled while waiting for the first live update");
       }
+      if (not is_update_available) continue;
+
+      // Drop all live updates with global_eg_id < next_global_eg_id_to_read, because TRS has already read and sent
+      // these updates from storage
+      if (live_updates->oldestEventGroupId() < next_global_eg_id_to_read) {
+        SubEventGroupUpdate sub_eg_update;
+        live_updates->PopEventGroup(sub_eg_update);
+        LOG_DEBUG(logger_, "Sync dropping " << sub_eg_update.event_group_id);
+        is_update_available = false;
+        continue;
+      }
+
+      auto ext_eg_id = end_ext_storage_eg_id + 1;  // next external event group ID to be read
+
+      // At this point, all event groups in the live update queue are newer than anything we read from storage earlier.
+      // If the oldest live update is not for the requesting client, keep reading from the live update queue
+      // until the first relevant live update is reached. Drop all non-relevant live updates read along the way.
+      if (live_updates->oldestEventGroupId() == next_global_eg_id_to_read) {
+        auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(live_updates->oldestEventGroup());
+        if (!filtered_eg_update) {
+          SubEventGroupUpdate sub_eg_update;
+          live_updates->PopEventGroup(sub_eg_update);
+          LOG_DEBUG(logger_, "Sync dropping upon filtering " << sub_eg_update.event_group_id);
+          is_update_available = false;
+          next_global_eg_id_to_read += 1;
+          metrics.num_skipped_event_groups++;
+          continue;
+        }
+        // The next event group in the live update queue has events for this client.
+        return;
+      }
+
+      // Fill the gap:
+      // Gap exists between next_global_eg_id_to_read and live_updates->oldestEventGroupId()
+      // Let's read from data table directly, filter and send updates, until next_global_eg_id_to_read equals
+      // live_updates->oldestEventGroupId()
+      LOG_INFO(logger_,
+               "Sync filling gap [" << next_global_eg_id_to_read << ", " << live_updates->oldestEventGroupId() << "]");
+      while (live_updates->oldestEventGroupId() > next_global_eg_id_to_read) {
+        auto event_group = kvb_filter->getEventGroup(next_global_eg_id_to_read);
+        if (event_group.events.empty()) {
+          std::stringstream msg;
+          msg << "EventGroup empty/doesn't exist for global event group " << next_global_eg_id_to_read;
+          throw kvbc::KvbReadError(msg.str());
+        }
+        auto eg_update_from_storage = kvbc::EgUpdate{event_group.id, std::move(event_group)};
+        auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update_from_storage);
+        if (!filtered_eg_update) {
+          next_global_eg_id_to_read++;
+          metrics.num_skipped_event_groups++;
+          continue;
+        }
+        // Overwrite event group ID in the filtered update to external event group ID:
+        // Every client has their own event group ID counter (denoted as external event group ID).
+        // For privacy and correctness, we don't want to expose to the client, the global event group ID corresponding
+        // to the external event group ID
+        filtered_eg_update.value().event_group_id = ext_eg_id;
+
+        kvb_filter->setLastEgIdsRead(ext_eg_id++, next_global_eg_id_to_read++);
+
+        if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
+          sendEventGroupData(stream, filtered_eg_update.value());
+        } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
+          sendEventGroupHash(stream,
+                             filtered_eg_update.value().event_group_id,
+                             kvb_filter->hashEventGroupUpdate(filtered_eg_update.value()));
+        }
+      }
     }
-
-    // We are in sync already
-    if (live_updates->oldestEventGroupId() == (end + 1)) {
-      return;
-    }
-
-    // Gap:
-    // If the first live update is not the follow-up to the last read block from
-    // KVB then we need to fill the gap. Let's read from KVB starting at end + 1
-    // up to updates that are part of the live updates already. Thereby, we
-    // create an overlap between what we read from KVB and what is currently in
-    // the live updates.
-    if (live_updates->oldestEventGroupId() > (end + 1)) {
-      start = end + 1;
-      end = live_updates->newestEventGroupId();
-
-      LOG_INFO(logger_, "Sync filling gap [" << start << ", " << end << "]");
-      readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
-    }
-
-    // Overlap:
-    // If we read updates from KVB that were added to the live updates already
-    // then we just need to drop the overlap and return
-    ConcordAssert(live_updates->oldestEventGroupId() <= end);
-    SubEventGroupUpdate update;
-    do {
-      live_updates->PopEventGroup(update);
-      LOG_INFO(logger_, "Sync dropping " << update.event_group_id);
-    } while (update.event_group_id < end);
+    ConcordAssertEQ(next_global_eg_id_to_read, live_updates->oldestEventGroupId());
   }
 
   // Send* prepares the response object and puts it on the stream
@@ -882,7 +1153,9 @@ class ThinReplicaImpl {
     google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
     TimeUtil::FromString(eg_update.event_group.record_time, timestamp);
     data.mutable_event_group()->set_allocated_record_time(timestamp);
-    // TODO (Shruti) Add trace context
+    if (span) {
+      data.mutable_event_group()->set_trace_context(*span);
+    }
     if (!stream->Write(data)) {
       throw StreamClosed("Data event group stream closed");
     }
@@ -893,7 +1166,8 @@ class ThinReplicaImpl {
     com::vmware::concord::thin_replica::Hash hash;
     hash.mutable_events()->set_block_id(block_id);
     hash.mutable_events()->set_hash(update_hash);
-    LOG_DEBUG(logger_, "COMPARE SendHash block_id " << block_id << " update_hash " << update_hash);
+    concordUtils::HexPrintBuffer update_hash_buff{update_hash.data(), update_hash.size()};
+    LOG_DEBUG(logger_, "COMPARE SendHash block_id " << block_id << " update_hash " << update_hash_buff);
     if (!stream->Write(hash)) {
       throw StreamClosed("Hash stream closed");
     }
@@ -972,36 +1246,6 @@ class ThinReplicaImpl {
       LOG_ERROR(logger_, msg.str());
       return {grpc::Status(grpc::StatusCode::INTERNAL, msg.str()), live_updates};
     }
-    if (request->has_events()) {
-      LOG_DEBUG(logger_, "subscribeToLiveUpdates events (client id " << client_id << ")");
-      auto last_block_id = (config_->rostorage)->getLastBlockId();
-      if (request->events().block_id() > last_block_id) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        std::stringstream msg;
-        msg << "Block " << request->events().block_id() << " doesn't exist yet "
-            << " latest block is " << last_block_id;
-        LOG_DEBUG(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};
-      }
-    } else {
-      LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
-
-      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      LOG_INFO(
-          logger_,
-          "subscribeToLiveUpdates (eg vs last) " << request->event_groups().event_group_id() << " > " << last_eg_id);
-      if (request->event_groups().event_group_id() > last_eg_id) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllEventGroupUpdates();
-        std::stringstream msg;
-        msg << "Event group ID " << request->event_groups().event_group_id() << " doesn't exist yet "
-            << " latest event_group_id is " << last_eg_id;
-        LOG_DEBUG(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};
-      }
-    }
-
     return {grpc::Status::OK, live_updates};
   }
 

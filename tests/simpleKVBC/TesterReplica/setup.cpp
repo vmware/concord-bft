@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -14,6 +14,7 @@
 #include <thread>
 #include <sys/param.h>
 #include <string>
+#include <sstream>
 #include <cstring>
 #include <getopt.h>
 #include <unistd.h>
@@ -21,28 +22,32 @@
 #include <chrono>
 #include <memory>
 
-#include "Logger.hpp"
 #include "setup.hpp"
 #include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
 #include "commonKVBTests.hpp"
 #include "memorydb/client.h"
-#include "string.hpp"
-#include "config/config_file_parser.hpp"
+#include "util/string.hpp"
+#include "util/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
-#include "secrets_manager_plain.h"
-
+#include "secrets/secrets_manager_plain.h"
+#include "secrets/secrets_manager_enc.h"
 #include <boost/algorithm/string.hpp>
-#include <experimental/filesystem>
-
+#include <util/filesystem.hpp>
+#include "log/logger.hpp"
+#include "strategy/StrategyUtils.hpp"
 #include "strategy/ByzantineStrategy.hpp"
 #include "strategy/ShufflePrePrepareMsgStrategy.hpp"
+#include "strategy/CorruptCheckpointMsgStrategy.hpp"
+#include "strategy/DelayStateTransferMsgStrategy.hpp"
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
-#include "secrets_manager_enc.h"
+#include "blockchain_misc.hpp"
 
-namespace fs = std::experimental::filesystem;
+#ifdef USE_S3_OBJECT_STORE
+#include "s3/config_parser.hpp"
+#endif
 
 namespace concord::kvbc {
 
@@ -57,6 +62,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   try {
     // used to get info from parsing the key file
     bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
+    logging::Logger logger = logging::getLogger("skvbctest.replica");
     replicaConfig.numOfClientProxies = 0;
     replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 3;
@@ -67,55 +73,143 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.clientBatchingEnabled = true;
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
-    replicaConfig.batchedPreProcessEnabled = true;
+    replicaConfig.timeServiceEnabled = true;
+    replicaConfig.enablePostExecutionSeparation = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
+    replicaConfig.set("concord.bft.st.fetchRangeSize", 27);
+    replicaConfig.set("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 60);
+    replicaConfig.set("concord.bft.st.RVT_K", 12);
     replicaConfig.preExecutionResultAuthEnabled = false;
+    replicaConfig.numOfClientServices = 1;
+    replicaConfig.kvBlockchainVersion = 4;
+    replicaConfig.useUnifiedCertificates = false;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
-    std::string certRootPath = "certs";
+    std::string certRootPath = (replicaConfig.useUnifiedCertificates) ? "tls_certs" : "certs";
     std::string logPropsFile = "logging.properties";
     std::string principalsMapping;
     std::string txnSigningKeysPath;
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;
     std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
+    int addAllKeysAsPublic = 0;
+    int stateTransferMsgDelayMs = 0;
+    std::unordered_set<ReplicaId> byzantineReplicaIds{};
 
-    static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
-                                          {"key-file-prefix", required_argument, 0, 'k'},
-                                          {"network-config-file", required_argument, 0, 'n'},
-                                          {"status-report-timeout", required_argument, 0, 's'},
-                                          {"view-change-timeout", required_argument, 0, 'v'},
-                                          {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
-                                          {"s3-config-file", required_argument, 0, '3'},
-                                          {"log-props-file", required_argument, 0, 'l'},
-                                          {"key-exchange-on-start", required_argument, 0, 'e'},
-                                          {"publish-client-keys", required_argument, 0, 'w'},
-                                          {"cert-root-path", required_argument, 0, 'c'},
-                                          {"consensus-batching-policy", required_argument, 0, 'b'},
-                                          {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
-                                          {"consensus-batching-max-req-num", required_argument, 0, 'q'},
-                                          {"consensus-batching-flush-period", required_argument, 0, 'z'},
-                                          {"consensus-concurrency-level", required_argument, 0, 'y'},
-                                          {"replica-block-accumulation", no_argument, 0, 'u'},
-                                          {"send-different-messages-to-different-replica", no_argument, 0, 'd'},
-                                          {"principals-mapping", optional_argument, 0, 'p'},
-                                          {"txn-signing-key-path", optional_argument, 0, 't'},
-                                          {"operator-public-key-path", optional_argument, 0, 'o'},
-                                          {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
-                                          {"replica-byzantine-strategies", optional_argument, 0, 'g'},
-                                          {"pre-exec-result-auth", no_argument, 0, 'x'},
-                                          {"time_service", optional_argument, 0, 'f'},
-                                          {0, 0, 0, 0}};
+    // !!! DO NOT change the order of the next options, as some might use an option index !!!
+    static struct option longOptions[] = {
+        // !!! ATTENTION !!! long format only options should be put here on top. They all should use val=2 and handled
+        // in a single place in
+        // the while loop
+        {"delay-state-transfer-messages-millisec", required_argument, 0, 2},
+        {"corrupt-checkpoint-messages-from-replica-ids", required_argument, 0, 2},
+        {"diagnostics-port", required_argument, 0, 2},
+
+        // long/short format options
+        {"replica-id", required_argument, 0, 'i'},
+        {"key-file-prefix", required_argument, 0, 'k'},
+        {"network-config-file", required_argument, 0, 'n'},
+        {"status-report-timeout", required_argument, 0, 's'},
+        {"view-change-timeout", required_argument, 0, 'v'},
+        {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
+        {"s3-config-file", required_argument, 0, '3'},
+        {"log-props-file", required_argument, 0, 'l'},
+        {"key-exchange-on-start", required_argument, 0, 'e'},
+        {"publish-client-keys", required_argument, 0, 'w'},
+        {"cert-root-path", required_argument, 0, 'c'},
+        {"consensus-batching-policy", required_argument, 0, 'b'},
+        {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
+        {"consensus-batching-max-req-num", required_argument, 0, 'q'},
+        {"consensus-batching-flush-period", required_argument, 0, 'z'},
+        {"consensus-concurrency-level", required_argument, 0, 'y'},
+        {"replica-block-accumulation", no_argument, 0, 'u'},
+        {"send-different-messages-to-different-replica", no_argument, 0, 'd'},
+        {"principals-mapping", optional_argument, 0, 'p'},
+        {"txn-signing-key-path", optional_argument, 0, 't'},
+        {"operator-public-key-path", optional_argument, 0, 'o'},
+        {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
+        {"replica-byzantine-strategies", optional_argument, 0, 'g'},
+        {"pre-exec-result-auth", no_argument, 0, 'x'},
+        {"time_service", optional_argument, 0, 'f'},
+        {"blockchain-version", optional_argument, 0, 'V'},
+        {"enable-db-checkpoint", required_argument, 0, 'h'},
+        {"use-unified-certs", optional_argument, 0, 'U'},
+
+        // direct options - assign directly ro a non-null flag
+        {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
+        {"add-all-keys-as-public", no_argument, &addAllKeysAsPublic, 1},
+        {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:V:U:", longOptions, &optionIndex)) !=
+           -1) {
       switch (o) {
+        // long-options-only first
+        case 2:
+          switch (optionIndex) {
+            case 0: {
+              std::string str{optarg};
+              std::string::const_iterator it = str.begin();
+              while (it != str.end() && std::isdigit(*it)) {
+                ++it;
+              }
+              if (str.empty() || it != str.end()) {
+                std::ostringstream ss;
+                ss << "invalid argument for --delay-state-transfer-messages-millisec <" << str << ">";
+                throw std::runtime_error{ss.str()};
+              }
+              stateTransferMsgDelayMs = stoi(str);
+              byzantineStrategies = concord::kvbc::strategy::DelayStateTransferMsgStrategy(logger, 0).getStrategyName();
+            } break;
+            case 1: {
+              std::string str{optarg};
+              if (str.empty()) {
+                throw std::runtime_error{"no argument provided for --corrupt-checkpoint-messages-from-replica-ids"};
+              }
+
+              std::stringstream ss{str};
+              try {
+                for (int i = 0; ss >> i;) {
+                  LOG_INFO(GL, "Adding replica " + std::to_string(i) + " to the set of byzantine replicas.");
+                  byzantineReplicaIds.insert(i);
+                  if (ss.peek() == ',') ss.ignore();
+                }
+              } catch (std::exception&) {
+                LOG_INFO(GL, "Failed to parse" << KVLOG(str) << ". Expecting comma separated replica IDs");
+                throw std::runtime_error{
+                    "invalid argument for --corrupt-checkpoint-messages-from-replica-ids. More information in log."};
+              }
+
+              if (byzantineReplicaIds.empty()) {
+                throw std::runtime_error{"invalid argument for --corrupt-checkpoint-messages-from-replica-ids"};
+              }
+
+              byzantineStrategies = concord::kvbc::strategy::CorruptCheckpointMsgStrategy::strategyName();
+            } break;
+            case 2: {
+              std::string arg{optarg};
+              try {
+                replicaConfig.diagnosticsServerPort = arg.empty() ? 0 : std::stoi(arg);
+              } catch (std::exception&) {
+                throw std::runtime_error{
+                    "Invalid value for argument --diagnostics-port, argument should be"
+                    "a valid available port number"};
+              }
+            } break;
+            default: {
+              std::ostringstream ss;
+              ss << "invalid option:" << KVLOG(o, optionIndex);
+              throw std::runtime_error{ss.str()};
+            } break;
+          };
+          break;
+
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
         } break;
@@ -133,6 +227,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'v': {
           replicaConfig.viewChangeTimerMillisec = concord::util::to<std::uint16_t>(std::string(optarg));
           replicaConfig.viewChangeProtocolEnabled = true;
+        } break;
+        case 'V': {
+          auto version = concord::util::to<std::uint16_t>(std::string(optarg));
+          if (version != BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN && version != BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+            std::ostringstream ss;
+            ss << "invalid option for blockchain version " << version;
+            throw std::runtime_error{ss.str()};
+          }
+          replicaConfig.kvBlockchainVersion = version;
         } break;
         case 'a': {
           replicaConfig.autoPrimaryRotationTimerMillisec = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -220,6 +323,29 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.timeServiceEnabled = time_service_option;
           break;
         }
+        case 'h': {
+          // enable rocksdb checkpoint with some defaults
+          replicaConfig.dbCheckpointFeatureEnabled = false;
+          replicaConfig.dbCheckPointWindowSize = 150;
+          replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
+          replicaConfig.dbCheckpointMonitorIntervalSeconds = std::chrono::seconds{1};
+          replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
+          if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
+          std::stringstream dbSnapshotPath;
+          dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
+          replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
+          break;
+        }
+        case 'j': {
+          // updating dbCheckPointWindowSize value to test create dbSnapshot operator command
+          replicaConfig.dbCheckPointWindowSize = concord::util::to<std::uint32_t>(std::string(optarg));
+          break;
+        }
+        case 'U': {
+          bool use_unified_certs = concord::util::to<bool>(std::string(optarg));
+          replicaConfig.useUnifiedCertificates = use_unified_certs;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -239,8 +365,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       throw std::runtime_error("Params principals-mapping and txn-signing-key-path must be set simultaneously.");
     }
 
-    logging::Logger logger = logging::getLogger("skvbctest.replica");
-
     TestCommConfig testCommConfig(logger);
     testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
     uint16_t numOfReplicas =
@@ -253,10 +377,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     bft::communication::PlainTcpConfig conf =
         testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
-    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-        true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
-    if (conf.secretData.has_value()) {
-      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData.value());
+    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true,
+                                                                           replicaConfig.replicaId,
+                                                                           numOfClients,
+                                                                           numOfReplicas,
+                                                                           commConfigFile,
+                                                                           replicaConfig.useUnifiedCertificates,
+                                                                           certRootPath);
+    if (conf.secretData_.has_value()) {
+      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData_.value());
     } else {
       sm_ = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
     }
@@ -271,7 +400,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       // Initialise all the strategies here at once.
       const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
           std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
-          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
+          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger),
+          std::make_shared<concord::kvbc::strategy::DelayStateTransferMsgStrategy>(logger, stateTransferMsgDelayMs),
+          std::make_shared<concord::kvbc::strategy::CorruptCheckpointMsgStrategy>(logger,
+                                                                                  std::move(byzantineReplicaIds))};
       WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
 
       std::unique_ptr<bft::communication::ICommunication> wrappedComm =
@@ -282,7 +414,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                          << is_separate_communication_mode);
     }
 
-    uint16_t metricsPort = conf.listenPort + 1000;
+    uint16_t metricsPort = conf.listenPort_ + 1000;
 
     LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
     std::unique_ptr<TestSetup> setup = nullptr;
@@ -293,7 +425,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                               persistMode == PersistencyMode::RocksDB,
                               s3ConfigFile,
                               logPropsFile,
-                              cronEntryNumberOfExecutes));
+                              cronEntryNumberOfExecutes,
+                              addAllKeysAsPublic != 0));
     setup->sm_ = sm_;
     return setup;
 
@@ -303,53 +436,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   }
 }
 
-#ifdef USE_S3_OBJECT_STORE
-concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3ConfigFile) {
-  ConfigFileParser parser(logger_, s3ConfigFile);
-  if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
-
-  auto get_config_value = [&s3ConfigFile, &parser](const std::string& key) {
-    std::vector<std::string> v = parser.GetValues(key);
-    if (v.size()) {
-      return v[0];
-    } else {
-      throw std::runtime_error("failed to parse " + s3ConfigFile + ": " + key + " is not set.");
-    }
-  };
-
-  concord::storage::s3::StoreConfig config;
-  config.bucketName = get_config_value("s3-bucket-name");
-  config.accessKey = get_config_value("s3-access-key");
-  config.protocol = get_config_value("s3-protocol");
-  config.url = get_config_value("s3-url");
-  config.secretKey = get_config_value("s3-secret-key");
-  try {
-    // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
-    // bucket for the RO replica. To achieve this we use a hack - set the prefix to a uniqe value so each RO replica
-    // writes in the same bucket but in different directory.
-    // So if s3-path-prefix is NOT SET it is initialised to a unique value based on current time.
-    config.pathPrefix = get_config_value("s3-path-prefix");
-  } catch (std::runtime_error& e) {
-    config.pathPrefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-  }
-
-  LOG_INFO(logger_,
-           "\nS3 Configuration:"
-               << "\nbucket:\t\t" << config.bucketName << "\nprotocol:\t" << config.protocol << "\nurl:\t\t"
-               << config.url);
-  return config;
-}
-#endif
-
 std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
-  // TODO handle persistancy mode
+  // TODO handle persistence mode
   std::stringstream dbPath;
   dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
 
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = ParseS3Config(s3ConfigFile_);
+    const auto s3Config = concord::storage::s3::ConfigFileParser(s3ConfigFile_).parse();
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif

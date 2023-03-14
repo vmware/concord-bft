@@ -40,14 +40,15 @@ class ReplicasInfo {
   bool isIdOfInternalClient(PrincipalId id) const {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
-
+  bool isIdOfClientService(NodeIdType id) { return _idsOfClientServices.find(id) != _idsOfClientServices.end(); }
   bool isValidPrincipalId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
   const std::set<PrincipalId>& idsOfClientProxies() const { return _idsOfClientProxies; }
   const std::set<PrincipalId>& idsOfExternalClients() const { return _idsOfExternalClients; }
   const std::set<PrincipalId>& idsOfInternalClients() const { return _idsOfInternalClients; }
-
+  const std::set<PrincipalId>& idsOfIClientServices() const { return _idsOfClientServices; }
+  PrincipalId getIdOfOperator() const { return _operator_id; }
   ReplicaId primaryOfView(ViewNum view) const { return (view % _numberOfReplicas); }
 
   // TODO(GG): Improve the following methods (Don't use simple arrays. Use iterators or something similar)
@@ -83,6 +84,7 @@ class ReplicasInfo {
   uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
   uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
   uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
+  uint16_t getNumberOfClientServices() { return _numberOfClientServices; }
 
  protected:
   const ReplicaId _myId = 0;
@@ -90,6 +92,7 @@ class ReplicasInfo {
   const uint16_t _numberOfRoReplicas = 0;
   const uint16_t _numOfClientProxies = 0;
   const uint16_t _numberOfExternalClients = 0;
+  const uint16_t _numberOfClientServices = 0;
   const uint16_t _numberOfInternalClients = 0;
   const uint16_t _maxValidPrincipalId = 0;
   const uint16_t _fVal = 0;
@@ -102,7 +105,11 @@ class ReplicasInfo {
   const std::set<ReplicaId> _idsOfPeerROReplicas;
   const std::set<PrincipalId> _idsOfClientProxies;
   const std::set<PrincipalId> _idsOfExternalClients;
+  const std::set<PrincipalId> _idsOfClientServices;
   const std::set<PrincipalId> _idsOfInternalClients;
+
+  // Currently we support only a single operator entity in the system
+  PrincipalId _operator_id;
 };
 }  // namespace impl
 }  // namespace bftEngine

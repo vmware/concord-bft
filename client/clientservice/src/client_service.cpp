@@ -11,25 +11,114 @@
 
 #include "client/clientservice/client_service.hpp"
 
+#include <chrono>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/ext/health_check_service_server_builder_option.h>
+
+using namespace std::literals::chrono_literals;
 
 namespace concord::client::clientservice {
 
-void ClientService::start(const std::string& addr) {
-  grpc::EnableDefaultHealthCheckService(true);
+void ClientService::start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size) {
+  grpc::EnableDefaultHealthCheckService(false);
+  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
   grpc::ServerBuilder builder;
   builder.AddListeningPort(addr, grpc::InsecureServerCredentials());
-  builder.RegisterService(request_service_.get());
+  builder.SetMaxReceiveMessageSize(max_receive_msg_size);
+
+  // Register synchronous services
   builder.RegisterService(event_service_.get());
+  builder.RegisterService(state_snapshot_service_.get());
 
-  auto clientservice_server = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
+  // Register custom health service
+  std::unique_ptr<grpc::HealthCheckServiceInterface> custom_health_service(
+      new HealthCheckService(health_service_.get()));
+  grpc::HealthCheckServiceInterface* health_service_copy = custom_health_service.get();
+  std::unique_ptr<grpc::ServerBuilderOption> option(
+      new grpc::HealthCheckServiceServerBuilderOption(std::move(custom_health_service)));
+  builder.SetOption(std::move(option));
+  builder.RegisterService(health_service_.get());
 
-  auto health = clientservice_server->GetHealthCheckService();
-  health->SetServingStatus(kRequestService, true);
-  health->SetServingStatus(kEventService, true);
+  // Register asynchronous services
+  builder.RegisterService(&request_service_);
 
-  clientservice_server->Wait();
+  for (unsigned i = 0; i < num_async_threads; ++i) {
+    cqs_.emplace_back(builder.AddCompletionQueue());
+  }
+
+  clientservice_server_ = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
+  // clientservice_server_ now points to a running gRPC server which is ready to process calls
+
+  health_ = clientservice_server_->GetHealthCheckService();
+  ConcordAssertEQ(health_service_copy, health_);
+
+  // From the "C++ Performance Notes" in the gRPC documentation:
+  // "Right now, the best performance trade-off is having numcpu's threads and one completion queue per thread."
+  for (unsigned i = 0; i < num_async_threads; ++i) {
+    server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
+  }
+  ConcordAssertNE(health_, nullptr);
+  health_->SetServingStatus(kRequestService, client_ ? client_->isClientPoolHealthy() : false);
+  health_->SetServingStatus(kEventService, true);
+}
+
+void ClientService::wait() {
+  ConcordAssertNE(clientservice_server_, nullptr);
+  clientservice_server_->Wait();
+}
+
+void ClientService::shutdown() {
+  if (clientservice_server_) {
+    LOG_INFO(logger_, "Shutting down clientservice");
+    clientservice_server_->Shutdown(std::chrono::system_clock::now() + 1s);
+
+    LOG_INFO(logger_, "Shutting down and emptying completion queues");
+    std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
+    for (auto& cq : cqs_) {
+      void* tag;
+      bool ok;
+      while (cq->Next(&tag, &ok))
+        ;
+    }
+
+    LOG_INFO(logger_, "Waiting for async gRPC threads to return");
+    std::for_each(server_threads_.begin(), server_threads_.end(), [](auto& t) { t.join(); });
+  } else {
+    LOG_INFO(logger_, "Clientservice is not running.");
+  }
+  if (health_) health_->Shutdown();
+}
+
+void ClientService::handleRpcs(unsigned thread_idx) {
+  // Note: Memory is freed in `proceed`
+  new requestservice::RequestServiceCallData(&request_service_, cqs_[thread_idx].get(), client_);
+
+  void* tag;  // uniquely identifies a request.
+  bool ok = false;
+  while (true) {
+    // Block waiting to read the next event from the completion queue. The
+    // event is uniquely identified by its tag, which in this case is the
+    // memory address of a RequestServiceCallData instance (see `proceed`).
+    // The return value of Next should always be checked. This return value
+    // tells us whether there is any kind of event or cqs_ is shutting down.
+    if (not cqs_[thread_idx]->Next(&tag, &ok)) {
+      // The queue is drained and shutdown, no need to stay around.
+      LOG_INFO(logger_, "Completion queue drained and shutdown, stop processing.");
+      return;
+    }
+    // We expect a successful event or an alarm to be expired - `ok` is true in either case.
+    // If the alarm was cancelled `ok` will be false - we don't cancel alarms.
+    // An unsuccessful event either means GRPC_QUEUE_SHUTDOWN or GRPC_QUEUE_TIMEOUT.
+    // The former will be signaled on the following Next() call and handled.
+    // The latter means that there is no event present.
+    if (not ok) {
+      continue;
+    }
+    static_cast<requestservice::RequestServiceCallData*>(tag)->proceed();
+  }
 }
 
 }  // namespace concord::client::clientservice

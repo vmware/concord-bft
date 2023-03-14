@@ -12,7 +12,7 @@
 // file.
 
 #include "DbMetadataStorage.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include <cstring>
 #include <exception>
 
@@ -46,12 +46,14 @@ bool DBMetadataStorage::isNewStorage() {
   return (outActualObjectSize == 0);
 }
 
-bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
+bool DBMetadataStorage::initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                                             uint32_t metadataObjectsArrayLength) {
   for (uint32_t i = objectsNumParameterId_ + 1; i < metadataObjectsArrayLength; ++i) {
-    objectIdToSizeMap_[i] = metadataObjectsArray[i].maxSize;
-    LOG_TRACE(logger_,
-              "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
-                                        << ", maxSize=" << metadataObjectsArray[i].maxSize);
+    const auto objectData = metadataObjectsArray.at(i);
+    objectIdToSizeMap_[i] = objectData.maxSize;
+    LOG_TRACE(
+        logger_,
+        "initMaxSizeOfObjects i=" << i << " object data: id=" << objectData.id << ", maxSize=" << objectData.maxSize);
   }
   // Metadata object with id=1 is used to indicate storage initialization state
   // (number of specified metadata objects).
@@ -92,6 +94,24 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId, const char *data, uint32_
   }
 }
 
+void DBMetadataStorageUnbounded::atomicWriteArbitraryObject(const std::string &key,
+                                                            const char *data,
+                                                            uint32_t dataLength) {
+  Sliver k = Sliver::copy(key.data(), key.length());
+  Sliver v = Sliver::copy(data, dataLength);
+  lock_guard<mutex> lock(ioMutex_);
+  LOG_DEBUG(logger_, "key: " << key);
+  Status status = dbClient_->put(metadataKeyManipulator_->generateMetadataKey(k), v);
+  if (!status.isOK()) {
+    throw runtime_error("DBClient put operation failed");
+  }
+}
+
+void DBMetadataStorage::atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) {
+  LOG_ERROR(GL, "shouldn't have been called. key: " << key);
+  throw runtime_error("DBMetadataStorage::atomicWriteArbitraryObject() shouldn't have been called.");
+}
+
 void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
   lock_guard<mutex> lock(ioMutex_);
   LOG_DEBUG(logger_, "Begin atomic transaction");
@@ -108,7 +128,7 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, const char *data, uint32
   Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
   if (!batch_) {
-    LOG_ERROR(logger_, WRONG_FLOW);
+    LOG_FATAL(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   // Delete an older parameter with the same key (if exists) before inserting a new one.
@@ -117,17 +137,17 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, const char *data, uint32
   batch_->insert(KeyValuePair(metadataKeyManipulator_->generateMetadataKey(objectId), copy));
 }
 
-void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
+void DBMetadataStorage::commitAtomicWriteOnlyBatch(bool sync) {
   lock_guard<mutex> lock(ioMutex_);
   LOG_DEBUG(logger_, "Begin Commit atomic transaction");
   if (!batch_) {
-    LOG_ERROR(logger_, WRONG_FLOW);
+    LOG_FATAL(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  Status status = dbClient_->multiPut(*batch_);
+  Status status = dbClient_->multiPut(*batch_, sync);
   LOG_DEBUG(logger_, "End Commit atomic transaction");
   if (!status.isOK()) {
-    LOG_ERROR(logger_, "DBClient multiPut operation failed");
+    LOG_FATAL(logger_, "DBClient multiPut operation failed");
     throw runtime_error("DBClient multiPut operation failed");
   }
   delete batch_;
@@ -151,6 +171,14 @@ void DBMetadataStorage::cleanDB() {
   try {
     ObjectIdsVector objectIds = {objectsNumParameterId_};
     for (const auto &id : objectIdToSizeMap_) {
+      // If the object id is higher than the objectsNum_ it means that we try to remove metadata (and hence the size of
+      // objectsNum_ is still the old one)
+      if (id.first >= objectsNum_) {
+        LOG_WARN(
+            logger_,
+            "during cleaning the metadata, an invalid object was detected, this is probably due to reconfiguration");
+        continue;
+      }
       objectIds.push_back(id.first);
     }
     multiDel(objectIds);

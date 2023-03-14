@@ -1,0 +1,171 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// Concord Client's StateSnapshotService
+
+syntax = "proto3";
+package vmware.concord.client.statesnapshot.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.vmware.concord.client.statesnapshot.v1";
+
+// The StateSnapshotService can be used to initialize an Application from a state
+// snapshot visible to Concord Client. A state snapshot contains all key-values
+// in the `STORAGE_SPACE_MERKLE` storage space from the start of the blockchain up
+// to a specific point and is identified by a snapshot ID.
+//
+// A state snapshot contains only the last writes (as of the state snapshot itself)
+// to key-values in the `STORAGE_SPACE_MERKLE` storage space and no prior historical
+// writes.
+//
+// See `execution_engine.proto` for more information about storage spaces.
+service StateSnapshotService {
+  // Get the ID of a recent and available state snapshot.
+  // Errors:
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // UNKNOWN: exact cause is unknown.
+  rpc GetRecentSnapshot(GetRecentSnapshotRequest) returns (GetRecentSnapshotResponse);
+
+  // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
+  // Key-values are streamed with lexicographic order on keys.
+  // Errors:
+  // NOT_FOUND: if a state snapshot with the requested ID is not (or no longer) available.
+  //            Applications are advised to retry initialization by fetching a new snapshot ID.
+  // INVALID_ARGUMENT: if resuming a stream using `last_received_key` and that key is not part of the
+  //                   state snapshot.
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // FAILED_PRECONDITION: if a precondition in Concord Client is not satisfied. For example,
+  //                      the state might be corrupted or invalid and, in that case, there
+  //                      would be no point in proceeding with streaming.
+  // UNKNOWN: exact cause is unknown.
+  rpc StreamSnapshot(StreamSnapshotRequest) returns (stream StreamSnapshotResponse);
+
+  // Read the values of the given keys as of a specific state snapshot.
+  // Errors:
+  // NOT_FOUND: if the state snapshot with the requested ID is not (or no longer) available.
+  //            Applications are advised to retry initialization by fetching a new snapshot ID.
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // UNKNOWN: exact cause is unknown.
+  rpc ReadAsOf(ReadAsOfRequest) returns (ReadAsOfResponse);
+}
+
+message GetRecentSnapshotRequest {
+}
+
+message GetRecentSnapshotResponse {
+  // The ID of a recent and available state snapshot.
+  uint64 snapshot_id = 1;
+
+  // `taken_at` contains the event group ID or the block ID at which the state snapshot with
+  // `snapshot_id` was taken. Concord Client will either use event group IDs or block IDs and
+  // never mix and match them.
+  //
+  // `taken_at` can be used in the `EventService` to subscribe to events that were created
+  // after the state snapshot was taken.
+  //
+  // Note: Events and, consequently, the `EventService` are optional. The execution engine
+  // might not generate any events. In that case:
+  //  * if event group IDs are used, the event group ID will be 0
+  //  * if block IDs are used, the block ID will not be 0 - instead, it will be some block
+  //    ID at which the state snapshot was taken. In that case, blocks streamed subsequently
+  //    via `EventService` will be empty (not containing any events).
+  //
+  // To visualize, we show how events are streamed from Concord Client to the Application
+  // and the relation between state snapshot and event group IDs and block IDs.
+  //
+  // Streaming via event group IDs:
+  // -------------------------------------------------------------------------------------
+  //                               [State Snapshot at evgN]
+  //                                          |
+  //                                          v
+  // ------------------                                            ---------------
+  // | Concord Client |  -- evg1, evg2, ..., evgN, evgN+1, ... ->  | Application |
+  // ------------------                                            ---------------
+  // -------------------------------------------------------------------------------------
+  // where `evgN` is the Nth event group streamed from Concord Client to the Application.
+  //
+  // Streaming via block IDs:
+  // -------------------------------------------------------------------------------------
+  //                                    [State Snapshot at blockN]
+  //                                               |
+  //                                               v
+  // ------------------                                                    ---------------
+  // | Concord Client |  -- block1, block2, ..., blockN, blockN+1, ... ->  | Application |
+  // ------------------                                                    ---------------
+  // -------------------------------------------------------------------------------------
+  // where `blockN` is the Nth block streamed from Concord Client to the Application. A thing
+  // to note here is that a block might not contain any events for the application. However,
+  // the block will still be streamed, but with an empty list of events.
+  //
+  // After receiving a state snapshot at `evgN` or `blockN`, an Application can continue
+  // operation by consuming event groups from `evgN+1` onwards or blocks from `blockN+1`
+  // onwards, respectively.
+  //
+  // Concord Client ensures that there is always at least one reasonably recent
+  // state snapshot that can be served. The intention is that this state snapshot
+  // can be used to initialize the Application after the blockchain has been pruned and
+  // some set of historical events are no longer available via the `EventService`.
+  //
+  // See `event.proto` for more information about events, event group IDs and `EventService`.
+  oneof taken_at {
+    uint64 event_group_id = 2;
+    uint64 block_id = 3;
+  }
+
+  // An estimate (with reasonable accuracy) of the count of key-values contained
+  // in the state snapshot. Please note that this is an estimation and *not* the
+  // actual count.
+  uint64 key_value_count_estimate = 4;
+
+  // The ledger time at which the snapshot was taken.
+  google.protobuf.Timestamp ledger_time = 5;
+}
+
+message StreamSnapshotRequest {  
+  // The ID of the state snapshot to be streamed.
+  uint64 snapshot_id = 1;
+
+  // If set, start streaming from `last_received_key` onwards, excluding
+  // `last_received_key`.
+  // If `last_received_key` is not part of the state snapshot, an INVALID_ARGUMENT
+  // error is returned.
+  //
+  // If not set, start streaming from the first key-value in the state snapshot.
+  //
+  // The empty bytestring is a valid key.
+  //
+  // Key-values are streamed with lexicographic order on keys.
+  optional bytes last_received_key = 2;
+}
+
+message KeyValuePair {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message StreamSnapshotResponse {
+  KeyValuePair key_value = 1;
+}
+
+message ReadAsOfRequest {
+  // The ID of the state snapshot as of which to read the values.
+  uint64 snapshot_id = 1;
+
+  // List of keys for which the values should be returned.
+  repeated bytes keys = 2;
+}
+
+message OptionalValue {
+  optional bytes value = 1;
+}
+
+message ReadAsOfResponse {
+  // The `values` list contains entries for *all* requested keys
+  // in `ReadAsOfRequest.keys` in the exact same order. `values`
+  // is, therefore, the exact same length as `ReadAsOfRequest.keys`.
+  //
+  // If a key-value has been deleted or has never been set,
+  // `OptionalValue.value` will not be set. Otherwise, it will
+  // be set to the value's bytes as of the requested state snapshot.
+  repeated OptionalValue values = 1;
+}

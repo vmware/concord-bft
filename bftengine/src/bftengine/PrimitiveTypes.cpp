@@ -24,6 +24,7 @@ std::string CommitPathToMDCString(CommitPath path) {
     case CommitPath::NA:
       return "NA";
     case CommitPath::OPTIMISTIC_FAST:
+      return "fast-optimistic";
     case CommitPath::FAST_WITH_THRESHOLD:
       return "fast";
     case CommitPath::SLOW:
@@ -32,6 +33,8 @@ std::string CommitPathToMDCString(CommitPath path) {
       return "Unsupported CommitPath";
   }
 }
+
+std::ostream& operator<<(std::ostream& os, const CommitPath& path) { return os << CommitPathToStr(path); }
 
 }  // namespace impl
 }  // namespace bftEngine

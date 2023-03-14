@@ -18,13 +18,25 @@
 #include <string>
 #include <memory>
 #include "IReservedPages.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
+#include "messages/MessageBase.hpp"
+
+using std::shared_ptr;
 
 namespace concord::client::reconfiguration {
 class ClientReconfigurationEngine;
 }
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
+
+// May become larger over time based on all types of msgs we intercept
+// For now we intercept only preprepare
+struct ConsensusMsg {
+  ConsensusMsg() = delete;
+  ConsensusMsg(MsgType type, NodeIdType sender_id) : type_(type), sender_id_(sender_id) {}
+  const MsgType type_;
+  const NodeIdType sender_id_;
+};
 
 class IStateTransfer : public IReservedPages {
  public:
@@ -47,9 +59,12 @@ class IStateTransfer : public IReservedPages {
 
   virtual void createCheckpointOfCurrentState(uint64_t checkpointNumber) = 0;
 
-  virtual void markCheckpointAsStable(uint64_t checkpointNumber) = 0;
-
-  virtual void getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char *outDigestBuffer) = 0;
+  virtual void getDigestOfCheckpoint(uint64_t checkpointNumber,
+                                     uint16_t sizeOfDigestBuffer,
+                                     uint64_t &outBlockId,
+                                     char *outStateDigest,
+                                     char *outResPagesDigest,
+                                     char *outRVBDataDigest) = 0;
 
   // state
   virtual void startCollectingState() = 0;
@@ -75,14 +90,20 @@ class IStateTransfer : public IReservedPages {
   // Callbacks must not throw.
   // Multiple callbacks can be added.
   virtual void addOnTransferringCompleteCallback(
-      std::function<void(uint64_t)>,
+      const std::function<void(uint64_t)> &cb,
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;
+
+  // Registers a function that is called every time fetching state changes
+  virtual void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)> &) = 0;
 
   virtual void setEraseMetadataFlag() = 0;
 
   virtual void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
-  virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
+  virtual void handleIncomingConsensusMessage(const ConsensusMsg msg) = 0;
+  // Reports State Transfer whenever a prune command is triggered into storage, after a consensus on the last prunable
+  // block. lastAgreedPrunableBlockId is the maximal block to be deleted from local storage.
+  virtual void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

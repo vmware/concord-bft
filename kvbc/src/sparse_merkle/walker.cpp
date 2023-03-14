@@ -11,7 +11,7 @@
 // LICENSE file.
 #include "sparse_merkle/histograms.h"
 #include "sparse_merkle/walker.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace concordUtils;
 using namespace concord::diagnostics;

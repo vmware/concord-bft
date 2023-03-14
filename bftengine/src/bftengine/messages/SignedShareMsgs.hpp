@@ -11,9 +11,11 @@
 
 #pragma once
 
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "MessageBase.hpp"
 #include <memory>
+
+using concord::crypto::Digest;
 
 class IThresholdSigner;
 
@@ -26,6 +28,8 @@ namespace impl {
 
 class SignedShareBase : public MessageBase {
  public:
+  virtual ~SignedShareBase() = default;
+
   ViewNum viewNumber() const { return b()->viewNumber; }
 
   SeqNum seqNumber() const { return b()->seqNumber; }

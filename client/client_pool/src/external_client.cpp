@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -14,7 +14,7 @@
 #include "client/client_pool/external_client.hpp"
 #include <string>
 #include <utility>
-#include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
 #include "bftclient/fake_comm.h"
 
 namespace concord::external_client {
@@ -22,66 +22,100 @@ namespace concord::external_client {
 using bftEngine::ClientMsgFlag;
 using namespace config_pool;
 using namespace bftEngine;
-
 using namespace bft::communication;
 
-std::shared_ptr<std::vector<char>> ConcordClient::reply_ = std::make_shared<std::vector<char>>(0);
 uint16_t ConcordClient::required_num_of_replicas_ = 0;
 uint16_t ConcordClient::num_of_replicas_ = 0;
 size_t ConcordClient::max_reply_size_ = 0;
 bool ConcordClient::delayed_behaviour_ = false;
-bftEngine::OperationResult ConcordClient::clientRequestError_ = SUCCESS;
+std::set<ReplicaId> ConcordClient::all_replicas_;
+config_pool::ConcordClientPoolConfig ConcordClient::pool_config_;
+bftEngine::SimpleClientParams ConcordClient::client_params_;
+BaseCommConfig* ConcordClient::multiplexConfig_ = nullptr;
+bft::client::SharedCommPtr ConcordClient::multiplex_comm_channel_;
 
-ConcordClient::ConcordClient(int client_id,
-                             ConcordClientPoolConfig& struct_config,
-                             const SimpleClientParams& client_params)
-    : logger_(logging::getLogger("concord.client.client_pool.external_client")) {
+void ConcordClient::setStatics(uint16_t required_num_of_replicas,
+                               uint16_t num_of_replicas,
+                               uint32_t max_reply_size,
+                               size_t batch_size,
+                               ConcordClientPoolConfig& pool_config,
+                               SimpleClientParams& client_params,
+                               BaseCommConfig* multiplexConfig) {
+  ConcordClient::max_reply_size_ = max_reply_size;
+  ConcordClient::required_num_of_replicas_ = required_num_of_replicas;
+  ConcordClient::num_of_replicas_ = num_of_replicas;
+  pool_config_ = pool_config;
+  client_params_ = client_params;
+  multiplexConfig_ = multiplexConfig;
+  for (const auto& replica : pool_config.replicas) {
+    all_replicas_.insert(ReplicaId{static_cast<uint16_t>(replica.first)});
+  }
+}
+
+ConcordClient::ConcordClient(int client_id, std::shared_ptr<concordMetrics::Aggregator> aggregator)
+    : logger_(logging::getLogger("concord.client.client_pool.external_client")),
+      clientRequestExecutionResult_(OperationResult::SUCCESS) {
   client_id_ = client_id;
-  CreateClient(struct_config, client_params);
+  CreateClient(aggregator);
 }
 
 ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
+  LOG_INFO(
+      logger_,
+      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
-  clientRequestError_ = SUCCESS;
+  clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
+    cid_before_send_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
     res = new_client_->send(config, std::move(request));
+    cid_response_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
+  } catch (const BadQuorumConfigException& e) {
+    clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
+    LOG_ERROR(logger_, "Invalid write config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestError_ = TIMEOUT;
+    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  LOG_DEBUG(logger_,
-            "Request has completed processing"
-                << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
-  if (externalReplyBuffer) {
-    memcpy(externalReplyBuffer, res.matched_data.data(), res.matched_data.size());
-  }
+  const auto result = static_cast<OperationResult>(res.result);
+  const auto reply_size = result == OperationResult::SUCCESS ? res.matched_data.size() : sizeof(OperationResult);
+  if (result != OperationResult::SUCCESS) clientRequestExecutionResult_ = result;
+  LOG_INFO(logger_,
+           "Request processing completed" << KVLOG(
+               client_id_, config.request.sequence_number, config.request.correlation_id, res.result, reply_size));
   return res;
 }
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
+  LOG_INFO(
+      logger_,
+      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
-  clientRequestError_ = SUCCESS;
+  clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
+    cid_before_send_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
     res = new_client_->send(config, std::move(request));
+    cid_response_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
+  } catch (const BadQuorumConfigException& e) {
+    clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
+    LOG_ERROR(logger_, "Invalid read config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestError_ = TIMEOUT;
+    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  LOG_DEBUG(logger_,
-            "Request has completed processing"
-                << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
-  if (externalReplyBuffer) {
-    memcpy(externalReplyBuffer, res.matched_data.data(), res.matched_data.size());
-  }
-
+  const auto result = static_cast<OperationResult>(res.result);
+  if (result != OperationResult::SUCCESS) clientRequestExecutionResult_ = result;
+  const auto reply_size = result == OperationResult::SUCCESS ? res.matched_data.size() : sizeof(OperationResult);
+  LOG_INFO(logger_,
+           "Request processing completed" << KVLOG(
+               client_id_, config.request.sequence_number, config.request.correlation_id, res.result, reply_size));
   return res;
 }
 
@@ -109,11 +143,6 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
     pending_reply.replyBuffer = reply_buffer;
     pending_reply.lengthOfReplyBuffer = reply_size;
   } else {
-    pending_reply.replyBuffer = reply_->data() + batching_buffer_reply_offset_ * max_reply_size_;
-    LOG_DEBUG(logger_,
-              "Given reply size is 0, setting internal buffer with offset="
-                  << (batching_buffer_reply_offset_ * max_reply_size_));
-    ++batching_buffer_reply_offset_;
     pending_reply.lengthOfReplyBuffer = max_reply_size_;
   }
   pending_reply.actualReplyLength = 0UL;
@@ -123,10 +152,11 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
   pending_replies_.push_back(std::move(pending_reply));
 }
 
-std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequests() {
+std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequests() {
   const auto& batch_cid =
       std::to_string(client_id_) + "-" + std::to_string(seqGen_->generateUniqueSequenceNumberForRequest());
   OperationResult ret = OperationResult::SUCCESS;
+  clientRequestExecutionResult_ = OperationResult::SUCCESS;
   std::deque<bft::client::WriteRequest> request_queue;
   std::map<uint64_t, std::string> seq_num_to_cid;
   for (auto req : pending_requests_) {
@@ -137,145 +167,210 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
     single_config.request.correlation_id = req.cid;
     seq_num_to_cid.insert(std::make_pair(req.reqSeqNum, req.cid));
     single_config.request.span_context = req.span_context;
+    single_config.request.reconfiguration = req.flags & bftEngine::RECONFIG_FLAG_REQ;
     single_config.request.pre_execute = req.flags & bftEngine::PRE_PROCESS_REQ;
     request_queue.push_back(bft::client::WriteRequest{single_config, std::move(req.request)});
+    cid_before_send_map_[req.cid] = std::chrono::steady_clock::now();
   }
   try {
-    auto res = new_client_->sendBatch(request_queue, batch_cid);
-    for (auto rep : res) {
-      for (auto reply : pending_replies_) {
-        if (reply.lengthOfReplyBuffer == max_reply_size_) continue;
-        auto cid = seq_num_to_cid.find(rep.first)->second;
-        if (reply.cid == cid) {
-          reply.actualReplyLength = rep.second.matched_data.size();
-          memcpy(reply.replyBuffer, rep.second.matched_data.data(), rep.second.matched_data.size());
-          auto result = bftEngine::SendResult{rep.second};
-          if (reply.cb) reply.cb(std::move(result));
-          LOG_DEBUG(logger_, "Request has completed processing" << KVLOG(client_id_, batch_cid, reply.cid));
+    LOG_INFO(logger_, "Batch processing started" << KVLOG(client_id_, batch_cid));
+    auto received_replies_map = new_client_->sendBatch(request_queue, batch_cid);
+    for (const auto& received_reply_entry : received_replies_map) {
+      const auto received_reply_seq_num = received_reply_entry.first;
+      const auto& pending_seq_num_to_cid_entry = seq_num_to_cid.find(received_reply_seq_num);
+      if (pending_seq_num_to_cid_entry == seq_num_to_cid.end()) {
+        LOG_ERROR(logger_,
+                  "Received reply for a non pending for reply request"
+                      << KVLOG(client_id_, batch_cid, received_reply_seq_num));
+        continue;
+      }
+      auto cid = pending_seq_num_to_cid_entry->second;
+      cid_response_map_[cid] = std::chrono::steady_clock::now();
+      auto data_size = received_reply_entry.second.matched_data.size();
+      for (auto& pending_reply : pending_replies_) {
+        if (pending_reply.cid != cid) continue;
+        const auto res = static_cast<OperationResult>(received_reply_entry.second.result);
+        auto response = res == OperationResult::SUCCESS ? bftEngine::SendResult{received_reply_entry.second}
+                                                        : bftEngine::SendResult{received_reply_entry.second.result};
+        const auto reply_size =
+            res == OperationResult::SUCCESS ? received_reply_entry.second.matched_data.size() : sizeof(OperationResult);
+        if (pending_reply.cb) {
+          pending_reply.cb(move(response));
+          LOG_INFO(logger_,
+                   "Request processing completed; return response through the callback"
+                       << KVLOG(client_id_,
+                                batch_cid,
+                                received_reply_seq_num,
+                                pending_reply.cid,
+                                received_reply_entry.second.result,
+                                reply_size));
+        } else {
+          // Used for testing only
+          if (data_size > pending_reply.lengthOfReplyBuffer) {
+            LOG_WARN(logger_,
+                     "Reply is too big" << KVLOG(client_id_, cid, pending_reply.lengthOfReplyBuffer, data_size));
+            continue;
+          }
+          memcpy(pending_reply.replyBuffer, received_reply_entry.second.matched_data.data(), data_size);
+          pending_reply.actualReplyLength = data_size;
+          pending_reply.opResult = static_cast<bftEngine::OperationResult>(received_reply_entry.second.result);
+          LOG_INFO(logger_,
+                   "Request processing completed" << KVLOG(client_id_,
+                                                           batch_cid,
+                                                           received_reply_seq_num,
+                                                           pending_reply.cid,
+                                                           received_reply_entry.second.result,
+                                                           reply_size));
         }
       }
     }
   } catch (BatchTimeoutException& e) {
+    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_, "Batch cid =" << batch_cid << " has failed to invoke, timeout has been reached");
     ret = OperationResult::TIMEOUT;
   }
-  batching_buffer_reply_offset_ = 0UL;
+  LOG_INFO(logger_, "Batch processing completed" << KVLOG(client_id_, batch_cid));
   pending_requests_.clear();
-  return {ret, std::move(pending_replies_)};
+  return {static_cast<uint32_t>(ret), std::move(pending_replies_)};
 }
 
-bft::communication::BaseCommConfig* ConcordClient::CreateCommConfig(int num_replicas,
-                                                                    const ConcordClientPoolConfig& config) const {
-  const auto& client_conf = config.participant_nodes.at(0).externalClients.at(client_id_);
+BaseCommConfig* ConcordClient::CreateCommConfig() const {
   const auto commType =
-      config.comm_to_use == "tls"
+      pool_config_.comm_to_use == "tls"
           ? TlsTcp
-          : config.comm_to_use == "tcp" ? PlainTcp : config.comm_to_use == "udp" ? PlainUdp : SimpleAuthTcp;
+          : pool_config_.comm_to_use == "tcp" ? PlainTcp : pool_config_.comm_to_use == "udp" ? PlainUdp : SimpleAuthTcp;
+#if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
+  const auto& client_conf = pool_config_.participant_nodes.at(0).externalClients.at(client_id_);
   const auto listenPort = client_conf.client_port;
-  const auto bufferLength = std::stoul(config.concord_bft_communication_buffer_length);
+  const auto bufferLength = std::stoul(pool_config_.concord_bft_communication_buffer_length);
   const auto selfId = client_conf.principal_id;
-  NodeMap m;
-  if (commType == PlainTcp)
+#endif
+  if (commType == PlainTcp) {
+#ifdef USE_COMM_PLAIN_TCP
     return new PlainTcpConfig{"external_client",
                               listenPort,
                               static_cast<uint32_t>(bufferLength),
-                              m,
-                              static_cast<int32_t>(num_replicas - 1),
+                              pool_config_.replicas,
+                              static_cast<int32_t>(pool_config_.num_replicas - 1),
                               selfId};
-  if (config.encrypted_config_enabled)
+#endif
+    ConcordAssert(false && "FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
+  } else if (commType == TlsTcp) {
+#ifdef USE_COMM_TLS_TCP
+    auto const secretData = pool_config_.encrypted_config_enabled
+                                ? std::optional<concord::secretsmanager::SecretData>(pool_config_.secret_data)
+                                : std::nullopt;
     return new TlsTcpConfig{"external_client",
                             listenPort,
                             static_cast<uint32_t>(bufferLength),
-                            m,
-                            static_cast<std::int32_t>(num_replicas - 1),
+                            pool_config_.replicas,
+                            static_cast<std::int32_t>(pool_config_.num_replicas - 1),
                             selfId,
-                            config.tls_certificates_folder_path,
-                            config.tls_cipher_suite_list,
+                            pool_config_.tls_certificates_folder_path,
+                            pool_config_.tls_cipher_suite_list,
+                            pool_config_.use_unified_certificates,
+                            &pool_config_.tcpKeepAliveConfig,
                             nullptr,
-                            config.secret_data};
-  return new TlsTcpConfig{"external_client",
-                          listenPort,
-                          static_cast<uint32_t>(bufferLength),
-                          m,
-                          static_cast<std::int32_t>(num_replicas - 1),
-                          selfId,
-                          config.tls_certificates_folder_path,
-                          config.tls_cipher_suite_list,
-                          nullptr,
-                          std::nullopt};
+                            secretData};
+#endif
+    ConcordAssert(false && "FOR TLS COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_TLS_TCP\"");
+  }
+
+  ConcordAssert(false && "NEITHER \"tls\" nor \"tcp\" configuration option was chosen");
+}
+SharedCommPtr ConcordClient::ToCommunication(const BaseCommConfig& comm_config) {
+  if (comm_config.commType_ == TlsTcp) {
+#ifdef USE_COMM_TLS_TCP
+    return SharedCommPtr{CommFactory::create(comm_config)};
+#endif
+  } else if (comm_config.commType_ == PlainUdp) {
+#ifdef USE_COMM_UDP
+    const auto udp_config = PlainUdpConfig{comm_config.listenHost_,
+                                           comm_config.listenPort_,
+                                           comm_config.bufferLength_,
+                                           comm_config.nodes_,
+                                           comm_config.selfId_,
+                                           comm_config.statusCallback_};
+    return SharedCommPtr{CommFactory::create(udp_config)};
+#endif
+  }
+  throw std::invalid_argument{"Unknown communication module type=" + std::to_string(comm_config.commType_)};
 }
 
-void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleClientParams& client_params) {
-  const auto num_replicas = config.num_replicas;
-  const auto& nodes = std::move(config.participant_nodes);
-  const auto& node = nodes.at(0);
-  const auto& external_clients_conf = node.externalClients;
-  const auto& client_conf = external_clients_conf.at(client_id_);
-  auto fVal = config.f_val;
-  auto cVal = config.c_val;
-  auto clientId = client_conf.principal_id;
-  enable_mock_comm_ = config.enable_mock_comm;
-  BaseCommConfig* comm_config = CreateCommConfig(num_replicas, config);
-  client_id_ = clientId;
-  std::set<ReplicaId> all_replicas;
-  const std::unordered_map<bft::communication::NodeNum, Replica> node_conf = config.node;
-  for (auto i = 0u; i < num_replicas; ++i) {
-    const auto& replica_conf = node_conf.at(i);
-    const auto replica_id = replica_conf.principal_id;
-    NodeInfo node_info;
-    node_info.host = replica_conf.replica_host;
-    node_info.port = replica_conf.replica_port;
-    node_info.isReplica = true;
-    (*comm_config).nodes[replica_id] = node_info;
-    all_replicas.insert(ReplicaId{static_cast<uint16_t>(i)});
-  }
-  // Ensure exception safety by creating local pointers and only moving to
-  // object members if construction and startup haven't thrown.
-  LOG_DEBUG(logger_, "Client_id=" << client_id_ << " Creating communication module");
-  if (enable_mock_comm_) {
-    if (delayed_behaviour_) {
-      std::unique_ptr<FakeCommunication> fakecomm(new FakeCommunication(delayedBehaviour));
-      comm_ = std::move(fakecomm);
-    } else {
-      std::unique_ptr<FakeCommunication> fakecomm(new FakeCommunication(immideateBehaviour));
-      comm_ = std::move(fakecomm);
+std::tuple<BaseCommConfig*, SharedCommPtr> ConcordClient::CreateCommConfigAndCommChannel() {
+  const auto& nodes = std::move(pool_config_.participant_nodes);
+  const auto& client_conf = nodes.at(0).externalClients.at(client_id_);
+  BaseCommConfig* comm_config = nullptr;
+  SharedCommPtr comm_layer;
+  if (multiplexConfig_)
+    comm_config = multiplexConfig_;
+  else {
+    comm_config = CreateCommConfig();
+    for (const auto& replica : pool_config_.replicas) {
+      comm_config->nodes_[replica.first] = replica.second;
     }
-  } else {
-    auto comm = ToCommunication(*comm_config);
-    comm_ = std::move(comm);
+    enable_mock_comm_ = pool_config_.enable_mock_comm;
+    if (enable_mock_comm_) {
+      const auto behaviour = delayed_behaviour_ ? delayedBehaviour : immediateBehaviour;
+      comm_layer = std::make_shared<FakeCommunication>(behaviour);
+    }
   }
-  static constexpr char transaction_signing_plain_file_name[] = "transaction_signing_priv.pem";
-  static constexpr char transaction_signing_enc_file_name[] = "transaction_signing_priv.pem.enc";
+  client_id_ = client_conf.principal_id;
+  LOG_DEBUG(logger_, "Creating communication module" << KVLOG(client_id_));
+  if (!enable_mock_comm_) {
+    if (multiplexConfig_) {
+      if (!multiplex_comm_channel_) {
+        multiplex_comm_channel_ = SharedCommPtr{CommFactory::create(*multiplexConfig_)};
+      }
+      comm_layer = multiplex_comm_channel_;
+    } else
+      comm_layer = ToCommunication(*comm_config);
+  }
+  return {comm_config, comm_layer};
+}
 
-  LOG_DEBUG(logger_, "Client_id=" << client_id_ << " starting communication and creating new bft client instance");
-  ClientConfig cfg;
-  cfg.all_replicas = all_replicas;
-  cfg.c_val = cVal;
-  cfg.f_val = fVal;
-  cfg.id = ClientId{clientId};
-  cfg.retry_timeout_config = RetryTimeoutConfig{std::chrono::milliseconds(client_params.clientInitialRetryTimeoutMilli),
-                                                std::chrono::milliseconds(client_params.clientMinRetryTimeoutMilli),
-                                                std::chrono::milliseconds(client_params.clientMaxRetryTimeoutMilli),
-                                                client_params.numberOfStandardDeviationsToTolerate,
-                                                client_params.samplesPerEvaluation,
-                                                static_cast<int16_t>(client_params.samplesUntilReset)};
-
-  bool transaction_signing_enabled = config.transaction_signing_enabled;
+void ConcordClient::CreateClientConfig(BaseCommConfig* comm_config, ClientConfig& client_config) {
+  client_config.all_replicas = all_replicas_;
+  client_config.c_val = pool_config_.c_val;
+  client_config.f_val = pool_config_.f_val;
+  client_config.id = ClientId{static_cast<uint16_t>(client_id_)};
+  client_config.retry_timeout_config =
+      RetryTimeoutConfig{std::chrono::milliseconds(client_params_.clientInitialRetryTimeoutMilli),
+                         std::chrono::milliseconds(client_params_.clientMinRetryTimeoutMilli),
+                         std::chrono::milliseconds(client_params_.clientMaxRetryTimeoutMilli),
+                         client_params_.numberOfStandardDeviationsToTolerate,
+                         client_params_.samplesPerEvaluation,
+                         static_cast<int16_t>(client_params_.samplesUntilReset)};
+  if (!pool_config_.path_to_replicas_master_key.empty())
+    client_config.replicas_master_key_folder_path = pool_config_.path_to_replicas_master_key;
+  bool transaction_signing_enabled = pool_config_.transaction_signing_enabled;
   if (transaction_signing_enabled) {
-    std::string priv_key_path = config.signing_key_path;
-    const char* transaction_signing_file_name = transaction_signing_plain_file_name;
-
+#ifdef USE_COMM_TLS_TCP
+    static constexpr char transaction_signing_plain_file_name[] = "transaction_signing_priv.pem";
+    static constexpr char transaction_signing_enc_file_name[] = "transaction_signing_priv.pem.enc";
     auto tls_config = dynamic_cast<TlsTcpConfig*>(comm_config);
-    if (tls_config->secretData) {
+    std::string priv_key_path = pool_config_.signing_key_path;
+    const char* transaction_signing_file_name = transaction_signing_plain_file_name;
+    if (tls_config->secretData_) {
       transaction_signing_file_name = transaction_signing_enc_file_name;
-      cfg.secrets_manager_config = tls_config->secretData;
+      client_config.secrets_manager_config = tls_config->secretData_;
     }
-    cfg.transaction_signing_private_key_file_path = priv_key_path + std::string("/") + transaction_signing_file_name;
+    client_config.transaction_signing_private_key_file_path =
+        priv_key_path + std::string("/") + transaction_signing_file_name;
+#endif
   }
-  auto new_client = std::unique_ptr<bft::client::Client>{new bft::client::Client(std::move(comm_), cfg)};
+}
+
+void ConcordClient::CreateClient(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  ClientConfig client_config;
+  auto [comm_config, comm_layer] = CreateCommConfigAndCommChannel();
+  CreateClientConfig(comm_config, client_config);
+  LOG_DEBUG(logger_, "Creating new bft-client instance" << KVLOG(client_id_));
+  auto new_client =
+      std::unique_ptr<bft::client::Client>{new bft::client::Client(comm_layer, client_config, aggregator)};
   new_client_ = std::move(new_client);
   seqGen_ = bftEngine::SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
-  LOG_INFO(logger_, "client_id=" << client_id_ << " creation succeeded");
+  LOG_INFO(logger_, "Client creation succeeded" << KVLOG(client_id_));
 }
 
 int ConcordClient::getClientId() const { return client_id_; }
@@ -286,51 +381,30 @@ void ConcordClient::setStartRequestTime() { start_job_time_ = std::chrono::stead
 
 std::chrono::steady_clock::time_point ConcordClient::getStartRequestTime() const { return start_job_time_; }
 
+std::chrono::steady_clock::time_point ConcordClient::getAndDeleteCidBeforeSendTime(const std::string& cid) {
+  auto time = cid_before_send_map_[cid];
+  cid_before_send_map_.erase(cid);
+  return time;
+}
+
+std::chrono::steady_clock::time_point ConcordClient::getAndDeleteCidResponseTime(const std::string& cid) {
+  auto time = cid_response_map_[cid];
+  cid_response_map_.erase(cid);
+  return time;
+}
+
 void ConcordClient::setStartWaitingTime() { waiting_job_time_ = std::chrono::steady_clock::now(); }
 
 std::chrono::steady_clock::time_point ConcordClient::getWaitingTime() const { return waiting_job_time_; }
 
 bool ConcordClient::isServing() const { return new_client_->isServing(num_of_replicas_, required_num_of_replicas_); }
 
-void ConcordClient::setStatics(uint16_t required_num_of_replicas,
-                               uint16_t num_of_replicas,
-                               uint32_t max_reply_size,
-                               size_t batch_size) {
-  ConcordClient::max_reply_size_ = max_reply_size;
-  ConcordClient::reply_->resize((batch_size) ? batch_size * max_reply_size : max_reply_size_);
-  ConcordClient::required_num_of_replicas_ = required_num_of_replicas;
-  ConcordClient::num_of_replicas_ = num_of_replicas;
-}
-
-void ConcordClient::setReplyBuffer(char* buf, uint32_t size) {
-  externalReplyBuffer = buf;
-  externalReplyBufferSize = size;
-}
-
-void ConcordClient::unsetReplyBuffer() {
-  externalReplyBuffer = nullptr;
-  externalReplyBufferSize = 0;
-}
-
 void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_behaviour_ = delay; }
 
-bftEngine::OperationResult ConcordClient::getClientRequestError() { return clientRequestError_; }
+OperationResult ConcordClient::getRequestExecutionResult() { return clientRequestExecutionResult_; }
+
+std::string ConcordClient::messageSignature(bft::client::Msg& message) { return new_client_->signMessage(message); }
 
 void ConcordClient::stopClientComm() { new_client_->stop(); }
-
-std::unique_ptr<bft::communication::ICommunication> ConcordClient::ToCommunication(const BaseCommConfig& comm_config) {
-  if (comm_config.commType == TlsTcp) {
-    return std::unique_ptr<ICommunication>{CommFactory::create(comm_config)};
-  } else if (comm_config.commType == PlainUdp) {
-    const auto udp_config = PlainUdpConfig{comm_config.listenHost,
-                                           comm_config.listenPort,
-                                           comm_config.bufferLength,
-                                           comm_config.nodes,
-                                           comm_config.selfId,
-                                           comm_config.statusCallback};
-    return std::unique_ptr<ICommunication>{CommFactory::create(udp_config)};
-  }
-  throw std::invalid_argument{"Unknown communication module type=" + std::to_string(comm_config.commType)};
-}
 
 }  // namespace concord::external_client

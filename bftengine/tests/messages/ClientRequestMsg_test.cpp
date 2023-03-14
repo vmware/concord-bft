@@ -19,7 +19,7 @@
 #include "gtest/gtest.h"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
-#include "serialize.hpp"
+#include "util/serializable.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
@@ -31,7 +31,7 @@ class ClientRequestMsgTestFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo)) {}
 
@@ -56,6 +56,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -86,6 +87,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -115,6 +117,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -145,6 +148,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
                                request,
                                requestTimeoutMilli,
                                correlationId,
+                               0,
                                concordUtils::SpanContext{spanContext});
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
@@ -163,10 +167,12 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
 
 TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   NodeIdType senderId = 1u;
-  uint64_t flags = MsgFlag::TIME_SERVICE_FLAG;
+  uint64_t flags = MsgFlag::EMPTY_FLAGS;
   uint64_t reqSeqNum = 100u;
   auto millis = std::chrono::system_clock::now().time_since_epoch();
-  auto request = concord::util::serialize(millis.count());
+  std::stringstream oss;
+  concord::serialize::Serializable::serialize<std::chrono::milliseconds::rep>(oss, millis.count());
+  std::string request = oss.str();
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {""};
@@ -178,6 +184,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
                                request.data(),
                                requestTimeoutMilli,
                                correlationId,
+                               0,
                                concordUtils::SpanContext{spanContext});
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
@@ -192,9 +199,10 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
 
-  EXPECT_EQ(concord::util::deserialize<std::chrono::milliseconds::rep>(
-                originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()),
-            millis.count());
+  std::stringstream iss(std::string(originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()));
+  std::chrono::milliseconds::rep dsrz_millis;
+  concord::serialize::Serializable::deserialize<std::chrono::milliseconds::rep>(iss, dsrz_millis);
+  EXPECT_EQ(dsrz_millis, millis.count());
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }
 
@@ -214,6 +222,7 @@ TEST_F(ClientRequestMsgTestFixture, base_methods) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
@@ -240,6 +249,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
                            request,
                            reqTimeoutMilli,
                            cid,
+                           0,
                            spanContext,
                            requestSignature,
                            requestSignatureLen,
@@ -275,6 +285,63 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
   ASSERT_EQ(msg.size(), mainMsgSize + extraBufSize);
   ASSERT_EQ(msg.getExtraBufPtr().first, msg.body() + mainMsgSize);
 }
+
+TEST_F(ClientRequestMsgTestFixture, validate_size) {
+  // Inherit from ClientRequestMsg so that some protected methods can be exposed for the test
+  struct TestClientRequestMsg : ClientRequestMsg {
+    TestClientRequestMsg(NodeIdType sender,
+                         uint64_t flags,
+                         uint64_t reqSeqNum,
+                         uint32_t requestLength,
+                         const char* request,
+                         uint64_t reqTimeoutMilli,
+                         const std::string& cid,
+                         const concordUtils::SpanContext& spanContext,
+                         const char* requestSignature,
+                         uint32_t requestSignatureLen,
+                         const uint32_t extraBufSize)
+        : ClientRequestMsg(sender,
+                           flags,
+                           reqSeqNum,
+                           requestLength,
+                           request,
+                           reqTimeoutMilli,
+                           cid,
+                           0,
+                           spanContext,
+                           requestSignature,
+                           requestSignatureLen,
+                           extraBufSize) {}
+
+    void setSize(uint32_t msgSize) { ClientRequestMsg::setMsgSize(msgSize); }
+  };
+
+  NodeIdType senderId = 1u;
+  uint64_t flags = 'F';
+  uint64_t reqSeqNum = 100u;
+  const char request[] = {"request body"};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  const size_t extraBufSize = 1024;
+  TestClientRequestMsg msg(senderId,
+                           flags,
+                           reqSeqNum,
+                           sizeof(request),
+                           request,
+                           requestTimeoutMilli,
+                           correlationId,
+                           concordUtils::SpanContext{spanContext},
+                           nullptr,
+                           0,
+                           extraBufSize);
+
+  // Setting the msg size to zero so that it should throw an error. Validatng the size check
+  msg.setSize(0);
+  EXPECT_THROW(msg.validate(replicaInfo), std::runtime_error);
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

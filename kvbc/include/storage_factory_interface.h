@@ -49,6 +49,8 @@ class IStorageFactory {
   // objects from the database set.
   virtual std::unique_ptr<storage::ISTKeyManipulator> newSTKeyManipulator() const = 0;
 
+  virtual std::string path() const = 0;
+
   virtual ~IStorageFactory() = default;
 };
 

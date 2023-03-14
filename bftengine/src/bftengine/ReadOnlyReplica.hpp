@@ -12,14 +12,12 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
-#include "messages/ClientRequestMsg.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
+#include "CheckpointInfo.hpp"
 
 namespace bftEngine::impl {
 
-class PersistentStorage;
-class SigManager;
-
+class ClientRequestMsg;
 /**
  *
  */
@@ -30,7 +28,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<MsgHandlersRegistrator>,
-                  concordUtil::Timers& timers);
+                  concordUtil::Timers& timers,
+                  MetadataStorage* metadataStorage);
 
   void start() override;
   void stop() override;
@@ -43,23 +42,21 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   template <typename T>
-  void messageHandler(MessageBase* msg) {
-    T* trueTypeObj = new T(msg);
-    delete msg;
-    if (validateMessage(trueTypeObj))
-      onMessage<T>(trueTypeObj);
-    else
-      delete trueTypeObj;
+  void messageHandler(std::unique_ptr<MessageBase> msg) {
+    auto trueTypeObj = std::make_unique<T>(msg.get());
+    msg.reset();
+    if (validateMessage(trueTypeObj.get())) {
+      onMessage<T>(std::move(trueTypeObj));
+    }
   }
 
   template <class T>
-  void onMessage(T*);
+  void onMessage(std::unique_ptr<T>);
+
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
 
  protected:
-  // last known stable checkpoint of each peer replica.
-  // We sometimes delete checkpoints before lastExecutedSeqNum
-  std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
-
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
 
   struct Metrics {
@@ -69,10 +66,15 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
 
-  // digital signatures
-  std::unique_ptr<SigManager> sigManager_;
+  std::unique_ptr<MetadataStorage> metadataStorage_;
+  std::atomic<SeqNum> last_executed_seq_num_{0};
 
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+ private:
+  // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function
+  // is that regular and read-only replicas expose different metrics and the status handlers are not interchangeable.
+  // The read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // ReplicaStatusHandler.
+  void registerStatusHandlers();
 };
 
 }  // namespace bftEngine::impl

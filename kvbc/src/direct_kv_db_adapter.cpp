@@ -12,16 +12,17 @@
 //    -> Ascending order of Key
 //       -> Descending order of Block Id
 
-#include "Logger.hpp"
-#include "sliver.hpp"
-#include "status.hpp"
+#include "util/sliver.hpp"
+#include "util/status.hpp"
 #include "kv_types.hpp"
 #include "direct_kv_block.h"
 #include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include "hex_tools.h"
-#include "string.hpp"
-#include "assertUtils.hpp"
+#include "util/hex_tools.hpp"
+#include "util/string.hpp"
+#include "util/assertUtils.hpp"
+#include "categorization/kv_blockchain.h"
+#include "v4blockchain/v4_blockchain.h"
 
 #include <string.h>
 
@@ -33,6 +34,7 @@
 #include <sstream>
 #include <iomanip>
 #include <mutex>
+#include "log/logger.hpp"
 
 using logging::Logger;
 using concordUtils::Status;
@@ -70,13 +72,15 @@ Key RocksKeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
 }
 
 Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
-  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/raw_block"));
-  return prefix_ + std::to_string(blockId) + std::string("/raw_block");
+  LOG_DEBUG(logger(), prefix_ + std::string("blocks/") + std::to_string(blockId));
+  return prefix_ + std::string("blocks/") + std::to_string(blockId);
 }
 
 Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
-  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString()));
-  return prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString());
+  auto digest = concord::crypto::SHA3_256().digest(key.data(), key.length());
+  auto digest_str = concord::crypto::SHA3_256().toHexString(digest);
+  LOG_DEBUG(logger(), prefix_ + std::string("keys/") + digest_str);
+  return prefix_ + std::string("keys/") + digest_str;
 }
 
 Key S3KeyGenerator::mdtKey(const Key &key) const {
@@ -404,36 +408,68 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   SetOfKeyValuePairs keys;
   if (saveKvPairsSeparately_ && block.length() > 0) {
-    keys = getBlockData(block);
-  }
-  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
-                             std::string(" reason: ") + s.toString());
-
-  // when ST runs, blocks arrive in batches in reverse order. we need to keep
-  // track on the "Gap" and to close it. Only when it is closed, the last
-  // reachable block becomes the same as the last block
-
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (blockId > getLatestBlockId()) setLatestBlock(blockId);
-  }
-  if ((lastBlock) and (blockId == getLastReachableBlockId() + 1)) setLastReachableBlockNum(getLatestBlockId());
-}
-
-Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
-                                            const BlockId &_block,
-                                            const Sliver &_blockRaw) {
-  SetOfKeyValuePairs updatedKVMap;
-  if (saveKvPairsSeparately_) {
-    for (auto &it : _kvMap) {
-      Sliver composedKey = keyGen_->dataKey(it.first, _block);
-      LOG_TRACE(logger_,
-                "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
-      updatedKVMap[composedKey] = it.second;
+    std::optional<concord::kvbc::categorization::CategoryInput> categoryInput;
+    std::string strBlockId = std::to_string(blockId);
+    concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
+    if (concord::kvbc::BlockVersion::getBlockVersion(block) == concord::kvbc::block_version::V4) {
+      auto parsedBlock = concord::kvbc::v4blockchain::detail::Block(block.string_view());
+      categoryInput.emplace(parsedBlock.getUpdates().categoryUpdates());
+    } else {
+      auto parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
+      categoryInput.emplace(parsedBlock.data.updates);
+    }
+    if (categoryInput.has_value()) {
+      for (auto &[key, value] : categoryInput->kv) {
+        LOG_DEBUG(logger_, KVLOG(key, blockId));
+        std::visit(
+            [this, &keys, slivBlockId](auto &&arg) {
+              for (auto &[k, v] : arg.kv) {
+                LOG_DEBUG(logger_, KVLOG(k));
+                concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
+                keys[sKey] = slivBlockId;
+                (void)v;
+              }
+            },
+            value);
+      }
     }
   }
-  updatedKVMap[keyGen_->blockKey(_block)] = _blockRaw;
+
+  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK()) {
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
+                             std::string(" reason: ") + s.toString());
+  }
+
+  // when ST runs, blocks arrive in batches in reverse order. we need to keep
+  // track on the "Gap" and close it. There might be temporary multiple gaps due to the way blocks are committed.
+  // As long as we keep track of LatestBlockId and LastReachableBlockId, we will be able to survive any crash.
+  // When all gaps are closed, the last reachable block becomes the same as the last block.
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto latestBlockId = getLatestBlockId();
+    if (blockId > latestBlockId) {
+      setLatestBlock(blockId);
+      latestBlockId = blockId;
+    }
+    auto i = blockId;
+    if (i == (getLastReachableBlockId() + 1)) {
+      do {
+        setLastReachableBlockNum(i);
+        ++i;
+      } while ((i <= latestBlockId) && hasBlock(i));
+      LOG_TRACE(logger_, "Connected blocks [" << blockId << " -> " << i << "]");
+    }
+  }
+}
+
+Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &kvMap,
+                                            const BlockId &blockId,
+                                            const Sliver &rawBlock) {
+  SetOfKeyValuePairs updatedKVMap;
+  if (saveKvPairsSeparately_)
+    for (auto &[key, value] : kvMap) updatedKVMap[keyGen_->dataKey(key, 0)] = value;
+
+  updatedKVMap[keyGen_->blockKey(blockId)] = rawBlock;
   return db_->multiPut(updatedKVMap);
 }
 
@@ -492,17 +528,14 @@ void DBAdapter::deleteLastReachableBlock() {
  * @return  outBlock BlockId object where the read version of the result is stored.
  */
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
-  LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << blockVersion);
-  auto iter = db_->getIteratorGuard();
+  LOG_TRACE(logger_, "Getting value of key [" << key.toString() << "] for read version " << blockVersion);
   Key searchKey = keyGen_->dataKey(key, blockVersion);
-  KeyValuePair p = iter->seekAtLeast(searchKey);
-  if (!iter->isEnd() && DBKeyManipulator::extractTypeFromKey(p.first) == EDBKeyType::E_DB_KEY_TYPE_KEY) {
-    Key foundKey = DBKeyManipulator::composedToSimple(p).first;
-    BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
-    // TODO(JGC): Ask about reason for version comparison logic
-    if (currentReadVersion <= blockVersion && foundKey == key) return std::make_pair(p.second, currentReadVersion);
-  }
-  throw NotFoundException{__PRETTY_FUNCTION__ + std::string{": blockVersion: "} + std::to_string(blockVersion)};
+  LOG_TRACE(logger_, "searchKey: " << searchKey.toString());
+  Sliver value;
+  if (Status s = db_->get(searchKey, value); s.isOK()) return std::make_pair(value, 0);
+
+  throw NotFoundException{__PRETTY_FUNCTION__ + std::string(": key: ") + searchKey.toString() +
+                          std::string(" blockVersion: ") + std::to_string(blockVersion)};
 }
 
 /**
@@ -673,9 +706,9 @@ void DBAdapter::getLastKnownReconfigurationCmdBlock(std::string &outBlockData) c
       if (Status s = mdtGet(lastKnownReconfigCmdBlockIdKey, val); s.isOK())
         outBlockData = val.toString();
       else
-        LOG_ERROR(logger_, "Error in getting Latest known reconfig block ");
+        LOG_WARN(logger_, "Unable to get the last known reconfig block");
     } catch (std::exception &e) {
-      LOG_ERROR(logger_, "Error in getting Latest known reconfig block" << e.what());
+      LOG_WARN(logger_, "Unable to get the last known reconfig block: " << e.what());
     }
   }
 }

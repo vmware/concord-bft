@@ -40,15 +40,17 @@
 #define THIN_REPLICA_CLIENT_HPP_
 
 #include "thin_replica.pb.h"
-#include "trs_connection.hpp"
-#include "assertUtils.hpp"
-#include "Metrics.hpp"
+#include "grpc_connection.hpp"
+#include "util/assertUtils.hpp"
+#include "util/Metrics.hpp"
 
 #include <opentracing/span.h>
 #include <condition_variable>
 #include <thread>
-#include "Logger.hpp"
-#include "client/concordclient/event_update_queue.hpp"
+
+#include "log/logger.hpp"
+#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/concord_client_exceptions.hpp"
 
 namespace client::thin_replica_client {
 
@@ -93,27 +95,27 @@ struct ThinReplicaClientConfig {
   // ReleaseConsumers, or ReEnableConsumers. Furthermore, a ThinReplicaClient
   // guarantees it will never execute the Clear or Push functions of the queue
   // after that ThinReplicaClient's destructor has returned.
-  std::shared_ptr<concord::client::concordclient::UpdateQueue> update_queue;
+  std::shared_ptr<concord::client::concordclient::EventUpdateQueue> update_queue;
   // max_faulty is the maximum number of simultaneously Byzantine-faulty servers
   // that must be tolerated (this is equivalent to the F value for the Concord
   // cluster the servers are from).
   std::size_t max_faulty;
   // trs_conns is a vector of connection objects. Each representing a direct
   // connection from this TRC to a specific Thin Replica Server.
-  std::vector<std::unique_ptr<TrsConnection>> trs_conns;
+  std::vector<std::shared_ptr<client::concordclient::GrpcConnection>>& trs_conns;
   // the time duration the TRC waits before printing warning logs when
   // responsive agreeing servers are less than config_->max_faulty + 1
   std::chrono::seconds no_agreement_warn_duration;
 
   ThinReplicaClientConfig(std::string client_id_,
-                          std::shared_ptr<concord::client::concordclient::UpdateQueue> update_queue_,
+                          std::shared_ptr<concord::client::concordclient::EventUpdateQueue> update_queue_,
                           std::size_t max_faulty_,
-                          std::vector<std::unique_ptr<TrsConnection>> trs_conns_,
+                          std::vector<std::shared_ptr<client::concordclient::GrpcConnection>>& trs_conns_,
                           std::chrono::seconds no_agreement_warn_duration_ = kNoAgreementWarnDuration)
       : client_id(std::move(client_id_)),
         update_queue(update_queue_),
         max_faulty(max_faulty_),
-        trs_conns(std::move(trs_conns_)),
+        trs_conns(trs_conns_),
         no_agreement_warn_duration(no_agreement_warn_duration_) {}
 
  private:
@@ -130,7 +132,9 @@ struct ThinReplicaClientMetrics {
         current_queue_size{metrics_component_.RegisterGauge("current_queue_size", 0)},
         last_verified_block_id{metrics_component_.RegisterGauge("last_verified_block_id", 0)},
         last_verified_event_group_id{metrics_component_.RegisterGauge("last_verified_event_group_id", 0)},
-        update_dur_ms{metrics_component_.RegisterGauge("update_dur_ms", 0)} {
+        update_duration_microsec{metrics_component_.RegisterGauge("update_duration_microsec", 0)},
+        num_updates_processed{metrics_component_.RegisterCounter("num_updates_processed", 0)},
+        num_events_processed{metrics_component_.RegisterGauge("num_events_processed", 0)} {
     metrics_component_.Register();
   }
 
@@ -159,10 +163,14 @@ struct ThinReplicaClientMetrics {
   // last_verified_*_id - block or event group ID of the latest update verified by TRC
   concordMetrics::GaugeHandle last_verified_block_id;
   concordMetrics::GaugeHandle last_verified_event_group_id;
-  // update_dur_ms - duration of time (ms) between when an update is received by
+  // update_duration_microsec - duration of time (microseconds) between when an update is received by
   // the TRC, to when it is pushed to the update queue for consumption by the
   // application using TRC
-  concordMetrics::GaugeHandle update_dur_ms;
+  concordMetrics::GaugeHandle update_duration_microsec;
+  // number of updates pushed by TRC to the update queue
+  concordMetrics::CounterHandle num_updates_processed;
+  // number of events pushed by TRC to the update queue
+  concordMetrics::GaugeHandle num_events_processed;
 };
 
 struct SubscribeRequest {
@@ -190,12 +198,17 @@ class ThinReplicaClient final {
   bool is_event_group_request_;
   uint64_t latest_verified_block_id_;
   uint64_t latest_verified_event_group_id_;
+  // a subscription is said to be successful when TRC receives the first verified update.
+  bool is_subscription_successful_;
 
   std::unique_ptr<std::thread> subscription_thread_;
   std::atomic_bool stop_subscription_thread_;
 
   // Thread function to start subscription_thread_ with.
   void receiveUpdates();
+
+  // wrapper around receiveUpdates to set exceptions_ptr in update_queue
+  void receiveUpdatesWrapper();
 
   // Store call to the function that exposes and updates internal TRC metrics
   // to the user of the TRC library
@@ -238,22 +251,25 @@ class ThinReplicaClient final {
   using HashRecordMap = std::map<HashRecord, std::unordered_set<size_t>, CompareHashRecord>;
 
   using SpanPtr = std::unique_ptr<opentracing::Span>;
-  std::pair<bool, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
-                                     HashRecordMap& agreeing_subset_members,
-                                     size_t& most_agreeing,
-                                     HashRecord& most_agreed_block,
-                                     std::unique_ptr<LogCid>& cid);
+  std::pair<client::concordclient::GrpcConnection::Result, SpanPtr> readBlock(
+      com::vmware::concord::thin_replica::Data& update_in,
+      HashRecordMap& agreeing_subset_members,
+      size_t& most_agreeing,
+      HashRecord& most_agreed_block,
+      std::unique_ptr<LogCid>& cid);
 
   // Opens hash streams to all the replicas and tries to read hash updates
   // from opened streams to check for maximal agreement.
   // If none of the replicas return a hash update i.e., the connections to
   // all the replicas either time out or fail while waiting for an update,
   // findBlockHashAgreement returns false, otherwise returns true.
-  bool findBlockHashAgreement(std::vector<bool>& servers_tried,
+  void findBlockHashAgreement(std::vector<bool>& servers_tried,
                               HashRecordMap& agreeing_subset_members,
                               size_t& most_agreeing,
                               HashRecord& most_agreed_block,
-                              SpanPtr& parent_span);
+                              SpanPtr& parent_span,
+                              size_t& servers_out_of_range,
+                              size_t& servers_pruned);
 
   bool rotateDataStreamAndVerify(com::vmware::concord::thin_replica::Data& update_in,
                                  HashRecordMap& agreeing_subset_members,
@@ -261,12 +277,12 @@ class ThinReplicaClient final {
                                  SpanPtr& parent_span,
                                  std::unique_ptr<LogCid>& cid);
 
-  TrsConnection::Result resetDataStreamTo(size_t server_idx);
-  TrsConnection::Result startHashStreamWith(size_t server_idx);
+  client::concordclient::GrpcConnection::Result resetDataStreamTo(size_t server_idx);
+  client::concordclient::GrpcConnection::Result startHashStreamWith(size_t server_idx);
   void closeAllHashStreams();
 
   // Helper functions to receiveUpdates.
-  void logDataStreamResetResult(const TrsConnection::Result& result, size_t server_index);
+  void logDataStreamResetResult(const client::concordclient::GrpcConnection::Result& result, size_t server_index);
   void recordCollectedHash(size_t update_source,
                            bool is_event_group,
                            uint64_t id,
@@ -279,7 +295,9 @@ class ThinReplicaClient final {
   bool readUpdateHashFromStream(size_t server_index,
                                 HashRecordMap& server_indexes_by_reported_update,
                                 size_t& maximal_agreeing_subset_size,
-                                HashRecord& maximally_agreed_on_update);
+                                HashRecord& maximally_agreed_on_update,
+                                size_t& servers_out_of_range,
+                                size_t& servers_pruned);
 
  public:
   // Constructor for ThinReplicaClient. Note that, as the ThinReplicaClient
@@ -299,6 +317,7 @@ class ThinReplicaClient final {
         data_conn_index_(0),
         latest_verified_block_id_(0),
         latest_verified_event_group_id_(0),
+        is_subscription_successful_(false),
         subscription_thread_(),
         stop_subscription_thread_(false) {
     metrics_.setAggregator(aggregator);

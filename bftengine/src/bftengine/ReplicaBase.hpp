@@ -17,15 +17,14 @@
 #include "ReplicaConfig.hpp"
 #include "SeqNumInfo.hpp"
 #include "DebugStatistics.hpp"
-#include "Metrics.hpp"
-#include "Timers.hpp"
+#include "util/Metrics.hpp"
+#include "util/Timers.hpp"
 #include "ControlStateManager.hpp"
 
 namespace bftEngine::impl {
 
 class MsgHandlersRegistrator;
 class MsgsCommunicator;
-class CheckpointMsg;
 class ReplicasInfo;
 
 using concordMetrics::GaugeHandle;
@@ -53,7 +52,7 @@ class ReplicaBase {
 
   std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return msgHandlers_; }
-
+  concordUtil::Timers* getTimers() { return &timers_; }
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     if (aggregator) {
       aggregator_ = aggregator;

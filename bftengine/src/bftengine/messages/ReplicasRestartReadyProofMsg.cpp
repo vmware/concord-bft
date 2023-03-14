@@ -9,7 +9,8 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 #include <cstring>
-#include "OpenTracing.hpp"
+
+#include "util/OpenTracing.hpp"
 #include "ReplicasRestartReadyProofMsg.hpp"
 #include "SysConsts.hpp"
 #include "EpochManager.hpp"
@@ -105,7 +106,9 @@ bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, ui
       return false;
     if (repInfo.myId() != hdr->genReplicaId) {
       auto dataSize = sizeof(ReplicaRestartReadyMsg::Header) + hdr->extraDataLen;
-      if (!sigManager->verifySig(hdr->genReplicaId, currLoc, dataSize, currLoc + dataSize, hdr->sigLength)) {
+      if (!sigManager->verifySig(hdr->genReplicaId,
+                                 std::string_view{currLoc, dataSize},
+                                 std::string_view{currLoc + dataSize, hdr->sigLength})) {
         return false;
       }
     }

@@ -27,7 +27,7 @@ DebugPersistentStorage::DebugPersistentStorage(uint16_t fVal, uint16_t cVal)
 
 uint8_t DebugPersistentStorage::beginWriteTran() { return ++numOfNestedTransactions; }
 
-uint8_t DebugPersistentStorage::endWriteTran() {
+uint8_t DebugPersistentStorage::endWriteTran(bool sync) {
   ConcordAssert(numOfNestedTransactions != 0);
   return --numOfNestedTransactions;
 }
@@ -92,21 +92,17 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(const DescriptorOfL
     ConcordAssert(e.prepareFull == nullptr || e.prepareFull->viewNumber() == d.view);
     ConcordAssert(e.prepareFull == nullptr || e.prepareFull->seqNumber() == e.prePrepare->seqNumber());
 
-    PrePrepareMsg *clonedPrePrepareMsg = nullptr;
     if (e.prePrepare != nullptr) {
-      clonedPrePrepareMsg = (PrePrepareMsg *)e.prePrepare->cloneObjAndMsg();
-      ConcordAssert(clonedPrePrepareMsg->type() == MsgCode::PrePrepare);
+      clonedElements[i].prePrepare = e.prePrepare;
+      ConcordAssert(e.prePrepare->type() == MsgCode::PrePrepare);
     }
 
-    PrepareFullMsg *clonedPrepareFull = nullptr;
     if (e.prepareFull != nullptr) {
-      clonedPrepareFull = (PrepareFullMsg *)e.prepareFull->cloneObjAndMsg();
-      ConcordAssert(clonedPrepareFull->type() == MsgCode::PrepareFull);
+      clonedElements[i].prepareFull = e.prepareFull;
+      ConcordAssert(e.prepareFull->type() == MsgCode::PrepareFull);
     }
 
-    clonedElements[i].prePrepare = clonedPrePrepareMsg;
     clonedElements[i].hasAllRequests = e.hasAllRequests;
-    clonedElements[i].prepareFull = clonedPrepareFull;
   }
 
   ViewChangeMsg *clonedViewChangeMsg = nullptr;
@@ -116,14 +112,17 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(const DescriptorOfL
   for (size_t i = 0; i < descriptorOfLastExitFromView_.elements.size(); i++) {
     const ViewsManager::PrevViewInfo &e = descriptorOfLastExitFromView_.elements[i];
     ConcordAssert(e.prePrepare != nullptr);
-    delete e.prePrepare;
-    if (e.prepareFull != nullptr) delete e.prepareFull;
   }
   if (descriptorOfLastExitFromView_.myViewChangeMsg != nullptr) delete descriptorOfLastExitFromView_.myViewChangeMsg;
 
   hasDescriptorOfLastExitFromView_ = true;
-  descriptorOfLastExitFromView_ = DescriptorOfLastExitFromView{
-      d.view, d.lastStable, d.lastExecuted, clonedElements, clonedViewChangeMsg, d.stableLowerBoundWhenEnteredToView};
+  descriptorOfLastExitFromView_ = DescriptorOfLastExitFromView{d.view,
+                                                               d.lastStable,
+                                                               d.lastExecuted,
+                                                               clonedElements,
+                                                               clonedViewChangeMsg,
+                                                               d.stableLowerBoundWhenEnteredToView,
+                                                               d.complaints};
 }
 
 void DebugPersistentStorage::setDescriptorOfLastNewView(const DescriptorOfLastNewView &d) {
@@ -196,7 +195,7 @@ void DebugPersistentStorage::setDescriptorOfLastExecution(const DescriptorOfLast
   ConcordAssert(d.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
 
   hasDescriptorOfLastExecution_ = true;
-  descriptorOfLastExecution_ = DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
+  descriptorOfLastExecution_ = DescriptorOfLastExecution{d.executedSeqNum, d.validRequests, d.timeInTicks};
 }
 
 void DebugPersistentStorage::setDescriptorOfLastStableCheckpoint(
@@ -273,6 +272,10 @@ void DebugPersistentStorage::setUserDataInTransaction(const void *data, std::siz
   setUserDataAtomically(data, numberOfBytes);
 }
 
+bool DebugPersistentStorage::setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) { return true; }
+
+std::vector<uint8_t> DebugPersistentStorage::getReplicaSpecificInfo(uint32_t index) { return {}; }
+
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) {
   ConcordAssert(mark == true);
   ConcordAssert(checkWindow.insideActiveWindow(seqNum));
@@ -315,10 +318,10 @@ DescriptorOfLastExitFromView DebugPersistentStorage::getAndAllocateDescriptorOfL
 
   for (size_t i = 0; i < elements.size(); i++) {
     const ViewsManager::PrevViewInfo &e = d.elements[i];
-    elements[i].prePrepare = (PrePrepareMsg *)e.prePrepare->cloneObjAndMsg();
+    elements[i].prePrepare = e.prePrepare;
     elements[i].hasAllRequests = e.hasAllRequests;
     if (e.prepareFull != nullptr)
-      elements[i].prepareFull = (PrepareFullMsg *)e.prepareFull->cloneObjAndMsg();
+      elements[i].prepareFull = e.prepareFull;
     else
       elements[i].prepareFull = nullptr;
   }
@@ -328,7 +331,7 @@ DescriptorOfLastExitFromView DebugPersistentStorage::getAndAllocateDescriptorOfL
   if (d.myViewChangeMsg != nullptr) myVCMsg = (ViewChangeMsg *)d.myViewChangeMsg->cloneObjAndMsg();
 
   DescriptorOfLastExitFromView retVal{
-      d.view, d.lastStable, d.lastExecuted, elements, myVCMsg, d.stableLowerBoundWhenEnteredToView};
+      d.view, d.lastStable, d.lastExecuted, elements, myVCMsg, d.stableLowerBoundWhenEnteredToView, d.complaints};
 
   return retVal;
 }
@@ -376,7 +379,7 @@ DescriptorOfLastExecution DebugPersistentStorage::getDescriptorOfLastExecution()
 
   DescriptorOfLastExecution &d = descriptorOfLastExecution_;
 
-  return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
+  return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests, d.timeInTicks};
 }
 
 DescriptorOfLastStableCheckpoint DebugPersistentStorage::getDescriptorOfLastStableCheckpoint() {

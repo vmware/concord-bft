@@ -17,11 +17,10 @@
 #include <rapidcheck/gtest.h>
 
 #include "sparse_merkle/internal_node.h"
-#include "sliver.hpp"
-#include "sha_hash.hpp"
+#include "util/sliver.hpp"
 
 using concordUtils::Sliver;
-using concord::util::SHA3_256;
+using concord::crypto::SHA3_256;
 using namespace concord::kvbc::sparse_merkle;
 
 static constexpr size_t ROOT_INDEX = 0;

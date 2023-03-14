@@ -22,12 +22,9 @@
 
 #include "communication/CommFactory.hpp"
 #include "KeyfileIOUtils.hpp"
-#include "config_file_parser.hpp"
+#include "util/config_file_parser.hpp"
 #include "CryptoManager.hpp"
 
-using bft::communication::PlainUdpConfig;
-using bft::communication::PlainTcpConfig;
-using bft::communication::TlsTcpConfig;
 using bft::communication::NodeNum;
 using bft::communication::NodeInfo;
 using bftEngine::ReplicaConfig;
@@ -68,13 +65,15 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
                                                                            uint16_t& port,
                                                                            uint16_t& num_of_clients,
                                                                            uint16_t& num_of_replicas) {
-  ConfigFileParser config_file_parser(logger_, config_file_name);
-  if (!config_file_parser.Parse()) {
-    LOG_FATAL(logger_, "Failed to parse configuration file: " << config_file_name);
+  concord::util::ConfigFileParser config_file_parser(logger_, config_file_name);
+  try {
+    config_file_parser.parse();
+  } catch (const std::exception& e) {
+    LOG_FATAL(logger_, e.what());
     exit(-1);
   }
-  num_of_clients = static_cast<uint16_t>(config_file_parser.Count(CLIENTS_CONFIG));
-  num_of_replicas = static_cast<uint16_t>(config_file_parser.Count(REPLICAS_CONFIG));
+  num_of_clients = static_cast<uint16_t>(config_file_parser.count(CLIENTS_CONFIG));
+  num_of_replicas = static_cast<uint16_t>(config_file_parser.count(REPLICAS_CONFIG));
   if ((is_replica && (node_id + 1 > num_of_replicas)) ||
       (!is_replica && (node_id + 1 > num_of_clients + num_of_replicas))) {
     LOG_FATAL(logger_,
@@ -82,8 +81,8 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
                   << "numOfClients=" << num_of_clients << ", numOfReplicas=" << num_of_replicas);
     exit(-1);
   }
-  vector<string> replicas = config_file_parser.GetValues(REPLICAS_CONFIG);
-  vector<string> clients = config_file_parser.GetValues(CLIENTS_CONFIG);
+  auto replicas = config_file_parser.get_values<std::string>(REPLICAS_CONFIG);
+  auto clients = config_file_parser.get_values<std::string>(CLIENTS_CONFIG);
   std::unordered_map<NodeNum, NodeInfo> nodes;
   int k = 0;
   for (int i = 0; i < (num_of_replicas + num_of_clients); i++) {
@@ -93,7 +92,7 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
       current_vector = clients;
       k = 0;
     }
-    vector<string> ip_port_pair = config_file_parser.SplitValue(current_vector[k++], ip_port_delimiter_);
+    vector<string> ip_port_pair = config_file_parser.splitValue(current_vector[k++], ip_port_delimiter_);
     LOG_INFO(logger_,
              "setUpConfiguredNodes() node_id: " << node_id << ", k: " << k - 1
                                                 << ", port:" << (uint16_t)(std::stoi(ip_port_pair[1])));
@@ -138,45 +137,49 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpNodes(bool is_replica
   else
     return SetUpConfiguredNodes(is_replica, config_file_name, node_id, ip, port, num_of_clients, num_of_replicas);
 }
-
+#ifdef USE_COMM_UDP
 // Create a UDP communication configuration for the node (replica or client)
 // with index `id`.
-PlainUdpConfig TestCommConfig::GetUDPConfig(bool is_replica,
-                                            uint16_t node_id,
-                                            uint16_t& num_of_clients,
-                                            uint16_t& num_of_replicas,
-                                            const std::string& config_file_name) {
+bft::communication::PlainUdpConfig TestCommConfig::GetUDPConfig(bool is_replica,
+                                                                uint16_t node_id,
+                                                                uint16_t& num_of_clients,
+                                                                uint16_t& num_of_replicas,
+                                                                const std::string& config_file_name) {
   string ip;
   uint16_t port;
   std::unordered_map<NodeNum, NodeInfo> nodes =
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas, config_file_name);
 
-  PlainUdpConfig ret_val(default_listen_ip_, port, buf_length_, nodes, node_id);
+  bft::communication::PlainUdpConfig ret_val(default_listen_ip_, port, buf_length_, nodes, node_id);
   return ret_val;
 }
-
-// Create a UDP communication configuration for the node (replica or client)
+#endif
+#ifdef USE_COMM_PLAIN_TCP
+// Create a TCP communication configuration for the node (replica or client)
 // with index `id`.
-PlainTcpConfig TestCommConfig::GetTCPConfig(bool is_replica,
-                                            uint16_t node_id,
-                                            uint16_t& num_of_clients,
-                                            uint16_t& num_of_replicas,
-                                            const std::string& config_file_name) {
+bft::communication::PlainTcpConfig TestCommConfig::GetTCPConfig(bool is_replica,
+                                                                uint16_t node_id,
+                                                                uint16_t& num_of_clients,
+                                                                uint16_t& num_of_replicas,
+                                                                const std::string& config_file_name) {
   string ip;
   uint16_t port;
   std::unordered_map<NodeNum, NodeInfo> nodes =
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas, config_file_name);
 
-  PlainTcpConfig ret_val(default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id);
+  bft::communication::PlainTcpConfig ret_val(
+      default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id);
   return ret_val;
 }
-
-TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
-                                             uint16_t id,
-                                             uint16_t& num_of_clients,
-                                             uint16_t& num_of_replicas,
-                                             const std::string& config_file_name,
-                                             const std::string& cert_root_path) {
+#endif
+#ifdef USE_COMM_TLS_TCP
+bft::communication::TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
+                                                                 uint16_t id,
+                                                                 uint16_t& num_of_clients,
+                                                                 uint16_t& num_of_replicas,
+                                                                 const std::string& config_file_name,
+                                                                 bool use_unified_certs,
+                                                                 const std::string& cert_root_path) {
   string ip;
   uint16_t port;
 
@@ -190,15 +193,18 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
   secretData.iv = "38106509f6528ff859c366747aa04f21";
 
   // need to move the default cipher suite to the config file
-  TlsTcpConfig retVal(default_listen_ip_,
-                      port,
-                      buf_length_,
-                      nodes,
-                      num_of_replicas - 1,
-                      id,
-                      cert_root_path,
-                      "TLS_AES_256_GCM_SHA384",
-                      nullptr,
-                      secretData);
+  bft::communication::TlsTcpConfig retVal(default_listen_ip_,
+                                          port,
+                                          buf_length_,
+                                          nodes,
+                                          num_of_replicas - 1,
+                                          id,
+                                          cert_root_path,
+                                          "TLS_AES_256_GCM_SHA384",
+                                          use_unified_certs,
+                                          nullptr,
+                                          nullptr,
+                                          secretData);
   return retVal;
 }
+#endif

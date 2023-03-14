@@ -11,7 +11,7 @@
 
 #include "ReplicaStatusHandlers.hpp"
 #include "diagnostics.h"
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 
 #include <string>
 
@@ -39,7 +39,8 @@ void ReplicaStatusHandlers::registerStatusHandlers() const {
   };
 
   // TODO: handler name left for backward compatibility with callers, change the name 'replica'.
-  auto replica_handler = make_handler_callback("replica", "Last stable sequence number of the concord-bft replica");
+  auto replica_handler = make_handler_callback(
+      "replica-sequence-numbers", "Last stable and Last executed sequence number of the concord-bft replica");
   auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
   auto key_exchange_handler = make_handler_callback("key-exchange", "Status of key-exchange");
   auto preexecution_handler = make_handler_callback("pre-execution", "Status of pre-execution");

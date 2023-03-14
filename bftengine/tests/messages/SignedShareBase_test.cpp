@@ -12,13 +12,12 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
-#include <iostream>
 #include <memory>
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "gtest/gtest.h"
 
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "messages/MsgCode.hpp"
 #include "bftengine/ClientMsgs.hpp"

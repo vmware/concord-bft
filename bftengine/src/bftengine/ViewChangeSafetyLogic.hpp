@@ -13,7 +13,7 @@
 
 #include "messages/ViewChangeMsg.hpp"
 #include <vector>
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 
 using std::vector;
 

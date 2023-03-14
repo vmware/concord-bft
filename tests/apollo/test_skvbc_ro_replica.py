@@ -19,6 +19,7 @@ import tempfile
 import shutil
 import time
 
+from util.test_base import ApolloTest
 from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
@@ -39,7 +40,7 @@ def start_replica_cmd(builddir, replica_id, config):
     """
     return start_replica_cmd_prefix(builddir, replica_id, config)
 
-class SkvbcReadOnlyReplicaTest(unittest.TestCase):
+class SkvbcReadOnlyReplicaTest(ApolloTest):
     """
     ReadOnlyReplicaTest has got two modes of operation:
         - using external S3 object store (minio)
@@ -213,7 +214,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         )
 
         await self._wait_for_st(bft_network, ro_replica_id)
-
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)

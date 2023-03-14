@@ -15,7 +15,7 @@
 
 #include <string>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "communication/CommDefs.hpp"
 #include "ReplicaConfig.hpp"
 
@@ -30,7 +30,7 @@ class ITestCommConfig {
   virtual void GetReplicaConfig(uint16_t replica_id,
                                 std::string keyFilePrefix,
                                 bftEngine::ReplicaConfig* out_config) = 0;
-
+#ifdef USE_COMM_UDP
   // Create a UDP communication configuration for the node (replica or client)
   // with index `id`.
   virtual bft::communication::PlainUdpConfig GetUDPConfig(bool is_replica,
@@ -38,7 +38,8 @@ class ITestCommConfig {
                                                           uint16_t& num_of_clients,
                                                           uint16_t& num_of_replicas,
                                                           const std::string& config_file_name) = 0;
-
+#endif
+#ifdef USE_COMM_PLAIN_TCP
   // Create a UDP communication configuration for the node (replica or client)
   // with index `id`.
   virtual bft::communication::PlainTcpConfig GetTCPConfig(bool is_replica,
@@ -46,14 +47,16 @@ class ITestCommConfig {
                                                           uint16_t& num_of_clients,
                                                           uint16_t& num_of_replicas,
                                                           const std::string& config_file_name) = 0;
-
+#endif
+#ifdef USE_COMM_TLS_TCP
   virtual bft::communication::TlsTcpConfig GetTlsTCPConfig(bool is_replica,
                                                            uint16_t id,
                                                            uint16_t& num_of_clients,
                                                            uint16_t& num_of_replicas,
                                                            const std::string& config_file_name,
+                                                           bool use_unified_certs,
                                                            const std::string& cert_root_path) = 0;
-
+#endif
  protected:
   logging::Logger& logger_;
 };

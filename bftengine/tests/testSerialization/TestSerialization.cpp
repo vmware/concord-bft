@@ -11,19 +11,19 @@
 // LICENSE file.
 
 #include "PersistentStorageImp.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "../simpleStorage/FileStorage.hpp"
 #include "../../src/bftengine/PersistentStorage.hpp"
 #include "../../src/bftengine/PersistentStorageWindows.hpp"
 #include "../mocks/ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
-#include "Logger.hpp"
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include <string>
 #include <cassert>
+#include "log/logger.hpp"
 
 using namespace std;
 using namespace bftEngine;
@@ -44,6 +44,8 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
 
 uint16_t fVal = 2;
 uint16_t cVal = 1;
+uint16_t clientsNum = 2;
+uint16_t batchSize = 2;
 uint16_t numReplicas = 3 * fVal + 2 * cVal + 1;
 
 const uint16_t msgsNum = 2 * fVal + 2 * cVal + 1;
@@ -109,12 +111,17 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   const SeqNum checkpointSeqNum2 = 300;
   ReplicaId sender = 3;
   Digest stateDigest;
+  char rvbDataContent[DIGEST_SIZE] = "rvb_data_content";
+  Digest rvbDataDigest(rvbDataContent, sizeof(rvbDataContent));
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(
+      sender, checkpointSeqNum0, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(
+      sender, checkpointSeqNum1, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(
+      sender, checkpointSeqNum2, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg2.sign();
 
   const bool completed = true;
@@ -250,15 +257,18 @@ void testSetDescriptors(bool toSet) {
   bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   SeqNum lastExecutionSeqNum = 33;
   Bitmap requests(100);
-  DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
+  ConsensusTickRep timeInTicks = 1638860598;
+  DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests, timeInTicks);
   ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
   ReplicaId senderId = 1;
   element.hasAllRequests = true;
-  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
-  element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0);
+  element.prePrepare =
+      std::make_shared<PrePrepareMsg>(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
+  element.prepareFull =
+      std::make_shared<PrepareFullMsg>(PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0));
   for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
     elements.push_back(element);
   }
@@ -267,7 +277,7 @@ void testSetDescriptors(bool toSet) {
   SeqNum lastStable = 48;
   auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable);
   DescriptorOfLastExitFromView lastExitFromViewDesc(
-      viewNum, lastExitStableNum, lastExitExecNum, elements, viewChangeMsg, lastExitStableLowerBound);
+      viewNum, lastExitStableNum, lastExitExecNum, elements, viewChangeMsg, lastExitStableLowerBound, {});
 
   ViewChangeMsgsVector msgs;
   ViewNum newViewNum = 1;
@@ -305,8 +315,6 @@ void testSetDescriptors(bool toSet) {
   for (auto *v : msgs) {
     delete v;
   }
-  delete element.prePrepare;
-  delete element.prepareFull;
   lastExitFromView.clean();
   lastNewView.clean();
   delete viewChangeMsg;
@@ -342,12 +350,17 @@ void testCheckDescriptorOfLastStableCheckpoint(bool init) {
   const SeqNum checkpointSeqNum2 = 300;
   const ReplicaId sender = 3;
   const Digest stateDigest('d');
+  char rvbDataContent[DIGEST_SIZE] = "rvb_data_content";
+  Digest rvbDataDigest(rvbDataContent, sizeof(rvbDataContent));
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(
+      sender, checkpointSeqNum0, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(
+      sender, checkpointSeqNum1, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(
+      sender, checkpointSeqNum2, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg2.sign();
   std::vector<CheckpointMsg *> msgs;
   msgs.push_back(&checkpointInitialMsg0);
@@ -382,7 +395,7 @@ int main() {
   ReplicasInfo replicaInfo(config, false, false);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
@@ -390,18 +403,16 @@ int main() {
   descriptorOfLastNewView = new DescriptorOfLastNewView();
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
-  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal);
+  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   logging::Logger logger = logging::getLogger("testSerialization.replica");
-  // uncomment if needed
-  // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str());  // Required for the init testing.
 
-  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal);
+  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
-  ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
-  metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+  ObjectDescMap objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
+  metadataStorage->initMaxSizeOfObjects(objectDescArray, numOfObjects);
   persistentStorageImp->init(move(metadataStorage));
 
   testInit();
@@ -412,7 +423,7 @@ int main() {
       // Re-open existing DB file
       metadataStorage.reset();
       metadataStorage.reset(new FileStorage(logger, dbFile));
-      metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+      metadataStorage->initMaxSizeOfObjects(objectDescArray, numOfObjects);
       persistentStorageImp->init(move(metadataStorage));
     }
     testSetSimpleParams(init);

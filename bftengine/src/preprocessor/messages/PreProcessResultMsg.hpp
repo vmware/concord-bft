@@ -11,9 +11,10 @@
 
 #pragma once
 
-#include <list>
-
+#include "util/types.hpp"
 #include "messages/ClientRequestMsg.hpp"
+#include "SharedTypes.hpp"
+#include <list>
 
 namespace preprocessor {
 
@@ -39,15 +40,17 @@ class PreProcessResultMsg : public ClientRequestMsg {
   using ErrorMessage = std::optional<std::string>;
 
   PreProcessResultMsg(NodeIdType sender,
+                      uint32_t preProcessResult,
                       uint64_t reqSeqNum,
                       uint32_t resultLength,
-                      const char* result,
+                      const char* resultBuf,
                       uint64_t reqTimeoutMilli,
                       const std::string& cid = "",
                       const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                       const char* messageSignature = nullptr,
                       uint32_t messageSignatureLen = 0,
-                      const std::string& resultSignatures = "");
+                      const std::string& resultSignatures = "",
+                      uint16_t indexInBatch = 0);
 
   PreProcessResultMsg(bftEngine::ClientRequestMsgHeader* body);
 
@@ -58,20 +61,27 @@ class PreProcessResultMsg : public ClientRequestMsg {
 };
 
 struct PreProcessResultSignature {
-  std::vector<char> signature;
+  std::vector<concord::Byte> signature;
   NodeIdType sender_replica;
+  bftEngine::OperationResult pre_process_result;
 
   PreProcessResultSignature() = default;
 
-  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender)
-      : signature{std::move(sig)}, sender_replica{sender} {}
+  PreProcessResultSignature(std::vector<concord::Byte>&& sig, NodeIdType sender, bftEngine::OperationResult result)
+      : signature{std::move(sig)}, sender_replica{sender}, pre_process_result{result} {}
 
   bool operator==(const PreProcessResultSignature& rhs) const {
-    return signature == rhs.signature && sender_replica == rhs.sender_replica;
+    return signature == rhs.signature && sender_replica == rhs.sender_replica &&
+           pre_process_result == rhs.pre_process_result;
   }
 
-  static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& signatures);
-  static std::list<PreProcessResultSignature> deserializeResultSignatureList(const char* buf, size_t len);
+  const bftEngine::OperationResult getPreProcessResult() const { return pre_process_result; }
+
+  bool operator<(const PreProcessResultSignature& rhs) const { return sender_replica < rhs.sender_replica; }
+
+  static std::string serializeResultSignatures(const std::set<PreProcessResultSignature>& sigs,
+                                               uint16_t numOfRequiredSignatures);
+  static std::set<PreProcessResultSignature> deserializeResultSignatures(const char* buf, size_t len);
 };
 
 }  // namespace preprocessor

@@ -17,7 +17,8 @@
 #include <chrono>
 #include <future>
 #include <list>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 #include "thin-replica-server/subscription_buffer.hpp"
 
 using namespace std::chrono_literals;

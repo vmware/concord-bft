@@ -1,0 +1,7 @@
+type: 2
+number_of_operations: 1
+sender_node_id: 5
+client_msg_flag: 1
+req_timeout_milli: 10000
+num_of_writes: 2
+num_of_keys_in_readset: 3

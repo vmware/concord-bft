@@ -13,13 +13,17 @@
 #pragma once
 
 #include "concord.cmf.hpp"
-#include "OpenTracing.hpp"
-#include "kv_types.hpp"
-#include "Replica.hpp"
-#include "bftengine/TimeService.hpp"
-
+#include <memory>
+#include "log/logger.hpp"
+namespace bftEngine {
+struct Timestamp;
+namespace impl {
+class PersistentStorage;
+}
+}  // namespace bftEngine
 namespace concord::reconfiguration {
 enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
+const static std::string configurationsFileName{"configurations"};
 // The IReconfigurationHandler interface defines all message handler. It is
 // tightly coupled with the messages inside ReconfigurationSmRequest in the
 // message definition.
@@ -104,6 +108,13 @@ class IReconfigurationHandler {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveWithWedgeStatus &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::PruneCompactRequest &,
                       uint64_t,
                       uint32_t,
                       const std::optional<bftEngine::Timestamp> &,
@@ -207,13 +218,6 @@ class IReconfigurationHandler {
     return true;
   }
 
-  virtual bool handle(const concord::messages::ClientTlsExchangeKey &,
-                      uint64_t,
-                      uint32_t,
-                      const std::optional<bftEngine::Timestamp> &,
-                      concord::messages::ReconfigurationResponse &) {
-    return true;
-  }
   virtual bool handle(const concord::messages::ClientsRestartCommand &,
                       uint64_t,
                       uint32_t,
@@ -244,14 +248,71 @@ class IReconfigurationHandler {
     return true;
   }
 
+  virtual bool handle(const concord::messages::ReplicaMainKeyUpdate &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::GetDbCheckpointInfoRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::CreateDbCheckpointCommand &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::DbSizeReadRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::StateSnapshotRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::SignedPublicStateHashRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
+  virtual bool handle(const concord::messages::StateSnapshotReadAsOfRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
+  virtual void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {}
   virtual bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const = 0;
   virtual ~IReconfigurationHandler() = default;
 
  protected:
   logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
+    static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
 };

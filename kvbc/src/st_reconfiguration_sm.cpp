@@ -11,8 +11,8 @@
 // file.
 
 #include "st_reconfiguraion_sm.hpp"
-#include "hex_tools.h"
-#include "endianness.hpp"
+#include "util/hex_tools.hpp"
+#include "util/endianness.hpp"
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
@@ -71,17 +71,6 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                        current_cp_num);
   handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
                                                          current_cp_num);
-
-  auto &rep_info = bftEngine::ReplicaConfig::instance();
-  auto first_external_client_id = rep_info.numReplicas + rep_info.numRoReplicas + rep_info.numOfClientProxies;
-  // Check for every client if we have an update for TLS key exchange
-  for (auto i = first_external_client_id; i < first_external_client_id + rep_info.numOfExternalClients; i++) {
-    std::string client_key =
-        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
-                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_TLS_KEY_EXCHANGE_COMMAND)} +
-        std::to_string(i);
-    handleStoredCommand<concord::messages::ClientTlsExchangeKey>(client_key, current_cp_num);
-  }
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
@@ -129,6 +118,7 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
       bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(GL, "unwedge due to higher epoch number after state transfer");
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+    bftEngine::ControlStateManager::instance().unwedge();
     bftEngine::IControlHandler::instance()->resetState();
   }
   bftEngine::EpochManager::instance().setSelfEpochNumber(bftEngine::EpochManager::instance().getGlobalEpochNumber());
@@ -149,6 +139,7 @@ bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &c
   return handleWedgeCommands(
       command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
 }
+
 bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &cmd,
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
@@ -193,13 +184,6 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
   }
   if (my_last_known_epoch == command_epoch && my_last_known_epoch == last_known_global_epoch && cp_sn < wedge_point)
     return true;  // We still need to complete another state transfer
-
-  // If we reached to this point, we are defiantly going to run the addRemove command,
-  // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
-  concord::messages::ReconfigurationResponse response;
-  for (auto &h : orig_reconf_handlers_) {
-    h->handle(cmd, bft_seq_num, UINT32_MAX, std::nullopt, response);
-  }
 
   if (my_last_known_epoch < last_known_global_epoch) {
     // now, we cannot rely on the received sequence number (as it may be reused), we simply want to stop immediately
@@ -263,24 +247,4 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   }
   return succ;
 }
-
-bool StReconfigurationHandler::handle(const concord::messages::ClientTlsExchangeKey &command,
-                                      uint64_t bft_seq_num,
-                                      uint64_t,
-                                      uint64_t) {
-  bool succ = true;
-  concord::messages::ReconfigurationResponse response;
-  for (const auto &[cid, cert] : command.clients_certificates) {
-    std::string bft_clients_cert_path =
-        bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid) + "/client/client.cert";
-    auto current_rep_cert = sm_.decryptFile(bft_clients_cert_path);
-    if (current_rep_cert == cert) continue;
-    LOG_INFO(GL, "execute client's TLS key exchange after state transfer" << KVLOG(cid));
-    std::string cert_path = bft_clients_cert_path + "/" + std::to_string(cid) + "/client/client.cert";
-    sm_.encryptFile(bft_clients_cert_path, cert);
-    LOG_INFO(GL, bft_clients_cert_path + " is updated on the disk");
-  }
-  return succ;
-}
-
 }  // namespace concord::kvbc

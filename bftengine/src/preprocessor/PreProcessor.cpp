@@ -9,14 +9,19 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "PreProcessor.hpp"
 #include <optional>
+
+#include "PreProcessor.hpp"
+#include "log/logger.hpp"
 #include "InternalReplicaApi.hpp"
-#include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "messages/PreProcessResultMsg.hpp"
+#include "messages/ClientReplyMsg.hpp"
+#include "ControlStateManager.hpp"
+#include "MsgsCommunicator.hpp"
+#include "MsgHandlersRegistrator.hpp"
 
 namespace preprocessor {
 
@@ -27,7 +32,7 @@ using namespace std;
 using namespace std::placeholders;
 using namespace concordUtil;
 
-uint8_t RequestState::reqProcessingHistoryHeight = 10;
+uint8_t RequestState::reqProcessingHistoryHeight = 1;
 
 //**************** Class RequestsBatch ****************//
 
@@ -38,94 +43,95 @@ void RequestsBatch::init() {
   }
 }
 
-void RequestsBatch::addReply(PreProcessReplyMsgSharedPtr replyMsg) {
+bool RequestsBatch::isBatchRegistered(string &batchCid) const {
   const std::lock_guard<std::mutex> lock(batchMutex_);
-  repliesList_.push_back(replyMsg);
+  batchCid = batchCid_;
+  return batchRegistered_;
+}
+
+bool RequestsBatch::isBatchInProcess() const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  return batchInProcess_;
+}
+
+bool RequestsBatch::isBatchInProcess(string &batchCid) const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  batchCid = batchCid_;
+  return batchInProcess_;
+}
+
+uint64_t RequestsBatch::getBlockId() const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  return cidToBlockId_.second;
 }
 
 // Should be called under batchMutex_
-void RequestsBatch::setBatchParameters(const std::string &cid, uint32_t batchSize) {
-  cid_ = cid;
+void RequestsBatch::setBatchParameters(const std::string &batchCid, uint32_t batchSize) {
+  batchCid_ = batchCid;
   batchSize_ = batchSize;
-  // We want to preserve blockid between retries, therefore cidToBlockid_ is not being part of the reset,
-  // And is being set only if cid is new.
-  if (cidToBlockid_.first != cid_) {
+  // We want to preserve block-id between retries, therefore cidToBlockId_ is not being part of the reset,
+  // and is being set only if batchCid is new.
+  if (cidToBlockId_.first != batchCid_) {
     LOG_DEBUG(preProcessor_.logger(),
-              "resetting batch block id, old cid: " << cidToBlockid_.first << " to: " << cid_ << ", old block id: "
-                                                    << cidToBlockid_.second << " to: " << GlobalData::current_block_id);
-    cidToBlockid_.first = cid_;
-    cidToBlockid_.second = GlobalData::current_block_id;
+              "Resetting batch block id. Old batchCid: " << cidToBlockId_.first << " to: " << batchCid_
+                                                         << ". Old block id: " << cidToBlockId_.second
+                                                         << " to: " << GlobalData::current_block_id);
+    cidToBlockId_.first = batchCid_;
+    cidToBlockId_.second = GlobalData::current_block_id;
   }
 }
 
 // Should be called under batchMutex_
 void RequestsBatch::resetBatchParams() {
+  const auto batchCid = batchCid_;
+  const auto batchSize = batchSize_;
+  const auto numOfCompletedReqs = numOfCompletedReqs_.load();
   batchSize_ = 0;
   batchInProcess_ = false;
   batchRegistered_ = false;
   numOfCompletedReqs_ = 0;
-  cid_ = "";
+  batchCid_ = "";
   repliesList_.clear();
+  LOG_INFO(preProcessor_.logger(),
+           "The batch parameters have been reset" << KVLOG(clientId_, batchCid, numOfCompletedReqs, batchSize));
 }
 
 // Called when ClientBatchRequestMsg received
-void RequestsBatch::registerBatch(const std::string &cid, uint32_t batchSize) {
+void RequestsBatch::registerBatch(NodeIdType senderId, const std::string &batchCid, uint32_t batchSize) {
   const std::lock_guard<std::mutex> lock(batchMutex_);
   if (!batchRegistered_) {
     batchRegistered_ = true;
-    setBatchParameters(cid, batchSize);
-    LOG_INFO(preProcessor_.logger(), "The batch has been registered" << KVLOG(clientId_, cid_, batchSize_));
+    setBatchParameters(batchCid, batchSize);
+    LOG_INFO(preProcessor_.logger(),
+             "The batch has been registered" << KVLOG(senderId, clientId_, batchCid_, batchSize_));
   }
 }
 
 // On non-primary: called when PreProcessBatchRequestMsg received
-void RequestsBatch::startBatch(const std::string &cid, uint32_t batchSize) {
+void RequestsBatch::startBatch(NodeIdType senderId, const std::string &batchCid, uint32_t batchSize) {
   const std::lock_guard<std::mutex> lock(batchMutex_);
   if (!batchInProcess_) {
     batchInProcess_ = true;
     batchRegistered_ = true;
-    setBatchParameters(cid, batchSize);
-    LOG_INFO(preProcessor_.logger(), "The batch has been started" << KVLOG(clientId_, cid_, batchSize_));
+    setBatchParameters(batchCid, batchSize);
+    LOG_INFO(preProcessor_.logger(), "The batch has been started" << KVLOG(senderId, clientId_, batchCid_, batchSize_));
   }
 }
 
-// Called by the primary replica in case not all the messages successfully passed the checks
-void RequestsBatch::updateBatchSize(uint32_t batchSize) {
+const string RequestsBatch::getBatchCid() const {
   const std::lock_guard<std::mutex> lock(batchMutex_);
-  batchSize_ = batchSize;
-}
-
-const string RequestsBatch::getCid() const {
-  const std::lock_guard<std::mutex> lock(batchMutex_);
-  return cid_;
-}
-
-// Release not-matching client requests in case PreProcessBatchRequestMsg arrived with fewer messages
-void RequestsBatch::updateRegisteredBatchIfNeeded(const string &batchCid, const PreProcessReqMsgsList &preProcessReqs) {
-  const std::lock_guard<std::mutex> lock(batchMutex_);
-  if (batchRegistered_ && cid_ == batchCid && batchSize_.load() != preProcessReqs.size()) {
-    LOG_INFO(preProcessor_.logger(),
-             "The batch needs to be updated" << KVLOG(clientId_, cid_, batchSize_, preProcessReqs.size()));
-    for (const auto &regReqEntry : requestsMap_) {
-      if (regReqEntry.second && regReqEntry.second->reqProcessingStatePtr) {
-        bool registeredReqFound = false;
-        for (const auto &arrivedReq : preProcessReqs) {
-          if (regReqEntry.second->reqProcessingStatePtr->getReqSeqNum() == arrivedReq->reqSeqNum()) {
-            registeredReqFound = true;
-            break;
-          }
-        }
-        if (!registeredReqFound)
-          preProcessor_.releaseClientPreProcessRequestSafe(clientId_, regReqEntry.second, CANCELLED_BY_PRIMARY);
-      }
-    }
-    batchSize_ = preProcessReqs.size();
-  }
+  return batchCid_;
 }
 
 RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch) {
   ConcordAssertLE(reqOffsetInBatch, PreProcessor::clientMaxBatchSize_ - 1);
   return requestsMap_[reqOffsetInBatch];
+}
+
+void RequestsBatch::increaseNumOfCompletedReqs(uint32_t count) {
+  numOfCompletedReqs_ += count;
+  LOG_DEBUG(preProcessor_.logger(),
+            "Increased a number of completed requests" << KVLOG(clientId_, batchCid_, batchSize_, numOfCompletedReqs_));
 }
 
 void RequestsBatch::handlePossiblyExpiredRequests() {
@@ -134,81 +140,131 @@ void RequestsBatch::handlePossiblyExpiredRequests() {
     if (preProcessor_.handlePossiblyExpiredRequest(req.second)) reqsExpired++;
 
   bool batchCancelled = false;
-  string cid;
+  string batchCid;
   atomic_uint32_t batchSize = 0;
+  auto numOfCompletedReqs = numOfCompletedReqs_.load();
   {
     const std::lock_guard<std::mutex> lock(batchMutex_);
     if (batchSize_ && reqsExpired && (numOfCompletedReqs_ >= batchSize_)) {
-      cid = cid_;
-      batchSize = batchSize_.load();
+      batchCid = batchCid_;
+      batchSize = batchSize_;
       resetBatchParams();
       batchCancelled = true;
     }
   }
   if (batchCancelled)
     LOG_INFO(preProcessor_.logger(),
-             "The batch has been cancelled as expired" << KVLOG(clientId_, cid, reqsExpired, batchSize));
+             "The batch has been cancelled as expired"
+                 << KVLOG(clientId_, batchCid, reqsExpired, numOfCompletedReqs, batchSize));
 }
 
-void RequestsBatch::cancelBatchAndReleaseRequests(const string &batchCid, PreProcessingResult status) {
+void RequestsBatch::cancelBatchAndReleaseRequests(const string &batchCidToCancel, PreProcessingResult status) {
   atomic_uint32_t batchSize = 0;
   {
     const lock_guard<mutex> lock(batchMutex_);
-    if (cid_ != batchCid) {
+    if (batchCid_ != batchCidToCancel) {
       LOG_INFO(preProcessor_.logger(),
-               "The batch has been cancelled/completed earlier; do nothing" << KVLOG(clientId_, batchCid, cid_));
+               "The batch has been cancelled/completed earlier; do nothing"
+                   << KVLOG(clientId_, batchCidToCancel, batchCid_));
       return;
     }
     for (const auto &reqEntry : requestsMap_) {
       if (status == CANCEL) preProcessor_.preProcessorMetrics_.preProcConsensusNotReached++;
       if (reqEntry.second) preProcessor_.releaseClientPreProcessRequestSafe(clientId_, reqEntry.second, status);
     }
-    batchSize = batchSize_.load();
+    batchSize = batchSize_;
     resetBatchParams();
   }
-  LOG_INFO(preProcessor_.logger(), "The batch has been cancelled" << KVLOG(clientId_, batchCid, batchSize));
+  LOG_INFO(preProcessor_.logger(), "The batch has been cancelled" << KVLOG(clientId_, batchCidToCancel, batchSize));
 }
 
 // On non-primary replicas
-void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted() {
+void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsgSharedPtr replyMsg) {
   uint32_t replyMsgsSize = 0;
   const auto senderId = preProcessor_.myReplicaId_;
   const auto primaryId = preProcessor_.myReplica_.currentPrimary();
-  string cid;
+  string batchCid;
   atomic_uint32_t batchSize = 0;
   PreProcessBatchReplyMsgSharedPtr batchReplyMsg;
+  list<uint16_t> reqOffsetsInBatch;
   {
-    const lock_guard<mutex> lock(batchMutex_);
-    if (repliesList_.size() != batchSize_) return;
-
-    cid = cid_;
-    batchSize = batchSize_.load();
-    // The last batch request has pre-processed => send batched reply message
-    for (auto const &replyMsg : repliesList_) {
-      replyMsgsSize += replyMsg->size();
-      preProcessor_.releaseClientPreProcessRequestSafe(clientId_, replyMsg->reqOffsetInBatch(), COMPLETE);
+    unique_lock<mutex> lock(batchMutex_);
+    if (!batchInProcess_) {
+      LOG_DEBUG(preProcessor_.logger(), "The batch is not in process; ignore" << KVLOG(clientId_, batchCid_));
+      return;
     }
-    batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(clientId_, senderId, repliesList_, cid_, replyMsgsSize);
+    repliesList_.push_back(replyMsg);
+    if (repliesList_.size() < batchSize_) {
+      LOG_DEBUG(preProcessor_.logger(),
+                "Not all replies collected" << KVLOG(senderId, clientId_, batchCid_, repliesList_.size(), batchSize_));
+      return;
+    }
+    batchCid = batchCid_;
+    batchSize = batchSize_;
+    // The last batch request has pre-processed => send batched reply message
+    for (auto const &reply : repliesList_) {
+      replyMsgsSize += reply->size();
+      reqOffsetsInBatch.emplace_front(reply->reqOffsetInBatch());
+    }
+    batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(
+        clientId_, senderId, repliesList_, batchCid_, replyMsgsSize, preProcessor_.myReplica_.getCurrentView());
+  }
+  for (const auto reqOffsetInBatch : reqOffsetsInBatch)
+    preProcessor_.releaseClientPreProcessRequestSafe(clientId_, reqOffsetInBatch, COMPLETE);
+  {
+    unique_lock<mutex> lock(batchMutex_);
     resetBatchParams();
   }
   preProcessor_.sendMsg(batchReplyMsg->body(), primaryId, batchReplyMsg->type(), batchReplyMsg->size());
   LOG_INFO(preProcessor_.logger(),
            "Pre-processing completed and the batched reply message sent to the primary replica"
-               << KVLOG(senderId, clientId_, cid, batchSize, primaryId));
+               << KVLOG(senderId, clientId_, batchCid, batchSize, primaryId));
 }
 
 // On a primary replica
-void RequestsBatch::finalizeBatchIfCompleted() {
-  string cid;
-  atomic_uint32_t batchSize = 0;
-  {
-    const lock_guard<mutex> lock(batchMutex_);
-    cid = cid_;
-    batchSize = batchSize_.load();
-    if (numOfCompletedReqs_ != batchSize_) return;
-    resetBatchParams();
+// Should be called under an entry lock
+void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
+                                                     uint16_t reqOffsetInBatch,
+                                                     PreProcessingResult status) {
+  unique_lock<mutex> lock(batchMutex_);
+  if (batchCid_ != reqBatchCid) {
+    LOG_INFO(preProcessor_.logger(),
+             "The batch has been cancelled/completed earlier; do nothing" << KVLOG(clientId_, reqBatchCid, batchCid_));
+    return;
   }
-  LOG_INFO(preProcessor_.logger(), "The batch has been released" << KVLOG(clientId_, cid, batchSize));
+  const auto &reqEntry = requestsMap_[reqOffsetInBatch];
+  if (reqEntry) {
+    if (status == CANCEL) preProcessor_.preProcessorMetrics_.preProcConsensusNotReached++;
+    lock.unlock();
+    preProcessor_.releaseClientPreProcessRequest(reqEntry, status);
+    lock.lock();
+    finalizeBatchIfCompleted();
+  }
+}
+
+// On a primary replica
+void RequestsBatch::finalizeBatchIfCompletedSafe(const std::string &batchCid) {
+  const lock_guard<mutex> lock(batchMutex_);
+  if (!batchCid_.empty() && (batchCid == batchCid_)) finalizeBatchIfCompleted();
+}
+
+// On a primary replica; unsafe
+void RequestsBatch::finalizeBatchIfCompleted() {
+  if (!batchSize_) {
+    LOG_WARN(preProcessor_.logger(), "Release called for an empty batch" << KVLOG(clientId_));
+    return;
+  }
+  if (numOfCompletedReqs_ < batchSize_) {
+    LOG_DEBUG(preProcessor_.logger(),
+              "The batch is not completed yet" << KVLOG(clientId_, batchCid_, numOfCompletedReqs_, batchSize_));
+    return;
+  }
+  const auto batchCid = batchCid_;
+  const auto batchSize = batchSize_;
+  const auto numOfCompletedReqs = numOfCompletedReqs_.load();
+  resetBatchParams();
+  LOG_INFO(preProcessor_.logger(),
+           "The batch has been released" << KVLOG(clientId_, batchCid, numOfCompletedReqs, batchSize));
 }
 
 void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs,
@@ -233,64 +289,116 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
                                           nullptr,
                                           0,
                                           0,
-                                          clientMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+                                          preProcessor_.myReplica_.getCurrentView(),
+                                          clientMsg->spanContext<ClientPreProcessReqMsgSharedPtr::element_type>());
     reqsBatch.push_back(preProcessReqMsg);
     overallPreProcessReqMsgsSize += preProcessReqMsg->size();
   }
-  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(
-      REQ_TYPE_CANCEL, clientId_, preProcessor_.myReplicaId_, reqsBatch, cid_, overallPreProcessReqMsgsSize);
+  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_CANCEL,
+                                                                      clientId_,
+                                                                      preProcessor_.myReplicaId_,
+                                                                      reqsBatch,
+                                                                      batchCid_,
+                                                                      overallPreProcessReqMsgsSize,
+                                                                      preProcessor_.myReplica_.getCurrentView());
   LOG_DEBUG(preProcessor_.logger(),
-            "Sending PreProcessBatchRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId_, cid_, destId));
+            "Sending PreProcessBatchRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId_, batchCid_, destId));
   preProcessor_.sendMsg(
       preProcessBatchReqMsg->body(), destId, preProcessBatchReqMsg->type(), preProcessBatchReqMsg->size());
 }
-
-//**************** Class PreProcessor ****************//
-
-vector<shared_ptr<PreProcessor>> PreProcessor::preProcessors_;
-
-//**************** Static functions ****************//
-
-void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                                      shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
-                                      shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                                      bftEngine::IRequestsHandler &requestsHandler,
-                                      InternalReplicaApi &replica,
-                                      concordUtil::Timers &timers,
-                                      shared_ptr<concord::performance::PerformanceManager> &pm) {
-  if (ReplicaConfig::instance().getnumOfExternalClients() + ReplicaConfig::instance().getnumOfClientProxies() <= 0) {
-    LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
-    return;
-  }
-
-  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled())
-    preProcessors_.push_back(make_unique<PreProcessor>(
-        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers, pm));
-}
-
-void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled() && aggregator) {
-    for (const auto &elem : preProcessors_) elem->metricsComponent_.SetAggregator(aggregator);
-  }
-}
-
-//**************************************************//
 
 bool PreProcessor::validateMessage(MessageBase *msg) const {
   try {
     msg->validate(myReplica_.getReplicasInfo());
     return true;
   } catch (std::exception &e) {
-    LOG_ERROR(logger(), "Message validation failed: " << e.what());
+    LOG_WARN(logger(), "Message validation failed" << KVLOG(msg->type(), e.what()));
     return false;
   }
+}
+
+bool PreProcessor::validateSubpoolsConfig() {
+  for (const auto &spConfig : subpoolsConfig_) {
+    if ((spConfig.bufferSize == 0) || (spConfig.bufferSize > kMaxSubpoolBuffersize_)) {
+      LOG_ERROR(logger(), "Invalid configuration:" << KVLOG(spConfig.bufferSize, kMaxSubpoolBuffersize_));
+      return false;
+    }
+  }
+  return true;
+}
+
+concordUtil::MultiSizeBufferPool::SubpoolsConfig PreProcessor::calcSubpoolsConfig() {
+  auto subpoolsConf = YAML::Load(myReplica_.getReplicaConfig().get<std::string>(
+                                     "concord.preprocessor.MultiSizeBufferPool.subpoolsConfig", "[]"))
+                          .as<std::vector<concordUtil::MultiSizeBufferPool::SubpoolConfig>>();
+  // Use default subpools configurations if not defined dynamically in bft_config.yaml
+  if (subpoolsConf.size() == 0) {
+    constexpr uint32_t KB = (1 << 10);
+    constexpr uint32_t MB = (1 << 20);
+    subpoolsConf = {{64 * KB, 0, 1400},
+                    {128 * KB, 0, 1400},
+                    {256 * KB, 0, 1400},
+                    {512 * KB, 0, 1400},
+                    {1 * MB, 0, 1400},
+                    {2 * MB, 0, 1400},
+                    {4 * MB, 0, 700},
+                    {8 * MB, 0, 700},
+                    {16 * MB, 0, 80},
+                    {32 * MB, 0, 80}};
+  }
+  return subpoolsConf;
+}
+
+std::unique_ptr<concordUtil::MultiSizeBufferPool> PreProcessor::createMultiSizeBufferPool() {
+  constexpr uint32_t GB = (1 << 30);
+  return std::make_unique<concordUtil::MultiSizeBufferPool>(
+      "PreProcessor::memoryPool",
+      timers_,
+      subpoolsConfig_,
+      concordUtil::MultiSizeBufferPool::Config{
+          myReplica_.getReplicaConfig().get<uint64_t>("concord.preprocessor.MultiSizeBufferPool.maxAllocatedBytes",
+                                                      10ULL * GB),
+          myReplica_.getReplicaConfig().get<bool>("concord.preprocessor.MultiSizeBufferPool.purgeEvaluationFrequency",
+                                                  0),
+          myReplica_.getReplicaConfig().get<uint32_t>("concord.preprocessor.MultiSizeBufferPool.statusReportFrequency",
+                                                      60),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.histogramsReportFrequency", 60),
+          myReplica_.getReplicaConfig().get<uint32_t>("concord.preprocessor.MultiSizeBufferPool.metricsReportFrequency",
+                                                      5),
+          myReplica_.getReplicaConfig().get<bool>(
+              "concord.preprocessor.MultiSizeBufferPool.enableStatusReportChangesOnly", false),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.subpoolSelectorEvaluationNumRetriesMinThreshold", 3),
+          myReplica_.getReplicaConfig().get<uint32_t>(
+              "concord.preprocessor.MultiSizeBufferPool.subpoolSelectorEvaluationNumRetriesMaxThreshold", 10)});
+}
+
+PreProcessor::PreProcessorMemoryPoolMode PreProcessor::initMemoryPoolMode() {
+  const auto preProcessorMemoryPoolMode{myReplica_.getReplicaConfig().preProcessorMemoryPoolMode};
+
+  if (preProcessorMemoryPoolMode > 2) {
+    std::ostringstream oss;
+    oss << "Invalid" << KVLOG(preProcessorMemoryPoolMode) << " ,must be in the range [0,2]!";
+    LOG_ERROR(logger(), oss.str());
+    throw std::invalid_argument(__PRETTY_FUNCTION__ + oss.str());
+  };
+
+  return (preProcessorMemoryPoolMode == 0)
+             ? PreProcessorMemoryPoolMode::NO_POOL
+             : (preProcessorMemoryPoolMode == 1)
+                   ? PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL
+                   : (preProcessorMemoryPoolMode == 2)
+                         ? PreProcessorMemoryPoolMode::RAW_MEMORY_POOL
+                         : PreProcessorMemoryPoolMode::NO_POOL; /* should never happen and checked again later on ctor
+                                                                 */
 }
 
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                            IRequestsHandler &requestsHandler,
-                           const InternalReplicaApi &myReplica,
+                           InternalReplicaApi &myReplica,
                            concordUtil::Timers &timers,
                            shared_ptr<concord::performance::PerformanceManager> &pm)
     : msgsCommunicator_(msgsCommunicator),
@@ -299,10 +407,21 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      maxExternalMsgSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      responseSizeInternalOverhead_{/* for conflict detection BlockId */ sizeof(uint64_t)},
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
-      numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
+      numOfClientProxies_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
+      threadPool_("PreProcessor::threadPool"),
+      timers_{timers},
+      memoryPoolMode_{initMemoryPoolMode()},
+      subpoolsConfig_{calcSubpoolsConfig()},
+      multiSizeBufferPool_{(memoryPoolMode_ == PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL)
+                               ? createMultiSizeBufferPool()
+                               : nullptr},
+      rawMemoryPool_{(memoryPoolMode_ == PreProcessorMemoryPoolMode::RAW_MEMORY_POOL)
+                         ? std::make_unique<RawMemoryPool>(maxExternalMsgSize_, timers)
+                         : nullptr},
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -310,7 +429,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcBatchReqReceived"),
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterAtomicCounter("preProcReqIgnored"),
-                           metricsComponent_.RegisterAtomicCounter("preProcReqRejected"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
@@ -319,24 +437,35 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterAtomicGauge("preProcessingTimeAvg", 0),
                            metricsComponent_.RegisterAtomicGauge("launchAsyncPreProcessJobTimeAvg", 0),
                            metricsComponent_.RegisterAtomicGauge("PreProcInFlyRequestsNum", 0)},
+      metric_pre_exe_duration_{metricsComponent_, "metric_pre_exe_duration_", 10000, 1000, true},
       totalPreProcessingTime_(true),
       launchAsyncJobTimeAvg_(true),
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      timers_{timers},
       totalPreExecDurationRecorder_{histograms_.totalPreExecutionDuration},
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
-      pm_{pm},
-      batchedPreProcessEnabled_(myReplica_.getReplicaConfig().batchedPreProcessEnabled) {
-  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
-  registerMsgHandlers();
-  metricsComponent_.Register();
+      pm_{pm} {
+  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1;
   const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;
   const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
+
+  if (multiSizeBufferPool_ && !validateSubpoolsConfig()) {
+    string err{
+        "Invalid subpools Configuration! Check buffer sizes, they might be 0 or exceeding maximal supported size!"};
+    LOG_ERROR(logger(), err);
+    throw std::invalid_argument(__PRETTY_FUNCTION__ + err);
+  } else if (rawMemoryPool_) {
+    // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
+    rawMemoryPool_->allocatePool(clientMaxBatchSize_, numOfReqEntries);
+  }
+  // register a stop call back for the new preprocessor in order to stop it before replica is destroyed
+  myReplica_.registerStopCallback([this]() { this->stop(); });
+  registerMsgHandlers();
+  metricsComponent_.Register();
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
-    preProcessResultBuffers_.emplace_back(std::make_pair(false, Sliver()));
+    preProcessResultBuffers_.emplace_back(make_shared<SafeResultBuffer>());
   }
-  const uint16_t firstClientId = numOfReplicas_ + numOfInternalClients_;
+  const uint16_t firstClientId = numOfReplicas_ + numOfClientProxies_;
   for (uint16_t i = 0; i < numOfExternalClients; i++) {
     // Placeholders for all client batches
     const uint16_t clientId = firstClientId + i;
@@ -354,28 +483,50 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   threadPool_.start(numOfThreads);
   msgLoopThread_ = std::thread{&PreProcessor::msgProcessingLoop, this};
   LOG_INFO(logger(),
-           KVLOG(numOfReplicas_,
-                 numOfExternalClients,
-                 numOfInternalClients_,
-                 numOfReqEntries,
-                 firstClientId,
-                 clientBatchingEnabled_,
-                 clientMaxBatchSize_,
-                 maxPreExecResultSize_,
-                 preExecReqStatusCheckPeriodMilli_,
-                 numOfThreads,
-                 ReplicaConfig::instance().preExecutionResultAuthEnabled));
+           "PreProcessor initialization:" << KVLOG(numOfReplicas_,
+                                                   numOfExternalClients,
+                                                   numOfClientProxies_,
+                                                   numOfReqEntries,
+                                                   firstClientId,
+                                                   clientBatchingEnabled_,
+                                                   clientMaxBatchSize_,
+                                                   kMaxSubpoolBuffersize_,
+                                                   responseSizeInternalOverhead_,
+                                                   preExecReqStatusCheckPeriodMilli_,
+                                                   numOfThreads,
+                                                   ReplicaConfig::instance().preExecutionResultAuthEnabled));
   RequestProcessingState::init(numOfRequiredReplies(), &histograms_);
   PreProcessReplyMsg::setPreProcessorHistograms(&histograms_);
   addTimers();
 }
 
+void PreProcessor::stop() {
+  LOG_DEBUG(logger(), "Going to stop PreProcessor");
+  if (!msgLoopDone_) {
+    {
+      std::unique_lock<std::mutex> l(msgLock_);
+      msgLoopDone_ = true;
+    }
+    msgLoopSignal_.notify_all();
+    cancelTimers();
+  }
+  if (!threadPool_.isStopped()) {
+    threadPool_.stop();
+    if (msgLoopThread_.joinable()) {
+      msgLoopThread_.join();
+    }
+  }
+  LOG_DEBUG(logger(), "PreProcessor stopped");
+}
+
 PreProcessor::~PreProcessor() {
-  msgLoopDone_ = true;
-  msgLoopSignal_.notify_all();
-  cancelTimers();
-  threadPool_.stop();
-  if (msgLoopThread_.joinable()) msgLoopThread_.join();
+  LOG_DEBUG(logger(), "~PreProcessor start");
+  if (memoryPoolMode_ == PreProcessorMemoryPoolMode::NO_POOL) {
+    for (const auto &result : preProcessResultBuffers_) {
+      delete[] result->buffer;
+    }
+  }
+  LOG_DEBUG(logger(), "~PreProcessor done");
 }
 
 void PreProcessor::addTimers() {
@@ -390,10 +541,9 @@ void PreProcessor::addTimers() {
 }
 
 void PreProcessor::cancelTimers() {
-  try {
-    timers_.cancel(metricsTimer_);
-    if (preExecReqStatusCheckPeriodMilli_ != 0) timers_.cancel(requestsStatusCheckTimer_);
-  } catch (std::invalid_argument &e) {
+  timers_.cancel(metricsTimer_);
+  if (preExecReqStatusCheckPeriodMilli_ != 0) {
+    timers_.cancel(requestsStatusCheckTimer_);
   }
 }
 
@@ -404,11 +554,11 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
   const auto &preProcessReqMsg = reqStatePtr->getPreProcessRequest();
   const auto &batchCid = reqStatePtr->getBatchCid();
   if (!rejectedReplicasList.empty() && preProcessReqMsg) {
-    SCOPED_MDC_CID(preProcessReqMsg->getCid());
     const auto &clientId = preProcessReqMsg->clientId();
     const auto &reqSeqNum = preProcessReqMsg->reqSeqNum();
+    const auto &reqCid = preProcessReqMsg->getCid();
     for (const auto &destId : rejectedReplicasList) {
-      LOG_DEBUG(logger(), "Resending PreProcessRequestMsg" << KVLOG(clientId, reqSeqNum, batchCid, destId));
+      LOG_DEBUG(logger(), "Resending PreProcessRequestMsg" << KVLOG(clientId, batchCid, reqSeqNum, reqCid, destId));
       sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
     reqStatePtr->resetRejectedReplicasList();
@@ -426,8 +576,15 @@ bool PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &req
     const auto &reqSeqNum = reqStatePtr->getReqSeqNum();
     const auto &clientId = reqStatePtr->getClientId();
     const auto &batchCid = reqStatePtr->getBatchCid();
-    SCOPED_MDC_CID(reqStatePtr->getReqCid());
-    LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, clientId, batchCid));
+    const auto &reqCid = reqStatePtr->getReqCid();
+    if (!reqStatePtr->getPreProcessRequest()) {
+      /* preProcInFlyRequestsNum metric does not get increased when the PreProcessRequestMsg does not
+       * arrive for the request, which mostly happens during a view change. In this case, we only
+       * decrease this metric, so it gets overflowed. We increase the metric here as compensation.
+       */
+      preProcessorMetrics_.preProcInFlyRequestsNum++;
+    }
+    LOG_INFO(logger(), "Let replica handle request" << KVLOG(batchCid, reqSeqNum, reqCid, clientId));
     incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
     releaseClientPreProcessRequest(reqStateEntry, EXPIRED);
     return true;
@@ -444,21 +601,24 @@ void PreProcessor::onRequestsStatusCheckTimer() {
 }
 
 bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
-                                             const string &cid,
+                                             const string &reqCid,
                                              bool isReadOnly,
                                              uint16_t clientId,
                                              NodeIdType senderId,
                                              const std::string &batchCid) const {
-  SCOPED_MDC_CID(cid);
   if (myReplica_.isCollectingState()) {
-    LOG_INFO(logger(),
-             "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(reqSeqNum, senderId, clientId, batchCid));
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId));
     return false;
   }
   if (isReadOnly) {
     LOG_INFO(logger(),
-             "Ignore ClientPreProcessRequestMsg as it is signed as read-only" << KVLOG(reqSeqNum, clientId, batchCid));
+             "Ignore ClientPreProcessRequestMsg as it is signed as read-only"
+                 << KVLOG(batchCid, reqSeqNum, reqCid, clientId));
     return false;
   }
   const bool &invalidClient = !myReplica_.isValidClient(clientId);
@@ -466,13 +626,13 @@ bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
   if (invalidClient || sentFromReplicaToNonPrimary) {
     LOG_WARN(logger(),
              "Ignore ClientPreProcessRequestMsg as invalid"
-                 << KVLOG(reqSeqNum, senderId, clientId, invalidClient, sentFromReplicaToNonPrimary, batchCid));
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, invalidClient, sentFromReplicaToNonPrimary));
     return false;
   }
   if (!myReplica_.currentViewIsActive()) {
     LOG_INFO(logger(),
              "Ignore ClientPreProcessRequestMsg as current view is inactive"
-                 << KVLOG(reqSeqNum, senderId, clientId, batchCid));
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId));
     return false;
   }
   return true;
@@ -480,12 +640,22 @@ bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
 
 bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg) {
   if (!clientBatchingEnabled_) {
-    LOG_ERROR(logger(),
-              "Batching functionality is disabled => reject message"
-                  << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
+    LOG_WARN(logger(),
+             "Batching functionality is disabled => reject message"
+                 << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
     preProcessorMetrics_.preProcReqIgnored++;
     return false;
   }
+
+  const auto numMsgsInBatch = clientBatchReqMsg->numOfMessagesInBatch();
+  if (numMsgsInBatch > clientMaxBatchSize_) {
+    LOG_WARN(logger(),
+             "Ignoring client batch that exceeds max number of requests ("
+                 << numMsgsInBatch << " > " << clientMaxBatchSize_ << ")"
+                 << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
+    return false;
+  }
+
   const auto &clientRequestMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
   bool valid = true;
   for (const auto &msg : clientRequestMsgs) {
@@ -510,36 +680,8 @@ void PreProcessor::updateAggregatorAndDumpMetrics() {
   auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
   if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
     metricsLastDumpTime_ = currTime;
-    LOG_INFO(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
+    LOG_DEBUG(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
   }
-}
-
-void PreProcessor::cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
-                                                   NodeIdType destId,
-                                                   uint16_t reqOffsetInBatch,
-                                                   uint64_t reqRetryId,
-                                                   const string &batchCid) {
-  const auto clientId = clientReqMsg->clientProxyId();
-  const auto reqSeqNum = clientReqMsg->requestSeqNum();
-  auto preProcessReqMsg =
-      make_shared<PreProcessRequestMsg>(REQ_TYPE_CANCEL,
-                                        myReplicaId_,
-                                        clientId,
-                                        reqOffsetInBatch,
-                                        reqSeqNum,
-                                        reqRetryId,
-                                        0,
-                                        nullptr,
-                                        clientReqMsg->getCid(),
-                                        nullptr,
-                                        0,
-                                        0,
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
-  SCOPED_MDC_CID(preProcessReqMsg->getCid());
-  LOG_DEBUG(logger(),
-            "Sending PreProcessRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId, batchCid, reqSeqNum, destId));
-  sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
-  preProcessorMetrics_.preProcReqRejected++;
 }
 
 void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
@@ -550,38 +692,41 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 uint64_t reqRetryId,
                                                 const string &cid,
                                                 const string &ongoingCid) {
-  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
-                                                  clientId,
-                                                  reqOffsetInBatch,
-                                                  reqSeqNum,
-                                                  reqRetryId,
-                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
-                                                  0,
-                                                  cid,
-                                                  STATUS_REJECT);
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(myReplicaId_,
+                                      clientId,
+                                      reqOffsetInBatch,
+                                      reqSeqNum,
+                                      reqRetryId,
+                                      getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch).buffer,
+                                      0,
+                                      cid,
+                                      STATUS_REJECT,
+                                      OperationResult::NOT_READY,
+                                      myReplica_.getCurrentView());
+  const auto &batchCid = ongoingReqBatches_[clientId]->getBatchCid();
   LOG_DEBUG(
       logger(),
-      KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
+      KVLOG(batchCid, reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
           << " Sending PreProcessReplyMsg with STATUS_REJECT as another PreProcessRequest from the same client is "
              "in progress");
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
 }
 
 template <>
-void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
+void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessReqMsgUniquePtr msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientPreProcessRequestMsg);
   preProcessorMetrics_.preProcReqReceived++;
-  ClientPreProcessReqMsgUniquePtr clientMsg(msg);
-  const string &cid = clientMsg->getCid();
-  const NodeIdType &senderId = clientMsg->senderId();
-  const NodeIdType &clientId = clientMsg->clientProxyId();
-  const ReqId &reqSeqNum = clientMsg->requestSeqNum();
-  const auto &reqTimeoutMilli = clientMsg->requestTimeoutMilli();
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
-  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientMsg->isReadOnly(), clientId, senderId)) return;
+  const string &reqCid = msg->getCid();
+  const NodeIdType &senderId = msg->senderId();
+  const NodeIdType &clientId = msg->clientProxyId();
+  const ReqId &reqSeqNum = msg->requestSeqNum();
+  const auto &reqTimeoutMilli = msg->requestTimeoutMilli();
+  LOG_DEBUG(logger(),
+            "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, reqCid, clientId, senderId, reqTimeoutMilli));
+  if (!checkClientMsgCorrectness(reqSeqNum, reqCid, msg->isReadOnly(), clientId, senderId, "")) return;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-  handleSingleClientRequestMessage(move(clientMsg), senderId, false, 0, preProcessRequestMsg);
+  handleSingleClientRequestMessage(std::move(msg), senderId, false, 0, preProcessRequestMsg, "", 1);
 }
 
 // Should be called under reqEntry->mutex lock
@@ -592,11 +737,11 @@ bool PreProcessor::isRequestPreProcessingRightNow(const RequestStateSharedPtr &r
                                                   NodeIdType senderId) {
   if (reqEntry->reqProcessingStatePtr) {
     const auto &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
-    const auto &ongoingCid = reqEntry->reqProcessingStatePtr->getReqCid();
+    const auto &ongoingReqCid = reqEntry->reqProcessingStatePtr->getReqCid();
     const auto &ongoingBatchCid = reqEntry->reqProcessingStatePtr->getBatchCid();
     LOG_DEBUG(logger(),
-              KVLOG(reqSeqNum, clientId, batchCid, senderId)
-                  << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid, ongoingBatchCid) << " is in progress");
+              KVLOG(batchCid, reqSeqNum, clientId, senderId)
+                  << " is ignored:" << KVLOG(ongoingBatchCid, ongoingReqSeqNum, ongoingReqCid) << " is in progress");
     preProcessorMetrics_.preProcReqIgnored++;
     return true;
   }
@@ -605,11 +750,11 @@ bool PreProcessor::isRequestPreProcessingRightNow(const RequestStateSharedPtr &r
 
 // Should be called under reqEntry->mutex lock
 bool PreProcessor::isRequestPassingConsensusOrPostExec(
-    SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const string &batchCid, const string &cid) {
+    SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const string &batchCid, const string &reqCid) {
   if (myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
     LOG_DEBUG(logger(),
               "The specified request is in consensus or being post-executed right now - ignore"
-                  << KVLOG(cid, batchCid, reqSeqNum, senderId, clientId));
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId));
     preProcessorMetrics_.preProcReqIgnored++;
     return true;
   }
@@ -621,15 +766,15 @@ bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqE
                                                SeqNum reqSeqNum,
                                                NodeIdType clientId,
                                                const string &batchCid,
-                                               const string &cid) {
+                                               const string &reqCid) {
   if (!reqEntry->reqProcessingStatePtr) {
-    // Verify that an arrived request is newer than any other in the requests history for this client
+    // Verify that an arrived request is newer than any other in the requests' history for this client
     for (const auto &oldReqState : reqEntry->reqProcessingHistory) {
       if (oldReqState->getReqSeqNum() > reqSeqNum) {
         LOG_DEBUG(
             logger(),
             "The request is ignored as the newer request from this client has already been pre-processed"
-                << KVLOG(cid, batchCid, reqSeqNum, clientId, oldReqState->getReqCid(), oldReqState->getReqSeqNum()));
+                << KVLOG(batchCid, reqSeqNum, reqCid, clientId, oldReqState->getReqCid(), oldReqState->getReqSeqNum()));
         preProcessorMetrics_.preProcReqIgnored++;
         return true;
       }
@@ -645,10 +790,9 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
                                                     PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                     const string &batchCid,
                                                     uint32_t batchSize) {
-  SCOPED_MDC_CID(clientMsg->getCid());
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
-  LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
+  const auto &reqCid = clientMsg->getCid();
 
   bool registerSucceeded = false;
   {
@@ -658,19 +802,11 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
         (isRequestPreProcessingRightNow(reqEntry, reqSeqNum, clientId, batchCid, senderId) ||
          isRequestPassingConsensusOrPostExec(reqSeqNum, senderId, clientId, batchCid, clientMsg->getCid()) ||
          isRequestPreProcessedBefore(reqEntry, reqSeqNum, clientId, batchCid, clientMsg->getCid()));
-    if (reqToBeDeclined) {
-      if (!batchedPreProcessEnabled_ && (senderId != clientId))
-        // Send 'cancel' request to non-primary replicas to release them from waiting to a 'real' PreProcessRequestMsg,
-        // which will not arrive in this case. Doing this to avoid request from being timed out on non-primary replicas.
-        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++);
-      return false;
-    }
+    if (reqToBeDeclined) return false;
     if (myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum)) {
-      if (!batchedPreProcessEnabled_ && (senderId != clientId))
-        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++);
       LOG_INFO(logger(),
                "Request has already been executed - let replica decide how to proceed further"
-                   << KVLOG(batchCid, batchSize, reqSeqNum, clientId, senderId));
+                   << KVLOG(batchCid, batchSize, reqSeqNum, reqCid, clientId, senderId));
       incomingMsgsStorage_->pushExternalMsg(clientMsg->convertToClientRequestMsg(false));
       return false;
     }
@@ -688,8 +824,9 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     return true;
   }
   LOG_DEBUG(logger(),
-            "ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, clientId, senderId)
-                                         << " is ignored because request is old/duplicated");
+            "ClientPreProcessRequestMsg"
+                << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, arrivedInBatch, reqOffsetInBatch)
+                << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored++;
   return false;
 }
@@ -700,12 +837,14 @@ void PreProcessor::sendPreProcessBatchReqToAllReplicas(ClientBatchRequestMsgUniq
   const auto clientId = clientBatchMsg->clientId();
   const auto &batchCid = clientBatchMsg->getCid();
   const auto batchSize = preProcessReqMsgList.size();
-  ongoingReqBatches_[clientId]->updateBatchSize(batchSize);
   LOG_DEBUG(logger(), "Send PreProcessBatchRequestMsg to non-primary replicas" << KVLOG(clientId, batchCid, batchSize));
-
-  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(
-      REQ_TYPE_PRE_PROCESS, clientId, myReplicaId_, preProcessReqMsgList, batchCid, requestsSize);
-
+  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                                      clientId,
+                                                                      myReplicaId_,
+                                                                      preProcessReqMsgList,
+                                                                      batchCid,
+                                                                      requestsSize,
+                                                                      myReplica_.getCurrentView());
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.sendPreProcessBatchRequestToAllReplicas);
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
   for (auto destId : idsOfPeerReplicas) {
@@ -716,24 +855,23 @@ void PreProcessor::sendPreProcessBatchReqToAllReplicas(ClientBatchRequestMsgUniq
 }
 
 template <>
-void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
+void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsgUniquePtr msg) {
   preProcessorMetrics_.preProcBatchReqReceived++;
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientBatchPreProcessRequestMsg);
-  ClientBatchRequestMsgUniquePtr clientBatchMsg(msg);
-  const auto clientId = clientBatchMsg->clientId();
+  const auto clientId = msg->clientId();
   // senderId should be taken from ClientBatchRequestMsg as it does not get re-set in batched client messages
-  const auto senderId = clientBatchMsg->senderId();
-  const auto &batchCid = clientBatchMsg->getCid();
-  const auto batchSize = clientBatchMsg->numOfMessagesInBatch();
+  const auto senderId = msg->senderId();
+  const auto &batchCid = msg->getCid();
+  const auto batchSize = msg->numOfMessagesInBatch();
   LOG_DEBUG(logger(), "Received ClientBatchRequestMsg" << KVLOG(batchCid, senderId, clientId, batchSize));
-  if (!checkClientBatchMsgCorrectness(clientBatchMsg)) {
+  if (!checkClientBatchMsgCorrectness(msg)) {
     preProcessorMetrics_.preProcReqIgnored++;
     return;
   }
-  ClientMsgsList &clientMsgs = clientBatchMsg->getClientPreProcessRequestMsgs();
+  ClientMsgsList &clientMsgs = msg->getClientPreProcessRequestMsgs();
   const auto &batchEntry = ongoingReqBatches_[clientId];
-  if (batchedPreProcessEnabled_ && batchEntry->isBatchRegistered()) {
-    const auto &ongoingBatchCid = batchEntry->getCid();
+  string ongoingBatchCid;
+  if (batchEntry->isBatchRegistered(ongoingBatchCid)) {
     if (batchCid != ongoingBatchCid) {
       LOG_INFO(logger(),
                "Different ClientBatchRequestMsg for this client is in process; ignoring"
@@ -745,63 +883,91 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   uint16_t offset = 0;
   PreProcessReqMsgsList preProcessReqMsgList;
   uint32_t overallPreProcessReqMsgsSize = 0;
-  bool thereAreMsgsPassedChecks = false;
+  uint32_t numOfReqsToSkip = 0;
   for (auto &clientMsg : clientMsgs) {
     preProcessorMetrics_.preProcReqReceived++;
     PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-    const bool msgPassedChecks = handleSingleClientRequestMessage(
+    const auto reqSeqNum = clientMsg->requestSeqNum();
+    const auto reqCid = clientMsg->getCid();
+    const bool reqToBeProcessed = handleSingleClientRequestMessage(
         move(clientMsg), senderId, true, offset++, preProcessRequestMsg, batchCid, batchSize);
-    if (msgPassedChecks) {
-      thereAreMsgsPassedChecks = true;
-      if (batchedPreProcessEnabled_ && myReplica_.isCurrentPrimary() && preProcessRequestMsg) {
+    if (myReplica_.isCurrentPrimary()) {
+      if (preProcessRequestMsg) {
         overallPreProcessReqMsgsSize += preProcessRequestMsg->size();
         preProcessReqMsgList.push_back(preProcessRequestMsg);
       }
+      if (!reqToBeProcessed) {
+        LOG_INFO(logger(), "Request processing will be skipped" << KVLOG(clientId, batchCid, reqSeqNum, reqCid));
+        numOfReqsToSkip++;
+      }
     }
   }
+  if (numOfReqsToSkip == batchSize) {
+    LOG_WARN(logger(),
+             "None of the batch requests could be processed: skip the whole batch"
+                 << KVLOG(myReplica_.currentPrimary(), senderId, clientId, batchCid));
+    return;
+  }
   if (myReplica_.isCurrentPrimary()) {
-    if (batchedPreProcessEnabled_ && !preProcessReqMsgList.empty())
+    if (numOfReqsToSkip) {
+      LOG_INFO(logger(),
+               "Some of the batch requests will be skipped"
+                   << KVLOG(senderId, clientId, batchCid, batchSize, numOfReqsToSkip));
+      batchEntry->increaseNumOfCompletedReqs(numOfReqsToSkip);
+    }
+    if (!preProcessReqMsgList.empty())
       // For the non-batched inter-replicas communication PreProcessReq messages get sent to all non-primary replicas
       // in handleClientPreProcessRequestByPrimary function one-by-one
-      sendPreProcessBatchReqToAllReplicas(move(clientBatchMsg), preProcessReqMsgList, overallPreProcessReqMsgsSize);
-  } else if (thereAreMsgsPassedChecks) {
-    LOG_DEBUG(logger(), "Pass ClientBatchRequestMsg to the current primary" << KVLOG(batchCid, senderId, clientId));
-    sendMsg(clientBatchMsg->body(), myReplica_.currentPrimary(), clientBatchMsg->type(), clientBatchMsg->size());
+      sendPreProcessBatchReqToAllReplicas(std::move(msg), preProcessReqMsgList, overallPreProcessReqMsgsSize);
+  } else {
+    LOG_DEBUG(logger(), "Pass ClientBatchRequestMsg to the current primary" << KVLOG(senderId, clientId, batchCid));
+    sendMsg(msg->body(), myReplica_.currentPrimary(), msg->type(), msg->size());
   }
-}  // namespace preprocessor
+}
 
 bool PreProcessor::checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
-                                                   const string &cid,
+                                                   const string &reqCid,
                                                    NodeIdType senderId,
                                                    NodeIdType clientId,
                                                    const string &batchCid,
                                                    uint16_t reqOffsetInBatch) {
   if (myReplica_.isCollectingState()) {
-    LOG_INFO(logger(),
-             "Ignore PreProcessRequestMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(reqSeqNum, cid, batchCid, senderId, clientId, reqOffsetInBatch));
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore PreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
     return false;
   }
 
   if (myReplica_.isCurrentPrimary()) {
     LOG_WARN(logger(),
              "Ignore PreProcessRequestMsg as current replica is the primary"
-                 << KVLOG(reqSeqNum, cid, batchCid, senderId, clientId, reqOffsetInBatch));
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
     return false;
   }
 
   if (!myReplica_.currentViewIsActive()) {
     LOG_INFO(logger(),
              "Ignore PreProcessRequestMsg as current view is inactive"
-                 << KVLOG(reqSeqNum, cid, batchCid, senderId, clientId, reqOffsetInBatch));
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
     return false;
   }
   return true;
 }
 
-bool PreProcessor::checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq) {
+bool PreProcessor::checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgUniquePtr &batchReq) {
   const auto &preProcessRequestMsgs = batchReq->getPreProcessRequestMsgs();
   bool valid = true;
+
+  if (batchReq->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessBatchRequestMsg as the view is invalid"
+                 << KVLOG(batchReq->senderId(), batchReq->clientId(), batchReq->getCid(), batchReq->viewNum()));
+    return false;
+  }
+
   for (const auto &msg : preProcessRequestMsgs) {
     if (!checkPreProcessReqPrerequisites(msg->reqSeqNum(),
                                          msg->getCid(),
@@ -821,36 +987,57 @@ bool PreProcessor::checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchRe
 
 // Non-primary replica request handling
 template <>
-void PreProcessor::onMessage<PreProcessBatchRequestMsg>(PreProcessBatchRequestMsg *msg) {
+void PreProcessor::onMessage<PreProcessBatchRequestMsg>(PreProcessBatchReqMsgUniquePtr msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onPreProcessBatchRequestMsg);
-  PreProcessBatchReqMsgSharedPtr batchMsg(msg);
   const auto &batchCid = msg->getCid();
-  const NodeIdType &senderId = batchMsg->senderId();
-  const NodeIdType &clientId = batchMsg->clientId();
-  const string reqType = batchMsg->reqType() == REQ_TYPE_PRE_PROCESS ? "REQ_TYPE_PRE_PROCESS" : "REQ_TYPE_CANCEL";
+  const NodeIdType &senderId = msg->senderId();
+  const NodeIdType &clientId = msg->clientId();
+  const string reqType = msg->reqType() == REQ_TYPE_PRE_PROCESS ? "REQ_TYPE_PRE_PROCESS" : "REQ_TYPE_CANCEL";
   LOG_DEBUG(logger(),
             "Received PreProcessBatchRequestMsg"
-                << KVLOG(reqType, senderId, clientId, batchCid, batchMsg->numOfMessagesInBatch()));
-  if (!checkPreProcessBatchReqMsgCorrectness(batchMsg)) return;
+                << KVLOG(reqType, senderId, clientId, batchCid, msg->numOfMessagesInBatch()));
+  if (!checkPreProcessBatchReqMsgCorrectness(msg)) return;
 
-  PreProcessReqMsgsList &preProcessReqMsgs = batchMsg->getPreProcessRequestMsgs();
+  PreProcessReqMsgsList &preProcessReqMsgs = msg->getPreProcessRequestMsgs();
   const auto batchSize = preProcessReqMsgs.size();
 
-  // YS TBD: Support send of batched reject reply message when required
-
-  ongoingReqBatches_[clientId]->updateRegisteredBatchIfNeeded(batchCid, preProcessReqMsgs);
-  for (auto &singleMsg : preProcessReqMsgs) {
-    LOG_DEBUG(logger(),
-              "Start handling single message from the batch:" << KVLOG(
-                  batchCid, singleMsg->reqSeqNum(), singleMsg->getCid(), senderId, clientId, batchSize));
-    handleSinglePreProcessRequestMsg(singleMsg, batchCid, batchSize);
-  }
-  if (batchMsg->reqType() == REQ_TYPE_CANCEL && !ongoingReqBatches_[clientId]->isBatchInProcess())
+  const auto &batchEntry = ongoingReqBatches_[clientId];
+  if (msg->reqType() == REQ_TYPE_CANCEL && !batchEntry->isBatchInProcess()) {
     // Don't cancel the batch if it has received PreProcessBatchRequestMsg before
-    ongoingReqBatches_[clientId]->cancelBatchAndReleaseRequests(batchCid, CANCELLED_BY_PRIMARY);
+    batchEntry->cancelBatchAndReleaseRequests(batchCid, CANCELLED_BY_PRIMARY);
+    return;
+  }
+  if (!batchEntry->isBatchInProcess()) {
+    uint32_t numOfReqsToSkip = 0;
+    for (auto &singleMsg : preProcessReqMsgs) {
+      const auto reqSeqNum = singleMsg->reqSeqNum();
+      const auto reqCid = singleMsg->getCid();
+      LOG_INFO(logger(),
+               "Start PreProcessRequestMsg processing by a non-primary replica"
+                   << KVLOG(senderId, clientId, batchCid, reqSeqNum, reqCid, batchSize));
+      const auto reqToBeProcessed = handleSinglePreProcessRequestMsg(singleMsg, batchCid, batchSize);
+      if (!reqToBeProcessed) {
+        LOG_INFO(logger(), "Request processing will be skipped" << KVLOG(clientId, batchCid, reqSeqNum, reqCid));
+        numOfReqsToSkip++;
+      }
+    }
+    if (numOfReqsToSkip == batchSize) {
+      LOG_WARN(
+          logger(),
+          "None of the batch requests could be processed: skip the whole batch" << KVLOG(senderId, clientId, batchCid));
+      return;
+    }
+    if (numOfReqsToSkip) {
+      LOG_INFO(logger(),
+               "Some of the batch requests will be skipped"
+                   << KVLOG(senderId, clientId, batchCid, batchSize, numOfReqsToSkip));
+      ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(numOfReqsToSkip);
+    }
+  } else
+    LOG_INFO(logger(), "The batch is in process; ignore the message" << KVLOG(batchCid, senderId, clientId, batchSize));
 }
 
-void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+bool PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg,
                                                     const string &batchCid,
                                                     uint32_t batchSize) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onPreProcessRequestMsg);
@@ -859,10 +1046,9 @@ void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   const RequestType reqType = preProcessReqMsg->reqType();
-  string cid = preProcessReqMsg->getCid();
-  LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, clientId, senderId, reqOffsetInBatch));
-  SCOPED_MDC_CID(cid);
-  if (!checkPreProcessReqPrerequisites(reqSeqNum, cid, senderId, clientId, batchCid, reqOffsetInBatch)) return;
+  const string &reqCid = preProcessReqMsg->getCid();
+  LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, reqOffsetInBatch));
+  if (!checkPreProcessReqPrerequisites(reqSeqNum, reqCid, senderId, clientId, batchCid, reqOffsetInBatch)) return false;
   bool registerSucceeded = false;
   {
     const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
@@ -870,23 +1056,26 @@ void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
     if (reqEntry->reqProcessingStatePtr) {
       // The primary replica requested to cancel the request => release it, but don't cancel pre-processing when
       // reqEntry->reqProcessingStatePtr->getPreProcessRequest() != null_ptr
-      if (reqType == REQ_TYPE_CANCEL && !reqEntry->reqProcessingStatePtr->getPreProcessRequest())
-        return releaseClientPreProcessRequest(reqEntry, CANCELLED_BY_PRIMARY);
+      if (reqType == REQ_TYPE_CANCEL && !reqEntry->reqProcessingStatePtr->getPreProcessRequest()) {
+        releaseClientPreProcessRequest(reqEntry, CANCELLED_BY_PRIMARY);
+        return false;
+      }
       if (reqEntry->reqProcessingStatePtr->getPreProcessRequest()) {
         auto const &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getPreProcessRequest()->reqSeqNum();
         auto const &ongoingCid = reqEntry->reqProcessingStatePtr->getPreProcessRequest()->getCid();
         // The replica is processing some request and cannot handle PreProcessRequest now - send reject to the primary
-        return sendRejectPreProcessReplyMsg(clientId,
-                                            reqOffsetInBatch,
-                                            senderId,
-                                            reqSeqNum,
-                                            ongoingReqSeqNum,
-                                            preProcessReqMsg->reqRetryId(),
-                                            preProcessReqMsg->getCid(),
-                                            ongoingCid);
+        sendRejectPreProcessReplyMsg(clientId,
+                                     reqOffsetInBatch,
+                                     senderId,
+                                     reqSeqNum,
+                                     ongoingReqSeqNum,
+                                     preProcessReqMsg->reqRetryId(),
+                                     preProcessReqMsg->getCid(),
+                                     ongoingCid);
+        return false;
       }
     } else {
-      if (reqType == REQ_TYPE_CANCEL) return;  // No registered client request found; do nothing
+      if (reqType == REQ_TYPE_CANCEL) return false;  // No registered client request found; do nothing
     }
     registerSucceeded =
         registerRequest(batchCid, batchSize, ClientPreProcessReqMsgUniquePtr(), preProcessReqMsg, reqOffsetInBatch);
@@ -894,24 +1083,41 @@ void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
   if (registerSucceeded) {
     LOG_INFO(logger(),
              "Start PreProcessRequestMsg processing by a non-primary replica"
-                 << KVLOG(reqSeqNum, batchCid, batchSize, cid, clientId, reqOffsetInBatch, senderId));
+                 << KVLOG(batchCid, reqSeqNum, reqCid, batchSize, reqCid, clientId, reqOffsetInBatch, senderId));
     preProcessorMetrics_.preProcInFlyRequestsNum++;  // Increase the metric on non-primary replica
     auto totalPreExecDurationRecorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
     // Pre-process the request, calculate a hash of the result and send a reply message back
-    launchAsyncReqPreProcessingJob(preProcessReqMsg, batchCid, false, false, std::move(totalPreExecDurationRecorder));
+    launchAsyncReqPreProcessingJob(preProcessReqMsg, batchCid, false, std::move(totalPreExecDurationRecorder));
+    return true;
   }
+  return false;
+}
+
+bool PreProcessor::checkPreProcessRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr &requestMsg) {
+  if (requestMsg->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessRequestMsg as the view is invalid" << KVLOG(requestMsg->getCid(),
+                                                                           requestMsg->reqSeqNum(),
+                                                                           requestMsg->senderId(),
+                                                                           requestMsg->clientId(),
+                                                                           requestMsg->reqOffsetInBatch(),
+                                                                           requestMsg->viewNum()));
+    return false;
+  }
+  return true;
 }
 
 // Non-primary replica request handling
 template <>
-void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message) {
-  auto msg = PreProcessRequestMsgSharedPtr(message);
+void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsgUniquePtr msg) {
   const string reqType = msg->reqType() == REQ_TYPE_PRE_PROCESS ? "REQ_TYPE_PRE_PROCESS" : "REQ_TYPE_CANCEL";
   LOG_DEBUG(logger(),
             "Received PreProcessRequestMsg" << KVLOG(
-
                 reqType, msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch()));
-  handleSinglePreProcessRequestMsg(msg);
+  PreProcessRequestMsgSharedPtr message = move(msg);
+  if (checkPreProcessRequestMsgCorrectness(message)) {
+    handleSinglePreProcessRequestMsg(message, "", 1);
+  }
 }
 
 void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg,
@@ -921,10 +1127,9 @@ void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr pr
   const NodeIdType &clientId = preProcessReplyMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReplyMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReplyMsg->reqSeqNum();
-  string cid = preProcessReplyMsg->getCid();
+  string reqCid = preProcessReplyMsg->getCid();
   const auto &status = preProcessReplyMsg->status();
-  PreProcessingResult result = CANCEL;
-  SCOPED_MDC_CID(cid);
+  PreProcessingResult consensusResult = CANCEL;
   {
     const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
     lock_guard<mutex> lock(reqEntry->mutex);
@@ -935,7 +1140,7 @@ void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr pr
           oldReqState->detectNonDeterministicPreProcessing(
               preProcessReplyMsg->resultsHash(), preProcessReplyMsg->senderId(), preProcessReplyMsg->reqRetryId());
       LOG_DEBUG(logger(),
-                KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, batchCid)
+                KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch)
                     << " will be ignored as no such ongoing request exists or different one found for this client");
       return;
     }
@@ -943,67 +1148,144 @@ void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr pr
     if (status == STATUS_REJECT) {
       LOG_DEBUG(logger(),
                 "Received PreProcessReplyMsg with STATUS_REJECT"
-                    << KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, batchCid));
+                    << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch));
       return;
     }
-    result = reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
-    if (result == CONTINUE) resendPreProcessRequest(reqEntry->reqProcessingStatePtr);
+    consensusResult = reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
+    LOG_DEBUG(logger(),
+              "Handle single pre-process reply message"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, consensusResult));
+    if (consensusResult == CONTINUE) resendPreProcessRequest(reqEntry->reqProcessingStatePtr);
+    holdCompleteOrCancelRequest(reqCid, consensusResult, clientId, reqOffsetInBatch, reqSeqNum, batchCid);
   }
-  handlePreProcessReplyMsg(cid, result, clientId, reqOffsetInBatch, reqSeqNum, batchCid);
+}
+
+bool PreProcessor::checkPreProcessReplyMsgCorrectness(const PreProcessReplyMsgSharedPtr &replyMsg) {
+  if (replyMsg->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as the view is invalid" << KVLOG(replyMsg->getCid(),
+                                                                         replyMsg->reqSeqNum(),
+                                                                         replyMsg->senderId(),
+                                                                         replyMsg->clientId(),
+                                                                         replyMsg->reqOffsetInBatch(),
+                                                                         replyMsg->viewNum()));
+    return false;
+  }
+  return true;
 }
 
 // Primary replica handling
 template <>
-void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
-  auto msg = PreProcessReplyMsgSharedPtr(message);
+void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsgUniquePtr msg) {
   string replyStatus = "STATUS_GOOD";
   if (msg->status() == STATUS_REJECT) replyStatus = "STATUS_REJECT";
-  LOG_DEBUG(logger(),
-            "Received PreProcessReplyMsg"
-                << KVLOG(msg->reqSeqNum(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch(), replyStatus));
-  handleSinglePreProcessReplyMsg(msg);
+  LOG_DEBUG(
+      logger(),
+      "Received PreProcessReplyMsg" << KVLOG(
+          msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch(), replyStatus));
+  PreProcessReplyMsgSharedPtr message = move(msg);
+  if (checkPreProcessReplyMsgCorrectness(message)) {
+    handleSinglePreProcessReplyMsg(message, "");
+  }
+}
+
+bool PreProcessor::checkPreProcessReplyPrerequisites(
+    SeqNum reqSeqNum, const string &reqCid, NodeIdType senderId, const string &batchCid, uint16_t offsetInBatch) {
+  if (myReplica_.isCollectingState()) {
+    // Do not put log as INFO level: logs slow down State Transfer and are printed thosands of times.
+    // There are other logs which shows replica is in ST, and everybody should be aware that most messages are
+    // blocks during ST.
+    LOG_DEBUG(logger(),
+              "Ignore PreProcessReplyMsg as the replica is collecting missing state from other replicas"
+                  << KVLOG(batchCid, reqSeqNum, reqCid, senderId, offsetInBatch));
+    return false;
+  }
+
+  if (!myReplica_.isCurrentPrimary()) {
+    LOG_WARN(logger(),
+             "Ignore PreProcessReplyMsg as current replica is not the primary"
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, offsetInBatch));
+    return false;
+  }
+
+  if (!myReplica_.currentViewIsActive()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as current view is inactive"
+                 << KVLOG(batchCid, reqSeqNum, reqCid, senderId, offsetInBatch));
+    return false;
+  }
+  return true;
+}
+
+bool PreProcessor::checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgUniquePtr &batchReply) {
+  const auto &preProcessReplyMsgs = batchReply->getPreProcessReplyMsgs();
+  NodeIdType senderId = batchReply->senderId();
+  const string batchCid = batchReply->getCid();
+  bool valid = true;
+
+  if (batchReply->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(
+        logger(),
+        "Ignore PreProcessBatchReplyMsg as the view is invalid" << KVLOG(batchCid, senderId, batchReply->viewNum()));
+    return false;
+  }
+
+  for (const auto &replyMsg : preProcessReplyMsgs) {
+    if (!checkPreProcessReplyPrerequisites(
+            senderId, batchCid, replyMsg->reqSeqNum(), replyMsg->getCid(), replyMsg->reqOffsetInBatch()) ||
+        !validateMessage(replyMsg.get())) {
+      valid = false;
+      break;
+    }
+  }
+  return valid;
 }
 
 // Primary replica handling
 template <>
-void PreProcessor::onMessage<PreProcessBatchReplyMsg>(PreProcessBatchReplyMsg *msg) {
+void PreProcessor::onMessage<PreProcessBatchReplyMsg>(PreProcessBatchReplyMsgUniquePtr msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onPreProcessBatchReplyMsg);
-  PreProcessBatchReplyMsgSharedPtr batchMsg(msg);
   const auto &batchCid = msg->getCid();
-  const NodeIdType &senderId = batchMsg->senderId();
-  const NodeIdType &clientId = batchMsg->clientId();
-  PreProcessReplyMsgsList &preProcessReplyMsgs = batchMsg->getPreProcessReplyMsgs();
+  const NodeIdType &senderId = msg->senderId();
+  const NodeIdType &clientId = msg->clientId();
+  PreProcessReplyMsgsList &preProcessReplyMsgs = msg->getPreProcessReplyMsgs();
   const auto batchSize = preProcessReplyMsgs.size();
   LOG_DEBUG(logger(), "Received PreProcessBatchReplyMsg" << KVLOG(batchCid, senderId, clientId, batchSize));
   const auto &batchEntry = ongoingReqBatches_[clientId];
-  const auto &ongoingBatchCid = batchEntry->getCid();
-  if (!batchEntry->isBatchInProcess() || batchEntry->getCid() != batchCid) {
+  string ongoingBatchCid;
+  const bool batchIsOngoing = batchEntry->isBatchInProcess(ongoingBatchCid);
+  if (!batchIsOngoing || ongoingBatchCid != batchCid) {
     LOG_DEBUG(logger(),
-              "The batch will be ignored as no such ongoing batch exists or different one found for this client"
-                  << KVLOG(batchCid, ongoingBatchCid, senderId, clientId));
+              "PreProcessBatchReplyMsg is ignored: no such batch exists or different one is ongoing for this client"
+                  << KVLOG(senderId, clientId, batchCid, batchIsOngoing, ongoingBatchCid));
     return;
   }
+
+  if (!checkPreProcessBatchReplyMsgCorrectness(msg)) return;
+
   for (auto &singleReplyMsg : preProcessReplyMsgs) {
     const auto &reqSeqNum = singleReplyMsg->reqSeqNum();
-    const auto &cid = singleReplyMsg->getCid();
-    LOG_DEBUG(
-        logger(),
-        "Start handling single message from the replies batch:" << KVLOG(batchCid, reqSeqNum, cid, senderId, clientId));
+    const auto &reqCid = singleReplyMsg->getCid();
+    LOG_DEBUG(logger(),
+              "Start handling single message from the replies batch:" << KVLOG(
+                  batchCid, reqSeqNum, reqCid, senderId, clientId));
     handleSinglePreProcessReplyMsg(singleReplyMsg, batchCid);
   }
 }
 
 template <typename T>
-void PreProcessor::messageHandler(MessageBase *msg) {
-  if (!msgs_.write_available()) {
-    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
-    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+void PreProcessor::messageHandler(unique_ptr<MessageBase> msg) {
+  if (!msgLoopDone_) {
+    if (msgs_.write_available()) {
+      msgs_.push(msg.release());
+      msgLoopSignal_.notify_one();
+    } else {
+      LOG_WARN(logger(), "PreProcessor queue is full, returning message");
+      incomingMsgsStorage_->pushExternalMsg(std::move(msg));
+    }
     return;
   }
-  T *trueTypeObj = new T(msg);
-  delete msg;
-  msgs_.push(trueTypeObj);
-  msgLoopSignal_.notify_one();
+  LOG_DEBUG(logger(), "Ignore incoming message - the message loop has been stopped");
 }
 
 void PreProcessor::msgProcessingLoop() {
@@ -1014,44 +1296,78 @@ void PreProcessor::msgProcessingLoop() {
         msgLoopSignal_.wait_until(l, chrono::steady_clock::now() + std::chrono::milliseconds(WAIT_TIMEOUT_MILLI));
       }
     }
-
     while (!msgLoopDone_ && msgs_.read_available()) {
-      auto msg = msgs_.front();
+      MessageBase *msg = msgs_.front();
       msgs_.pop();
-      if (validateMessage(msg)) {
-        switch (msg->type()) {
-          case (MsgCode::ClientBatchRequest): {
-            onMessage<ClientBatchRequestMsg>(static_cast<ClientBatchRequestMsg *>(msg));
-            break;
-          }
-          case (MsgCode::ClientPreProcessRequest): {
-            onMessage<ClientPreProcessRequestMsg>(static_cast<ClientPreProcessRequestMsg *>(msg));
-            break;
-          }
-          case (MsgCode::PreProcessRequest): {
-            onMessage<PreProcessRequestMsg>(static_cast<PreProcessRequestMsg *>(msg));
-            break;
-          }
-          case (MsgCode::PreProcessBatchRequest): {
-            onMessage<PreProcessBatchRequestMsg>(static_cast<PreProcessBatchRequestMsg *>(msg));
-            break;
-          }
-          case (MsgCode::PreProcessReply): {
-            onMessage<PreProcessReplyMsg>(static_cast<PreProcessReplyMsg *>(msg));
-            break;
-          }
-          case (MsgCode::PreProcessBatchReply): {
-            onMessage<PreProcessBatchReplyMsg>(static_cast<PreProcessBatchReplyMsg *>(msg));
-            break;
-          }
-          default:
-            LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
-        }
-      } else {
-        preProcessorMetrics_.preProcReqInvalid++;
+      if (bftEngine::ControlStateManager::instance().isWedged()) {
+        LOG_INFO(logger(), "The replica is wedged, the request is ignored");
         delete msg;
+        continue;
       }
-    }
+      switch (msg->type()) {
+        case (MsgCode::ClientBatchRequest): {
+          auto msgPtr = make_unique<ClientBatchRequestMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<ClientBatchRequestMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        case (MsgCode::ClientPreProcessRequest): {
+          auto msgPtr = make_unique<ClientPreProcessRequestMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<ClientPreProcessRequestMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        case (MsgCode::PreProcessRequest): {
+          auto msgPtr = make_unique<PreProcessRequestMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<PreProcessRequestMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        case (MsgCode::PreProcessBatchRequest): {
+          auto msgPtr = make_unique<PreProcessBatchRequestMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<PreProcessBatchRequestMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        case (MsgCode::PreProcessReply): {
+          auto msgPtr = make_unique<PreProcessReplyMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<PreProcessReplyMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        case (MsgCode::PreProcessBatchReply): {
+          auto msgPtr = make_unique<PreProcessBatchReplyMsg>(msg);
+          if (validateMessage(msgPtr.get())) {
+            onMessage<PreProcessBatchReplyMsg>(std::move(msgPtr));
+          } else {
+            preProcessorMetrics_.preProcReqInvalid++;
+          }
+          break;
+        }
+        default:
+          LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
+      }
+      delete msg;
+    }  // while (!msgLoopDone_ && msgs_.read_available())
+  }    // while (!msgLoopDone_)
+  while (msgs_.read_available()) {
+    LOG_DEBUG(logger(), "Cleaning non-processed incoming messages");
+    delete msgs_.front();
   }
 }
 
@@ -1070,18 +1386,21 @@ void PreProcessor::registerMsgHandlers() {
                                               bind(&PreProcessor::messageHandler<PreProcessBatchReplyMsg>, this, _1));
 }
 
-void PreProcessor::handlePreProcessReplyMsg(const string &cid,
-                                            PreProcessingResult result,
-                                            NodeIdType clientId,
-                                            uint16_t reqOffsetInBatch,
-                                            SeqNum reqSeqNum,
-                                            const string &batchCid) {
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), KVLOG(result, batchCid, cid, reqSeqNum, clientId, reqOffsetInBatch));
+// Should be called under an entry lock
+void PreProcessor::holdCompleteOrCancelRequest(const string &reqCid,
+                                               PreProcessingResult result,
+                                               NodeIdType clientId,
+                                               uint16_t reqOffsetInBatch,
+                                               SeqNum reqSeqNum,
+                                               const string &batchCid) {
+  LOG_DEBUG(logger(),
+            "Decide how to continue request processing"
+                << KVLOG(result, batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
   switch (result) {
     case NONE:      // No action required - pre-processing has been already completed
     case CONTINUE:  // Not enough equal hashes collected
     case EXPIRED:
+    case FAILED:
       break;
     case COMPLETE:  // Pre-processing consensus reached
       finalizePreProcessing(clientId, reqOffsetInBatch, batchCid);
@@ -1089,104 +1408,101 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
     case CANCEL:  // Pre-processing consensus not reached
       cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
       break;
-    case RETRY_PRIMARY: {
-      // Primary replica generated pre-processing result hash different that one passed consensus
-      LOG_INFO(logger(), "Retry primary replica pre-processing for" << KVLOG(reqSeqNum, clientId));
-      PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-      {
-        const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-        lock_guard<mutex> lock(reqEntry->mutex);
-        if (reqEntry->reqProcessingStatePtr)
-          preProcessRequestMsg = reqEntry->reqProcessingStatePtr->getPreProcessRequest();
-      }
-      if (preProcessRequestMsg) launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, true);
-      break;
-    }
     case CANCELLED_BY_PRIMARY:
-      LOG_ERROR(logger(),
-                "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(reqSeqNum, clientId, batchCid));
+      LOG_WARN(
+          logger(),
+          "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(batchCid, reqSeqNum, reqCid, clientId));
       break;
   }
 }
 
+// Should be called under an entry lock
 void PreProcessor::cancelPreProcessing(NodeIdType clientId, const string &batchCid, uint16_t reqOffsetInBatch) {
-  if (clientBatchingEnabled_)
-    ongoingReqBatches_[clientId]->cancelBatchAndReleaseRequests(batchCid, CANCEL);
-  else {
-    preProcessorMetrics_.preProcConsensusNotReached++;
-    SeqNum reqSeqNum = 0;
-    const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-    {
-      lock_guard<mutex> lock(reqEntry->mutex);
-      if (reqEntry->reqProcessingStatePtr) {
-        reqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
-        const auto &cid = reqEntry->reqProcessingStatePtr->getReqCid();
-        SCOPED_MDC_CID(cid);
-        LOG_WARN(logger(),
-                 "Pre-processing consensus not reached; cancel request"
-                     << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, batchCid));
-        releaseClientPreProcessRequest(reqEntry, CANCEL);
-      }
-    }
+  const auto &batchEntry = ongoingReqBatches_[clientId];
+  const auto &reqEntry = batchEntry->getRequestState(reqOffsetInBatch);
+  if (!batchCid.empty()) {
+    batchEntry->cancelRequestAndBatchIfCompleted(batchCid, reqOffsetInBatch, CANCEL);
+    return;
+  }
+  preProcessorMetrics_.preProcConsensusNotReached++;
+  SeqNum reqSeqNum = 0;
+  if (reqEntry->reqProcessingStatePtr) {
+    reqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
+    const auto &reqCid = reqEntry->reqProcessingStatePtr->getReqCid();
+    LOG_WARN(logger(),
+             "Pre-processing consensus not reached; cancel request"
+                 << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
+    releaseClientPreProcessRequest(reqEntry, CANCEL);
   }
 }
 
+// Should be called under an entry lock
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const string &batchCid) {
   std::unique_ptr<impl::MessageBase> preProcessMsg;
   const auto &batchEntry = ongoingReqBatches_[clientId];
   const auto &reqEntry = batchEntry->getRequestState(reqOffsetInBatch);
-  {
-    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
-    lock_guard<mutex> lock(reqEntry->mutex);
-    auto &reqProcessingStatePtr = reqEntry->reqProcessingStatePtr;
-    if (reqProcessingStatePtr) {
-      const auto cid = reqProcessingStatePtr->getReqCid();
-      const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
-      auto &preProcessReqMsg = reqProcessingStatePtr->getPreProcessRequest();
-      const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
-      // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
-      // controlled by the replica while all PreProcessReply messages get released here.
-      if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
-        auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
-        sigsList.resize(numOfRequiredReplies());
-        auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
-        preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
-                                                         reqSeqNum,
-                                                         reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
-                                                         reqProcessingStatePtr->getPrimaryPreProcessedResult(),
-                                                         reqProcessingStatePtr->getReqTimeoutMilli(),
-                                                         cid,
-                                                         span_context,
-                                                         reqProcessingStatePtr->getReqSignature(),
-                                                         reqProcessingStatePtr->getReqSignatureLength(),
-                                                         sigsBuf);
-        LOG_DEBUG(logger(),
-                  "Pass PreProcessResultMsg to ReplicaImp for consensus"
-                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch));
-      } else {
-        preProcessMsg = make_unique<ClientRequestMsg>(clientId,
-                                                      HAS_PRE_PROCESSED_FLAG,
-                                                      reqSeqNum,
-                                                      reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
-                                                      reqProcessingStatePtr->getPrimaryPreProcessedResult(),
-                                                      reqProcessingStatePtr->getReqTimeoutMilli(),
-                                                      cid,
-                                                      span_context,
-                                                      reqProcessingStatePtr->getReqSignature(),
-                                                      reqProcessingStatePtr->getReqSignatureLength());
-        LOG_DEBUG(logger(),
-                  "Pass pre-processed ClientRequestMsg to ReplicaImp for consensus"
-                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch));
-      }
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
+  auto &reqProcessingStatePtr = reqEntry->reqProcessingStatePtr;
+  if (reqProcessingStatePtr) {
+    const auto reqCid = reqProcessingStatePtr->getReqCid();
+    const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
+    auto &preProcessReqMsg = reqProcessingStatePtr->getPreProcessRequest();
+    const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
+    // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
+    // controlled by the replica while all PreProcessReply messages get released here.
+    auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
 
-      preProcessorMetrics_.preProcReqCompleted++;
-      incomingMsgsStorage_->pushExternalMsg(move(preProcessMsg));
-
-      releaseClientPreProcessRequest(reqEntry, COMPLETE);
-      LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch));
+    if (preProcessResult == static_cast<uint32_t>(OperationResult::SUCCESS)) {
+      preProcessResult = static_cast<uint32_t>(OperationResult::UNKNOWN);
     }
+    if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
+      const auto &sigsSet = reqProcessingStatePtr->getPreProcessResultSignatures();
+      auto sigsBuf = PreProcessResultSignature::serializeResultSignatures(sigsSet, numOfRequiredReplies());
+      preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
+                                                       preProcessResult,
+                                                       reqSeqNum,
+                                                       reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
+                                                       reqProcessingStatePtr->getPrimaryPreProcessedResultData(),
+                                                       reqProcessingStatePtr->getReqTimeoutMilli(),
+                                                       reqCid,
+                                                       span_context,
+                                                       reqProcessingStatePtr->getReqSignature(),
+                                                       reqProcessingStatePtr->getReqSignatureLength(),
+                                                       sigsBuf,
+                                                       reqOffsetInBatch);
+      LOG_DEBUG(logger(),
+                "Pass PreProcessResultMsg to ReplicaImp for consensus"
+                    << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, preProcessResult));
+    } else {
+      preProcessMsg = make_unique<ClientRequestMsg>(clientId,
+                                                    HAS_PRE_PROCESSED_FLAG,
+                                                    reqSeqNum,
+                                                    reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
+                                                    reqProcessingStatePtr->getPrimaryPreProcessedResultData(),
+                                                    reqProcessingStatePtr->getReqTimeoutMilli(),
+                                                    reqCid,
+                                                    preProcessResult,
+                                                    span_context,
+                                                    reqProcessingStatePtr->getReqSignature(),
+                                                    reqProcessingStatePtr->getReqSignatureLength(),
+                                                    0,
+                                                    reqOffsetInBatch);
+      LOG_DEBUG(logger(),
+                "Pass pre-processed ClientRequestMsg to ReplicaImp for consensus"
+                    << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, preProcessResult));
+    }
+
+    preProcessorMetrics_.preProcReqCompleted++;
+    incomingMsgsStorage_->pushExternalMsg(std::move(preProcessMsg));
+
+    releaseClientPreProcessRequest(reqEntry, COMPLETE);
+    if (myReplica_.isCurrentPrimary()) {
+      metric_pre_exe_duration_.finishMeasurement(reqCid);
+    }
+    LOG_INFO(logger(),
+             "Pre-processing completed for" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
+    batchEntry->finalizeBatchIfCompletedSafe(batchCid);
   }
-  if (batchedPreProcessEnabled_) batchEntry->finalizeBatchIfCompleted();
 }
 
 uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
@@ -1200,7 +1516,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
   NodeIdType clientId = 0;
   NodeIdType senderId = 0;
   SeqNum reqSeqNum = 0;
-  string cid;
+  string reqCid;
   uint32_t requestSignatureLength = 0;
   char *requestSignature = nullptr;
 
@@ -1209,7 +1525,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
     clientId = clientReqMsg->clientProxyId();
     senderId = clientReqMsg->senderId();
     reqSeqNum = clientReqMsg->requestSeqNum();
-    cid = clientReqMsg->getCid();
+    reqCid = clientReqMsg->getCid();
     clientReqMsgSpecified = true;
     requestSignatureLength = clientReqMsg->requestSignatureLength();
     requestSignature = clientReqMsg->requestSignature();
@@ -1217,18 +1533,16 @@ bool PreProcessor::registerRequest(const string &batchCid,
     clientId = preProcessRequestMsg->clientId();
     senderId = preProcessRequestMsg->senderId();
     reqSeqNum = preProcessRequestMsg->reqSeqNum();
-    cid = preProcessRequestMsg->getCid();
+    reqCid = preProcessRequestMsg->getCid();
     requestSignatureLength = preProcessRequestMsg->requestSignatureLength();
     requestSignature = preProcessRequestMsg->requestSignature();
   }
-  SCOPED_MDC_CID(cid);
   const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-
-  if (batchedPreProcessEnabled_ && !batchCid.empty()) {
+  if (!batchCid.empty()) {
     if (preProcessRequestMsg)
-      ongoingReqBatches_[clientId]->startBatch(batchCid, batchSize);
+      ongoingReqBatches_[clientId]->startBatch(senderId, batchCid, batchSize);
     else
-      ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
+      ongoingReqBatches_[clientId]->registerBatch(senderId, batchCid, batchSize);
   }
   if (!reqEntry->reqProcessingStatePtr) {
     reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(myReplicaId_,
@@ -1236,7 +1550,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
                                                                           batchCid,
                                                                           clientId,
                                                                           reqOffsetInBatch,
-                                                                          cid,
+                                                                          reqCid,
                                                                           reqSeqNum,
                                                                           move(clientReqMsg),
                                                                           preProcessRequestMsg,
@@ -1248,17 +1562,19 @@ bool PreProcessor::registerRequest(const string &batchCid,
   else {
     const auto &reqState = reqEntry->reqProcessingStatePtr;
     LOG_WARN(logger(),
-             "Request" << KVLOG(reqSeqNum, clientId, batchCid) << " could not be registered: the entry for"
+             "Request" << KVLOG(batchCid, reqSeqNum, reqCid, clientId) << " could not be registered: the entry for"
                        << KVLOG(clientId, senderId, reqOffsetInBatch) << " is occupied by "
                        << KVLOG(reqState->getReqSeqNum(), reqState->getBatchCid()));
     return false;
   }
   if (clientReqMsgSpecified) {
     LOG_DEBUG(logger(),
-              KVLOG(batchCid, reqSeqNum, senderId, clientId, reqOffsetInBatch) << " registered ClientPreProcessReqMsg");
+              KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch)
+                  << " registered ClientPreProcessReqMsg");
   } else {
     LOG_DEBUG(logger(),
-              KVLOG(batchCid, reqSeqNum, senderId, clientId, reqOffsetInBatch) << " registered PreProcessRequestMsg");
+              KVLOG(batchCid, reqSeqNum, reqCid, senderId, clientId, reqOffsetInBatch)
+                  << " registered PreProcessRequestMsg");
   }
   return true;
 }
@@ -1282,46 +1598,53 @@ void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId,
 void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result) {
   auto &givenReq = reqEntry->reqProcessingStatePtr;
   if (givenReq) {
-    const auto &clientId = givenReq->getClientId();
-    const auto &reqOffsetInBatch = givenReq->getReqOffsetInBatch();
-    const auto &batchCid = givenReq->getBatchCid();
-    SeqNum reqSeqNum = givenReq->getReqSeqNum();
+    const auto clientId = givenReq->getClientId();
+    const auto reqOffsetInBatch = givenReq->getReqOffsetInBatch();
+    const auto batchCid = givenReq->getBatchCid();
+    auto reqSeqNum = givenReq->getReqSeqNum();
+    auto reqCid = givenReq->getReqCid();
     if (result == COMPLETE) {
       if (reqEntry->reqProcessingHistory.size() >= reqEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = reqEntry->reqProcessingHistory.front();
-        SCOPED_MDC_CID(removeFromHistoryReq->getReqCid());
-        reqSeqNum = removeFromHistoryReq->getReqSeqNum();
-        LOG_DEBUG(logger(), KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch) << " removed from the history");
+        auto remReqSeqNum = removeFromHistoryReq->getReqSeqNum();
+        auto &remReqCid = removeFromHistoryReq->getReqCid();
+        LOG_DEBUG(logger(), "Request will be removed from the history" << KVLOG(clientId, remReqSeqNum, remReqCid));
         removeFromHistoryReq.reset();
         reqEntry->reqProcessingHistory.pop_front();
       }
-      SCOPED_MDC_CID(givenReq->getReqCid());
       LOG_INFO(logger(),
-               KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch) << " released and moved to the history");
+               "Request has been released and moved to the history"
+                   << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
       // No need to keep whole messages in the memory => release them before archiving
       givenReq->releaseResources();
-      reqEntry->reqProcessingHistory.push_back(move(givenReq));
+      reqEntry->reqProcessingHistory.push_back(std::move(givenReq));
     } else {
-      SCOPED_MDC_CID(givenReq->getReqCid());
       switch (result) {
         case CANCEL:
           LOG_INFO(logger(),
-                   "Release request - no consensus reached" << KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch));
+                   "Release request - no consensus reached"
+                       << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
           break;
         case EXPIRED:
-          LOG_INFO(logger(), "Release request - expired" << KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch));
+          LOG_INFO(logger(),
+                   "Release request - expired" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
           break;
         case CANCELLED_BY_PRIMARY:
           LOG_DEBUG(logger(),
                     "Release request - processing has been cancelled by the primary replica"
-                        << KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch));
+                        << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
           break;
         default:;
       }
-      givenReq.reset();
     }
-    if (batchedPreProcessEnabled_) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs();
-    preProcessorMetrics_.preProcInFlyRequestsNum--;
+    reqEntry->reqProcessingStatePtr.reset();
+    if (!batchCid.empty()) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(1);
+    // Prevent preProcInFlyRequestsNum metric to be overflowed during a view change
+    if (!myReplica_.isCurrentPrimary() && (preProcessorMetrics_.preProcInFlyRequestsNum.Get().Get() > 0)) {
+      preProcessorMetrics_.preProcInFlyRequestsNum--;
+    }
+    if (memoryPoolMode_ != PreProcessorMemoryPoolMode::NO_POOL)
+      releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   }
 }
 
@@ -1353,16 +1676,23 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                                    PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                    uint16_t reqOffsetInBatch,
                                                    RequestStateSharedPtr reqEntry) {
+  // save in local var because we might use it (for metrics) after clientReqMsg obj is moved
+  const std::string reqCid = clientReqMsg->getCid();
+  if (myReplica_.isCurrentPrimary()) {
+    metric_pre_exe_duration_.addStartTimeStamp(reqCid);
+  }
+
   (reqEntry->reqRetryId)++;
   countRetriedRequests(clientReqMsg, reqEntry);
   const auto reqSeqNum = clientReqMsg->requestSeqNum();
   const auto clientId = clientReqMsg->clientProxyId();
   const auto senderId = clientReqMsg->senderId();
   const auto requestTimeoutMilli = clientReqMsg->requestTimeoutMilli();
-
-  ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
-  const auto blockId = ongoingReqBatches_[clientId]->getBlockId();
-
+  uint64_t blockId = 0;
+  if (!batchCid.empty()) {
+    ongoingReqBatches_[clientId]->registerBatch(senderId, batchCid, batchSize);
+    blockId = ongoingReqBatches_[clientId]->getBlockId();
+  }
   preProcessRequestMsg =
       make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
                                         myReplicaId_,
@@ -1372,23 +1702,23 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         reqEntry->reqRetryId,
                                         clientReqMsg->requestLength(),
                                         clientReqMsg->requestBuf(),
-                                        clientReqMsg->getCid(),
+                                        reqCid,
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
                                         blockId,
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+                                        myReplica_.getCurrentView(),
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
+                                        clientReqMsg->result());
   const auto registerSucceeded =
       registerRequest(batchCid, batchSize, move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
-  if (registerSucceeded)
+  if (registerSucceeded) {
     LOG_INFO(logger(),
-             "Start request processing by a primary replica" << KVLOG(reqSeqNum,
-                                                                      batchCid,
-                                                                      batchSize,
-                                                                      preProcessRequestMsg->getCid(),
-                                                                      clientId,
-                                                                      senderId,
-                                                                      requestTimeoutMilli,
-                                                                      blockId));
+             "Start request processing by a primary replica"
+                 << KVLOG(batchCid, reqSeqNum, reqCid, batchSize, clientId, senderId, requestTimeoutMilli, blockId));
+  } else {
+    // delete this cid from time stamp map cause registration failed
+    metric_pre_exe_duration_.deleteSingleEntry(reqCid);
+  }
   return registerSucceeded;
 }
 
@@ -1398,9 +1728,9 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
                                                           bool arrivedInBatch) {
   auto time_recorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
   // For requests arrived in a batch PreProcessBatchRequestMsg will be sent to non-primaries
-  if (!arrivedInBatch || !batchedPreProcessEnabled_) sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
+  if (!arrivedInBatch) sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
   // Pre-process the request and calculate a hash of the result
-  launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, false, std::move(time_recorder));
+  launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, std::move(time_recorder));
 }
 
 // Non-primary replica: start client request handling
@@ -1418,60 +1748,92 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(const string
   const auto msgBody = clientReqMsg->body();
   const auto msgType = clientReqMsg->type();
   const auto msgSize = clientReqMsg->size();
-  const auto cid = clientReqMsg->getCid();
+  const auto reqCid = clientReqMsg->getCid();
   const auto sigLen = clientReqMsg->requestSignatureLength();
 
   // Register a client request message with an empty PreProcessRequestMsg to allow follow up.
   if (registerRequest(batchCid, batchSize, move(clientReqMsg), PreProcessRequestMsgSharedPtr(), reqOffsetInBatch)) {
     LOG_INFO(logger(),
-             "Start ClientPreProcessReq processing by a non-primary replica" << KVLOG(
-                 reqSeqNum, batchCid, cid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli, msgSize, sigLen));
+             "ClientPreProcessReq has been registered on a non-primary replica" << KVLOG(
+                 batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli, msgSize, sigLen));
 
     if (arrivedInBatch) return;  // Need to pass the whole batch to the primary
     sendMsg(msgBody, myReplica_.currentPrimary(), msgType, msgSize);
     LOG_DEBUG(logger(),
-              "Sent ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, batchCid, cid, clientId, reqOffsetInBatch)
+              "Sent ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch)
                                                 << " to the current primary");
   }
 }
 
-const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
-  // Allocate on first use buffers scheme:
+uint32_t PreProcessor::getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const {
+  const auto clientIndex = clientId - numOfReplicas_ - numOfClientProxies_;
+  ConcordAssertGE(clientIndex, 0);
+  const auto reqOffset = clientIndex * clientMaxBatchSize_ + reqOffsetInBatch;
+  LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, clientIndex, reqOffsetInBatch));
+  return reqOffset;
+}
+
+SafeResultBuffer &PreProcessor::getPreProcessResultBufferEntry(uint16_t clientId,
+                                                               ReqId reqSeqNum,
+                                                               uint16_t reqOffsetInBatch,
+                                                               uint32_t minBufferSize) {
+  // Buffers structure scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
   // First client id starts after the last replica id.
   // First buffer offset = numOfReplicas_ * batchSize_
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
-  const auto bufferOffset =
-      (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, reqSeqNum));
-  char *buf = nullptr;
-  if (!preProcessResultBuffers_[bufferOffset].first) {
-    buf = new char[maxPreExecResultSize_];
-    {
-      std::unique_lock lock(resultBufferLock_);
-      if (!preProcessResultBuffers_[bufferOffset].first) {
-        preProcessResultBuffers_[bufferOffset].second = Sliver(buf, maxPreExecResultSize_);
-        preProcessResultBuffers_[bufferOffset].first = true;
-      } else
-        delete[] buf;
+  const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
+  auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
+  std::unique_lock lock(resultBuffEntry->mutex);
+  if (!resultBuffEntry->buffer) {
+    if (multiSizeBufferPool_) {
+      std::tie(resultBuffEntry->buffer, resultBuffEntry->size) =
+          (minBufferSize == 0) ? multiSizeBufferPool_->getBufferBySubpoolSelector()
+                               : multiSizeBufferPool_->getBufferByMinBufferSize(minBufferSize);
+      LOG_TRACE(
+          logger(),
+          "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, minBufferSize));
+    } else if (rawMemoryPool_) {
+      resultBuffEntry->buffer = rawMemoryPool_->getChunk();
+      resultBuffEntry->size = maxExternalMsgSize_;
+      LOG_TRACE(logger(),
+                "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+    } else {
+      resultBuffEntry->buffer = new char[maxExternalMsgSize_];
+      resultBuffEntry->size = maxExternalMsgSize_;
+      LOG_INFO(logger(), "Allocate raw memory" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
     }
   }
-  return preProcessResultBuffers_[bufferOffset].second.data();
+  return *resultBuffEntry.get();
+}
+
+void PreProcessor::releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
+  const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
+  auto &resultBuffEntry = preProcessResultBuffers_[bufferOffset];
+  std::unique_lock lock(resultBuffEntry->mutex);
+  if (resultBuffEntry->buffer) {
+    if (multiSizeBufferPool_) {
+      multiSizeBufferPool_->returnBuffer(resultBuffEntry->buffer);
+    } else if (rawMemoryPool_) {
+      rawMemoryPool_->returnChunk(preProcessResultBuffers_[bufferOffset]->buffer);
+    }
+    resultBuffEntry->buffer = nullptr;
+    resultBuffEntry->size = 0;
+    LOG_TRACE(logger(), "Returned a buffer to the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  }
 }
 
 // Primary replica: ask all replicas to pre-process the request
 void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.sendPreProcessRequestToAllReplicas);
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
-  SCOPED_MDC_CID(preProcessReqMsg->getCid());
   for (auto destId : idsOfPeerReplicas) {
     if (destId != myReplicaId_) {
       // sendMsg works asynchronously, so we can launch it sequentially here
       LOG_DEBUG(logger(),
-                "Sending PreProcessRequestMsg clientId: " << preProcessReqMsg->clientId()
-                                                          << ", reqSeqNum: " << preProcessReqMsg->reqSeqNum()
-                                                          << ", to the replica: " << destId);
+                "Sending PreProcessRequestMsg to a non-primary replica" << KVLOG(
+                    preProcessReqMsg->clientId(), preProcessReqMsg->reqSeqNum(), preProcessReqMsg->getCid(), destId));
       sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
   }
@@ -1486,7 +1848,6 @@ void PreProcessor::setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffse
 void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   const string &batchCid,
                                                   bool isPrimary,
-                                                  bool isRetry,
                                                   TimeRecorder &&totalPreExecDurationRecorder) {
   auto launchAsyncPreProcessJobRecorder = TimeRecorder(*launchAsyncPreProcessJobRecorder_.get());
   setPreprocessingRightNow(preProcessReqMsg->clientId(), preProcessReqMsg->reqOffsetInBatch(), true);
@@ -1494,46 +1855,151 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
                                                preProcessReqMsg,
                                                batchCid,
                                                isPrimary,
-                                               isRetry,
                                                std::move(totalPreExecDurationRecorder),
                                                std::move(launchAsyncPreProcessJobRecorder));
   threadPool_.add(preProcessJob);
 }
 
-uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
+OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
+                                                     const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                                     uint32_t &resultLen) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
-  const string &cid = preProcessReqMsg->getCid();
+  const string &reqCid = preProcessReqMsg->getCid();
   uint16_t clientId = preProcessReqMsg->clientId();
   uint16_t reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   ReqId reqSeqNum = preProcessReqMsg->reqSeqNum();
   const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
-  LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
-  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
-  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
-      clientId,
-      reqSeqNum,
-      cid,
-      PRE_PROCESS_FLAG,
-      preProcessReqMsg->requestLength(),
-      preProcessReqMsg->requestBuf(),
-      std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
-      maxPreExecResultSize_,
-      (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
-  accumulatedRequests.back().blockId = preProcessReqMsg->primaryBlockId();
-  requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
-  const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
-  const auto status = request.outExecutionStatus;
-  const auto resultLen = request.outActualReplySize;
-  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
-  if (status != 0 || !resultLen) {
-    LOG_FATAL(
-        logger(),
-        "Pre-execution failed!" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)status, resultLen));
-    ConcordAssert(false);
+  LOG_DEBUG(logger(),
+            "Pass request for a pre-execution" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
+  uint64_t blockId = preProcessReqMsg->primaryBlockId();
+  if (preProcessReqMsg->primaryBlockId() - GlobalData::block_delta > GlobalData::current_block_id) {
+    blockId = 0;
+    LOG_INFO(logger(),
+             "Primary block [" << preProcessReqMsg->primaryBlockId()
+                               << "] is too advanced for conflict detection optimization, replica block id ["
+                               << GlobalData::current_block_id << "] delta [" << GlobalData::block_delta << "]");
+    GlobalData::increment_step = true;
   }
-  return resultLen;
+  auto resultBufferEntry = std::ref(getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch));
+  OperationResult preProcessResult{OperationResult::UNKNOWN};
+  IRequestsHandler::ExecutionRequest request;
+
+  // Try to send the request to execution twice - 1st time with default size. If it fails (e.g buffer size is
+  // insufficient), send with a buffer size that must fit.
+  for (size_t i{}; i < 2; ++i) {
+    // reduce internal overheads from buffer size for execution engine response
+    const auto maxReplySize = resultBufferEntry.get().size - responseSizeInternalOverhead_;
+    request = bftEngine::IRequestsHandler::ExecutionRequest{
+        clientId,
+        reqSeqNum,
+        reqCid,
+        PRE_PROCESS_FLAG,
+        preProcessReqMsg->requestLength(),
+        preProcessReqMsg->requestBuf(),
+        std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
+        maxReplySize,
+        resultBufferEntry.get().buffer,
+        reqSeqNum,
+        reqOffsetInBatch,
+        preProcessReqMsg->result()};
+    requestsHandler_.preExecute(request, std::nullopt, reqCid, span);
+    preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
+    resultLen = request.outActualReplySize;
+
+    if (preProcessResult == OperationResult::SUCCESS) {
+      break;
+    }
+    LOG_WARN(logger(),
+             "Pre-execution failed" << KVLOG(clientId,
+                                             reqSeqNum,
+                                             batchCid,
+                                             reqCid,
+                                             reqOffsetInBatch,
+                                             (uint32_t)preProcessResult,
+                                             resultLen,
+                                             request.outActualReplySize,
+                                             request.outRequiredReplySize,
+                                             maxReplySize,
+                                             resultBufferEntry.get().buffer,
+                                             request.maxReplySize,
+                                             request.requestSize));
+    if ((memoryPoolMode_ != PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL) ||
+        (OperationResult::EXEC_DATA_TOO_LARGE != preProcessResult)) {
+      // do not retry pre-execute if not using a memory pool OR if error is not due to response buffer size
+      LOG_ERROR(logger(),
+                "Will not retry pre-execute:" << KVLOG(clientId, reqSeqNum, batchCid, (uint32_t)preProcessResult));
+      break;
+    }
+
+    // If we are here: using memory pool and the error is due to insufficient buffer size
+    const auto maxSupportedBufferSize = subpoolsConfig_.back().bufferSize;
+    auto args = KVLOG(i,
+                      reqSeqNum,
+                      request.maxReplySize,
+                      request.outRequiredReplySize,
+                      request.outActualReplySize,
+                      maxSupportedBufferSize);
+    if (i == 0) {  // 1st attempt
+      if (request.outRequiredReplySize <= request.maxReplySize) {
+        // break since this is an unexpected error - we can't handle it and there is no use to retry, since buffer size
+        // was sufficient
+        LOG_ERROR(logger(), "Won't retry to pre-execute:" << args);
+        break;
+      }
+      if (request.outRequiredReplySize > maxSupportedBufferSize) {
+        // Largest buffer in queue cannot support the request output!
+        LOG_ERROR(logger(), "Won't retry to pre-execute, since this buffer size is not supported!" << args);
+        break;
+      }
+
+      // we can assume that request.outRequiredReplySize <= maxSupportedBufferSize (supported buffer size)
+      LOG_INFO(logger(), "Retry pre-execution with a larger buffer:" << args);
+      multiSizeBufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outRequiredReplySize);
+      releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
+      // buffer returned from pool should be at least of size as required by execution engine + the response internal
+      // overhead
+      resultBufferEntry = getPreProcessResultBufferEntry(
+          clientId, reqSeqNum, reqOffsetInBatch, request.outRequiredReplySize + responseSizeInternalOverhead_);
+    }  // end 1st attempt
+    else if (i == 1) {
+      // 2nd attempt: Failure on second attempt due to buffer size should not happen, since we always expect the
+      // execution engine to produce the same results
+      LOG_FATAL(
+          logger(),
+          "Unexpected failure on retry due to insufficient buffer size (this error should never happen)!" << args);
+      ConcordAssert(false);
+    }
+  }  // for
+
+  // Done with pre-execution - result might be success or failure
+  if (request.outActualReplySize == 0) {
+    const string err{"Executed data is empty"};
+    strcpy(resultBufferEntry.get().buffer, err.c_str());
+    resultLen = err.size();
+    preProcessResult = OperationResult::EXEC_DATA_EMPTY;
+    LOG_ERROR(logger(),
+              "Pre-execution failed" << KVLOG(
+                  clientId, batchCid, reqSeqNum, reqCid, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
+  }
+  // Append the conflict detection block id and add its size to the resulting length.
+  memcpy(resultBufferEntry.get().buffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  if (multiSizeBufferPool_) {
+    multiSizeBufferPool_->reportBufferUsage(resultBufferEntry.get().buffer, request.outActualReplySize);
+  }
+  resultLen += sizeof(uint64_t);
+  LOG_INFO(logger(),
+           "Pre-execution operation has been completed by Execution engine" << KVLOG(clientId,
+                                                                                     batchCid,
+                                                                                     reqSeqNum,
+                                                                                     reqCid,
+                                                                                     reqOffsetInBatch,
+                                                                                     blockId,
+                                                                                     (uint32_t)preProcessResult,
+                                                                                     resultLen,
+                                                                                     request.outActualReplySize));
+  return preProcessResult;
 }
 
 // For test purposes
@@ -1544,42 +2010,38 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffs
   return 0;
 }
 
-PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
-                                                                                      uint16_t reqOffsetInBatch,
-                                                                                      uint32_t resultBufLen) {
-  const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-  lock_guard<mutex> lock(reqEntry->mutex);
-  if (reqEntry->reqProcessingStatePtr) {
-    reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(
-        getPreProcessResultBuffer(clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch),
-        resultBufLen);
-    return reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
-  }
-  return NONE;
-}
-
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
-                                                     uint16_t reqOffsetInBatch,
-                                                     uint32_t resultBufLen,
-                                                     const string &batchCid) {
-  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqPrimaryRetry);
-  if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen) == COMPLETE)
-    finalizePreProcessing(clientId, reqOffsetInBatch);
-  else
-    cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
+// For test purposes
+RequestsBatchSharedPtr PreProcessor::getOngoingBatchForClient(uint16_t clientId) {
+  return ongoingReqBatches_[clientId];
 }
 
 void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   const string &batchCid,
                                                   uint16_t clientId,
-                                                  uint32_t resultBufLen) {
+                                                  uint32_t resultBufLen,
+                                                  OperationResult preProcessResult) {
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
+  const auto &reqCid = preProcessReqMsg->getCid();
+  const auto &reqSeqNum = preProcessReqMsg->reqSeqNum();
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByPrimary);
-  const PreProcessingResult result =
-      handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen);
-  if (result != NONE)
-    handlePreProcessReplyMsg(
-        preProcessReqMsg->getCid(), result, clientId, reqOffsetInBatch, preProcessReqMsg->reqSeqNum());
+  PreProcessingResult result = NONE;
+  const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
+  {
+    lock_guard<mutex> lock(reqEntry->mutex);
+    if (reqEntry->reqProcessingStatePtr) {
+      reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(
+          getPreProcessResultBufferEntry(
+              clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch, resultBufLen)
+              .buffer,
+          resultBufLen,
+          preProcessResult);
+      result = reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
+    }
+    LOG_DEBUG(logger(),
+              "Request has been pre-processed by the primary replica"
+                  << KVLOG(clientId, batchCid, reqSeqNum, reqCid, (uint32_t)preProcessResult, result));
+    if (result != NONE) holdCompleteOrCancelRequest(reqCid, result, clientId, reqOffsetInBatch, reqSeqNum, batchCid);
+  }
 }
 
 void PreProcessor::releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg) {
@@ -1588,12 +2050,13 @@ void PreProcessor::releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMs
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_INFO(logger(),
            "Pre-processing completed by a non-primary replica and the reply message sent to the primary"
-               << KVLOG(replyMsg->reqSeqNum(),
-                        replyMsg->clientId(),
-                        replyMsg->reqOffsetInBatch(),
+               << KVLOG(replyMsg->clientId(),
+                        replyMsg->reqSeqNum(),
                         replyMsg->getCid(),
+                        replyMsg->reqOffsetInBatch(),
                         replyMsg->reqRetryId(),
-                        myReplica_.currentPrimary()));
+                        myReplica_.currentPrimary(),
+                        (uint32_t)replyMsg->preProcessResult()));
 }
 
 void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
@@ -1601,45 +2064,44 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                      ReqId reqSeqNum,
                                                      uint64_t reqRetryId,
                                                      uint32_t resBufLen,
-                                                     const std::string &cid) {
+                                                     const std::string &reqCid,
+                                                     OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
-  setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
-  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
-                                                  clientId,
-                                                  reqOffsetInBatch,
-                                                  reqSeqNum,
-                                                  reqRetryId,
-                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
-                                                  resBufLen,
-                                                  cid,
-                                                  STATUS_GOOD);
+  const auto status = (preProcessResult == OperationResult::SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
+  auto replyMsg = make_shared<PreProcessReplyMsg>(
+      myReplicaId_,
+      clientId,
+      reqOffsetInBatch,
+      reqSeqNum,
+      reqRetryId,
+      getPreProcessResultBufferEntry(clientId, reqSeqNum, reqOffsetInBatch, resBufLen).buffer,
+      resBufLen,
+      reqCid,
+      status,
+      preProcessResult,
+      myReplica_.getCurrentView());
   const auto &batchEntry = ongoingReqBatches_[clientId];
-  if (batchedPreProcessEnabled_ && batchEntry->isBatchInProcess()) {
-    batchEntry->addReply(replyMsg);
-    batchEntry->releaseReqsAndSendBatchedReplyIfCompleted();
+  if (batchEntry->isBatchInProcess()) {
+    batchEntry->releaseReqsAndSendBatchedReplyIfCompleted(replyMsg);
   } else {
     releaseReqAndSendReplyMsg(replyMsg);
   }
+  setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
 }
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              const string &batchCid,
-                                             bool isPrimary,
-                                             bool isRetry) {
-  const string &cid = preProcessReqMsg->getCid();
+                                             bool isPrimary) {
+  const string &reqCid = preProcessReqMsg->getCid();
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  uint32_t actualResultBufLen = launchReqPreProcessing(preProcessReqMsg);
-  if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid);
-    return;
-  }
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId, batchCid, reqOffsetInBatch));
+  uint32_t actualResultBufLen = 0;
+  const auto preProcessResult = launchReqPreProcessing(batchCid, preProcessReqMsg, actualResultBufLen);
+  SCOPED_MDC_CID(reqCid);
   if (isPrimary) {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
-    handleReqPreProcessedByPrimary(preProcessReqMsg, batchCid, clientId, actualResultBufLen);
+    handleReqPreProcessedByPrimary(preProcessReqMsg, batchCid, clientId, actualResultBufLen, preProcessResult);
   } else {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecNonPrimary>();
     handleReqPreProcessedByNonPrimary(clientId,
@@ -1647,7 +2109,8 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
                                       reqSeqNum,
                                       preProcessReqMsg->reqRetryId(),
                                       actualResultBufLen,
-                                      preProcessReqMsg->getCid());
+                                      preProcessReqMsg->getCid(),
+                                      preProcessResult);
   }
 }
 
@@ -1657,14 +2120,12 @@ AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
                                        const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                        const string &batchCid,
                                        bool isPrimary,
-                                       bool isRetry,
                                        TimeRecorder &&totalPreExecDurationRecorder,
                                        TimeRecorder &&launchAsyncPreProcessJobRecorder)
     : preProcessor_(preProcessor),
       preProcessReqMsg_(preProcessReqMsg),
       batchCid_(batchCid),
       isPrimary_(isPrimary),
-      isRetry_(isRetry),
       totalJobDurationRecorder_(std::move(totalPreExecDurationRecorder)),
       launchAsyncPreProcessJobRecorder_(std::move(launchAsyncPreProcessJobRecorder)) {}
 
@@ -1680,7 +2141,7 @@ void AsyncPreProcessJob::execute() {
   }
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(preProcessor_.myReplicaId_));
   MDC_PUT(MDC_THREAD_KEY, "async-preprocess");
-  preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, batchCid_, isPrimary_, isRetry_);
+  preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, batchCid_, isPrimary_);
 }
 
 void AsyncPreProcessJob::release() {

@@ -2,13 +2,15 @@
 
 #pragma once
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "kv_types.hpp"
-#include "status.hpp"
+#include "util/status.hpp"
 
 #include "categorization/base_types.h"
 #include "categorization/updates.h"
 
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -90,11 +92,20 @@ class IBlocksDeleter {
 
   // Deletes blocks in the [genesis, until) range. If the until value is bigger than the last block, blocks in the
   // range [genesis, lastBlock] will be deleted.
+  // If delete_files_in_range is true then a fast deletion is used.
   // Returns the last deleted block ID.
   // Throws on errors or if until <= genesis .
-  virtual BlockId deleteBlocksUntil(BlockId until) = 0;
+  virtual BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) = 0;
+
+  // This method should get the last block ID in the system and deletes it.
+  // The last block id is the latest block id.
+  virtual void deleteLastReachableBlock() = 0;
 
   virtual ~IBlocksDeleter() = default;
 };
+
+// Given an IReader, return the time of the last application-level transaction stored in the blockchain.
+// The result must be a string that can be parsed via google::protobuf::util::TimeUtil::FromString().
+using LastApplicationTransactionTimeCallback = std::function<std::string(const IReader &)>;
 
 }  // namespace concord::kvbc

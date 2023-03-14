@@ -13,19 +13,26 @@ import os.path
 import unittest
 import time
 from shutil import copy2
+from typing import Set, Optional, Callable
+
 import trio
 import difflib
+import random
+
+from util.test_base import ApolloTest, parameterize
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
-from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
+from util.object_store import ObjectStore, start_replica_cmd_prefix
 import sys
 from util import eliot_logging as log
 import concord_msgs as cmf_msgs
+from util import bft_network_partitioning as net
 
-sys.path.append(os.path.abspath("../../util/pyclient"))
+sys.path.append(os.path.abspath("util/pyclient"))
 
 import bft_client
+from bft_config import BFTConfig
 
 def start_replica_cmd_with_object_store(builddir, replica_id, config):
     """
@@ -36,11 +43,11 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+    
+    batch_size = "1"
     ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
     return ret
 
@@ -53,12 +60,12 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
-    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem"])
+        
+    batch_size = "1"
+    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem", "--publish-master-key-on-startup"])
     return ret
 
 def start_replica_cmd(builddir, replica_id):
@@ -72,11 +79,11 @@ def start_replica_cmd(builddir, replica_id):
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+        
+    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -86,7 +93,8 @@ def start_replica_cmd(builddir, replica_id):
             "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
-            "-o", builddir + "/operator_pub.pem"]
+            "-o", builddir + "/operator_pub.pem",
+            "--publish-master-key-on-startup"]
 
 
 def start_replica_cmd_with_key_exchange(builddir, replica_id):
@@ -100,11 +108,11 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+    
+    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -115,9 +123,10 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
             "-b", "2",
             "-q", batch_size,
             "-e", str(True),
-            "-o", builddir + "/operator_pub.pem"]
+            "-o", builddir + "/operator_pub.pem",
+            "--publish-master-key-on-startup"]
 
-class SkvbcReconfigurationTest(unittest.TestCase):
+class SkvbcReconfigurationTest(ApolloTest):
     @classmethod
     def setUpClass(cls):
         cls.object_store = ObjectStore()
@@ -127,7 +136,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         pass
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_clients_add_remove_cmd(self, bft_network):
         """
             sends a clientsAddRemoveCommand and test the the status for the CRE client is correct
@@ -165,7 +174,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         assert(v == config_desc)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_client_key_exchange_command(self, bft_network):
         """
             Operator sends client key exchange command for all the clients
@@ -173,10 +182,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with log.start_action(action_type="test_client_key_exchange_command"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
+            await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            for i in range(100):
-                await skvbc.send_write_kv_set()
-
             await self.run_client_key_exchange_cycle(bft_network)
             pub_key_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=False)
             assert pub_key_a is not None
@@ -195,7 +202,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await skvbc.send_write_kv_set()
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_client_key_exchange_command_with_st(self, bft_network):
         """
             Operator sends client key exchange command for all the clients
@@ -225,75 +232,65 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             stop_on_stable_seq_num=False)
 
     async def run_client_key_exchange_cycle(self, bft_network, prev_data="", prev_ts=0):
+        key_before_exchange = None
+        priv_key_path = os.path.join(bft_network.txn_signing_keys_base_path, "transaction_signing_keys", str(bft_network.principals_to_participant_map[bft_network.cre_id]), "transaction_signing_priv.pem")
+        with open(priv_key_path) as orig_key:
+            key_before_exchange = orig_key.read()
         await self.run_client_ke_command(bft_network, False, prev_data, prev_ts)
         with trio.fail_after(30):
             succ = False
             while not succ:
                 await trio.sleep(1)
                 succ = True
-                priv_key_path = os.path.join(bft_network.txn_signing_keys_base_path, "transaction_signing_keys", str(bft_network.principals_to_participant_map[bft_network.cre_id]), "transaction_signing_priv.pem")
-                new_priv_path = priv_key_path + ".new"
-                if not os.path.isfile(new_priv_path):
-                    succ = False
-                    continue
-                with open(priv_key_path) as orig_key:
-                    orig_key_text = orig_key.readlines()
-                with open(new_priv_path) as new_key:
-                    new_key_text = new_key.readlines()
-                diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
-                for line in diff:
+                new_key_text = None
+                with open(priv_key_path) as new_key:
+                    new_key_text = new_key.read()
+                diff = difflib.unified_diff(key_before_exchange, new_key_text, fromfile="old", tofile="new", lineterm='')
+                lines = sum(1 for l in diff)
+                if lines == 0:
                     succ = False
         bft_network.stop_cre()
         bft_network.start_cre()
         bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
-    async def test_client_tls_key_exchange_command(self, bft_network):
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
+    async def test_tls_exchange_client_replica(self, bft_network):
         """
             Operator sends client key exchange command for cre client
         """
-        with log.start_action(action_type="test_client_tls_key_exchange_command"):
+        with log.start_action(action_type="test_tls_exchange_client_replica"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
                 await skvbc.send_write_kv_set()
             await self.run_client_tls_key_exchange_cycle(bft_network)
-            cert_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
-            assert cert_a is not None
-            assert ts_a is not None
-            await self.run_client_tls_key_exchange_cycle(bft_network, cert_a, ts_a)
-            cert_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
-            assert cert_b is not None
-            assert ts_b is not None
-
-            assert cert_a != cert_b
-            assert ts_a < ts_b
+            await self.run_client_tls_key_exchange_cycle(bft_network)
 
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
-    async def test_client_tls_key_exchange_command_with_st(self, bft_network):
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
+    async def test_tls_exchange_client_replica_with_st(self, bft_network):
         """
             Operator sends client key exchange command for cre client
         """
-        with log.start_action(action_type="test_client_tls_key_exchange_command"):
+        with log.start_action(action_type="test_tls_exchange_client_replica_with_st"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
                 await skvbc.send_write_kv_set()
+
+            await skvbc.multiple_validate_last_exec_seq_num_for_all_replicas(30);
+
             initial_prim = 0
             next_primary = 1
             bft_network.stop_replica(next_primary)
-            await self.run_client_tls_key_exchange_cycle(bft_network)
-            cert_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
-            assert cert_a is not None
-            assert ts_a is not None
-
+            next_prime_cert = self.collect_client_certificates(bft_network, [next_primary])
+            await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={next_primary})) + [bft_network.cre_id])
             for i in range(500):
                 await skvbc.send_write_kv_set()
             current_view = await bft_network.wait_for_view(0)
@@ -303,6 +300,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               next_primary,
                                                               stop_on_stable_seq_num=False)
+            new_cert = self.collect_client_certificates(bft_network, [next_primary])
+            diff = difflib.unified_diff(next_prime_cert[next_primary], new_cert[next_primary], fromfile="old", tofile="new", lineterm='')
+            lines = sum(1 for l in diff)
+            assert lines > 0
             # Now, stop the primary and wait for VC to happen
             bft_network.stop_replica(initial_prim)
             async with trio.open_nursery() as nursery:
@@ -314,19 +315,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
             # Now lets run another Client TLS key exchange and make sure the new primary is able
             # to communicate with the client after its state transfer
-            await self.run_client_tls_key_exchange_cycle(bft_network, cert_a, ts_a)
-            cert_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
-            assert cert_b is not None
-            assert ts_b is not None
-
-            assert cert_a != cert_b
-            assert ts_a < ts_b
+            await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={initial_prim})) + [bft_network.cre_id])
 
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_client_restart_command(self, bft_network):
         """
             Operator sends client restart command for all the clients
@@ -355,56 +350,58 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rep = await op.client_key_exchange_command([bft_network.cre_id], tls=tls)
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is True
-        log.log_message(message_type=f"block_id {rep.response.block_id}")
-        with trio.fail_after(60):
-            succ = False
-            while succ is False:
-                succ = True
-                data, ts = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=tls)
-                if data is None or ts is None or data == prev_data or ts <= prev_ts:
-                    succ = False
 
-    async def run_client_tls_key_exchange_cycle(self, bft_network, prev_cert="", prev_ts=0):
-        await self.run_client_ke_command(bft_network, True, prev_cert, prev_ts)
-        with trio.fail_after(30):
+    def collect_client_certificates(self, bft_network, targets):
+        certs = {}
+        for t in targets:
+            client_cert_path = os.path.join(bft_network.certdir, str(t), str(bft_network.cre_id))
+            if bft_network.use_unified_certs:
+                client_cert_path = os.path.join(client_cert_path, "node.cert")
+            else:
+                client_cert_path = os.path.join(client_cert_path, "client", "client.cert")
+            with open(client_cert_path) as orig_cert:
+                orig_cert_text = orig_cert.read()
+                certs[t] = orig_cert_text
+        return certs
+
+    async def run_client_tls_key_exchange_cycle(self, bft_network, effected = None, certs=None):
+        effected = list(bft_network.all_replicas()) + [bft_network.cre_id] if effected is None else effected
+        certs_in_effected = {}
+        if certs is None:
+            certs_in_effected = self.collect_client_certificates(bft_network, effected)
+        else:
+            certs_in_effected = certs
+        await self.run_client_ke_command(bft_network, True)
+        with trio.fail_after(60):
+            client_cert_path = os.path.join(bft_network.certdir, str(bft_network.cre_id), str(bft_network.cre_id))
+            if bft_network.use_unified_certs:
+                client_cert_path = os.path.join(client_cert_path, "node.cert")
+            else:
+                client_cert_path = os.path.join(client_cert_path, "client", "client.cert")
+            succ = False
+            while not succ:
+                succ = True
+                await trio.sleep(1)
+                with open(client_cert_path) as orig_cert:
+                    orig_cert_text = orig_cert.read()
+                    diff = difflib.unified_diff(certs_in_effected[bft_network.cre_id], orig_cert_text, fromfile=client_cert_path, tofile=client_cert_path, lineterm='')
+                    lines = sum(1 for l in diff)
+                    if lines == 0:
+                        succ = False
+
+        with trio.fail_after(60):
             succ = False
             while not succ:
                 await trio.sleep(1)
                 succ = True
-                priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem")
-                new_priv_path = priv_key_path + ".new"
+                new_certs = self.collect_client_certificates(bft_network, effected)
+                for p in effected:
+                    diff = difflib.unified_diff(certs_in_effected[p], new_certs[p], fromfile="old", tofile="new", lineterm='')
+                    lines = sum(1 for l in diff)
+                    if lines == 0:
+                        succ = False
+                        break
 
-                enc_priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem.enc")
-                enc_new_priv_path = enc_priv_key_path + ".new"
-                if os.path.isfile(priv_key_path):
-                    if not os.path.isfile(new_priv_path):
-                        succ = False
-                    continue
-                    with open(priv_key_path) as orig_key:
-                        orig_key_text = orig_key.readlines()
-                    with open(new_priv_path) as new_key:
-                        new_key_text = new_key.readlines()
-                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
-                    for line in diff:
-                        succ = False
-                    if not succ:
-                        continue
-
-                if os.path.isfile(enc_priv_key_path):
-                    if not os.path.isfile(enc_new_priv_path):
-                        succ = False
-                    continue
-                    with open(enc_priv_key_path) as orig_key:
-                        orig_key_text = orig_key.readlines()
-                    with open(enc_new_priv_path) as new_key:
-                        new_key_text = new_key.readlines()
-                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=enc_priv_key_path, tofile=enc_new_priv_path, lineterm='')
-                    for line in diff:
-                        succ = False
-                    if not succ:
-                        continue
-        bft_network.stop_cre()
-        bft_network.start_cre()
 
     async def get_last_client_keys_data(self, bft_network, client_id, tls):
         client = bft_network.random_client()
@@ -457,25 +454,28 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         return ts
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_replicas_tls_key_exchange_command_without_primary(self, bft_network):
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
+    async def test_tls_exchange_replicas_replicas_and_replicas_client(self, bft_network):
         """
-            Operator sends client key exchange command for f replicas
+            Test that tls key exchange where primary is included and make sure CRE is also able to get the update
         """
-        with log.start_action(action_type="test_replica_key_exchange_command"):
+        with log.start_action(action_type="test_tls_exchange_replicas_replicas_and_replicas_client"):
             bft_network.start_all_replicas()
+            bft_network.start_cre()
+            await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
+            await self.wait_until_cre_gets_replicas_master_keys(bft_network, bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
-            exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f, {initial_prim}))
             for i in range(100):
                 await skvbc.send_write_kv_set()
             fast_paths = {}
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 fast_paths[r] = nb_fast_path
-            await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas)
-            # Manually copy the new certs from one of the replicas to clients and restart clients
-            bft_network.copy_certs_from_server_to_clients(1)
+            exchanged_replicas = bft_network.all_replicas()
+            await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, list(bft_network.all_replicas()) + [bft_network.cre_id])
+            # Manually copy the new certs from the last replica of the replicas to clients and restart clients
+            bft_network.copy_certs_from_server_to_clients(6)
             bft_network.restart_clients(False, False)
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
@@ -485,18 +485,19 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 self.assertGreater(nb_fast_path, fast_paths[r])
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_replicas_tls_key_exchange_command_with_st(self, bft_network):
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
+    async def test_tls_exchange_replicas_replicas_and_replicas_clients_with_st(self, bft_network):
         """
-            Operator sends client key exchange command for f - 1 replicas
+            Operator sends client key exchange command to all replicas
         """
-        with log.start_action(action_type="test_replica_key_exchange_command"):
+        with log.start_action(action_type="test_tls_exchange_replicas_replicas_and_replicas_client_with_st"):
             bft_network.start_all_replicas()
+            bft_network.start_cre()
+            await self.wait_until_cre_gets_replicas_master_keys(bft_network, bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
             crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))
-            exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f - 2, {initial_prim, crashed_replica[0]}))
-            exchanged_replicas += [initial_prim]
+            exchanged_replicas = list(bft_network.all_replicas(without={crashed_replica[0]}))
             for i in range(100):
                 await skvbc.send_write_kv_set()
             fast_paths = {}
@@ -507,9 +508,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.stop_replicas(crashed_replica)
 
             live_replicas =  bft_network.all_replicas(without=set(crashed_replica))
-            await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, live_replicas)
+            await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, live_replicas + [bft_network.cre_id])
             # Manually copy the new certs from one of the replicas to clients and restart clients
-            bft_network.copy_certs_from_server_to_clients(live_replicas[0])
+            max_live_replica = max(live_replicas)
+            bft_network.copy_certs_from_server_to_clients(max_live_replica)
             bft_network.restart_clients(False, False)
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(700):
@@ -519,29 +521,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await bft_network.wait_for_state_transfer_to_start()
             for r in crashed_replica:
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
-                                                                  r,
-                                                                  stop_on_stable_seq_num=False)
-
-            with trio.fail_after(30):
-                succ = False
-                while not succ:
-                    await trio.sleep(1)
-                    succ = True
-                    for rep in crashed_replica:
-                        for r in exchanged_replicas:
-                            prim_cert_path = os.path.join(bft_network.certdir + "/" + str(initial_prim), str(r),"server", "server.cert")
-                            st_cert_path =  os.path.join(bft_network.certdir + "/" + str(rep), str(r),"server", "server.cert")
-                            st_cert_data = []
-                            with open(st_cert_path) as st_cert:
-                                st_cert_data = st_cert.readlines()
-                            prim_cert_data = []
-                            with open(prim_cert_path) as orig_key:
-                                prim_cert_data = orig_key.readlines()
-                            diff = difflib.unified_diff(st_cert_data, prim_cert_data, fromfile="new", tofile="old", lineterm='')
-                            lines = sum(1 for l in diff)
-                            if lines > 0:
-                                succ = False
-                                continue
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
 
             for i in range(500):
                 await skvbc.send_write_kv_set()
@@ -551,9 +532,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
-                      selected_configs=lambda n, f, c: n == 7)
-    async def test_replicas_tls_key_exchange_with_ror(self, bft_network):
+                      selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_tls_exchange_replicas_replicas_with_ror(self, bft_network):
         """
+            Run TLS key exchange and make sure a ror is able to get updates
         """
         bft_network.start_all_replicas()
         ro_replica_id = bft_network.config.n
@@ -561,12 +543,12 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(301): # Produce 301 new blocks
             await skvbc.send_write_kv_set()
-        # Now, lets switch keys to f replicas
-        exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f))
+        # Now, lets switch keys to all replicas
+        exchanged_replicas = bft_network.all_replicas()
         await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, affected_replicas=[r for r in range(bft_network.config.n + 1)])
-        # Now, lets exchange another replica key, to make sure the read only replica is able to exchange the keys
-        exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f, without=set(exchanged_replicas)))
-        await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, affected_replicas=[r for r in range(bft_network.config.n + 1)])
+        bft_network.copy_certs_from_server_to_clients(7)
+        bft_network.restart_clients(False, False)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         # Make sure that the read only replica is able to complete another state transfer
         for i in range(500): # Produce 500 new blocks
             await skvbc.send_write_kv_set()
@@ -581,35 +563,67 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for rep in affected_replicas:
             reps_data[rep] = {}
             for r in replicas:
-                cert_path = os.path.join(bft_network.certdir + "/" + str(r), str(r),"server", "server.cert")
+                val = []
+                cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r))
+                if bft_network.use_unified_certs:
+                    cert_path = os.path.join(cert_path, "node.cert")
+                else:
+                    cert_path = os.path.join(cert_path, "server", "server.cert")
+
                 with open(cert_path) as orig_key:
                     cert_text = orig_key.readlines()
-                    reps_data[rep][r] = cert_text
+                    val += [cert_text]
+                cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r))
+                if bft_network.use_unified_certs:
+                    cert_path = os.path.join(cert_path, "node.cert")
+                else:
+                    cert_path = os.path.join(cert_path, "client", "client.cert")
+                with open(cert_path) as orig_key:
+                    cert_text = orig_key.readlines()
+                    val += [cert_text]
+                reps_data[rep][r] = val
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.key_exchange(replicas, tls=True)
-        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-        assert rep.success is True
 
-        with trio.fail_after(30):
+        try:
+            await op.key_exchange(replicas, tls=True)
+        except trio.TooSlowError:
+            # As we rotate the TLS keys immediately, the call may return with timeout
+            pass
+        with trio.fail_after(60):
             succ = False
             while not succ:
                 await trio.sleep(1)
                 succ = True
                 for rep in affected_replicas:
                     for r in replicas:
-                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r),"server", "server.cert")
-                        cert_text = []
+                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r))
+                        if bft_network.use_unified_certs:
+                            cert_path = os.path.join(cert_path, "node.cert")
+                        else:
+                            cert_path = os.path.join(cert_path, "server", "server.cert")
                         with open(cert_path) as orig_key:
                             cert_text = orig_key.readlines()
-                        diff = difflib.unified_diff(reps_data[rep][r], cert_text, fromfile="new", tofile="old", lineterm='')
-                        lines = sum(1 for l in diff)
-                        if lines == 0:
-                            succ = False
-                            continue
+                            diff = difflib.unified_diff(reps_data[rep][r][0], cert_text, fromfile="new", tofile="old", lineterm='')
+                            lines = sum(1 for l in diff)
+                            if lines > 0:
+                                continue
+                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r))
+                        if bft_network.use_unified_certs:
+                            cert_path = os.path.join(cert_path, "node.cert")
+                        else:
+                            cert_path = os.path.join(cert_path, "client", "client.cert")
+                        with open(cert_path) as orig_key:
+                            cert_text = orig_key.readlines()
+                            diff = difflib.unified_diff(reps_data[rep][r][1], cert_text, fromfile="new", tofile="old", lineterm='')
+                            lines = sum(1 for l in diff)
+                            if lines > 0:
+                                continue
+                        succ = False
+                        break
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_key_exchange(self, bft_network):
         """
             No initial key rotation
@@ -629,7 +643,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
-                      rotate_keys=True)
+                      rotate_keys=True, publish_master_keys=True)
     async def test_key_exchange_with_restart(self, bft_network):
         """
             - With initial key rotation (keys get effective at checkpoint 2)
@@ -671,8 +685,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
-                      bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}],
-                      rotate_keys=True)
+                      bft_configs=[BFTConfig(n=4, f=1, c=0)],
+                      rotate_keys=True, publish_master_keys=True)
     async def test_key_exchange_with_file_backup(self, bft_network):
         """
             - With initial key rotation (keys get effective at checkpoint 2)
@@ -749,12 +763,11 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             raise KeyExchangeError
                         else:
                             assert sent_key_exchange_counter >= sent_key_exchange_counter_before + 1
-                            assert self_key_exchange_counter >= self_key_exchange_counter_before + 1
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_wedge_command(self, bft_network):
         """
              Sends a wedge command and checks that the system stops processing new requests.
@@ -766,7 +779,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
          """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
+        client = min(bft_network.get_all_clients(), key=lambda client: client.client_id)
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -777,7 +790,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_unwedge_command(self, bft_network):
         """
              Sends a wedge command and checks that the system stops processing new requests.
@@ -802,7 +815,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
         await op.unwedge()
-
+        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=True)
+        # To make sure that revocery doesn't remove the new epoch block, lets manually restart the replicas
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
         protocol = kvbc.SimpleKVBCProtocol(bft_network)
 
         key = protocol.random_key()
@@ -820,7 +836,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(epoch, 1)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_wedge_command_with_state_transfer(self, bft_network):
         """
             This test checks that even a replica that received the super stable checkpoint via the state transfer mechanism
@@ -854,14 +870,57 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
-        await self.try_to_unwedge(bft_network=bft_network, bft=False, restart=False)
+                                                              stop_on_stable_seq_num=True)
         for i in range(100):
             await skvbc.send_write_kv_set()
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_wedge_command_with_state_transfer_with_write(self, bft_network):
+        """
+            This test checks that a replica that received client writes via the state transfer mechanism (after wedge and unwedge commands)
+            is able to take fast path on subsequent client writes.
+            The test does the following:
+            1. Start all replicas but 1
+            2. A client sends a wedge command
+            3. Validate that all started replicas reached to the next next checkpoint
+            4. Perform client writes
+            5. Start the late replica
+            6. Validate that the late replica completed the state transfer
+            7. Validate that subsequent writes are completed using fast paths
+        """
+        initial_primary_replica = 0
+        late_replica = random.choice(bft_network.all_replicas(without={initial_primary_replica}))
+        on_time_replicas = bft_network.all_replicas(without={late_replica})
+        bft_network.start_replicas(on_time_replicas)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
+
+        initial_fast_path_count = await bft_network.get_metric(initial_primary_replica, bft_network, "Counters", "totalFastPaths")
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.wedge()
+        await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=False)
+        await self.try_to_unwedge(bft_network=bft_network, bft=True, restart=False)
+
+        for _ in range(300):
+            await skvbc.send_write_kv_set()
+
+        bft_network.start_replica(late_replica)
+        await bft_network.wait_for_state_transfer_to_stop(initial_primary_replica,
+                                                          late_replica,
+                                                          stop_on_stable_seq_num=False)
+        for _ in range(300):
+            await skvbc.send_write_kv_set()
+
+        final_fast_path_count = await bft_network.get_metric(initial_primary_replica, bft_network, "Counters", "totalFastPaths")
+        self.assertGreater(final_fast_path_count, initial_fast_path_count)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_unwedge_command_with_state_transfer(self, bft_network):
         """
             This test checks that a replica that is stopped after wedge manages to catch up with the unwedged ones with ST
@@ -923,7 +982,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_unwedge_command_with_f_failures(self, bft_network):
         """
             This test checks that unwedge is executed with f failures
@@ -974,7 +1033,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await skvbc.send_write_kv_set()
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_wedge_status_command(self, bft_network):
         """
              Tests that the wedge command returns correct status after wedge and unwedge
@@ -1006,7 +1065,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_get_latest_pruneable_block(self, bft_network):
 
         bft_network.start_all_replicas()
@@ -1048,7 +1107,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         assert min_prunebale_block < min_prunebale_block_b
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_command(self, bft_network):
         with log.start_action(action_type="test_pruning_command"):
             bft_network.start_all_replicas()
@@ -1075,11 +1134,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
-            assert pruned_block <= 90
+            assert pruned_block <= 97
 
-    @unittest.skip("Disabled till pruning of reconfiguration blocks during state transfer is fixed")
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_command_with_failures(self, bft_network):
         with log.start_action(action_type="test_pruning_command_with_faliures"):
             bft_network.start_all_replicas()
@@ -1110,7 +1168,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
-            assert pruned_block <= 90
+            assert pruned_block <= 97
 
             # creates 1000 new blocks
             for i in range(1000):
@@ -1133,11 +1191,39 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                         last_prune_blockid = status.response.last_pruned_block
                         log.log_message(message_type=f"last_prune_blockid {last_prune_blockid}, status.response.sender {status.response.sender}")
-                        if status.response.in_progress is False and last_prune_blockid <= 90 and last_prune_blockid > 0:
+                        if status.response.in_progress is False and last_prune_blockid <= 97 and last_prune_blockid > 0:
                             num_replies += 1
                     if num_replies == bft_network.config.n:
                         break
+            # Validate the crashed replica has managed to updates its metrics
+            with trio.fail_after(60):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfVersionedKeysDeleted']
+                            deletes = await bft_network.metrics.get(crashed_replica, *key)
 
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfImmutableKeysDeleted']
+                            deletes += await bft_network.metrics.get(crashed_replica, *key)
+
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfMerkleKeysDeleted']
+                            deletes += await bft_network.metrics.get(crashed_replica, *key)
+
+                        except KeyError:#might be using the v4 storage
+                            try:
+                                key = ['v4_blockchain', 'Gauges', 'numOfBlocksDeleted']
+                                deletes = await bft_network.metrics.get(crashed_replica, *key)
+                                log.log_message(message_type=f"pruning_merics {key}, count {deletes}")
+                            except KeyError:
+                                continue
+                            else:
+                                # success!
+                                if deletes >= 0:
+                                    break
+                        else:
+                            # success!
+                            if deletes >= 0:
+                                break
             # Now, crash the same replica again.
             crashed_replica = 3
             bft_network.stop_replica(crashed_replica)
@@ -1152,7 +1238,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await self._wait_for_st(bft_network, crashed_replica, 2100)
     
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_status_command(self, bft_network):
 
         bft_network.start_all_replicas()
@@ -1195,10 +1281,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in rsi_rep.values():
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.in_progress is False
-            assert status.response.last_pruned_block <= 90
+            assert status.response.last_pruned_block <= 97
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_with_ro_replica(self, bft_network):
 
         bft_network.start_all_replicas()
@@ -1244,7 +1330,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_with_ro_replica_failure(self, bft_network):
 
         bft_network.start_all_replicas()
@@ -1286,53 +1372,65 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is False
 
+    async def send_restart_with_params(self, bft_network: 'BftTestNetwork', bft: bool, restart: bool,
+                                       faulty_replica_ids: Optional[Set[int]] = None,
+                                       post_restart: Optional[Callable] = None,
+                                       pre_restart_epoch_id: int = 0,
+                                       kv_count: int = 10):
+        """
+        Send a restart command and verify that replicas have stopped and removed their metadata in two cases
+        @param bft_network:
+        @param bft: flag for restart command
+        @param restart: flag for restart command
+        @param faulty_replica_ids:
+        @param post_restart: A coroutine which is called after the restart operation is received by the network
+        @param pre_restart_epoch_id: The epoch id before the restart operation
+        @param kv_count: kvs to send for liveness checks
+        """
+
+        if faulty_replica_ids is None:
+            faulty_replica_ids = set()
+
+        live_replicas = bft_network.all_replicas(without=faulty_replica_ids)
+        bft_network.start_replicas(live_replicas)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await self.validate_epoch_number(bft_network, pre_restart_epoch_id, live_replicas)
+        await skvbc.send_n_kvs_sequentially(kv_count)
+        op = operator.Operator(bft_network.config, bft_network.random_client(), bft_network.builddir)
+        await op.restart(f"test_restart", bft=bft, restart=restart)
+        if post_restart:
+            await post_restart(skvbc)
+        await self.validate_epoch_number(bft_network, pre_restart_epoch_id + 1, live_replicas)
+        await skvbc.send_n_kvs_sequentially(kv_count)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_restart_command(self, bft_network):
-        """
-             Send a restart command and verify that replicas have stopped and removed their metadata in two cases
-             1. Where all replicas are alive
-             2. When we have up to f failures
-        """
-        # 1. Test without bft and without restart
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-        await op.restart("hello", bft=False, restart=False)
-        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
-        bft_network.stop_all_replicas()
-        bft_network.start_all_replicas()
-        await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
+    @parameterize(bft=[True, False])
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_restart_no_restart_flag(self, bft_network, bft):
+        async def post_restart(skvbc):
+            await self.validate_stop_on_wedge_point(skvbc.bft_network, skvbc, fullWedge=True)
+            bft_network.stop_all_replicas()
+            bft_network.start_all_replicas()
 
-        # 2. Test without bft and with restart
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-        await op.restart("hello1", bft=False, restart=True)
-        await self.validate_epoch_number(bft_network, 2, bft_network.all_replicas())
-
-        # 3. Test with bft and restart
-        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
-        live_replicas = bft_network.all_replicas(without=crashed_replicas)
-        bft_network.stop_replicas(crashed_replicas)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-
-        await op.restart("hello2", bft=True, restart=True)
-        await self.validate_epoch_number(bft_network, 3, live_replicas)
-
-        # make sure the system is alive
-        for i in range(100):
-            await skvbc.send_write_kv_set()
+        await self.send_restart_with_params(bft_network, bft=bft, restart=False, post_restart=post_restart)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_restart_no_bft_with_restart_flag(self, bft_network):
+        await self.send_restart_with_params(bft_network, bft=False, restart=True)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_restart_with_bft_with_restart_flag(self, bft_network):
+        bft_config = bft_network.config
+        assert bft_config.f >= 2, f"Insufficient fault tolerance factory {bft_config.f}"
+        replica_count = bft_config.n
+        # For simplicity, we crash the last two replicas
+        crashed_replicas = set(range(replica_count - 2, replica_count))
+        await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1375,7 +1473,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
         """
         In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
@@ -1423,7 +1521,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_remove_nodes_with_unwedge(self, bft_network):
         """
             Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1468,7 +1566,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
 
     @with_trio
-    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
+    @with_bft_network(start_replica_cmd, bft_configs=[BFTConfig(n=4, f=1, c=0)], publish_master_keys=True)
     async def test_add_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1511,9 +1609,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
     @with_trio
-    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
+    @with_bft_network(start_replica_cmd, bft_configs=[BFTConfig(n=4, f=1, c=0)], publish_master_keys=True)
     async def test_add_nodes_with_failures(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1533,57 +1631,102 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             initial_prim = 0
             crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
             log.log_message(message_type=f"crashed replica is {crashed_replica}")
-            live_replicas = bft_network.all_replicas(without=crashed_replica)
-            bft_network.start_replicas(live_replicas)
-
+            bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
             for i in range(100):
                 await skvbc.send_write_kv_set()
-            client = bft_network.random_client()
-            client.config._replace(req_timeout_milli=10000)
-            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-            test_config = 'new_configuration_n_7_f_2_c_0'
-            await op.add_remove_with_wedge(test_config, bft=True, restart=False)
-            await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
+            # This is a loop to make sure that all replicas are up before interfering them
+            with trio.fail_after(30):
+                nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+                while nb_fast_path <= 0:
+                    for i in range(100):
+                        await skvbc.send_write_kv_set()
+                    nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+            with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
+                adversary.interfere()
+
+                for i in range(601):
+                    await skvbc.send_write_kv_set()
+                client = bft_network.random_client()
+                client.config._replace(req_timeout_milli=10000)
+                op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+                test_config = 'new_configuration_n_7_f_2_c_0'
+                await op.add_remove_with_wedge(test_config, bft=True, restart=False)
             new_replicas = {4, 5, 6}
+            replicas_for_st = {6}
             source = list(bft_network.random_set_of_replicas(1, without=crashed_replica)).pop()
+            await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
+            await bft_network.wait_for_state_transfer_to_start()
+
+            # Lets wait until the late replica gets the new configuration
+            with trio.fail_after(30):
+                for r in crashed_replica:
+                    while True:
+                        await trio.sleep(1)
+                        configurations_file = os.path.join(bft_network.testdir, "configurations." + str(r))
+                        if not os.path.isfile(configurations_file):
+                            continue
+                        with open(configurations_file, "r") as file:
+                            done = False
+                            for l in file.readlines():
+                                if test_config in l:
+                                    done = True
+                            if done:
+                                break
+
             bft_network.stop_all_replicas()
-            bft_network.transfer_db_files(source, new_replicas)
+            bft_network.transfer_db_files(source, new_replicas - replicas_for_st)
+
+            # Change the cluster's configuration
             conf = TestConfig(n=7,
                               f=2,
                               c=0,
                               num_clients=10,
                               key_file_prefix=KEY_FILE_PREFIX,
-                              start_replica_cmd=start_replica_cmd,
+                              start_replica_cmd=start_replica_cmd_with_key_exchange,
                               stop_replica_cmd=None,
                               num_ro_replicas=0)
             await bft_network.change_configuration(conf, generate_tls=True)
-            bft_network.restart_clients(restart_replicas=False)
-            live_replicas = bft_network.all_replicas(without=crashed_replica)
-            bft_network.start_replicas(live_replicas)
-            initial_prim = 0
+            bft_network.restart_clients(generate_tx_signing_keys=True, restart_replicas=False)
 
-            await self.validate_epoch_number(bft_network, 1, live_replicas)
+            live_replicas = bft_network.all_replicas(without=replicas_for_st.union(crashed_replica))
+            await bft_network.check_initial_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=live_replicas)
             for i in range(601):
                 await skvbc.send_write_kv_set()
-
             bft_network.start_replicas(crashed_replica)
-            await bft_network.wait_for_state_transfer_to_start()
+            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=0)
             for r in crashed_replica:
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                                   r,
                                                                   stop_on_stable_seq_num=False)
+            live_replicas = bft_network.all_replicas(without=replicas_for_st)
+            await self.validate_epoch_number(bft_network, 1, live_replicas)
+            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=1)
+            bft_network.start_replicas(replicas_for_st)
+            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=0)
+            for i in range(601):
+                await skvbc.send_write_kv_set()
+
+            await bft_network.wait_for_state_transfer_to_start()
+            for r in replicas_for_st:
+                await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                                  r,
+                                                                  stop_on_stable_seq_num=False)
+
             await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
+            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=1)
             for i in range(300):
                 await skvbc.send_write_kv_set()
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, 0)
-    
+            await self.validate_initial_key_exchange(bft_network, bft_network.all_replicas(), metrics_id="self_key_exchange", expected=bft_network.config.n)
+
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_addRemoveStatusError(self, bft_network):
         """
              Sends a addRemoveStatus command without adding new configuration 
@@ -1606,9 +1749,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.error_msg == 'key_not_found'
             assert status.success is False
+
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
-                      selected_configs=lambda n, f, c: n == 7)
+                      selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_reconfiguration_with_ror(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1654,7 +1798,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
-        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        await bft_network.check_initial_key_exchange(stop_replicas=False)
         bft_network.start_replica(ro_replica_id)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
@@ -1691,7 +1835,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
-        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        await bft_network.check_initial_key_exchange(stop_replicas=False)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -1709,7 +1853,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         self.assertEqual(blockIdRor, blockIdreplica)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_install_command(self, bft_network):
         """
              Sends a install command and checks that new version is written to blockchain.
@@ -1753,7 +1897,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(100):
             await skvbc.send_write_kv_set()
     
-
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):
             client = bft_network.random_client()
@@ -1931,6 +2074,33 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 for r in replicas:
                     curr_epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
                     if curr_epoch != epoch_number:
+                        succ = False
+                        break
+    async def validate_initial_key_exchange(self, bft_network, replicas, metrics_id, expected):
+        total = 0
+        with trio.fail_after(seconds=10):
+            succ = False
+            while not succ:
+                succ = True
+                total = 0
+                for r in replicas:
+                    count = await bft_network.get_metric(r, bft_network, 'Counters', metrics_id,"KeyExchangeManager")
+                    total += count
+                    if total != expected:
+                        succ = False
+                    else:
+                        succ = True
+                        break
+            assert total == expected
+
+    async def wait_until_cre_gets_replicas_master_keys(self, bft_network, replicas):
+        with trio.fail_after(60):
+            succ = False
+            while succ is False:
+                succ = True
+                for r in replicas:
+                    master_key_path = os.path.join(bft_network.testdir, "replicas_rsa_keys", str(r), "pub_key")
+                    if os.path.isfile(master_key_path) is False:
                         succ = False
                         break
 

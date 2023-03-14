@@ -25,11 +25,12 @@ class NullStateTransfer : public IStateTransfer {
   virtual bool isRunning() const override;
 
   virtual void createCheckpointOfCurrentState(uint64_t checkpointNumber) override;
-  virtual void markCheckpointAsStable(uint64_t checkpointNumber) override;
   virtual void getDigestOfCheckpoint(uint64_t checkpointNumber,
                                      uint16_t sizeOfDigestBuffer,
-                                     char* outDigestBuffer) override;
-
+                                     uint64_t& outBlockId,
+                                     char* outStateDigest,
+                                     char* outResPagesDigest,
+                                     char* outRBVDataDigest) override;
   virtual void startCollectingState() override;
   virtual bool isCollectingState() const override;
 
@@ -42,14 +43,15 @@ class NullStateTransfer : public IStateTransfer {
   virtual void onTimer() override;
   virtual void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
-  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
+  void addOnTransferringCompleteCallback(const std::function<void(uint64_t)>& cb,
                                          StateTransferCallBacksPriorities priority) override{};
+  void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)>& cb) override {}
   void setEraseMetadataFlag() override {}
   void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) override {}
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
-    return nullptr;
-  }
+
+  virtual void handleIncomingConsensusMessage(const ConsensusMsg msg) override{};
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
   virtual ~NullStateTransfer();
 
  protected:

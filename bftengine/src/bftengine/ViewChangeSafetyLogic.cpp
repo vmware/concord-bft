@@ -10,12 +10,12 @@
 // file.
 
 #include "ViewChangeSafetyLogic.hpp"
-#include "threshsign/IThresholdVerifier.h"
-#include "assertUtils.hpp"
-#include "Logger.hpp"
+#include "crypto/threshsign/IThresholdVerifier.h"
+#include "util/assertUtils.hpp"
 #include "CryptoManager.hpp"
 #include <set>
 #include <unordered_map>
+#include "log/logger.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -278,7 +278,7 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
   for (SlowElem slow : slowPathCertificates) {
     ConcordAssert(s == slow.seqNum());
     Digest d;
-    Digest::calcCombination(slow.prePrepreDigest(), slow.certificateView(), slow.seqNum(), d);
+    slow.prePrepreDigest().calcCombination(slow.certificateView(), slow.seqNum(), d);
 
     bool valid = CryptoManager::instance().thresholdVerifierForSlowPathCommit(s)->verify(
         d.content(), DIGEST_SIZE, slow.certificateSig(), slow.certificateSigLength());

@@ -12,13 +12,13 @@
 //    -> Ascending order of Key
 //       -> Descending order of Block Id
 
-#include "Logger.hpp"
-#include "sliver.hpp"
-#include "status.hpp"
+#include "util/sliver.hpp"
+#include "util/status.hpp"
 #include "storage/direct_kv_key_manipulator.h"
-#include "hex_tools.h"
-#include "assertUtils.hpp"
+#include "util/hex_tools.hpp"
+#include "util/assertUtils.hpp"
 #include <cstring>
+#include "log/logger.hpp"
 
 using logging::Logger;
 using concordUtils::Sliver;
@@ -48,6 +48,10 @@ Sliver MetadataKeyManipulator::generateMetadataKey(ObjectId objectId) const {
   copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
   return Sliver(keyBuf, keySize);
 }
+Sliver S3MetadataKeyManipulator::generateMetadataKey(const concordUtils::Sliver &key) const {
+  return prefix_ + std::string("metadata/") + key.toString();
+}
+
 /*
  * Format : Key Type | Object Id
  */

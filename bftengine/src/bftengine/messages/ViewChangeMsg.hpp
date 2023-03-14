@@ -12,11 +12,13 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "Digest.hpp"
-#include "OpenTracing.hpp"
+#include "crypto/digest.hpp"
+#include "util/OpenTracing.hpp"
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
 #include "ReplicaAsksToLeaveViewMsg.hpp"
+
+using concord::crypto::Digest;
 
 namespace bftEngine {
 namespace impl {
@@ -81,6 +83,8 @@ class ViewChangeMsg : public MessageBase {
   void finalizeMessage();
 
   void validate(const ReplicasInfo&) const override;
+
+  bool shouldValidateAsync() const override { return true; }
 
   class ElementsIterator {
    public:

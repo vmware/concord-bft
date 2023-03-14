@@ -15,8 +15,9 @@
 #include <iomanip>
 #include <inttypes.h>
 #include <chrono>
+
+#include "log/logger.hpp"
 #include "messages/MsgCode.hpp"
-#include "Logger.hpp"
 
 using namespace std;
 using namespace std::chrono;
@@ -140,28 +141,11 @@ void DebugStatistics::clearCounters(DebugStatDesc& d) {
   d.pendingRequests = 0;
 }
 
-#ifdef USE_TLS
-void DebugStatistics::initDebugStatisticsData() {
-  ThreadLocalData* l = ThreadLocalData::Get();
-  ConcordAssert(l->debugStatData == nullptr);
-  DebugStatDesc* dsd = new DebugStatDesc;
-  l->debugStatData = dsd;
-}
-
-void DebugStatistics::freeDebugStatisticsData() {
-  ThreadLocalData* l = ThreadLocalData::Get();
-  DebugStatDesc* dsd = (DebugStatDesc*)l->debugStatData;
-  delete dsd;
-  l->debugStatData = nullptr;
-}
-#else
-
 DebugStatistics::DebugStatDesc DebugStatistics::globalDebugStatDesc;
 
 void DebugStatistics::initDebugStatisticsData() {}
 
 void DebugStatistics::freeDebugStatisticsData() {}
-}
-}
 
-#endif
+}  // namespace impl
+}  // namespace bftEngine

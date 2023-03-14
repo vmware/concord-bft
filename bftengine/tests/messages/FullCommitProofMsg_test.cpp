@@ -38,7 +38,7 @@ TEST(FullCommitProofMsg, base_methods) {
                          concordUtils::SpanContext{spanContext}};
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
-  EXPECT_EQ(commit_proof_signature, std::string(msg.thresholSignature(), msg.thresholSignatureLength()));
+  EXPECT_EQ(commit_proof_signature, std::string(msg.signatureBody(), msg.signatureLen()));
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::FullCommitProof, senderId, spanContext);
 }

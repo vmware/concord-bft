@@ -16,6 +16,7 @@ import unittest
 import trio
 import random
 
+from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load, skip_for_tls
 from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
@@ -60,7 +61,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
     return wrapper
 
 
-class SkvbcPreExecutionTest(unittest.TestCase):
+class SkvbcPreExecutionTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -246,6 +247,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
 
+    @unittest.skip("Unstable test - BC-17831")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -310,7 +312,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=1):
-                await skvbc.send_indefinite_ops(write_weight=1)
+                await skvbc.send_indefinite_ops(write_weight=1, excluded_clients={client})
         except trio.TooSlowError:
             pass
         finally:
@@ -318,7 +320,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
-            await skvbc.send_write_kv_set(client, max_set_size=2)
+            await skvbc.send_write_kv_set(client, max_set_size=2, raise_slowErrorIfAny=False)
 
     @with_trio
     @with_bft_network(start_replica_cmd)

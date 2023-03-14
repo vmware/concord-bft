@@ -12,12 +12,14 @@
 #pragma once
 
 #include <memory>
-#include "threshsign/ThresholdSignaturesTypes.h"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+
+#include "log/logger.hpp"
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
-#include "Logger.hpp"
+#include "crypto/crypto.hpp"
 
 namespace bftEngine {
 typedef std::int64_t SeqNum;                    // TODO [TK] redefinition
@@ -51,18 +53,34 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const SeqNum sn) const {
     return get(sn)->thresholdVerifierForOptimisticCommit_;
   }
-  // IMultiSigKeyGenerator methods
-  std::pair<std::string, std::string> generateMultisigKeyPair() override {
-    LOG_INFO(logger(), "Generating new multisig key pair");
-    return cryptoSystems_.rbegin()->second->cryptosys_->generateNewKeyPair();
+
+  std::unique_ptr<Cryptosystem>& getLatestCryptoSystem() const { return cryptoSystems_.rbegin()->second->cryptosys_; }
+
+  /**
+   * @return An algorithm identifier for the latest threshold signature scheme
+   */
+  concord::crypto::SignatureAlgorithm getLatestSignatureAlgorithm() const {
+    const std::unordered_map<std::string, concord::crypto::SignatureAlgorithm> typeToAlgorithm{
+        {MULTISIG_EDDSA_SCHEME, concord::crypto::SignatureAlgorithm::EdDSA},
+    };
+    auto currentType = getLatestCryptoSystem()->getType();
+    return typeToAlgorithm.at(currentType);
   }
+
+  // IMultiSigKeyGenerator methods
+  std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override {
+    LOG_INFO(logger(), "Generating new multisig key pair");
+    auto [priv, pub] = getLatestCryptoSystem()->generateNewKeyPair();
+    return {priv, pub, getLatestSignatureAlgorithm()};
+  }
+
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.
   // Therefore the first called will create a CryptoSys
   void onPrivateKeyExchange(const std::string& secretKey,
                             const std::string& verificationKey,
                             const SeqNum& sn) override {
-    LOG_INFO(logger(), KVLOG(sn, verificationKey));
+    LOG_INFO(logger(), "Private key exchange:" << KVLOG(sn, verificationKey));
     auto sys_wrapper = create(sn);
     sys_wrapper->cryptosys_->updateKeys(secretKey, verificationKey);
     sys_wrapper->init();
@@ -70,7 +88,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   void onPublicKeyExchange(const std::string& verificationKey,
                            const std::uint16_t& signerIndex,
                            const SeqNum& sn) override {
-    LOG_INFO(logger(), KVLOG(sn, signerIndex, verificationKey));
+    LOG_INFO(logger(), "Public key exchange:" << KVLOG(sn, signerIndex, verificationKey));
     auto sys = create(sn);
     // the +1 is due to Crypto system starts counting from 1
     sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex + 1);
@@ -78,7 +96,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   }
 
   void onCheckpoint(const uint64_t& checkpoint) {
-    LOG_INFO(logger(), "chckp: " << checkpoint);
+    LOG_INFO(logger(), "Checkpoint: " << checkpoint);
     // clearOldKeys();
   }
 

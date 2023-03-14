@@ -52,15 +52,19 @@ TicksGenerator::~TicksGenerator() {
 }
 
 void TicksGenerator::start(std::uint32_t component_id, const std::chrono::seconds& period) {
-  auto lock = std::scoped_lock{mtx_};
-  auto it = timer_handles_.find(component_id);
-  if (it != timer_handles_.cend()) {
-    timers_.reset(it->second, period);
+  if (period > std::chrono::steady_clock::duration::zero()) {
+    auto lock = std::scoped_lock{mtx_};
+    auto it = timer_handles_.find(component_id);
+    if (it != timer_handles_.cend()) {
+      timers_.reset(it->second, period);
+    } else {
+      const auto h = timers_.add(period, Timers::Timer::RECURRING, [this, component_id](Timers::Handle) {
+        msgs_storage_->pushInternalMsg(TickInternalMsg{component_id});
+      });
+      timer_handles_.emplace(component_id, h);
+    }
   } else {
-    const auto h = timers_.add(period, Timers::Timer::RECURRING, [this, component_id](Timers::Handle) {
-      msgs_storage_->pushInternalMsg(TickInternalMsg{component_id});
-    });
-    timer_handles_.emplace(component_id, h);
+    stop(component_id);
   }
 }
 

@@ -18,10 +18,13 @@
 #include <chrono>
 #include <memory>
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
-#include "../../../bftclient/include/bftclient/base_types.h"
+#include "SharedTypes.hpp"
+
+// TODO: Use proper cmake targets instead of relative paths
+#include "../../../client/bftclient/include/bftclient/base_types.h"
 
 namespace bftEngine {
 struct SimpleClientParams {
@@ -44,13 +47,14 @@ enum ClientMsgFlag : uint8_t {
   HAS_PRE_PROCESSED_REQ = 0x4,
   KEY_EXCHANGE_REQ = 0x8,
   EMPTY_CLIENT_REQ = 0x10,
+  RECONFIG_FLAG_REQ = 0x20,
+  RECONFIG_READ_ONLY_REQ = 0x21,  // Same as READ_ONLY_REQ | RECONFIG_FLAG_REQ
 };
 
-enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
-// Call back for request - at this point we know for sure that a client is handling the request so we can assure that we
-// will have reply. This callback will be attached to the client reply struct and whenever we get the reply from, the
-// bft client we will activate the callback.
-typedef std::variant<int, bft::client::Reply> SendResult;
+// Call back for request - at this point we know for sure that a client is handling the request, so we can assure that
+// we will have reply. This callback will be attached to the client reply struct and whenever we get the reply from,
+// the bft client we will activate the callback.
+typedef std::variant<uint32_t, bft::client::Reply> SendResult;
 typedef std::function<void(SendResult&&)> RequestCallBack;
 
 struct ClientRequest {
@@ -67,7 +71,7 @@ struct ClientReply {
   uint32_t lengthOfReplyBuffer = 0;
   char* replyBuffer = nullptr;
   uint32_t actualReplyLength = 0;
-  OperationResult opResult = SUCCESS;
+  bftEngine::OperationResult opResult = bftEngine::OperationResult::SUCCESS;
   std::string cid;
   std::string span_context;
   RequestCallBack cb = {};
@@ -103,21 +107,21 @@ class SimpleClient {
 
   virtual ~SimpleClient();
 
-  virtual OperationResult sendRequest(uint8_t flags,
-                                      const char* request,
-                                      uint32_t lengthOfRequest,
-                                      uint64_t reqSeqNum,
-                                      uint64_t timeoutMilli,
-                                      uint32_t lengthOfReplyBuffer,
-                                      char* replyBuffer,
-                                      uint32_t& actualReplyLength,
-                                      const std::string& cid = "",
-                                      const std::string& spanContext = "") = 0;
+  virtual bftEngine::OperationResult sendRequest(uint8_t flags,
+                                                 const char* request,
+                                                 uint32_t lengthOfRequest,
+                                                 uint64_t reqSeqNum,
+                                                 uint64_t timeoutMilli,
+                                                 uint32_t lengthOfReplyBuffer,
+                                                 char* replyBuffer,
+                                                 uint32_t& actualReplyLength,
+                                                 const std::string& cid = "",
+                                                 const std::string& spanContext = "") = 0;
 
   // To be used only for write requests
-  virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
-                                    std::deque<ClientReply>& clientReplies,
-                                    const std::string& batchCid) = 0;
+  virtual bftEngine::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                               std::deque<ClientReply>& clientReplies,
+                                               const std::string& batchCid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

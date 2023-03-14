@@ -17,21 +17,20 @@
 #include <utility>
 #include <future>
 
-#include "assertUtils.hpp"
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
 #include "memorydb/key_comparator.h"
-#include "Logger.hpp"
 #include "storage/direct_kv_key_manipulator.h"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 
 namespace bftEngine {
 
 namespace SimpleInMemoryStateTransfer {
 
 namespace impl {
-
 logging::Logger STLogger = logging::getLogger("state-transfer");
 
 class SimpleStateTran : public ISimpleInMemoryStateTransfer {
@@ -57,10 +56,12 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
   void createCheckpointOfCurrentState(uint64_t checkpointNumber) override;
 
-  void markCheckpointAsStable(uint64_t checkpointNumber) override;
-
-  void getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char* outDigestBuffer) override;
-
+  void getDigestOfCheckpoint(uint64_t checkpointNumber,
+                             uint16_t sizeOfDigestBuffer,
+                             uint64_t& outBlockId,
+                             char* outStateDigest,
+                             char* outResPagesDigest,
+                             char* outRBVDataDigest) override;
   void startCollectingState() override;
 
   bool isCollectingState() const override;
@@ -79,8 +80,10 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
-  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
+  void addOnTransferringCompleteCallback(const std::function<void(uint64_t)>& cb,
                                          StateTransferCallBacksPriorities priority) override {}
+
+  void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)>& cb) override {}
 
   //////////////////////////////////////////////////////////////////////////
   // ISimpleInMemoryStateTransfer methods
@@ -92,9 +95,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) override {}
 
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
-    return nullptr;
-  }
+  virtual void handleIncomingConsensusMessage(const ConsensusMsg msg) override{};
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
 
  protected:
   //////////////////////////////////////////////////////////////////////////
@@ -109,29 +111,34 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool hasBlock(uint64_t blockId) const override;
 
-    bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override;
+    bool getBlock(uint64_t blockId,
+                  char* outBlock,
+                  uint32_t outBlockMaxSize,
+                  uint32_t* outBlockActualSize) const override;
 
     std::future<bool> getBlockAsync(uint64_t blockId,
                                     char* outBlock,
                                     uint32_t outBlockMaxSize,
                                     uint32_t* outBlockActualSize) override;
 
-    bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
+    bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) const override;
 
     void getPrevDigestFromBlock(const char* blockData,
                                 const uint32_t blockSize,
-                                bcst::StateTransferDigest* outPrevBlockDigest) override;
+                                bcst::StateTransferDigest* outPrevBlockDigest) const override;
+    std::future<std::optional<concord::crypto::BlockDigest>> getPrevDigestFromBlockAsync(uint64_t block_id) override;
 
     bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock = true) override;
 
     std::future<bool> putBlockAsync(uint64_t blockId,
                                     const char* block,
                                     const uint32_t blockSize,
-                                    bool lastBlock = true) override;
+                                    bool lastBlock) override;
 
     uint64_t getLastReachableBlockNum() const override;
     uint64_t getGenesisBlockNum() const override;
     uint64_t getLastBlockNum() const override;
+    size_t postProcessUntilBlockId(uint64_t maxBlockId) override;
   };
 
   ///////////////////////////////////////////////////////////////////////////
@@ -315,6 +322,9 @@ SimpleStateTran::SimpleStateTran(
       2048,                                 // maxNumOfReservedPages
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
+      10,                                   // minPrePrepareMsgsForPrimaryAwareness
+      256,                                  // fetchRangeSize
+      1024,                                 // RVT_K
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
@@ -322,9 +332,14 @@ SimpleStateTran::SimpleStateTran(
       2000,                                 // fetchRetransmissionTimeoutMs
       2,                                    // maxFetchRetransmissions
       5,                                    // metricsDumpIntervalSec
+      5000,                                 // maxTimeSinceLastExecutionInMainWindowMs
+      5000,                                 // sourceSessionExpiryDurationMs
+      300,                                  // sourcePerformanceSnapshotFrequencySec
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
-      true                                  // enableSourceBlocksPreFetch
+      true,                                 // enableSourceBlocksPreFetch
+      true,                                 // enableSourceSelectorPrimaryAwareness
+      true                                  // enableStoreRvbDataDuringCheckpointing
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();
@@ -440,7 +455,7 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
   lastKnownCheckpoint = checkpointNumber;
 
   //  map from a metadata page to its set of updated app pages
-  std::map<uint32_t, std::set<uint32_t> > pagesMap;
+  std::map<uint32_t, std::set<uint32_t>> pagesMap;
 
   for (uint32_t appPage : updateAppPages_) {
     uint32_t mPage = findMetadataPageOfAppPage(appPage);
@@ -491,21 +506,18 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
   internalST_->createCheckpointOfCurrentState(checkpointNumber);
 }
 
-void SimpleStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
-  ConcordAssert(isInitialized());
-  ConcordAssert(internalST_->isRunning());
-
-  internalST_->markCheckpointAsStable(checkpointNumber);
-}
-
 void SimpleStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                             uint16_t sizeOfDigestBuffer,
-                                            char* outDigestBuffer) {
+                                            uint64_t& outBlockId,
+                                            char* outStateDigest,
+                                            char* outResPagesDigest,
+                                            char* outRVBDataDigest) {
   ConcordAssert(isInitialized());
   ConcordAssert(internalST_->isRunning());
   ConcordAssert(checkpointNumber <= lastKnownCheckpoint);
 
-  internalST_->getDigestOfCheckpoint(checkpointNumber, sizeOfDigestBuffer, outDigestBuffer);
+  internalST_->getDigestOfCheckpoint(
+      checkpointNumber, sizeOfDigestBuffer, outBlockId, outStateDigest, outResPagesDigest, outRVBDataDigest);
 }
 
 void SimpleStateTran::startCollectingState() {
@@ -519,8 +531,6 @@ void SimpleStateTran::startCollectingState() {
 
 bool SimpleStateTran::isCollectingState() const {
   ConcordAssert(isInitialized());
-  ConcordAssert(internalST_->isRunning());
-
   return internalST_->isCollectingState();
 }
 
@@ -620,7 +630,7 @@ bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return fa
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId,
                                              char* outBlock,
                                              uint32_t outBlockMaxSize,
-                                             uint32_t* outBlockActualSize) {
+                                             uint32_t* outBlockActualSize) const {
   ConcordAssert(false);
   return false;
 }
@@ -634,15 +644,21 @@ std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
 }
 
 bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,
-                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) const {
   ConcordAssert(false);
   return false;
 }
 
 void SimpleStateTran::DummyBDState::getPrevDigestFromBlock(const char* blockData,
                                                            const uint32_t blockSize,
-                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) const {
   ConcordAssert(false);
+}
+
+std::future<std::optional<concord::crypto::BlockDigest>> SimpleStateTran::DummyBDState::getPrevDigestFromBlockAsync(
+    uint64_t block_id) {
+  ConcordAssert(false);
+  return std::async([]() { return std::optional<concord::crypto::BlockDigest>{}; });
 }
 
 bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId,
@@ -666,6 +682,8 @@ uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() const { retur
 uint64_t SimpleStateTran::DummyBDState::getGenesisBlockNum() const { return 0; }
 
 uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() const { return 0; }
+
+size_t SimpleStateTran::DummyBDState::postProcessUntilBlockId(uint64_t blockId) { return 0; }
 
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer

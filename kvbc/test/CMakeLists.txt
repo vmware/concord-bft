@@ -1,29 +1,25 @@
 find_package(GTest REQUIRED)
 find_package(rapidcheck)
+find_package(yaml-cpp ${YAML_CPP_VERSION} REQUIRED)
 
-if(Boost_FOUND)
-    add_executable(blockchain_view_test blockchain_view_test.cpp )
-    add_test(blockchain_view_test blockchain_view_test)
-    target_include_directories(blockchain_view_test PRIVATE ${Boost_INCLUDE_DIRS})
-    target_link_libraries(blockchain_view_test PUBLIC
-        GTest::Main
-        util
-        kvbc
-    )
-endif()
-
+add_executable(blockchain_view_test blockchain_view_test.cpp )
+add_test(blockchain_view_test blockchain_view_test)
+target_link_libraries(blockchain_view_test PUBLIC
+            GTest::Main
+            util
+            kvbc
+)
 add_test(NAME kvbc_filter_test COMMAND kvbc_filter_test)
 add_executable(kvbc_filter_test
         kvbc_app_filter/kvbc_filter_test.cpp)
 
 target_link_libraries(kvbc_filter_test
-        ${Boost_LIBRARIES}
         GTest::Main
         GTest::GTest
-        ${yaml-cpp_LIBRARIES}
+        yaml-cpp
         kvbc
         concord-kvbc-proto
-        concordbft_reconfiguration
+        corebft
         logging)
 
 add_executable(order_test order_test.cpp )
@@ -83,7 +79,7 @@ target_link_libraries(sparse_merkle_internal_node_property_test PUBLIC
     rapidcheck
     util
     kvbc
-    OpenSSL::Crypto
+    concord-crypto
 )
 endif ()
 
@@ -96,29 +92,24 @@ target_link_libraries(sparse_merkle_base_types_test PUBLIC
     corebft
     kvbc
 )
-if(NOT BUILD_THIRDPARTY)
-    find_package(OpenSSL REQUIRED)
-endif()
-add_executable(sparse_merkle_internal_node_test sparse_merkle/internal_node_test.cpp
-    )
+add_executable(sparse_merkle_internal_node_test sparse_merkle/internal_node_test.cpp)
 add_test(sparse_merkle_internal_node_test sparse_merkle_internal_node_test)
 target_link_libraries(sparse_merkle_internal_node_test PUBLIC
     GTest::Main
     GTest::GTest
     corebft
     kvbc
-    OpenSSL::Crypto
+    concord-crypto
 )
 
-add_executable(sparse_merkle_tree_test sparse_merkle/tree_test.cpp
-    )
+add_executable(sparse_merkle_tree_test sparse_merkle/tree_test.cpp)
 add_test(sparse_merkle_tree_test sparse_merkle_tree_test)
 target_link_libraries(sparse_merkle_tree_test PUBLIC
     GTest::Main
     GTest::GTest
     kvbc
     corebft
-    OpenSSL::Crypto
+    concord-crypto
 )
 
 if (BUILD_ROCKSDB_STORAGE)
@@ -134,10 +125,11 @@ target_link_libraries(multiIO_test PUBLIC
 )
 
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
-add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
+add_test(kv_blockchain_db_editor_test_v4 kv_blockchain_db_editor_test v4)
+add_test(kv_blockchain_db_editor_test_categorized kv_blockchain_db_editor_test categorized)
 
 target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/ 
-																${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
+                                                                ${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
 target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest
@@ -148,18 +140,6 @@ target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     execution_data_cmf
 )
 endif(BUILD_ROCKSDB_STORAGE)
-
-if(USE_S3_OBJECT_STORE)
-add_executable(s3_storage_factory_test s3_storage_factory_test.cpp )
-add_test(s3_storage_factory_test s3_storage_factory_test)
-target_include_directories(s3_storage_factory_test PUBLIC
-    kvbc
-)
-target_link_libraries(s3_storage_factory_test PUBLIC
-    GTest::Main
-    kvbc
-)
-endif(USE_S3_OBJECT_STORE)
 
 if (BUILD_ROCKSDB_STORAGE)
     add_executable(categorized_kv_blockchain_unit_test
@@ -228,6 +208,105 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(v4_blockchain_handler_unit_test
+        v4blockchain/v4_blockchain_test.cpp )
+    add_test(v4_blockchain_handler_unit_test v4_blockchain_handler_unit_test)
+    target_link_libraries(v4_blockchain_handler_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blocks_unit_test
+        v4blockchain/blocks_test.cpp )
+    add_test(v4_blocks_unit_test v4_blocks_unit_test)
+    target_link_libraries(v4_blocks_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_st_chain_unit_test
+        v4blockchain/st_chain_test.cpp )
+    add_test(v4_st_chain_unit_test v4_st_chain_unit_test)
+    target_link_libraries(v4_st_chain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_categories_unit_test
+        v4blockchain/categories_test.cpp )
+    add_test(v4_categories_unit_test v4_categories_unit_test)
+    target_link_libraries(v4_categories_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_latest_keys_unit_test
+        v4blockchain/v4_latest_keys_test.cpp )
+    file(COPY v4blockchain/rocksdb_config_test.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    add_test(v4_latest_keys_unit_test v4_latest_keys_unit_test)
+    target_link_libraries(v4_latest_keys_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blockchain_unit_test
+        v4blockchain/blockchain_test.cpp )
+    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
+    target_link_libraries(v4_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(app_state_adapter_test
+    kvbc_adapter/v4blockchain/app_state_adapter_test.cpp )
+    add_test(app_state_adapter_test app_state_adapter_test)
+    target_link_libraries(app_state_adapter_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(common_state_snapshot_adapter_test
+            kvbc_adapter/common/state_snapshot_adapter_test.cpp )
+    add_test(common_state_snapshot_adapter_test common_state_snapshot_adapter_test)
+    target_link_libraries(common_state_snapshot_adapter_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
+
+    
     add_executable(pruning_test pruning_test.cpp)
     add_test(pruning_test pruning_test)
     target_link_libraries(pruning_test
@@ -236,18 +315,9 @@ if (BUILD_ROCKSDB_STORAGE)
             kvbc
             stdc++fs)
 
-    add_executable(pruning_reserved_pages_client_test pruning_reserved_pages_client_test.cpp)
-    add_test(pruning_reserved_pages_client_test pruning_reserved_pages_client_test)
-    target_link_libraries(pruning_reserved_pages_client_test PUBLIC
-            GTest::Main
-            GTest::GTest
-            util
-            corebft
-            kvbc
-    )
-
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
-    add_test(replica_state_sync_test replica_state_sync_test)
+    add_test(replica_state_sync_test_v4 replica_state_sync_test v4)
+    add_test(replica_state_sync_test_categorized replica_state_sync_test categorized)
     target_link_libraries(replica_state_sync_test PUBLIC
             GTest::Main
             GTest::GTest
@@ -256,4 +326,31 @@ if (BUILD_ROCKSDB_STORAGE)
             kvbc
             stdc++fs
     )
+
+    add_executable(block_merkle_latest_ver_cf_migration_test migrations/block_merkle_latest_ver_cf_migration_test.cpp)
+    add_test(block_merkle_latest_ver_cf_migration_test block_merkle_latest_ver_cf_migration_test)
+    target_link_libraries(block_merkle_latest_ver_cf_migration_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
+
+    # Disabled due to instability
+    #
+    # add_executable(v4_migration_test migrations/v4_migration_test.cpp)
+    # add_test(v4_migration_test v4_migration_test)
+    # target_link_libraries(v4_migration_test PUBLIC
+    #         GTest::Main
+    #         GTest::GTest
+    #         Boost::program_options
+    #         v4migration_tool_lib
+    #         util
+    #         corebft
+    #         kvbc
+    #         stdc++fs
+    #         execution_data_cmf
+    # )
 endif (BUILD_ROCKSDB_STORAGE)

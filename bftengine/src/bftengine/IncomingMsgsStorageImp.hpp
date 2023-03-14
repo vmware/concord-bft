@@ -15,7 +15,7 @@
 
 #include "IncomingMsgsStorage.hpp"
 #include "MsgHandlersRegistrator.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
 
@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <future>
 #include <utility>
+#include <string>
 
 namespace bftEngine::impl {
 
@@ -38,6 +39,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
   void start() override;
   void stop() override;
+  // returns a string with status. To be used by diagnostics server
+  std::string status() const override;
 
   // Can be called by any thread
   bool pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
@@ -99,15 +102,13 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       const auto component = "incomingMsgsStorageImp";
-      if (!registrar.perf.isRegisteredComponent(component)) {
-        registrar.perf.registerComponent(component,
-                                         {external_queue_len_at_swap,
-                                          internal_queue_len_at_swap,
-                                          evaluate_timers,
-                                          take_lock,
-                                          wait_for_cv,
-                                          dropped_msgs_in_a_row});
-      }
+      registrar.perf.registerComponent(component,
+                                       {external_queue_len_at_swap,
+                                        internal_queue_len_at_swap,
+                                        evaluate_timers,
+                                        take_lock,
+                                        wait_for_cv,
+                                        dropped_msgs_in_a_row});
     }
     DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
     DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);

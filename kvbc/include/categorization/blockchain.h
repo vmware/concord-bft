@@ -156,6 +156,7 @@ class Blockchain {
     }
 
     void updateLastId(const BlockId id) {
+      std::lock_guard<std::mutex> l(update_last_block_id_mutex_);
       if (last_block_id_ >= id) {
         return;
       }
@@ -167,6 +168,7 @@ class Blockchain {
    private:
     // if last_block_id_ is 0 it means no ST chain
     std::atomic<BlockId> last_block_id_;
+    std::mutex update_last_block_id_mutex_;  // To support multithreaded putBlock during State Transfer
     std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   };
 

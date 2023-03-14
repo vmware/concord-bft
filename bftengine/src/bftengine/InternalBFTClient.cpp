@@ -12,10 +12,9 @@
 
 #include "InternalBFTClient.hpp"
 #include "messages/ClientRequestMsg.hpp"
-#include "chrono"
-#include "Logger.hpp"
-
+#include <chrono>
 #include <utility>
+#include "log/logger.hpp"
 
 uint64_t InternalBFTClient::sendRequest(uint64_t flags,
                                         uint32_t requestLength,
@@ -36,4 +35,12 @@ uint64_t InternalBFTClient::sendRequest(uint64_t flags,
   msgComm_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm), std::move(onPoppedFromQueue));
   LOG_DEBUG(GL, "Sent internal consensus: seq num [" << sn << "] client id [" << getClientId() << "]");
   return sn;
+}
+uint64_t IInternalBFTClient::sendRequest(uint64_t flags,
+                                         const concord::serialize::Serializable& msg,
+                                         const std::string& cid) {
+  std::stringstream ss;
+  concord::serialize::Serializable::serialize(ss, msg);
+  auto strMsg = ss.str();
+  return sendRequest(flags, strMsg.size(), strMsg.c_str(), cid);
 }

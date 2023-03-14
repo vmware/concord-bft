@@ -3,9 +3,8 @@ project(skvbc_client VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(client_sources
     main.cpp
-    ../basicRandomTestsRunner.cpp
-    ../simpleKVBTestsBuilder.cpp
-    ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
+    basicRandomTestsRunner.cpp
+    simpleKVBTestsBuilder.cpp
 )
 
 add_executable(skvbc_client ${client_sources})

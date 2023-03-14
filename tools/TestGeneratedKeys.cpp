@@ -16,10 +16,18 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "threshsign/ThresholdSignaturesTypes.h"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "crypto/threshsign/ThresholdSignaturesTypes.h"
+#include "crypto/threshsign/IThresholdAccumulator.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 #include "KeyfileIOUtils.hpp"
-#include "crypto_utils.hpp"
+#include "crypto/factory.hpp"
+
+using concord::crypto::ISigner;
+using concord::crypto::IVerifier;
+using concord::crypto::Factory;
+using concord::crypto::KeyFormat;
+using bftEngine::ReplicaConfig;
 
 // How often to output status when testing cryptosystems, measured as an
 // interval measured in tested signaturs.
@@ -120,45 +128,45 @@ static bool validateFundamentalFields(const std::vector<TestReplicaConfig>& conf
   return true;
 }
 
-// Helper function to test RSA keys to test the compatibility of a single key
-// pair.
-static bool testRSAKeyPair(const std::string& privateKey, const std::string& publicKey, uint16_t replicaID) {
+// Helper function to test replica keys to test the compatibility of a single key pair.
+static bool testReplicaKeyPair(const std::string& privateKey, const std::string& publicKey, uint16_t replicaID) {
   // The signer and verifier are stored with unique pointers rather than by
   // value so that they can be constructed in try/catch statements without
   // limiting their scope to those statements; declaring them by value is not
   // possible in this case becuause they lack paramter-less default
   // constructors.
-  std::unique_ptr<concord::util::crypto::RSASigner> signer;
-  std::unique_ptr<concord::util::crypto::RSAVerifier> verifier;
+  std::unique_ptr<ISigner> signer;
+  std::unique_ptr<IVerifier> verifier;
 
-  std::string invalidPrivateKey = "FAILURE: Invalid RSA private key for replica " + std::to_string(replicaID) + ".\n";
-  std::string invalidPublicKey = "FAILURE: Invalid RSA public key for replica " + std::to_string(replicaID) + ".\n";
+  const std::string invalidPrivateKey = "FAILURE: Invalid private key for replica " + std::to_string(replicaID) + ".\n";
+  const std::string invalidPublicKey = "FAILURE: Invalid public key for replica " + std::to_string(replicaID) + ".\n";
 
   try {
-    signer.reset(
-        new concord::util::crypto::RSASigner(privateKey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat));
-  } catch (std::exception& e) {
+    signer = Factory::getSigner(privateKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  } catch (const std::exception& e) {
     std::cout << invalidPrivateKey;
     return false;
   }
   try {
-    verifier.reset(
-        new concord::util::crypto::RSAVerifier(publicKey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat));
-  } catch (std::exception& e) {
+    verifier = Factory::getVerifier(publicKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  } catch (const std::exception& e) {
     std::cout << invalidPublicKey;
     return false;
   }
 
+  auto expectedSignatureLength = signer->signatureLength();
+  ConcordAssertGT(expectedSignatureLength, 0);
+
   for (auto iter = std::begin(kHashesToTest); iter != std::end(kHashesToTest); ++iter) {
     const std::string& hash = *iter;
 
-    std::string sig;
+    std::string sig(expectedSignatureLength + 1, '\x00');
     try {
-      sig = signer->sign(hash);
-      if (sig.empty()) {
-        std::cout << "FAILURE: Failed to sign data with"
-                     " replica "
-                  << replicaID << "'s RSA private key.\n";
+      auto sigLength = signer->sign(hash, reinterpret_cast<concord::Byte*>(sig.data()));
+      if (sigLength != expectedSignatureLength) {
+        std::cout << "FAILURE: Failed to sign data with replica " << replicaID << "'s private key.\n";
+        std::cout << "Expected signature length: " << expectedSignatureLength << ", actual length: " << sigLength
+                  << ".\n";
         return false;
       }
     } catch (std::exception& e) {
@@ -169,9 +177,7 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
     try {
       if (!verifier->verify(hash, sig)) {
         std::cout << "FAILURE: A signature with replica " << replicaID
-                  << "'s RSA private key could not be verified with"
-                     " replica "
-                  << replicaID << "'s RSA public key.\n";
+                  << "'s private key could not be verified with replica " << replicaID << "'s public key.\n";
         return false;
       }
     } catch (std::exception& e) {
@@ -179,18 +185,17 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
       return false;
     }
   }
-
   return true;
 }
 
-// Test that the RSA key pairs given in the keyfiles work, that the keyfiles
+// Test that the replica key pairs (could be RSA, or EdDSA key pair) given in the keyfiles work, that the keyfiles
 // agree on what the public keys are, and that there are no duplicates.
-static bool testRSAKeys(const std::vector<TestReplicaConfig>& configs) {
+static bool testReplicaKeys(const std::vector<TestReplicaConfig>& configs) {
   uint16_t numReplicas = configs.size();
 
-  std::cout << "Testing " << numReplicas << " RSA key pairs...\n";
+  std::cout << "Testing " << numReplicas << " replicas key pairs...\n";
   std::unordered_map<uint16_t, std::string> expectedPublicKeys;
-  std::unordered_set<std::string> rsaPublicKeysSeen;
+  std::unordered_set<std::string> replicaPublicKeysSeen;
 
   // Test that a signature produced with each replica's private key can be
   // verified with that replica's public key.
@@ -204,44 +209,41 @@ static bool testRSAKeys(const std::vector<TestReplicaConfig>& configs) {
       }
     }
 
-    if (!testRSAKeyPair(privateKey, publicKey, i)) {
+    if (!testReplicaKeyPair(privateKey, publicKey, i)) {
       return false;
     }
 
-    if (rsaPublicKeysSeen.count(publicKey) > 0) {
+    if (replicaPublicKeysSeen.count(publicKey) > 0) {
       uint16_t existingKeyholder;
       for (const auto& publicKeyEntry : expectedPublicKeys) {
         if (publicKeyEntry.second == publicKey) {
           existingKeyholder = publicKeyEntry.first;
         }
       }
-      std::cout << "FAILURE: Replicas " << existingKeyholder << " and " << i << " share the same RSA public key.\n";
+      std::cout << "FAILURE: Replicas " << existingKeyholder << " and " << i << " share the same replica public key.\n";
       return false;
     }
     expectedPublicKeys[i] = publicKey;
 
     if (((i + 1) % kTestProgressReportingInterval) == 0) {
-      std::cout << "Tested " << (i + 1) << " out of " << numReplicas << " RSA key pairs...\n";
+      std::cout << "Tested " << (i + 1) << " out of " << numReplicas << " replica key pairs...\n";
     }
   }
 
-  std::cout << "Verifying that all replicas agree on RSA public keys...\n";
+  std::cout << "Verifying that all replicas agree on replica public keys...\n";
 
-  // Verify that all replicas' keyfiles agree on the RSA public keys.
+  // Verify that all replicas' keyfiles agree on the replica public keys.
   for (uint16_t i = 0; i < numReplicas; ++i) {
     for (const auto& publicKeyEntry : configs[i].publicKeysOfReplicas) {
       if (publicKeyEntry.second != expectedPublicKeys[publicKeyEntry.first]) {
-        std::cout << "FAILURE: Replica " << i
-                  << " has an"
-                     " incorrect RSA public key for replica "
+        std::cout << "FAILURE: Replica " << i << " has an incorrect replica public key for replica "
                   << publicKeyEntry.first << ".\n";
         return false;
       }
     }
   }
 
-  std::cout << "All RSA key tests were successful.\n";
-
+  std::cout << "All replica key tests were successful.\n";
   return true;
 }
 
@@ -724,7 +726,8 @@ int main(int argc, char** argv) {
     }
     std::cout << "Cryptographic configurations read appear to be sane.\n";
     std::cout << "Testing key functionality and agreement...\n";
-    if (!testRSAKeys(configs)) {
+
+    if (!testReplicaKeys(configs)) {
       return -1;
     }
     if (!testThresholdKeys(configs, cryptoSystems)) {

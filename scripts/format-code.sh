@@ -7,11 +7,7 @@ if [ -z "$1" ]; then
   return 1
 fi
 
-# Construct the absolute path
-export TMP_CONCORD_DIR="$1"
-ABS_CONCORD_PATH=$(
-  python3 -c 'import os; print(os.path.abspath(os.environ["TMP_CONCORD_DIR"]))')
-unset TMP_CONCORD_DIR
+ABS_CONCORD_PATH=`realpath $1`
 
 # Overly cautious saftey check
 IS_EXPECTED_NAME=$(echo ${ABS_CONCORD_PATH} | grep "${BFT}")
@@ -34,13 +30,12 @@ FILES_TO_FORMAT=$(find ${ABS_CONCORD_PATH} \
 
 if [ -n "$2" ]; then
   if [ "$2" = "--is-required" ]; then
-    NUM_CHANGES=$(clang-format \
+    $(clang-format \
       -style=file \
       -fallback-style=none \
-      -output-replacements-xml ${FILES_TO_FORMAT} \
-      | grep "<replacement offset" \
-      | wc -l)
-    if [ ${NUM_CHANGES} -ne 0 ]; then
+      --dry-run --Werror ${FILES_TO_FORMAT})
+
+    if [ $? -ne 0 ]; then
       # Note: exit_code = return_value % 255
       echo "Code format changes needed"
       return 1

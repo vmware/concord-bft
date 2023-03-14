@@ -10,7 +10,7 @@
 // file.
 
 #include "PreProcessRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 
 #include <cstring>
@@ -25,52 +25,57 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                                            uint64_t reqRetryId,
                                            uint32_t reqLength,
                                            const char* request,
-                                           const std::string& cid,
+                                           const std::string& reqCid,
                                            const char* requestSignature,
                                            uint16_t requestSignatureLength,
-                                           uint64_t blockid,
-                                           const concordUtils::SpanContext& span_context)
+                                           uint64_t blockId,
+                                           ViewNum viewNum,
+                                           const concordUtils::SpanContext& span_context,
+                                           uint32_t result)
     : MessageBase(senderId,
                   MsgCode::PreProcessRequest,
                   span_context.data().size(),
-                  sizeof(Header) + reqLength + cid.size() + requestSignatureLength) {
+                  sizeof(Header) + reqLength + reqCid.size() + requestSignatureLength) {
   ConcordAssert((requestSignatureLength > 0) == (nullptr != requestSignature));
   setParams(reqType,
             senderId,
             clientId,
             reqOffsetInBatch,
             reqSeqNum,
-            cid.size(),
+            reqCid.size(),
             span_context.data().size(),
             reqRetryId,
             reqLength,
             requestSignatureLength,
-            blockid);
+            blockId,
+            result,
+            viewNum);
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
   memcpy(position, request, reqLength);
   position += reqLength;
-  memcpy(position, cid.c_str(), cid.size());
-  uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
+  memcpy(position, reqCid.c_str(), reqCid.size());
+  uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + reqCid.size();
   if (requestSignatureLength) {
-    position += cid.size();
+    position += reqCid.size();
     memcpy(position, requestSignature, requestSignatureLength);
     msgLength += requestSignatureLength;
   }
-  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
             KVLOG(reqType,
                   senderId,
                   clientId,
                   reqSeqNum,
+                  reqCid,
+                  reqOffsetInBatch,
                   reqRetryId,
                   reqLength,
-                  cid.size(),
                   span_context.data().size(),
                   requestSignatureLength,
                   msgLength,
-                  blockid));
+                  blockId,
+                  result));
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
@@ -84,22 +89,23 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() != expectedMsgSize) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessRequest) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is ivalid" << KVLOG(senderId(), repInfo.myId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId(), repInfo.myId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (requestSignature) {
     ConcordAssert(sigManager->isClientTransactionSigningEnabled());
-    if (!sigManager->verifySig(
-            header->clientId, requestBuf(), header->requestLength, requestSignature, header->reqSignatureLength)) {
+    if (!sigManager->verifySig(header->clientId,
+                               std::string_view{requestBuf(), header->requestLength},
+                               std::string_view{requestSignature, header->reqSignatureLength})) {
       std::stringstream msg;
-      LOG_ERROR(logger(),
-                "Signature verification failed for " << KVLOG(header->reqSeqNum, header->clientId, this->senderId()));
+      LOG_WARN(logger(),
+               "Signature verification failed for " << KVLOG(header->reqSeqNum, header->clientId, this->senderId()));
       msg << "Signature verification failed for: "
           << KVLOG(header->clientId, header->reqSeqNum, header->requestLength, header->reqSignatureLength);
       throw std::runtime_error(msg.str());
@@ -118,7 +124,9 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
                                      uint64_t reqRetryId,
                                      uint32_t reqLength,
                                      uint16_t reqSignatureLength,
-                                     uint64_t blockId) {
+                                     uint64_t blockId,
+                                     uint32_t result,
+                                     ViewNum viewNum) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->senderId = senderId;
@@ -131,6 +139,8 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
   header->requestLength = reqLength;
   header->reqSignatureLength = reqSignatureLength;
   header->primaryBlockId = blockId;
+  header->result = result;
+  header->viewNum = viewNum;
 }
 
 std::string PreProcessRequestMsg::getCid() const {

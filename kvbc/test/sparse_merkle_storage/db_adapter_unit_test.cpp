@@ -6,7 +6,6 @@
 
 #include "kvbc_storage_test_common.h"
 
-#include "block_digest.h"
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
@@ -32,7 +31,6 @@ using namespace ::concord::kvbc::v2MerkleTree::detail;
 using namespace ::concord::storage::v2MerkleTree::detail;
 
 using ::concord::storage::IDBClient;
-using ::concord::kvbc::BlockDigest;
 using ::concord::kvbc::NotFoundException;
 using ::concord::kvbc::sparse_merkle::Hash;
 using ::concord::kvbc::sparse_merkle::InternalNodeKey;

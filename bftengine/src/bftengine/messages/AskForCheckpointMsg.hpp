@@ -12,9 +12,9 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "Digest.hpp"
-#include "OpenTracing.hpp"
-#include "assertUtils.hpp"
+#include "crypto/digest.hpp"
+#include "util/OpenTracing.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine::impl {
 
@@ -27,8 +27,6 @@ class AskForCheckpointMsg : public MessageBase {
   }
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(AskForCheckpointMsg)
-
-  AskForCheckpointMsg* clone() { return new AskForCheckpointMsg(*this); }
 
   void validate(const ReplicasInfo& repInfo) const override {
     ConcordAssert(type() == MsgCode::AskForCheckpoint);
@@ -52,4 +50,5 @@ class AskForCheckpointMsg : public MessageBase {
 
   Header* b() const { return (Header*)msgBody_; }
 };
+
 }  // namespace bftEngine::impl

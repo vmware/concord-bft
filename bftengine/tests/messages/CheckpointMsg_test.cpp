@@ -13,8 +13,7 @@
 #include <iostream>
 #include <memory>
 #include "gtest/gtest.h"
-#include "Digest.hpp"
-#include "DigestType.h"
+#include "crypto/digest.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"
@@ -33,7 +32,7 @@ class CheckpointMsgTestsFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo))
 
@@ -57,15 +56,19 @@ void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanCo
   uint64_t reqSeqNum = 150u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
+  char rvbDataContent[DIGEST_SIZE] = "rvb_data_content";
+  Digest rvbDataDigest(rvbDataContent, sizeof(rvbDataContent));
   bool isStable = false;
   const std::string correlationId = "correlationId";
-  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
+  CheckpointMsg msg(
+      senderId, reqSeqNum, 0, digest, digest, rvbDataDigest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();
   msg.sign();
   EXPECT_EQ(msg.isStableState(), !isStable);
-  EXPECT_EQ(msg.digestOfState(), digest);
+  EXPECT_EQ(msg.stateDigest(), digest);
+  EXPECT_EQ(msg.rvbDataDigest(), rvbDataDigest);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::Checkpoint, senderId, spanContext);
 }

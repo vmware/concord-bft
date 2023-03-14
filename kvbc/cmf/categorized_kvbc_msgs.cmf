@@ -37,6 +37,18 @@ Msg CategoryInput 6 {
 
 # Output for category `add`
 
+# Adding sorted list of Public keys
+Msg PublicStateKeys 7 {
+    #These are the state keys which are public, the list contains sorted keys
+    list string keys
+}
+
+# The state hash (public or per participant) at a particular block.
+Msg StateHash 8 {
+    uint64 block_id
+    fixedlist uint8 32 hash
+}
+
 Msg MerkleKeyFlag 1000 {
     bool deleted
 }

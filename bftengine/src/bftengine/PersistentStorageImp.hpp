@@ -51,6 +51,7 @@ namespace impl {
 // Make a reservation for future params
 const uint16_t reservedSimpleParamsNum = 499;
 const uint16_t reservedWindowParamsNum = 3000;
+const uint16_t reservedComplaintsNum = 300;
 
 const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
 
@@ -66,6 +67,7 @@ enum ConstMetadataParameterIds : uint32_t {
   ERASE_METADATA_ON_STARTUP = 9,
   USER_DATA = 10,
   START_NEW_EPOCH = 11,
+  DB_CHECKPOINT_DESCRIPTOR = 12,
   CONST_METADATA_PARAMETERS_NUM,
 };
 
@@ -93,23 +95,32 @@ const uint16_t numOfLastExitFromViewDescObjs = kWorkWindowSize + 1;
 // objects plus one - for simple descriptor parameters.
 enum DescMetadataParameterIds {
   LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM + reservedWindowParamsNum,
-  LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_COMPLAINTS_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_EXEC_DESC = LAST_COMPLAINTS_DESC + reservedComplaintsNum + 1,
   LAST_STABLE_CHECKPOINT_DESC,
   LAST_NEW_VIEW_DESC
 };
 
-typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
+enum ReplicaSpecificInfoParameterIds {
+  REPLICA_SPECIFIC_INFO_BASE = LAST_NEW_VIEW_DESC + 1,
+  REPLICA_SPECIFIC_INFO_DESC
+};
+
+const uint32_t replicaSpecificInfoMaxSize = 1024 * 1024;  // 1MB
+
+typedef std::map<uint32_t, MetadataStorage::ObjectDesc> ObjectDescMap;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
   static constexpr auto kMaxUserDataSizeBytes = 256;
 
  public:
-  PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
+  PersistentStorageImp(
+      uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numOfPrinciples, uint64_t maxClientBatchSize);
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
-  uint8_t endWriteTran() override;
+  uint8_t endWriteTran(bool sync = false) override;
   bool isInWriteTran() const override;
 
   // Setters
@@ -133,11 +144,11 @@ class PersistentStorageImp : public PersistentStorage {
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool completed) override;
   void clearSeqNumWindow() override;
-  ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
+  ObjectDescMap getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
   void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
-
+  bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) override;
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
@@ -146,6 +157,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool getNewEpochFlag() override;
 
   // Getters
+  std::vector<uint8_t> getReplicaSpecificInfo(uint32_t index) override;
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
   SeqNum getLastExecutedSeqNum() override;
@@ -176,6 +188,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExitFromView() override;
   bool hasDescriptorOfLastNewView() override;
   bool hasDescriptorOfLastExecution() override;
+  void setDbCheckpointMetadata(const std::vector<std::uint8_t> &) override;
+  std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t &) override;
 
   // Returns 'true' in case storage is empty
   bool init(std::unique_ptr<MetadataStorage> metadataStorage);
@@ -247,6 +261,13 @@ class PersistentStorageImp : public PersistentStorage {
   const uint16_t fVal_;
   const uint16_t cVal_;
 
+  const uint16_t numPrinciples_;
+  const uint16_t maxClientBatchSize_;
+  // The rsi cache is a map of <principle_id, <request_sequence_number, data>>
+  std::unordered_map<uint32_t, std::unordered_map<uint64_t, std::string>> rsiCache_;
+  // The rsiLatestIndex is a map of <principle_id, latest_index>
+  std::unordered_map<uint32_t, uint64_t> rsiLatestIndex;
+
   uint8_t numOfNestedTransactions_ = 0;
   const SeqNum seqNumWindowFirst_ = 1;
   const SeqNum checkWindowFirst_ = 0;
@@ -257,7 +278,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
 
-  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap(), 0};
   DescriptorOfLastExecution descriptorOfLastExecution_ = emptyDescriptorOfLastExecution_;
 
   // Parameters to be saved persistently
@@ -267,6 +288,23 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum strictLowerBoundOfSeqNums_ = 0;
   ViewNum lastViewTransferredSeqNum_ = 0;
   SeqNum lastStableSeqNum_ = 0;
+
+  struct PreAllocataedMemoryBuffers {
+    concord::serialize::UniquePtrToChar last_exit_from_view_simple_element_buf;
+    concord::serialize::UniquePtrToChar last_exit_fron_view_element_buf;
+    concord::serialize::UniquePtrToChar last_exit_from_view_complaint_buf;
+    concord::serialize::UniquePtrToChar last_new_view_simple_element_buf;
+    concord::serialize::UniquePtrToChar last_new_view_element_buf;
+    concord::serialize::UniquePtrToChar descriptor_of_last_execution_buf;
+    concord::serialize::UniquePtrToChar descriptor_og_last_stable_cp_buf;
+    concord::serialize::UniquePtrToChar seq_num_element_buf;
+    concord::serialize::UniquePtrToChar check_data_element_buf;
+    concord::serialize::UniquePtrToChar msg_element_buf;
+    concord::serialize::UniquePtrToChar cp_message_buf;
+    concord::serialize::UniquePtrToChar seq_num_data_buf;
+  };
+
+  mutable PreAllocataedMemoryBuffers pre_allocated_mem_buffers_;
 };
 
 }  // namespace impl

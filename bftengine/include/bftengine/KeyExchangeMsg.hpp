@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "Serializable.h"
+#include "util/serializable.hpp"
 
 struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchangeMsg> {
   constexpr static uint8_t EXCHANGE{0};
@@ -21,10 +21,14 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   std::string pubkey;
   uint16_t repID;
   uint64_t generated_sn;
+  uint64_t epoch;
+  uint16_t algorithm;
 
   std::string toString() const {
     std::stringstream ss;
-    ss << "pubkey [" << pubkey << "] replica id [" << repID << "] generate sequence number [" << generated_sn << "]";
+    ss << "pubkey [" << pubkey << "] replica id [" << repID << "] generate sequence number [" << generated_sn
+       << "] epoch [" << epoch << "]"
+       << " algorithm [" << algorithm << "]";
     return ss.str();
   }
   static KeyExchangeMsg deserializeMsg(const char* serializedMsg, const int& size) {
@@ -36,17 +40,21 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   }
 
  protected:
-  const std::string getVersion() const override { return "1"; }
+  const std::string getVersion() const override { return "2"; }
   void serializeDataMembers(std::ostream& outStream) const override {
     serialize(outStream, op);
     serialize(outStream, pubkey);
     serialize(outStream, repID);
     serialize(outStream, generated_sn);
+    serialize(outStream, epoch);
+    serialize(outStream, algorithm);
   }
   void deserializeDataMembers(std::istream& inStream) override {
     deserialize(inStream, op);
     deserialize(inStream, pubkey);
     deserialize(inStream, repID);
     deserialize(inStream, generated_sn);
+    deserialize(inStream, epoch);
+    deserialize(inStream, algorithm);
   }
 };

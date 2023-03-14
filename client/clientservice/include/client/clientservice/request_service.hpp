@@ -9,26 +9,82 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <grpcpp/alarm.h>
 #include <grpcpp/grpcpp.h>
 #include <request.grpc.pb.h>
 #include <memory>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 namespace concord::client::clientservice {
 
-class RequestServiceImpl final : public vmware::concord::client::request::v1::RequestService::Service {
+namespace requestservice {
+
+// Every `Send` request is represented by this class.
+// It follows a simple state machine `RpcState`:
+// CREATE - Register to handle incoming `Send` requests
+// SEND_TO_CONCORDCLIENT - forward request to concord client
+// PROCESS_CALLBACK_RESULT - respond to caller
+// FINISH - clean-up
+class RequestServiceCallData {
  public:
-  RequestServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client)
-      : logger_(logging::getLogger("concord.client.clientservice.request")), client_(client){};
-  grpc::Status Send(grpc::ServerContext* context,
-                    const vmware::concord::client::request::v1::Request* request,
-                    vmware::concord::client::request::v1::Response* response) override;
+  RequestServiceCallData(vmware::concord::client::request::v1::RequestService::AsyncService* service,
+                         grpc::ServerCompletionQueue* cq,
+                         std::shared_ptr<concord::client::concordclient::ConcordClient> client)
+      : logger_(logging::getLogger("concord.client.clientservice.requestservice")),
+        service_(service),
+        cq_(cq),
+        responder_(&ctx_),
+        state_(CREATE),
+        client_(client) {
+    proceed();
+  }
+
+  // Walk through the state machine
+  void proceed();
+  // Callback invoked by concord client after request processing is done
+  void populateResult(grpc::Status);
+  // Forward request to concord client
+  void sendToConcordClient();
+
+  static void updateAggregator();
+  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+  static void setMetricDumpInterval(uint64_t metrics_dump_interval) {
+    metrics_dump_interval_ms_ = metrics_dump_interval;
+  }
 
  private:
   logging::Logger logger_;
+
+  vmware::concord::client::request::v1::RequestService::AsyncService* service_;
+  grpc::ServerCompletionQueue* cq_;
+  grpc::ServerContext ctx_;
+  grpc::ServerAsyncResponseWriter<vmware::concord::client::request::v1::Response> responder_;
+
+  grpc::Alarm callback_alarm_;
+  grpc::Status return_status_;
+
+  vmware::concord::client::request::v1::Request request_;
+  vmware::concord::client::request::v1::Response response_;
+
+  enum RpcState { CREATE, SEND_TO_CONCORDCLIENT, PROCESS_CALLBACK_RESULT, FINISH };
+  RpcState state_;
+
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+
+  static concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::AtomicCounterHandle num_completed_requests;
+    concordMetrics::AtomicCounterHandle num_incoming_requests;
+    concordMetrics::AtomicCounterHandle num_failed_requests;
+  };
+  static Metrics metrics_;
+  static uint64_t metrics_dump_interval_ms_;
 };
+
+}  // namespace requestservice
 
 }  // namespace concord::client::clientservice

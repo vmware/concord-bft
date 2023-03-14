@@ -110,14 +110,9 @@ message EventGroupHash {
   bytes hash = 2;
 }
 
-// Trace contexts are serialized as the below message in Updates sent to clients.
-message W3cTraceContext {
-  map<string, string> key_values = 1;
-}
-
-// See concord_client.proto for documentation on EventGroups.
-// Note: We don't want to depend on concord_client.proto because any change to
-// concord_client.proto would result in a change for the TRS and therefore the
+// See event.proto for documentation on EventGroups.
+// Note: We don't want to depend on event.proto because any change to
+// event.proto would result in a change for the TRS and therefore the
 // replica itself. By keeping them separate we will have an easier time
 // changing/maintaining those two interfaces.
 message EventGroupsRequest {
@@ -127,5 +122,12 @@ message EventGroup {
   uint64 id = 1;
   repeated bytes events = 2;
   google.protobuf.Timestamp record_time = 3;
-  map<string, string> trace_context = 4;
+  bytes trace_context = 4;
+}
+
+// This message is used for *legacy updates* and in *serialized* form only.
+// In addition, the message is used *only* as the interface between TRC and its consumer.
+// See event_update.hpp for the complete data that is transferred to the caller.
+message W3cTraceContext {
+  map<string, string> key_values = 1;
 }

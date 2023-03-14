@@ -36,15 +36,16 @@ Msg LatestPrunableBlock 14 {
    bytes signature
 }
 
+Msg PruneCompactRequest 16 {
+  uint64 sender
+}
+
 Msg PruneRequest 15 {
   uint64 sender
   list LatestPrunableBlock latest_prunable_block
 
-  # TicksGenerator period in seconds.
-  uint32 tick_period_seconds
-
-  # The number of blocks in a pruning batch.
-  uint64 batch_blocks_num
+  # Use fast deletion of blocks
+  bool delete_files_in_range
 }
 
 Msg PruneStatusRequest 17 {
@@ -204,11 +205,6 @@ Msg ClientsAddRemoveExecuteCommand 51 {
     bool restart
 }
 
-Msg ClientTlsExchangeKey 52 {
-    uint64 sender_id
-    list kvpair uint32 string clients_certificates
-}
-
 Msg ClientsRestartCommand 53 {
     uint64 sender_id
     string data
@@ -229,6 +225,13 @@ Msg ReplicaTlsExchangeKey 57 {
     string cert
 }
 
+Msg ReplicaMainKeyUpdate 64 {
+    uint64 sender_id
+    string key
+    string format
+    uint8 algorithm
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -236,15 +239,177 @@ Msg ClientStateReply 39 {
         ClientKeyExchangeCommand
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
-        ClientTlsExchangeKey
         ClientsRestartCommand
         ReplicaTlsExchangeKey
+        ReplicaMainKeyUpdate
       } response
     uint64 epoch
 }
 
 Msg ClientReconfigurationStateReply 49 {
     list ClientStateReply states
+}
+
+Msg DbCheckpointInfo 58 {
+    uint64 seq_num
+    uint64 block_id
+    uint64 timestamp
+}
+
+Msg GetDbCheckpointInfoRequest 59 {
+    uint64 sender_id
+}
+
+Msg GetDbCheckpointInfoStatusResponse 62 {
+    list DbCheckpointInfo db_checkpoint_info
+    string additional_info
+}
+
+Msg CreateDbCheckpointCommand 63 {
+    uint64 sender_id
+}
+
+# Sent by Clientservice to the replicas to request a DB snapshot.
+Msg StateSnapshotRequest 65 {
+  # Checkpoint the state every `checkpoint_kv_count` key-value pairs.
+  # Note: Ignored in this version of the protocol as it only supports state snapshot
+  # for new participant IDs (meaning we will only stream a relatively small amount of public state
+  # and, therefore, we don't need multiple checkpoints).
+  uint64 checkpoint_kv_count
+
+  # The participant ID that requested a snapshot.
+  string participant_id
+}
+
+Enum BlockchainHeightType {
+  EventGroupId,
+  BlockId
+}
+
+Msg StateSnapshotData 66 {
+  # Unique identifier of the DB snapshot.
+  uint64 snapshot_id
+
+  # The blockchain height at which the state snapshot with `snapshot_id` was taken.
+  uint64 blockchain_height
+
+  # The type of the blockchain height in the `blockchain_height` field.
+  BlockchainHeightType blockchain_height_type
+
+  # An estimate (with reasonable accuracy) of the count of key-values contained
+  # in the state snapshot. Please note that this is an estimation and *not* the
+  # actual count.
+  uint64 key_value_count_estimate
+
+  # The time of the last application-level transaction in the given snapshot.
+  # Can be parsed via google::protobuf::util::TimeUtil::FromString().
+  string last_application_transaction_time
+}
+
+# The response to a `StateSnapshotRequest`. Sent by the replicas to Clientservice.
+Msg StateSnapshotResponse 67 {
+  # If `data` is not set, it means that state snapshot is being created at the moment.
+  # The user is required to retry the request after some *random* amount of time has elapsed.
+  optional StateSnapshotData data
+}
+
+# Sent by Clientservice to request the signed hash of the public state at `snapshot_id`.
+Msg SignedPublicStateHashRequest 68 {
+  # Unique identifier of the DB snapshot at which the signed public state hash is requested.
+  uint64 snapshot_id
+
+  # The participant ID that requested the signed public state hash.
+  string participant_id
+}
+
+Msg SignedPublicStateHashData 69 {
+  # The ID of the snapshot for which the signed public state hash was requested.
+  uint64 snapshot_id
+
+  # The ID of the responding replica.
+  uint64 replica_id
+
+  # The block ID at which the public state hash is computed.
+  uint64 block_id
+
+  # The SHA3-256 hash of the public state at `snapshot_id`.
+  fixedlist uint8 32 hash
+}
+
+# Represents the status of a snapshot-related response.
+Enum SnapshotResponseStatus {
+  # Successful response.
+  Success,
+
+  # The snapshot with the given ID is valid, but is still pending creation.
+  # Clientservice is advised to retry.
+  SnapshotPending,
+
+  # A snapshot with the given ID is non-existent.
+  # Clientservice must request a new snapshot ID.
+  SnapshotNonExistent,
+
+  # An internal error has occurred. Clientservice might either retry
+  # or request a new snapshot ID.
+  InternalError
+}
+
+# Returned as replica-specific-information (RSI).
+Msg SignedPublicStateHashResponse 70 {
+  # The status of the response.
+  # Note that `data` and `signature` are only relevant if status is `Success`.
+  SnapshotResponseStatus status
+
+  # The public state hash data.
+  SignedPublicStateHashData data
+
+  # An RSA signature from the responding replica on the serialization of `data`.
+  bytes signature
+}
+
+Msg StateSnapshotReadAsOfRequest 71 {
+  # The ID of the state snapshot as of which to read the values.
+  uint64 snapshot_id
+
+  # The participant ID that requested the values.
+  string participant_id
+
+  # List of keys for which the values should be returned.
+  list string keys
+}
+
+Msg StateSnapshotReadAsOfResponse 72 {
+  # The status of the response.
+  # Note that `values` is only relevant if status is `Success`.
+  SnapshotResponseStatus status
+
+  # The `values` list contains entries for *all* requested keys
+  # in `StateSnapshotReadAsOfRequest.keys` in the exact same order. `values`
+  # is, therefore, the exact same length as `StateSnapshotReadAsOfRequest.keys`.
+  #
+  # If a key-value is either:
+  #  * deleted
+  #  * never set
+  #  * non-public (TODO: will be removed when we support streaming of non-public state),
+  # the value will not be set. Otherwise, it will
+  # be set to the value's bytes as of the requested state snapshot.
+  list optional string values
+}
+
+Msg PruneConfigurationMap 74 {
+   list kvpair uint64 uint64 mapConsensusRateToPruningRate
+}
+
+Msg DbSizeReadRequest 79 {
+    #this is used only for apollo-test
+    uint64 sender_id
+}
+
+Msg DbSizeReadRequestResponse 80 {
+    #this is used only for apollo-test
+    uint64 replica_id
+    # checkpoint id = 0 is used for rocksdb size
+    list kvpair uint64 uint64 mapCheckpointIdDbSize
 }
 
 Msg ReconfigurationRequest 1 {
@@ -256,6 +421,7 @@ Msg ReconfigurationRequest 1 {
     GetVersionCommand
     DownloadCommand
     DownloadStatusCommand
+    PruneCompactRequest
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest
@@ -271,7 +437,6 @@ Msg ReconfigurationRequest 1 {
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
-    ClientTlsExchangeKey
     RestartCommand
     ReplicaTlsExchangeKey
     ClientsAddRemoveCommand
@@ -281,6 +446,13 @@ Msg ReconfigurationRequest 1 {
     ClientsRestartCommand
     ClientsRestartStatus
     ClientsRestartUpdate
+    GetDbCheckpointInfoRequest
+    CreateDbCheckpointCommand
+    ReplicaMainKeyUpdate
+    StateSnapshotRequest
+    SignedPublicStateHashRequest
+    StateSnapshotReadAsOfRequest
+    DbSizeReadRequest
   } command
   bytes additional_data
 }
@@ -303,6 +475,11 @@ Msg ReconfigurationResponse 2 {
     ClientsAddRemoveStatusResponse
     ClientKeyExchangeStatusResponse
     ClientsRestartStatusResponse
+    GetDbCheckpointInfoStatusResponse
+    StateSnapshotResponse
+    SignedPublicStateHashResponse
+    StateSnapshotReadAsOfResponse
+    DbSizeReadRequestResponse
   } response
   bytes additional_data
 }

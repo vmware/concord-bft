@@ -12,7 +12,7 @@
 // file.
 
 #include "ClientImp.h"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 using namespace bftEngine;
 using bft::communication::ICommunication;
@@ -78,18 +78,23 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      cid,
                                      span_context);
   switch (res) {
-    case SUCCESS:
+    case bftEngine::OperationResult::SUCCESS:
       return Status::OK();
-    case NOT_READY:
+    case bftEngine::OperationResult::NOT_READY:
       return Status::InterimError("The system is not ready");
-    case TIMEOUT:
+    case bftEngine::OperationResult::TIMEOUT:
       return Status::GeneralError("Command timed out");
-    case BUFFER_TOO_SMALL:
+    case bftEngine::OperationResult::EXEC_DATA_TOO_LARGE:
       return Status::InvalidArgument("Specified output buffer is too small");
-    case INVALID_REQUEST:
+    case bftEngine::OperationResult::INVALID_REQUEST:
       return Status::InvalidArgument("Request is invalid");
+    case bftEngine::OperationResult::EXEC_DATA_EMPTY:
+      return Status::GeneralError("Execution has not generated the data");
+    case bftEngine::OperationResult::INTERNAL_ERROR:
+      return Status::GeneralError("Internal execution error");
+    default:
+      return Status::GeneralError("Unknown error");
   }
-  return Status::GeneralError("Unknown error");
 }
 
 void ClientImp::setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

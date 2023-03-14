@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "periodic_call.hpp"
-#include "Metrics.hpp"
+#include "util/periodic_call.hpp"
+#include "util/Metrics.hpp"
 #ifdef USE_ROCKSDB
 #include <rocksdb/statistics.h>
 #include <unordered_map>

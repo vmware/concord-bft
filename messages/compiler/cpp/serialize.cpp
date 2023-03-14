@@ -58,6 +58,17 @@ void serialize(std::vector<uint8_t>& output, const T& t) {
 }
 
 template <typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+void serialize(std::string& output, const T& t) {
+  if constexpr (std::is_same_v<T, bool>) {
+    output.push_back(t ? 1 : 0);
+  } else {
+    for (auto i = sizeof(T); i > 0; i--) {
+      output.push_back(255 & (t >> ((i - 1) * 8)));
+    }
+  }
+}
+
+template <typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
 void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
   if constexpr (std::is_same_v<T, bool>) {
     if (start + 1 > end) {
@@ -94,6 +105,11 @@ void serialize(std::vector<uint8_t>& output, const T& t) {
 }
 
 template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+void serialize(std::string& output, const T& t) {
+  serialize(output, static_cast<uint8_t>(t));
+}
+
+template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
 void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
   uint8_t val;
   deserialize(start, end, val);
@@ -109,6 +125,13 @@ void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
  * Strings are preceded by a uint32_t length
  ******************************************************************************/
 [[maybe_unused]] static inline void serialize(std::vector<uint8_t>& output, const std::string& s) {
+  cmfAssert(s.size() <= 0xFFFFFFFF);
+  uint32_t length = s.size() & 0xFFFFFFFF;
+  serialize(output, length);
+  std::copy(s.begin(), s.end(), std::back_inserter(output));
+}
+
+[[maybe_unused]] static inline void serialize(std::string& output, const std::string& s) {
   cmfAssert(s.size() <= 0xFFFFFFFF);
   uint32_t length = s.size() & 0xFFFFFFFF;
   serialize(output, length);
@@ -132,11 +155,15 @@ void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
 template <typename T>
 void serialize(std::vector<uint8_t>& output, const std::vector<T>& v);
 template <typename T>
+void serialize(std::string& output, const std::vector<T>& v);
+template <typename T>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::vector<T>& v);
 
 // Fixed Lists
 template <typename T, std::size_t N>
 void serialize(std::vector<uint8_t>& output, const std::array<T, N>& v);
+template <typename T, std::size_t N>
+void serialize(std::string& output, const std::array<T, N>& v);
 template <typename T, std::size_t N>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::array<T, N>& v);
 
@@ -144,17 +171,23 @@ void deserialize(const uint8_t*& start, const uint8_t* end, std::array<T, N>& v)
 template <typename K, typename V>
 void serialize(std::vector<uint8_t>& output, const std::pair<K, V>& kvpair);
 template <typename K, typename V>
+void serialize(std::string& output, const std::pair<K, V>& kvpair);
+template <typename K, typename V>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::pair<K, V>& kvpair);
 
 // Maps
 template <typename K, typename V>
 void serialize(std::vector<uint8_t>& output, const std::map<K, V>& m);
 template <typename K, typename V>
+void serialize(std::string& output, const std::map<K, V>& m);
+template <typename K, typename V>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::map<K, V>& m);
 
 // Optionals
 template <typename T>
 void serialize(std::vector<uint8_t>& output, const std::optional<T>& t);
+template <typename T>
+void serialize(std::string& output, const std::optional<T>& t);
 template <typename T>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::optional<T>& t);
 
@@ -165,6 +198,16 @@ void deserialize(const uint8_t*& start, const uint8_t* end, std::optional<T>& t)
  ******************************************************************************/
 template <typename T>
 void serialize(std::vector<uint8_t>& output, const std::vector<T>& v) {
+  cmfAssert(v.size() <= 0xFFFFFFFF);
+  uint32_t length = v.size() & 0xFFFFFFFF;
+  serialize(output, length);
+  for (auto& it : v) {
+    serialize(output, it);
+  }
+}
+
+template <typename T>
+void serialize(std::string& output, const std::vector<T>& v) {
   cmfAssert(v.size() <= 0xFFFFFFFF);
   uint32_t length = v.size() & 0xFFFFFFFF;
   serialize(output, length);
@@ -201,6 +244,13 @@ void serialize(std::vector<uint8_t>& output, const std::array<T, N>& a) {
 }
 
 template <typename T, std::size_t N>
+void serialize(std::string& output, const std::array<T, N>& a) {
+  for (auto& it : a) {
+    serialize(output, it);
+  }
+}
+
+template <typename T, std::size_t N>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::array<T, N>& a) {
   if constexpr (std::is_integral_v<T> && sizeof(T) == 1) {
     // Optimized for bytes
@@ -221,6 +271,12 @@ void deserialize(const uint8_t*& start, const uint8_t* end, std::array<T, N>& a)
  ******************************************************************************/
 template <typename K, typename V>
 void serialize(std::vector<uint8_t>& output, const std::pair<K, V>& kvpair) {
+  serialize(output, kvpair.first);
+  serialize(output, kvpair.second);
+}
+
+template <typename K, typename V>
+void serialize(std::string& output, const std::pair<K, V>& kvpair) {
   serialize(output, kvpair.first);
   serialize(output, kvpair.second);
 }
@@ -247,6 +303,16 @@ void serialize(std::vector<uint8_t>& output, const std::map<K, V>& m) {
 }
 
 template <typename K, typename V>
+void serialize(std::string& output, const std::map<K, V>& m) {
+  cmfAssert(m.size() <= 0xFFFFFFFF);
+  uint32_t size = m.size() & 0xFFFFFFFF;
+  serialize(output, size);
+  for (auto& it : m) {
+    serialize(output, it);
+  }
+}
+
+template <typename K, typename V>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::map<K, V>& m) {
   uint32_t size;
   deserialize(start, end, size);
@@ -264,6 +330,14 @@ void deserialize(const uint8_t*& start, const uint8_t* end, std::map<K, V>& m) {
  ******************************************************************************/
 template <typename T>
 void serialize(std::vector<uint8_t>& output, const std::optional<T>& t) {
+  serialize(output, t.has_value());
+  if (t.has_value()) {
+    serialize(output, t.value());
+  }
+}
+
+template <typename T>
+void serialize(std::string& output, const std::optional<T>& t) {
   serialize(output, t.has_value());
   if (t.has_value()) {
     serialize(output, t.value());

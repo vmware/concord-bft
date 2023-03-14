@@ -10,10 +10,14 @@
 // file.
 
 #include "helper.hpp"
+#include "ReplicaConfig.hpp"
 
 typedef std::pair<uint16_t, std::string> IdToKeyPair;
 
-const char replicaPrivateKey[] =
+using concord::crypto::SignatureAlgorithm;
+using bftEngine::ReplicaConfig;
+
+const std::string replicaRSAPrivateKey = {
     "308204BC020100300D06092A864886F70D0101010500048204A6308204A20201000282010100BCC5BEA607F4F52A493AA2F40C2D5482D7CE37"
     "DFC526E98131FDC92CE2ECA6035DB307B182EF52CA8471B78A65E445399816AFACB224F4CEA9597D4B6FE5E84030B7AF78A88BA0233263A9F0"
     "E2658A6E5BE57923D9093B7D6B70FDBAEC3CDA05C5EDE237674A598F5D607A50C1C528EEAE4B690C90820901A01BF4747C39FE6BD6DA535A9B"
@@ -35,8 +39,8 @@ const char replicaPrivateKey[] =
     "4B1D3F7395D5D435E5D2071AD7AF5CB08758355C8686B890CDA88B798612CEFB57CCA85D5109B5A529ECAB80B79CC685D8836ECD6F7FD67D5F"
     "7502818100B33DC57C801E0824CF2C77D6D35EC51E321168DA1DED72238ECF69DF6BD485B19A2A67CFBE87F6819F5872463687295F4091C6D9"
     "9AE98AD08EB45931E761D42D9CE941CEF7DF8A493FEAD8EB571BBBA21EF6403151CB25C71A9BB457D3FB058AA34AB4C1AB474C86293A26D428"
-    "E77960457E2631215FF7B68013877ABCCE4322";
-const std::string pubKey = {
+    "E77960457E2631215FF7B68013877ABCCE4322"};
+const std::string replicaRSAPubKey = {
     "30820120300D06092A864886F70D01010105000382010D00308201080282010100B"
     "CC5BEA607F4F52A493AA2F40C2D5482D7CE37DFC526E981"
     "31FDC92CE2ECA6035DB307B182EF52CA8471B78A65E445399816AFACB224F4CEA95"
@@ -48,14 +52,22 @@ const std::string pubKey = {
     "F6605C909F98B6C3F795354BBB988C9695F8A1E27FFC3CE4FFA64B549DD90727634"
     "04FBD352C5C1A05FA3D17377E113600B1EDCAEE17687BC4"
     "C1AA6F3D020111"};
-const std::vector<std::string> replicasPubKeys = {pubKey, pubKey, pubKey, pubKey, pubKey, pubKey, pubKey};
+const std::string replicaEdDSAPrivateKey = {"09a30490ebf6f6685556046f2497fd9c7df4a552998c9a9b6ebec742e8183174"};
+const std::string replicaEdDSAPubKey = {"7363bc5ab96d7f85e71a5ffe0b284405ae38e2e0f032fb3ffe805d9f0e2d117b"};
 
 void loadPrivateAndPublicKeys(std::string& myPrivateKey,
                               std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
                               ReplicaId myId,
                               size_t numReplicas) {
   ConcordAssert(numReplicas <= 7);
-  myPrivateKey = replicaPrivateKey;
+
+  std::string pubKey;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    myPrivateKey = replicaEdDSAPrivateKey;
+    pubKey = replicaEdDSAPubKey;
+  }
+  const std::vector<std::string> replicasPubKeys{pubKey, pubKey, pubKey, pubKey, pubKey, pubKey, pubKey};
+
   for (size_t i{0}; i < numReplicas; ++i) {
     if (i == myId) continue;
     publicKeysOfReplicas.insert(IdToKeyPair(i, replicasPubKeys[i].c_str()));
@@ -80,7 +92,8 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
   config.debugStatisticsEnabled = true;
-  config.threadbagConcurrency = 8;
+  config.threadbagConcurrencyLevel1 = 16;
+  config.threadbagConcurrencyLevel2 = 8;
 
   loadPrivateAndPublicKeys(config.replicaPrivateKey, config.publicKeysOfReplicas, config.replicaId, config.numReplicas);
 
@@ -91,7 +104,7 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
 
 bftEngine::impl::SigManager* createSigManager(size_t myId,
                                               std::string& myPrivateKey,
-                                              concord::util::crypto::KeyFormat replicasKeysFormat,
+                                              concord::crypto::KeyFormat replicasKeysFormat,
                                               std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
                                               ReplicasInfo& replicasInfo) {
   return SigManager::init(myId,
@@ -99,6 +112,6 @@ bftEngine::impl::SigManager* createSigManager(size_t myId,
                           publicKeysOfReplicas,
                           replicasKeysFormat,
                           nullptr,
-                          concord::util::crypto::KeyFormat::PemFormat,
+                          concord::crypto::KeyFormat::PemFormat,
                           replicasInfo);
 }

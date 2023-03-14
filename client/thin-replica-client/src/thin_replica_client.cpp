@@ -11,18 +11,20 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/thin_replica_client.hpp"
+#include <memory>
+#include <numeric>
+#include <sstream>
+#include <chrono>
+#include <vector>
 
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>
-#include <memory>
-#include <numeric>
-#include <sstream>
 
+#include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trace_contexts.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 using com::vmware::concord::thin_replica::BlockId;
 using com::vmware::concord::thin_replica::Data;
@@ -31,9 +33,14 @@ using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
+using client::concordclient::GrpcConnection;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
+using concord::client::concordclient::UpdateNotFound;
+using concord::client::concordclient::OutOfRangeSubscriptionRequest;
+using concord::client::concordclient::InternalError;
+using concord::client::concordclient::EventUpdateQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -99,29 +106,43 @@ void ThinReplicaClient::recordCollectedHash(size_t update_source,
 bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                                                  HashRecordMap& server_indexes_by_reported_update,
                                                  size_t& maximal_agreeing_subset_size,
-                                                 HashRecord& maximally_agreed_on_update) {
+                                                 HashRecord& maximally_agreed_on_update,
+                                                 size_t& servers_out_of_range,
+                                                 size_t& servers_pruned) {
   Hash hash;
   LOG_DEBUG(logger_, "Read hash from " << server_index);
 
-  TrsConnection::Result read_result = config_->trs_conns[server_index]->readHash(&hash);
-  if (read_result == TrsConnection::Result::kTimeout) {
+  GrpcConnection::Result read_result = config_->trs_conns[server_index]->readHash(&hash);
+  if (read_result == GrpcConnection::Result::kTimeout) {
     LOG_DEBUG(logger_, "Hash stream " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
     return false;
   }
-  if (read_result == TrsConnection::Result::kFailure) {
+  if (read_result == GrpcConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed.");
     metrics_.read_failures_per_update++;
     return false;
   }
-  ConcordAssert(read_result == TrsConnection::Result::kSuccess);
+  if (read_result == GrpcConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed, request out of range.");
+    metrics_.read_failures_per_update++;
+    if (!is_subscription_successful_) servers_out_of_range++;
+    return false;
+  }
+  if (read_result == GrpcConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed, requested update pruned.");
+    metrics_.read_failures_per_update++;
+    servers_pruned++;
+    return false;
+  }
+  ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
   uint64_t hash_id;
   string hash_string;
   if (hash.has_event_group()) {
     hash_id = hash.event_group().event_group_id();
-    ConcordAssert(latest_verified_event_group_id_ <
-                  std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
+    ConcordAssertLT(latest_verified_event_group_id_,
+                    std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     if (hash_id < latest_verified_event_group_id_) {
       LOG_WARN(logger_,
                "Hash stream " << server_index << " gave an update with decreasing event group number: " << hash_id);
@@ -157,7 +178,7 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   }
 
   LOG_DEBUG(logger_, "Record hash for update " << hash_id);
-  ConcordAssert(hash_string.length() <= kThinReplicaHashLength);
+  ConcordAssertLE(hash_string.length(), kThinReplicaHashLength);
   hash_string.resize(kThinReplicaHashLength, '\0');
 
   recordCollectedHash(server_index,
@@ -170,11 +191,12 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   return true;
 }
 
-std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& update_in,
-                                                                         HashRecordMap& agreeing_subset_members,
-                                                                         size_t& most_agreeing,
-                                                                         HashRecord& most_agreed_block,
-                                                                         unique_ptr<LogCid>& cid) {
+std::pair<GrpcConnection::Result, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(
+    Data& update_in,
+    HashRecordMap& agreeing_subset_members,
+    size_t& most_agreeing,
+    HashRecord& most_agreed_block,
+    unique_ptr<LogCid>& cid) {
   if (!config_->trs_conns[data_conn_index_]->hasDataStream()) {
     // It may be the case that there is no data stream open after the data
     // stream was opened or rotated because the initial SubscribeToUpdates call
@@ -182,49 +204,58 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
     // data stream in the same way as if the first read on that stream didn't
     // succeed; therefore readBlock treats not having a data stream when it is
     // called the same as a read failure.
-    return {false, nullptr};
+    return {GrpcConnection::Result::kFailure, nullptr};
   }
 
-  TrsConnection::Result read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
-  if (read_result == TrsConnection::Result::kTimeout) {
+  GrpcConnection::Result read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
+  if (read_result == GrpcConnection::Result::kTimeout) {
     LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " timed out");
     metrics_.read_timeouts_per_update++;
-    return {false, nullptr};
+    return {read_result, nullptr};
   }
-  if (read_result == TrsConnection::Result::kFailure) {
+  if (read_result == GrpcConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed");
     metrics_.read_failures_per_update++;
-    return {false, nullptr};
+    return {read_result, nullptr};
   }
-  ConcordAssert(read_result == TrsConnection::Result::kSuccess);
+  if (read_result == GrpcConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed, request out of range");
+    metrics_.read_failures_per_update++;
+    return {read_result, nullptr};
+  }
+  if (read_result == GrpcConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed, requested update pruned");
+    metrics_.read_failures_per_update++;
+    return {read_result, nullptr};
+  }
+  ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
   uint64_t id;  // block id or event group id
   SpanPtr span;
   if (update_in.has_event_group()) {
     id = update_in.event_group().id();
-    // TODO: Event Group traces
-    span.reset();
-    cid.reset(new LogCid(to_string(id)));
-    ConcordAssert(latest_verified_event_group_id_ <
-                  std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
+    span = TraceContexts::CreateChildSpanFromBinary(update_in.event_group().trace_context(), "trc_read_event_group");
+    cid.reset(new LogCid({}));  // Event groups don't include a correlation id
+    ConcordAssertLT(latest_verified_event_group_id_,
+                    std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     id = update_in.event_group().id();
     if (id < latest_verified_event_group_id_) {
       LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing event group id: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
-      return {false, nullptr};
+      return {read_result, nullptr};
     }
   } else {
     ConcordAssert(update_in.has_events());
     span = TraceContexts::CreateChildSpanFromBinary(
-        update_in.events().span_context(), "trc_read_block", update_in.events().correlation_id(), logger_);
+        update_in.events().span_context(), "trc_read_block", update_in.events().correlation_id());
     cid.reset(new LogCid(update_in.events().correlation_id()));
     id = update_in.events().block_id();
     if (id < latest_verified_block_id_) {
       LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing block number: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
-      return {false, nullptr};
+      return {read_result, nullptr};
     }
   }
 
@@ -236,11 +267,11 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
                       agreeing_subset_members,
                       most_agreeing,
                       most_agreed_block);
-  return {true, std::move(span)};
+  return {read_result, std::move(span)};
 }
 
-TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index) {
-  ConcordAssert(server_index != data_conn_index_);
+GrpcConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index) {
+  ConcordAssertNE(server_index, data_conn_index_);
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
@@ -252,11 +283,13 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
-bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
+void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
                                                HashRecordMap& agreeing_subset_members,
                                                size_t& most_agreeing,
                                                HashRecord& most_agreed_block,
-                                               SpanPtr& parent_span) {
+                                               SpanPtr& parent_span,
+                                               size_t& servers_out_of_range,
+                                               size_t& servers_pruned) {
   SpanPtr span = nullptr;
   if (parent_span) {
     span = opentracing::Tracer::Global()->StartSpan("trclient_verify_hash_against_additional_servers",
@@ -279,52 +312,58 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
       continue;
     }
     if (stop_subscription_thread_) {
-      return false;
+      return;
     }
 
     if (!config_->trs_conns[server_index]->hasHashStream()) {
       LOG_DEBUG(logger_, "Additionally asking " << server_index);
-      TrsConnection::Result stream_open_status = startHashStreamWith(server_index);
+      GrpcConnection::Result stream_open_status = startHashStreamWith(server_index);
 
-      // Assert the possible TrsConnection::Result values have not changed
+      // Assert the possible GrpcConnection::Result values have not changed
       // without updating the following code.
-      ConcordAssert(stream_open_status == TrsConnection::Result::kSuccess ||
-                    stream_open_status == TrsConnection::Result::kTimeout ||
-                    stream_open_status == TrsConnection::Result::kFailure);
+      ConcordAssert(stream_open_status == GrpcConnection::Result::kSuccess ||
+                    stream_open_status == GrpcConnection::Result::kTimeout ||
+                    stream_open_status == GrpcConnection::Result::kFailure ||
+                    stream_open_status == GrpcConnection::Result::kOutOfRange ||
+                    stream_open_status == GrpcConnection::Result::kNotFound);
 
-      if (stream_open_status == TrsConnection::Result::kTimeout) {
+      if (stream_open_status == GrpcConnection::Result::kTimeout) {
         LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " timed out.");
         metrics_.read_timeouts_per_update++;
       }
-      if (stream_open_status == TrsConnection::Result::kFailure) {
+      if (stream_open_status == GrpcConnection::Result::kFailure) {
         LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed.");
         metrics_.read_failures_per_update++;
       }
-      if (stream_open_status != TrsConnection::Result::kSuccess) {
+      if (stream_open_status == GrpcConnection::Result::kOutOfRange) {
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed, request out of range.");
+        metrics_.read_failures_per_update++;
+        if (!is_subscription_successful_) servers_out_of_range++;
+      }
+      if (stream_open_status == GrpcConnection::Result::kNotFound) {
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed, requested update pruned.");
+        metrics_.read_failures_per_update++;
+        servers_pruned++;
+      }
+      if (stream_open_status != GrpcConnection::Result::kSuccess) {
         servers_tried[server_index] = true;
         continue;
       }
     }
 
-    bool has_hash = readUpdateHashFromStream(server_index, agreeing_subset_members, most_agreeing, most_agreed_block);
+    bool has_hash = readUpdateHashFromStream(
+        server_index, agreeing_subset_members, most_agreeing, most_agreed_block, servers_out_of_range, servers_pruned);
     if (!has_hash) unsuccessful_hash_stream_subset_size++;
     servers_tried[server_index] = true;
 
     if (most_agreeing >= (config_->max_faulty + 1)) {
-      return true;
+      return;
     }
   }
-  auto all_servers_tried =
-      std::all_of(servers_tried.begin(), servers_tried.end(), [](bool elem) { return elem == true; });
-  // At all times, total number of hash streams opened are `servers_tried.size() - 1` (the one stream not accounted for
-  // is the data stream)
-  if (all_servers_tried && unsuccessful_hash_stream_subset_size >= servers_tried.size() - 1) {
-    return false;
-  }
-  return true;
+  return;
 }
 
-TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) {
+GrpcConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) {
   ConcordAssertNE(config_->trs_conns[server_index], nullptr);
   config_->trs_conns[server_index]->cancelDataStream();
   config_->trs_conns[server_index]->cancelHashStream();
@@ -339,7 +378,7 @@ TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) 
     request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
   }
 
-  TrsConnection::Result result = config_->trs_conns[server_index]->openDataStream(request);
+  GrpcConnection::Result result = config_->trs_conns[server_index]->openDataStream(request);
 
   data_conn_index_ = server_index;
   return result;
@@ -365,35 +404,36 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
   }
 
   for (const auto server_index : agreeing_subset_members[most_agreed_block]) {
-    ConcordAssert(server_index < config_->trs_conns.size());
+    ConcordAssertLT(server_index, config_->trs_conns.size());
     if (stop_subscription_thread_) {
       return false;
     }
 
-    TrsConnection::Result open_stream_result = resetDataStreamTo(server_index);
+    GrpcConnection::Result open_stream_result = resetDataStreamTo(server_index);
 
-    TrsConnection::Result read_result = TrsConnection::Result::kUnknown;
-    if (open_stream_result == TrsConnection::Result::kSuccess) {
+    GrpcConnection::Result read_result = GrpcConnection::Result::kUnknown;
+    if (open_stream_result == GrpcConnection::Result::kSuccess) {
       read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
     }
-    if (open_stream_result == TrsConnection::Result::kTimeout || read_result == TrsConnection::Result::kTimeout) {
+    if (open_stream_result == GrpcConnection::Result::kTimeout || read_result == GrpcConnection::Result::kTimeout) {
       LOG_DEBUG(logger_, "Read timed out on a data subscription stream (to server index " << server_index << ").");
       metrics_.read_timeouts_per_update++;
       continue;
     }
-    if (open_stream_result == TrsConnection::Result::kFailure || read_result == TrsConnection::Result::kFailure) {
+    if ((open_stream_result == GrpcConnection::Result::kFailure) || (read_result == GrpcConnection::Result::kFailure) ||
+        (read_result == GrpcConnection::Result::kOutOfRange) || (read_result == GrpcConnection::Result::kNotFound)) {
       LOG_DEBUG(logger_, "Read failed on a data subscription stream (to server index " << server_index << ").");
       metrics_.read_failures_per_update++;
       continue;
     }
-    ConcordAssert(open_stream_result == TrsConnection::Result::kSuccess &&
-                  read_result == TrsConnection::Result::kSuccess);
+    ConcordAssertEQ(open_stream_result, GrpcConnection::Result::kSuccess);
+    ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
     string correlation_id;
     uint64_t update_id;  // Block id or event group id
     if (update_in.has_event_group()) {
       update_id = update_in.event_group().id();
-      correlation_id = to_string(update_id);
+      correlation_id = {};  // Event groups don't include a correlation id
     } else {
       ConcordAssert(update_in.has_events());
       update_id = update_in.events().block_id();
@@ -432,24 +472,32 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
   return false;
 }
 
-void ThinReplicaClient::logDataStreamResetResult(const TrsConnection::Result& result, size_t server_index) {
-  // Assert the possible TrsConnection::Result values have not changed without
+void ThinReplicaClient::logDataStreamResetResult(const GrpcConnection::Result& result, size_t server_index) {
+  // Assert the possible GrpcConnection::Result values have not changed without
   // updating the following code.
-  ConcordAssert(result == TrsConnection::Result::kSuccess || result == TrsConnection::Result::kTimeout ||
-                result == TrsConnection::Result::kFailure);
+  ConcordAssert(result == GrpcConnection::Result::kSuccess || result == GrpcConnection::Result::kTimeout ||
+                result == GrpcConnection::Result::kFailure);
 
-  if (result == TrsConnection::Result::kTimeout) {
+  if (result == GrpcConnection::Result::kTimeout) {
     LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
   }
-  if (result == TrsConnection::Result::kFailure) {
+  if (result == GrpcConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed.");
+    metrics_.read_failures_per_update++;
+  }
+  if (result == GrpcConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed, request out of range.");
+    metrics_.read_failures_per_update++;
+  }
+  if (result == GrpcConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed, requested update pruned.");
     metrics_.read_failures_per_update++;
   }
 }
 
 void ThinReplicaClient::receiveUpdates() {
-  ConcordAssert(config_->trs_conns.size() > 0);
+  ConcordAssertGT(config_->trs_conns.size(), 0);
 
   if (stop_subscription_thread_) {
     LOG_WARN(logger_, "Need to stop receiving updates");
@@ -476,53 +524,80 @@ void ThinReplicaClient::receiveUpdates() {
     unique_ptr<LogCid> update_cid;
     SpanPtr span = nullptr;
     vector<bool> servers_tried(config_->trs_conns.size(), false);
+    // indicates the number of servers in one iteration of the while loop have returned OUT_OF_RANGE error
+    size_t servers_out_of_range = 0;
+    // indicates the number of servers in one iteration of the while loop have returned NOT_FOUND error
+    size_t servers_pruned = 0;
 
     HashRecordMap agreeing_subset_members;
     HashRecord most_agreed_block;
+    GrpcConnection::Result read_result;
     size_t most_agreeing = 0;
     bool has_data = false;
-    bool has_hash_updates = false;
     bool has_verified_data = false;
+    uint64_t update_id = 0;
 
     // First, we collect updates from all subscription streams we have which
     // are already open, starting with the data stream and followed by any hash
     // streams.
     LOG_DEBUG(logger_, "Read from data stream " << data_conn_index_);
-    std::tie(has_data, span) =
+    std::tie(read_result, span) =
         readBlock(update_in, agreeing_subset_members, most_agreeing, most_agreed_block, update_cid);
+    has_data = (read_result != GrpcConnection::Result::kSuccess) ? false : true;
     servers_tried[data_conn_index_] = true;
 
-    uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
+    if (read_result == GrpcConnection::Result::kOutOfRange && !is_subscription_successful_) {
+      servers_out_of_range++;
+    } else if (read_result == GrpcConnection::Result::kNotFound) {
+      servers_pruned++;
+    }
+
+    if (has_data) {
+      update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
+    }
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
-    has_hash_updates =
-        findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
+    findBlockHashAgreement(servers_tried,
+                           agreeing_subset_members,
+                           most_agreeing,
+                           most_agreed_block,
+                           span,
+                           servers_out_of_range,
+                           servers_pruned);
     if (stop_subscription_thread_) {
       break;
     }
 
     // At this point we need to have agreeing servers.
     if (most_agreeing < (config_->max_faulty + 1)) {
+      // let's return if f+1 replicas have mismatching hashes
+      size_t servers_with_hash = 0;
+      bool hash_has_agreement = false;
+      for (HashRecordMap::iterator it = agreeing_subset_members.begin(); it != agreeing_subset_members.end(); ++it) {
+        servers_with_hash += it->second.size();
+        if (it->second.size() > (config_->max_faulty + 1)) hash_has_agreement = true;
+      }
+      if (servers_with_hash >= (2 * config_->max_faulty + 1) && !hash_has_agreement) {
+        std::string msg{"Internal Error: Couldn't find agreement, 2f+1 replicas generated mismatching hashes"};
+        LOG_ERROR(logger_, msg);
+        throw InternalError();
+      }
       // print the warning every minute to avoid flooding with logs
-      std::string no_agreement_msg = "Couldn't find agreement amongst all servers. Try again.";
-      std::string no_update_msg = "No new update from replicas";
+      std::string no_update_msg = "Waiting for ";
+      if (is_event_group_request_) {
+        no_update_msg += "event group " + std::to_string(latest_verified_event_group_id_ + 1);
+      } else {
+        no_update_msg += "block " + std::to_string(latest_verified_block_id_ + 1);
+      }
       auto current_time = std::chrono::steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
-        if (!has_data && !has_hash_updates) {
-          LOG_WARN(logger_, no_update_msg);
-        } else {
-          LOG_WARN(logger_, no_agreement_msg);
-        }
+        LOG_WARN(logger_, no_update_msg);
         last_non_agreement_time = current_time;
       } else {
         auto time_since_last_log =
             std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
         if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
-          if (!has_data && !has_hash_updates) {
-            LOG_WARN(logger_, no_update_msg);
-          } else {
-            LOG_WARN(logger_, no_agreement_msg);
-          }
+          LOG_WARN(logger_, no_update_msg);
           last_non_agreement_time = current_time;
         }
       }
@@ -532,6 +607,18 @@ void ThinReplicaClient::receiveUpdates() {
       // we do exactly what the algorithm would do in the next iteration of this
       // loop anyways.
       closeAllHashStreams();
+      // Throw OutOfRangeSubscriptionRequest error if f+1 servers out of range in the first round of subscription
+      if (!is_subscription_successful_ && servers_out_of_range >= (config_->max_faulty + 1)) {
+        std::string msg{"Out of range subscription request"};
+        LOG_ERROR(logger_, msg);
+        throw OutOfRangeSubscriptionRequest();
+      }
+      // Throw UpdateNotFound error if requested update pruned at f+1 servers in this subscription round
+      if (servers_pruned >= (config_->max_faulty + 1)) {
+        std::string msg{"Requested update has been pruned"};
+        LOG_ERROR(logger_, msg);
+        throw UpdateNotFound();
+      }
       size_t new_data_index = (data_conn_index_ + 1) % config_->trs_conns.size();
       logDataStreamResetResult(resetDataStreamTo(new_data_index), new_data_index);
       continue;
@@ -562,6 +649,13 @@ void ThinReplicaClient::receiveUpdates() {
     }
 
     ConcordAssert(has_verified_data);
+
+    // if initial call to readBlock failed, reset update_id with most_agreed_block iD
+    if (!has_data) {
+      update_id = most_agreed_block.id;
+    }
+
+    is_subscription_successful_ = true;
     LOG_DEBUG(logger_, "Read and verified data for update " << update_id);
 
     ConcordAssertNE(config_->update_queue, nullptr);
@@ -574,7 +668,6 @@ void ThinReplicaClient::receiveUpdates() {
         event_group.events.push_back(event);
       }
       event_group.record_time = update_in.event_group().record_time();
-      // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
       update->emplace<EventGroup>(std::move(event_group));
       // If we started with a legacy request then the transition has happened now
@@ -589,8 +682,8 @@ void ThinReplicaClient::receiveUpdates() {
       }
       latest_verified_block_id_ = legacy_event.block_id;
       update->emplace<Update>(std::move(legacy_event));
-      TraceContexts::InjectSpan(span, *update);
     }
+    TraceContexts::InjectSpan(span, *update);
 
     if (metrics_.read_timeouts_per_update.Get().Get() > 0 || metrics_.read_failures_per_update.Get().Get() > 0 ||
         metrics_.read_ignored_per_update.Get().Get() > 0) {
@@ -602,6 +695,8 @@ void ThinReplicaClient::receiveUpdates() {
 
     // Push update to update queue for consumption before receiving next update
     pushUpdateToUpdateQueue(std::move(update), start, update_in.has_event_group());
+    // Reset read timeout, failure and ignored metrics before the next update
+    resetMetricsBeforeNextUpdate();
 
     // Cleanup before the next update
 
@@ -623,26 +718,21 @@ void ThinReplicaClient::receiveUpdates() {
 void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
-  // update current queue size metric before pushing to the update_queue
-  metrics_.current_queue_size.Get().Set(config_->update_queue->size());
-
-  // push update to the update queue for consumption by the application using
-  // TRC
+  // push update to the update queue for consumption by the application using TRC
   config_->update_queue->push(std::move(update));
+  auto update_queue_size = config_->update_queue->size();
+  metrics_.current_queue_size.Get().Set(update_queue_size);
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  metrics_.update_dur_ms.Get().Set((uint64_t)(duration.count()));
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  metrics_.update_duration_microsec.Get().Set(duration.count());
 
   if (is_event_group) {
     metrics_.last_verified_event_group_id.Get().Set(latest_verified_event_group_id_);
   } else {
     metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
   }
-
-  // Reset read timeout, failure and ignored metrics before the next update
-  resetMetricsBeforeNextUpdate();
 }
 
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
@@ -656,12 +746,16 @@ ThinReplicaClient::~ThinReplicaClient() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
+    }
   }
 }
 
 void ThinReplicaClient::Subscribe() {
-  ConcordAssert(config_->trs_conns.size() > 0);
+  ConcordAssertGT(config_->trs_conns.size(), 0);
   // XXX: The following implementation does not achieve Subscribe's specified
   //      interface and behavior (see the comments with Subscribe's declaration
   //      in the Thin Replica Client Library header file for documentation of
@@ -675,7 +769,12 @@ void ThinReplicaClient::Subscribe() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
+      throw;
+    }
     subscription_thread_.reset();
   }
   is_event_group_request_ = false;
@@ -693,8 +792,8 @@ void ThinReplicaClient::Subscribe() {
 
     LOG_DEBUG(logger_, "Read state from " << data_server_index);
     ReadStateRequest request;
-    TrsConnection::Result stream_open_result = config_->trs_conns[data_server_index]->openStateStream(request);
-    if (stream_open_result == TrsConnection::Result::kTimeout) {
+    GrpcConnection::Result stream_open_result = config_->trs_conns[data_server_index]->openStateStream(request);
+    if (stream_open_result == GrpcConnection::Result::kTimeout) {
       LOG_WARN(logger_,
                "While trying to fetch initial state for a subscription, "
                "ThinReplicaClient timed out an attempt to open a stream "
@@ -702,7 +801,7 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    if (stream_open_result == TrsConnection::Result::kFailure) {
+    if (stream_open_result == GrpcConnection::Result::kFailure) {
       LOG_WARN(logger_,
                "While trying to fetch initial state for a subscription, "
                "ThinReplicaClient failed to open a stream to read the "
@@ -710,12 +809,12 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    ConcordAssert(stream_open_result == TrsConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssertOR(stream_open_result == GrpcConnection::Result::kSuccess, received_state_invalid);
 
     Data response;
-    TrsConnection::Result read_result = TrsConnection::Result::kUnknown;
+    GrpcConnection::Result read_result = GrpcConnection::Result::kUnknown;
     while (!received_state_invalid && (read_result = config_->trs_conns[data_server_index]->readState(&response)) ==
-                                          TrsConnection::Result::kSuccess) {
+                                          GrpcConnection::Result::kSuccess) {
       // ReadState is supported for legacy events only
       ConcordAssert(response.has_events());
       if ((state.size() > 0) && (response.events().block_id() < block_id)) {
@@ -739,9 +838,9 @@ void ThinReplicaClient::Subscribe() {
         state.push_back(move(update));
       }
     }
-    ConcordAssert(received_state_invalid || read_result == TrsConnection::Result::kFailure ||
-                  read_result == TrsConnection::Result::kTimeout);
-    if (read_result == TrsConnection::Result::kTimeout) {
+    ConcordAssert(received_state_invalid || read_result == GrpcConnection::Result::kFailure ||
+                  read_result == GrpcConnection::Result::kTimeout);
+    if (read_result == GrpcConnection::Result::kTimeout) {
       LOG_WARN(logger_,
                "While trying to fetch initial state for a subscription, "
                "ThinReplicaClient timed out an attempt to read an update "
@@ -750,8 +849,8 @@ void ThinReplicaClient::Subscribe() {
       received_state_invalid = true;
     }
 
-    TrsConnection::Result stream_close_result = config_->trs_conns[data_server_index]->closeStateStream();
-    if (stream_close_result == TrsConnection::Result::kTimeout) {
+    GrpcConnection::Result stream_close_result = config_->trs_conns[data_server_index]->closeStateStream();
+    if (stream_close_result == GrpcConnection::Result::kTimeout) {
       LOG_WARN(logger_,
                "While trying to fetch initial state for a subscription, "
                "ThinReplicaClient timed out an attempt to properly close "
@@ -759,7 +858,7 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    if (stream_close_result == TrsConnection::Result::kFailure) {
+    if (stream_close_result == GrpcConnection::Result::kFailure) {
       LOG_WARN(logger_,
                "While trying to fetch initial state for a subscription, "
                "ThinReplicaClient failed to properly close a completed "
@@ -767,7 +866,7 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    ConcordAssert(stream_close_result == TrsConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssertOR(stream_close_result == GrpcConnection::Result::kSuccess, received_state_invalid);
 
     LOG_DEBUG(logger_, "Got initial state from " << data_server_index);
 
@@ -790,26 +889,26 @@ void ThinReplicaClient::Subscribe() {
       Hash hash_response;
       ReadStateHashRequest hash_request;
       hash_request.mutable_events()->set_block_id(block_id);
-      TrsConnection::Result read_hash_result =
+      GrpcConnection::Result read_hash_result =
           config_->trs_conns[hash_server_index]->readStateHash(hash_request, &hash_response);
       hash_server_index++;
 
       // Check whether the hash came back with an ok status, matches the Block
       // ID we requested, and matches the hash we computed locally of the data,
       // and only count it as agreeing if we complete all this verification.
-      if (read_hash_result == TrsConnection::Result::kTimeout) {
+      if (read_hash_result == GrpcConnection::Result::kTimeout) {
         LOG_WARN(logger_,
                  "ThinReplicaClient timed out a call to ReadStateHash to server "
                      << hash_server_index - 1 << " (requested Block ID: " << block_id << ").");
         continue;
       }
-      if (read_hash_result == TrsConnection::Result::kFailure) {
+      if (read_hash_result == GrpcConnection::Result::kFailure) {
         LOG_WARN(logger_,
                  "Server " << hash_server_index - 1
                            << " gave error response to ReadStateHash (requested Block ID: " << block_id << ").");
         continue;
       }
-      ConcordAssert(read_hash_result == TrsConnection::Result::kSuccess);
+      ConcordAssertEQ(read_hash_result, GrpcConnection::Result::kSuccess);
       if (hash_response.events().block_id() != block_id) {
         LOG_WARN(logger_,
                  "Server " << hash_server_index - 1
@@ -853,10 +952,13 @@ void ThinReplicaClient::Subscribe() {
     state.pop_front();
   }
   latest_verified_block_id_ = block_id;
+  metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
+  metrics_.current_queue_size.Get().Set(config_->update_queue->size());
+
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(uint64_t block_id) {
@@ -864,10 +966,16 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
+      throw;
+    }
     subscription_thread_.reset();
   }
 
+  LOG_INFO(logger_, "Subscribing to block ID: " << block_id);
   config_->update_queue->clear();
   latest_verified_block_id_ = block_id > 0 ? block_id - 1 : block_id;
   latest_verified_event_group_id_ = 0;
@@ -876,7 +984,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
@@ -884,10 +992,16 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
+      throw;
+    }
     subscription_thread_.reset();
   }
 
+  LOG_INFO(logger_, "Subscribing to update ID: " << req.event_group_id);
   config_->update_queue->clear();
   // We assume that the latest known event group for the caller is the event group prior to the requested one.
   latest_verified_event_group_id_ = req.event_group_id > 0 ? req.event_group_id - 1 : req.event_group_id;
@@ -896,7 +1010,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 // This is a placeholder implementation as the Unsubscribe gRPC call is not yet
@@ -914,12 +1028,17 @@ void ThinReplicaClient::Unsubscribe() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
+      throw;
+    }
     subscription_thread_.reset();
   }
 
   size_t server_to_send_unsubscription_to = 0;
-  ConcordAssert(config_->trs_conns.size() > server_to_send_unsubscription_to);
+  ConcordAssertGT(config_->trs_conns.size(), server_to_send_unsubscription_to);
   ConcordAssertNE(config_->trs_conns[server_to_send_unsubscription_to], nullptr);
 }
 
@@ -938,8 +1057,19 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   AckMessage.set_block_id(block_id);
 
   size_t server_to_acknowledge_to = 0;
-  ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
+  ConcordAssertGT(config_->trs_conns.size(), server_to_acknowledge_to);
   ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
+}
+
+// Wrapper for receiveUpdates to forward exceptions
+void ThinReplicaClient::receiveUpdatesWrapper() {
+  try {
+    receiveUpdates();
+  } catch (...) {
+    // Set exception and quit receiveUpdates
+    config_->update_queue->setException(std::current_exception());
+    stop_subscription_thread_ = true;
+  }
 }
 
 }  // namespace client::thin_replica_client

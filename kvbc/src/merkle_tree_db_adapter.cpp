@@ -15,11 +15,10 @@
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "Logger.hpp"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "sparse_merkle/histograms.h"
-#include "status.hpp"
-#include "string.hpp"
+#include "util/status.hpp"
+#include "util/string.hpp"
 
 #include <exception>
 #include <iterator>
@@ -28,6 +27,7 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include "log/logger.hpp"
 
 namespace concord::kvbc::v2MerkleTree {
 
@@ -503,6 +503,8 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates, const OrderedKeys
 
   return addedBlockId;
 }
+
+void DBAdapter::linkUntilBlockId(BlockId until_block_id) { throw std::runtime_error{"Not implemented!"}; }
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates) { return addBlock(updates, OrderedKeysSet{}); }
 

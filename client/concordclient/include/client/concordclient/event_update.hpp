@@ -14,10 +14,12 @@
 #pragma once
 
 #include <google/protobuf/timestamp.pb.h>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <variant>
 #include <vector>
+
+#include "client/concordclient/thread_safe_queue.hpp"
 
 namespace concord::client::concordclient {
 
@@ -27,7 +29,7 @@ struct EventGroup {
   google::protobuf::Timestamp record_time;
   // This map follows the W3C specification for trace context.
   // https://www.w3.org/TR/trace-context/#trace-context-http-headers-format
-  std::map<std::string, std::string> trace_context;
+  std::unordered_map<std::string, std::string> trace_context;
 };
 
 // LegacyEvent
@@ -47,5 +49,8 @@ struct Update {
 };
 
 typedef std::variant<Update, EventGroup> EventVariant;
+
+using EventUpdateQueue = IQueue<EventVariant>;
+using BasicEventUpdateQueue = BasicThreadSafeQueue<EventVariant>;
 
 }  // namespace concord::client::concordclient

@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "ReplicaStatusMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

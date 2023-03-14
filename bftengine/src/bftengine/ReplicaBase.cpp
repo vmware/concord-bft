@@ -11,8 +11,9 @@
 
 #include <chrono>
 #include "ReplicaBase.hpp"
-#include "assertUtils.hpp"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"
@@ -33,7 +34,6 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
       metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
       timers_{timers} {
-  LOG_INFO(GL, "");
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 }
 
@@ -49,7 +49,7 @@ void ReplicaBase::start() {
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
     if (currTime - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
       last_metrics_dump_time_ = currTime;
-      LOG_INFO(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
+      LOG_DEBUG(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
     }
   });
   msgsCommunicator_->startCommunication(config_.replicaId);
@@ -69,7 +69,7 @@ bool ReplicaBase::isRunning() const { return msgsCommunicator_->isMsgsProcessing
 
 void ReplicaBase::sendToAllOtherReplicas(MessageBase* m, bool includeRo) {
   MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
-  LOG_DEBUG(MSGS, "Sending msg type: " << type << " to all replicas.");
+  LOG_DEBUG(CNSUS, "Sending msg type: " << type << " to all replicas.");
 
   const auto& ids = repsInfo->idsOfPeerReplicas();
   std::set<bft::communication::NodeNum> replicas;
@@ -87,9 +87,9 @@ void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (config_.debugStatisticsEnabled) DebugStatistics::onSendExMessage(m->type());
   MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
 
-  LOG_DEBUG(MSGS, "sending msg type: " << type << ", dest: " << dest);
+  LOG_DEBUG(CNSUS, "sending msg type: " << type << ", dest: " << dest);
   if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
-    LOG_ERROR(MSGS, "sendAsyncMessage failed: " << KVLOG(type, dest));
+    LOG_ERROR(CNSUS, "sendAsyncMessage failed: " << KVLOG(type, dest));
   }
 }
 

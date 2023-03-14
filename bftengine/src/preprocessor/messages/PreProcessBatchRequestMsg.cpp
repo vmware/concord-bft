@@ -10,7 +10,7 @@
 // file.
 
 #include "PreProcessBatchRequestMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "SigManager.hpp"
 namespace preprocessor {
 
@@ -21,10 +21,11 @@ PreProcessBatchRequestMsg::PreProcessBatchRequestMsg(RequestType reqType,
                                                      NodeIdType senderId,
                                                      const PreProcessReqMsgsList& batch,
                                                      const string& cid,
-                                                     uint32_t requestsSize)
+                                                     uint32_t requestsSize,
+                                                     ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessBatchRequest, 0, sizeof(Header) + requestsSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize);
+  setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize, viewNum);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -44,16 +45,16 @@ void PreProcessBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessBatchRequest) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
   if (!checkElements()) {
-    LOG_ERROR(logger(), "One or more PreProcessReqMsg in the list is invalid");
+    LOG_WARN(logger(), "One or more PreProcessReqMsg in the list is invalid");
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 }
@@ -62,7 +63,7 @@ bool PreProcessBatchRequestMsg::checkElements() const {
   const auto totalMsgSize = size();
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   if (!numOfMessagesInBatch || (numOfMessagesInBatch > MAX_BATCH_SIZE)) {
-    LOG_ERROR(logger(), KVLOG(numOfMessagesInBatch));
+    LOG_WARN(logger(), KVLOG(numOfMessagesInBatch));
     return false;
   }
   char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
@@ -74,13 +75,13 @@ bool PreProcessBatchRequestMsg::checkElements() const {
     auto expectedSigLen = (isClientTransactionSigningEnabled ? sigManager->getSigLength(clientId) : 0);
     if ((expectedSigLen != singleMsgHeader.reqSignatureLength) || (totalMsgSize < singleMsgHeader.requestLength) ||
         (totalMsgSize < singleMsgHeader.cidLength)) {
-      LOG_ERROR(logger(),
-                KVLOG(clientId,
-                      totalMsgSize,
-                      expectedSigLen,
-                      singleMsgHeader.reqSignatureLength,
-                      singleMsgHeader.requestLength,
-                      singleMsgHeader.cidLength));
+      LOG_WARN(logger(),
+               KVLOG(clientId,
+                     totalMsgSize,
+                     expectedSigLen,
+                     singleMsgHeader.reqSignatureLength,
+                     singleMsgHeader.requestLength,
+                     singleMsgHeader.cidLength));
       return false;
     }
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
@@ -89,14 +90,19 @@ bool PreProcessBatchRequestMsg::checkElements() const {
   return true;
 }
 
-void PreProcessBatchRequestMsg::setParams(
-    uint16_t clientId, NodeIdType senderId, RequestType reqType, uint32_t numOfMessagesInBatch, uint32_t requestsSize) {
+void PreProcessBatchRequestMsg::setParams(uint16_t clientId,
+                                          NodeIdType senderId,
+                                          RequestType reqType,
+                                          uint32_t numOfMessagesInBatch,
+                                          uint32_t requestsSize,
+                                          ViewNum viewNum) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->clientId = clientId;
   header->senderId = senderId;
   header->numOfMessagesInBatch = numOfMessagesInBatch;
   header->requestsSize = requestsSize;
+  header->viewNum = viewNum;
 }
 
 string PreProcessBatchRequestMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
@@ -130,6 +136,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             singleMsgHeader.primaryBlockId,
+                                                                            singleMsgHeader.viewNum,
                                                                             spanContext);
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +

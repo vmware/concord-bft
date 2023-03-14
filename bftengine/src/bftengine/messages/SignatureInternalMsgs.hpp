@@ -14,7 +14,7 @@
 #include <set>
 #include <vector>
 
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 
 namespace bftEngine::impl {
@@ -73,6 +73,45 @@ struct VerifyCombinedCommitSigResultInternalMsg {
   const bool isValid;
 
   VerifyCombinedCommitSigResultInternalMsg(SeqNum s, ViewNum v, bool result) : seqNumber{s}, view{v}, isValid{result} {}
+};
+
+struct FastPathCombinedCommitSigSucceededInternalMsg {
+  const SeqNum seqNumber;
+  const ViewNum view;
+  const CommitPath commitPath;
+  const std::vector<char> combinedSig;
+  concordUtils::SpanContext span_context_;
+
+  FastPathCombinedCommitSigSucceededInternalMsg(SeqNum s,
+                                                ViewNum v,
+                                                CommitPath cPath,
+                                                const char* sig,
+                                                uint16_t sigLen,
+                                                const concordUtils::SpanContext& span_context)
+      : seqNumber{s}, view{v}, commitPath{cPath}, combinedSig(sig, sig + sigLen), span_context_{span_context} {}
+};
+
+struct FastPathCombinedCommitSigFailedInternalMsg {
+  const SeqNum seqNumber;
+  const ViewNum view;
+  const CommitPath commitPath;
+  const std::set<uint16_t> replicasWithBadSigs;
+
+  FastPathCombinedCommitSigFailedInternalMsg(SeqNum s,
+                                             ViewNum v,
+                                             CommitPath cPath,
+                                             const std::set<uint16_t>& repsWithBadSigs)
+      : seqNumber{s}, view{v}, commitPath(cPath), replicasWithBadSigs{repsWithBadSigs} {}
+};
+
+struct FastPathVerifyCombinedCommitSigResultInternalMsg {
+  const SeqNum seqNumber;
+  const ViewNum view;
+  const CommitPath commitPath;
+  const bool isValid;
+
+  FastPathVerifyCombinedCommitSigResultInternalMsg(SeqNum s, ViewNum v, CommitPath cPath, bool result)
+      : seqNumber{s}, view{v}, commitPath(cPath), isValid{result} {}
 };
 
 }  // namespace bftEngine::impl

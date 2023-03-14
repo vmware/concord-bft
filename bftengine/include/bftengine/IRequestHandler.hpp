@@ -20,7 +20,7 @@
 #include <string>
 #include <functional>
 #include <deque>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "TimeService.hpp"
 
 namespace concord::reconfiguration {
@@ -33,6 +33,10 @@ class CronTableRegistry;
 }
 
 namespace bftEngine {
+namespace impl {
+class PersistentStorage;
+}
+
 class IRequestsHandler {
  public:
   struct ExecutionRequest {
@@ -46,9 +50,11 @@ class IRequestsHandler {
     uint32_t maxReplySize = 0;
     char *outReply = nullptr;
     uint64_t requestSequenceNum = executionSequenceNum;
+    uint16_t reqIndexInClientBatch = 0;
+    uint32_t outExecutionStatus = 1;  // UNKNOWN
     uint32_t outActualReplySize = 0;
+    uint32_t outRequiredReplySize = 0;  // In case of a failure e.g OperationResult::EXEC_DATA_TOO_LARGE
     uint32_t outReplicaSpecificInfoSize = 0;
-    int outExecutionStatus = 1;
     uint64_t blockId = 0;
   };
 
@@ -61,20 +67,27 @@ class IRequestsHandler {
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 
+  virtual void preExecute(IRequestsHandler::ExecutionRequest &req,
+                          std::optional<Timestamp> timestamp,
+                          const std::string &batchCid,
+                          concordUtils::SpanWrapper &parent_span) = 0;
+
   virtual void onFinishExecutingReadWriteRequests() {}
 
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> getReconfigurationHandler() const {
     return reconfig_handler_;
   }
   virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                          concord::reconfiguration::ReconfigurationHandlerType type =
                                              static_cast<concord::reconfiguration::ReconfigurationHandlerType>(1)) {
-    reconfig_handler_ = rh;
+    (void)type;
+    reconfig_handler_.push_back(rh);
   }
+  virtual void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {}
 
   virtual ~IRequestsHandler() = default;
 
  protected:
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> reconfig_handler_;
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> reconfig_handler_;
 };
 }  // namespace bftEngine

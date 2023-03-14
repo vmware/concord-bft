@@ -12,7 +12,8 @@
 // file.
 
 #include "categorization/blockchain.h"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace concord::kvbc::categorization::detail {
 

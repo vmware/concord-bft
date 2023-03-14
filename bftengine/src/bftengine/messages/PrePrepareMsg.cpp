@@ -11,13 +11,15 @@
 
 #include <utility>
 #include <bftengine/ClientMsgs.hpp>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
 #include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
 #include "RequestThreadPool.hpp"
 #include "EpochManager.hpp"
+
+using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -41,35 +43,46 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
   char* requestBody = nullptr;
   size_t local_id = 0;
 
-  while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-    char* sig = req.requestSignature();
-    if (sig != nullptr) {
-      sigOrDigestOfRequest[local_id].first = sig;
-      sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
-    } else {
-      tasks.push_back(RequestThreadPool::getThreadPool().async(
-          [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
-            DigestUtil::compute(request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
-            sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
-            sigOrDigestOfRequest[local_id].second = sizeof(Digest);
-          },
-          req.body(),
-          req.size()));
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  try {
+    static auto& threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
+
+    while (it.getAndGoToNext(requestBody)) {
+      ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
+      char* sig = req.requestSignature();
+      if (sig != nullptr) {
+        sigOrDigestOfRequest[local_id].first = sig;
+        sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
+      } else {
+        tasks.push_back(threadPool.async(
+            [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
+              DigestGenerator().compute(
+                  request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
+              sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
+              sigOrDigestOfRequest[local_id].second = sizeof(Digest);
+            },
+            req.body(),
+            req.size()));
+      }
+      local_id++;
     }
-    local_id++;
-  }
-  for (const auto& t : tasks) {
-    t.wait();
-  }
+    for (const auto& t : tasks) {
+      t.wait();
+    }
 
-  std::string sigOrDig;
-  for (const auto& sod : sigOrDigestOfRequest) {
-    sigOrDig.append(sod.first, sod.second);
-  }
+    std::string sigOrDig;
+    for (const auto& sod : sigOrDigestOfRequest) {
+      sigOrDig.append(sod.first, sod.second);
+    }
+    sigOrDig.append(std::to_string(b()->time));
 
-  // compute and set digest
-  DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+    // compute and set digest
+    DigestGenerator().compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+  } catch (std::out_of_range& ex) {
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest threadpool"));
+  }
 }
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
@@ -116,13 +129,21 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
     : PrePrepareMsg(sender, v, s, firstPath, concordUtils::SpanContext{}, size) {}
 
+// Sequence number provided in the PPM at the time of constructor call might change later
+// This will result into allotment of next available sequence number. As the sequence number
+// is a monotonically increasing series, the next available sequence number will be greater
+// than the sequence number allocated and with a probability of 1/(10^digits(seqNum)), the
+// next available seq number is having one more digit. As this probability is decreasing
+// exponentially for higher digits, the case of seq number with next digit is only taken care,
+// and a 0 is prefixed.
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : PrePrepareMsg::PrePrepareMsg(sender, v, s, firstPath, spanContext, std::to_string(s), size) {}
+    : PrePrepareMsg::PrePrepareMsg(
+          sender, v, s, firstPath, spanContext, std::string(1, '0') + std::to_string(s), size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
@@ -131,12 +152,13 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              const concordUtils::SpanContext& spanContext,
                              const std::string& batchCid,
                              size_t size)
-    : MessageBase(sender,
-                  MsgCode::PrePrepare,
-                  spanContext.data().size(),
-                  (((size + sizeof(Header) + batchCid.size()) < maxMessageSize<PrePrepareMsg>())
-                       ? (size + sizeof(Header) + batchCid.size())
-                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size())) {
+    : MessageBase(
+          sender,
+          MsgCode::PrePrepare,
+          spanContext.data().size(),
+          (((size + sizeof(Header) + batchCid.size()) + spanContext.data().size() < maxMessageSize<PrePrepareMsg>())
+               ? (size + sizeof(Header) + batchCid.size())
+               : maxMessageSize<PrePrepareMsg>() - spanContext.data().size())) {
   bool ready = size == 0;  // if null, then message is ready
   if (!ready) {
     b()->digestOfRequests.makeZero();
@@ -150,6 +172,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->viewNum = v;
+  b()->time = 0;
 
   char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
@@ -195,7 +218,11 @@ void PrePrepareMsg::finishAddingRequests() {
   b()->flags |= 0x2;
   ConcordAssert(isReady());
 
-  calculateDigestOfRequests(b()->digestOfRequests);
+  try {
+    calculateDigestOfRequests(b()->digestOfRequests);
+  } catch (std::runtime_error& ex) {
+    ConcordAssert(false);
+  }
 
   // size
   setMsgSize(b()->endLocationOfLastRequest);
@@ -255,25 +282,13 @@ bool PrePrepareMsg::checkRequests() const {
   ConcordAssert(false);
   return false;
 }
-const std::string PrePrepareMsg::getClientCorrelationIdForMsg(int index) const {
-  auto it = RequestsIterator(this);
-  int req_num = 0;
-  while (!it.end() && req_num < index) {
-    it.gotoNext();
-    req_num++;
-  }
-  if (it.end()) return std::string();
-  char* requestBody = nullptr;
-  it.getCurrent(requestBody);
-  return ClientRequestMsg((ClientRequestMsgHeader*)requestBody).getCid();
-}
 
 const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   std::string ret;
   auto it = RequestsIterator(this);
   char* requestBody = nullptr;
   while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
     ret += req.getCid() + ";";
   }
   return ret;
@@ -328,6 +343,15 @@ bool RequestsIterator::getAndGoToNext(char*& pRequest) {
 
 std::string PrePrepareMsg::getCid() const {
   return std::string(this->body() + this->payloadShift() - b()->batchCidLength, b()->batchCidLength);
+}
+
+void PrePrepareMsg::setCid(SeqNum s) {
+  std::string cidStr = std::to_string(s);
+  if (cidStr.size() >= b()->batchCidLength) {
+    memcpy(this->body() + this->payloadShift() - b()->batchCidLength, cidStr.data(), b()->batchCidLength);
+  } else {
+    memcpy(this->body() + this->payloadShift() - b()->batchCidLength + 1, cidStr.data(), b()->batchCidLength - 1);
+  }
 }
 
 }  // namespace impl

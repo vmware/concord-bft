@@ -12,7 +12,7 @@
 #include <rocksdb/utilities/transaction.h>
 #include "storage/db_interface.h"
 #include "client.h"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #pragma once
 
 namespace concord {

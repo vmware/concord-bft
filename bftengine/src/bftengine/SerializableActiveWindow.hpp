@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <utility>
 #include <list>
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "PrimitiveTypes.hpp"
 
 namespace bftEngine {

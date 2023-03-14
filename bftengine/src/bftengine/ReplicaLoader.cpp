@@ -12,12 +12,13 @@
 // file.
 
 #include "ReplicaLoader.hpp"
+
+#include "log/logger.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaImp.hpp"
 #include "ViewsManager.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "CryptoManager.hpp"
-#include "Logger.hpp"
 
 #define Verify(expr, errorCode) \
   {                             \
@@ -48,13 +49,15 @@ namespace {
 ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
   ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   auto &config = ld.repConfig;
-
   ld.sigManager = SigManager::init(config.replicaId,
                                    config.replicaPrivateKey,
                                    config.publicKeysOfReplicas,
-                                   concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                   config.clientTransactionSigningEnabled ? &config.publicKeysOfClients : nullptr,
-                                   concord::util::crypto::KeyFormat::PemFormat,
+                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                   ReplicaConfig::instance().getPublicKeysOfClients(),
+                                   concord::crypto::KeyFormat::PemFormat,
+                                   {{ld.repsInfo->getIdOfOperator(),
+                                     ReplicaConfig::instance().getOperatorPublicKey(),
+                                     concord::crypto::KeyFormat::PemFormat}},
                                    *ld.repsInfo);
 
   std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,
@@ -118,7 +121,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
                                                    descriptorOfLastExitFromView.lastExecuted,
                                                    descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
                                                    descriptorOfLastExitFromView.myViewChangeMsg,
-                                                   descriptorOfLastExitFromView.elements);
+                                                   descriptorOfLastExitFromView.elements,
+                                                   descriptorOfLastExitFromView.complaints);
 
     Verify((viewsManager->latestActiveView() == 0), InconsistentErr);
     Verify((!viewsManager->viewIsActive(0)), InconsistentErr);
@@ -134,12 +138,16 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
                                                    descriptorOfLastExitFromView.lastExecuted,
                                                    descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
                                                    descriptorOfLastExitFromView.myViewChangeMsg,
-                                                   descriptorOfLastExitFromView.elements);
+                                                   descriptorOfLastExitFromView.elements,
+                                                   descriptorOfLastExitFromView.complaints);
 
     Verify((viewsManager->latestActiveView() == descriptorOfLastExitFromView.view), InconsistentErr);
     Verify((!viewsManager->viewIsActive(descriptorOfLastExitFromView.view)), InconsistentErr);
 
     ld.maxSeqNumTransferredFromPrevViews = descriptorOfLastNewView.maxSeqNumTransferredFromPrevViews;
+    // we have not used descriptorOfLastNewView, therefore
+    // we need to clean up the messages we have allocated inside it.
+    descriptorOfLastNewView.clean();
   } else if (hasDescLastExitFromView && hasDescOfLastNewView &&
              (descriptorOfLastExitFromView.view < descriptorOfLastNewView.view)) {
     Verify((descriptorOfLastExitFromView.view >= 0), InconsistentErr);
@@ -160,6 +168,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
     LOG_ERROR(GL,
               "Failed to load view (inconsistent state): " << KVLOG(
                   replicaId, hasDescLastExitFromView, hasDescOfLastNewView, lastExitedView, lastNewView));
+    descriptorOfLastNewView.clean();
+    descriptorOfLastExitFromView.clean();
     return InconsistentErr;
   }
 
@@ -291,6 +301,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
 
       ld.isExecuting = true;
       ld.validRequestsThatAreBeingExecuted = d.validRequests;
+      ld.timeInTicks = d.timeInTicks;
     }
   }
   const auto &desc = p->getDescriptorOfLastStableCheckpoint();

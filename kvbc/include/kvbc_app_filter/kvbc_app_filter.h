@@ -20,16 +20,19 @@
 #include <atomic>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <future>
+#include <optional>
 #include <set>
-#include "Logger.hpp"
 
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"
 #include "db_interfaces.h"
 #include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "event_group_msgs.cmf.hpp"
-#include "endianness.hpp"
+#include "util/endianness.hpp"
+#include "kvbc_key_types.h"
 
 namespace concord {
 namespace kvbc {
@@ -39,6 +42,8 @@ typedef size_t KvbStateHash;
 
 typedef BlockUpdate KvbUpdate;
 typedef EventGroupUpdate EgUpdate;
+// global_event_group_id, external_tag_event_group_id
+typedef std::pair<uint64_t, uint64_t> TagTableValue;
 
 struct KvbFilteredUpdate {
   using OrderedKVPairs = std::vector<std::pair<std::string, std::string>>;
@@ -53,21 +58,15 @@ struct KvbFilteredEventGroupUpdate {
   EventGroup event_group;
 };
 
-// We need to preserve state per client across calls to getNextEventGroupId method
-struct EventGroupClientState {
-  EventGroupClientState(const uint64_t pub_offset, const uint64_t pvt_offset)
-      : public_offset(pub_offset), private_offset(pvt_offset) {}
-  // holds a batch of the global event group IDs ordered in the order in which they were generated
-  std::vector<uint64_t> event_group_id_batch{};
-  // keeps track of the global event group id read from event_group_id_batch
-  std::vector<uint64_t>::iterator it = event_group_id_batch.begin();
-  // the offset event group id for public/private event groups, everytime event_group_id_batch is populated with
-  // public/public event group ids, we need to save the offset that determines the next public/private event group id to
-  // be read from the tag table
-  uint64_t public_offset;
-  uint64_t private_offset;
-  // current tag-specific event_group_id
-  uint64_t curr_trid_event_group_id = 0;
+struct FindGlobalEgIdResult {
+  // Global event group id matching the given external id
+  uint64_t global_id;
+  // Whether the event group is private to the client or public
+  bool is_public;
+  // Either the matching private/public id or the newest up to this external id
+  // Note: The one that is not matching could be pruned (not queryable)
+  uint64_t private_id;
+  uint64_t public_id;
 };
 
 class KvbReadError : public std::exception {
@@ -104,9 +103,12 @@ class InvalidEventGroupId : public std::exception {
 
 class InvalidEventGroupRange : public std::exception {
  public:
-  InvalidEventGroupRange(const concord::kvbc::EventGroupId begin, const concord::kvbc::EventGroupId end)
+  InvalidEventGroupRange(const concord::kvbc::EventGroupId lookup,
+                         const concord::kvbc::EventGroupId begin,
+                         const concord::kvbc::EventGroupId end)
       : msg_("Invalid event group range") {
-    msg_ += " [" + std::to_string(begin) + ", " + std::to_string(end) + "]";
+    msg_ += "Looking for " + std::to_string(lookup);
+    msg_ += " in [" + std::to_string(begin) + ", " + std::to_string(end) + "]";
   }
   const char *what() const noexcept override { return msg_.c_str(); }
 
@@ -126,25 +128,19 @@ class KvbAppFilter {
  public:
   KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
       : logger_(logging::getLogger("concord.storage.KvbAppFilter")), rostorage_(rostorage), client_id_(client_id) {
-    if (rostorage_) {
-      auto eg_id_pub_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
-      auto eg_id_pvt_oldest = getValueFromLatestTable(client_id + "_oldest");
-      eg_hash_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
-      eg_data_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
-    }
+    ConcordAssertNE(rostorage_, nullptr);
   }
 
   // Filter legacy events
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
   // Filter event groups
-  KvbFilteredEventGroupUpdate filterEventGroupUpdate(const EgUpdate &update);
+  std::optional<KvbFilteredEventGroupUpdate> filterEventGroupUpdate(const EgUpdate &update);
   KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
                                                                    const kvbc::categorization::EventGroup &event_group);
-
   // Compute hash for the given update
-  std::string hashUpdate(const KvbFilteredUpdate &update);
-  std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
+  static std::string hashUpdate(const KvbFilteredUpdate &update);
+  static std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
 
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:
@@ -158,8 +154,9 @@ class KvbAppFilter {
                       boost::lockfree::spsc_queue<KvbFilteredUpdate> &queue_out,
                       const std::atomic_bool &stop_execution);
 
+  void readEventGroups(kvbc::EventGroupId event_group_id_start,
+                       const std::function<bool(KvbFilteredEventGroupUpdate &&)> &);
   void readEventGroupRange(kvbc::EventGroupId event_group_id_start,
-
                            boost::lockfree::spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                            const std::atomic_bool &stop_execution);
 
@@ -180,29 +177,44 @@ class KvbAppFilter {
   // Filter the given set of key-value pairs and return the result.
   KvbFilteredUpdate::OrderedKVPairs filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs);
 
-  uint64_t getValueFromLatestTable(const std::string &key);
+  uint64_t getValueFromLatestTable(const std::string &key) const;
 
-  uint64_t getValueFromTagTable(const std::string &key);
+  TagTableValue getValueFromTagTable(const std::string &tag, uint64_t pvt_eg_id) const;
 
-  uint64_t oldestTagSpecificPublicEventGroupId();
+  uint64_t oldestExternalEventGroupId() const;
 
-  uint64_t newestTagSpecificPublicEventGroupId();
+  uint64_t newestExternalEventGroupId() const;
 
-  // Generate event group ids in batches from storage
-  // We do not want to process in memory, all the event group ids generated in a pruning window
-  std::optional<uint64_t> getNextEventGroupId(std::shared_ptr<EventGroupClientState> &eg_state);
+  // Given an external event group id, return the corresponding global event group id
+  // Precondition: We expect that the requested external event group id exists in storage
+  FindGlobalEgIdResult findGlobalEventGroupId(uint64_t external_event_group_id) const;
 
-  kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
+  kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id) const;
+
+  // Return the oldest global event group id.
+  // If no event group can be found then 0 (invalid group id) is returned.
+  uint64_t getOldestGlobalEventGroupId() const;
+
+  // Return the ID of the newest public event group.
+  // If no event group can be found, then 0 is returned.
+  uint64_t getNewestPublicEventGroupId() const;
+
+  // Return the newest public event group, if existing. If non-existent, return std::nullopt.
+  // Throws on errors.
+  std::optional<kvbc::categorization::EventGroup> getNewestPublicEventGroup() const;
 
   // Return the block number of the very first global event group.
   // Optional because during start-up there might be no block/event group written yet.
   std::optional<BlockId> getOldestEventGroupBlockId();
 
- private:
-  logging::Logger logger_;
-  const concord::kvbc::IReader *rostorage_;
-  const std::string client_id_;
+  void setLastEgIdsRead(uint64_t last_ext_eg_id_read, uint64_t last_global_eg_id_read);
+
+  // Return the pair {last_ext_eg_id_read, last_global_eg_id_read}
+  std::pair<uint64_t, uint64_t> getLastEgIdsRead();
+
+ public:
   static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
+  static inline const std::string kGlobalEgIdKeyNewest{"_global_eg_id_newest"};
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
   static inline const std::string kPublicEgId{"_public_eg_id"};
@@ -211,13 +223,16 @@ class KvbAppFilter {
   // kExecutionEventGroupTagCategory
   static inline const std::string kTagTableKeySeparator{"#"};
 
-  // event groups are read in batches from storage, to avoid saving large number of event groups in memory
-  // see method definition for getNextEventGroupId()
-  static inline const size_t kBatchSize{10};
+  // counter to calculate number of storage reads made by the filter
+  mutable uint64_t num_storage_reads = 0;
 
-  // event group hash state for that client
-  std::shared_ptr<EventGroupClientState> eg_hash_state_;
-  std::shared_ptr<EventGroupClientState> eg_data_state_;
+ private:
+  logging::Logger logger_;
+  const concord::kvbc::IReader *rostorage_{nullptr};
+  const std::string client_id_;
+  const std::string cid_key_{kKvbKeyCorrelationId};
+
+  std::pair<uint64_t, uint64_t> last_ext_and_global_eg_id_read_{0, 0};
 };
 
 }  // namespace kvbc

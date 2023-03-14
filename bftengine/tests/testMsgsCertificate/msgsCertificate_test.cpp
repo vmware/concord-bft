@@ -4,7 +4,7 @@
 #include "messages/MsgsCertificate.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "CheckpointInfo.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include "ReservedPagesMock.hpp"
@@ -24,13 +24,6 @@ int replyLen = strlen(reply);
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 ReplicaId randomReplicaId() { return rand() % numOfReplicas; }
 
-class mockCheckpointMsgCmp : public CheckpointInfo {
- public:
-  static bool equivalent(CheckpointMsg* a, CheckpointMsg* b) {
-    return CheckpointInfo::CheckpointMsgCmp::equivalent(a, b);
-  }
-};
-
 class msgsCertificateTestsFixture : public ::testing::Test {
  public:
   msgsCertificateTestsFixture()
@@ -38,7 +31,7 @@ class msgsCertificateTestsFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo))
 
@@ -66,10 +59,10 @@ class msgsCertificateTestsFixture : public ::testing::Test {
   }
   void test_self_msg_added_peer_msg_ignored() {
     bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
-    MsgsCertificate<CheckpointMsg, true, true, true, mockCheckpointMsgCmp> replysCertificate(
+    MsgsCertificate<CheckpointMsg, true, true, true, CheckpointMsg> replysCertificate(
         numOfReplicas, fval, numOfRequired, selfReplicaId);
 
-    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, Digest(), false);
+    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, 0, Digest(), Digest(), Digest(), false);
     selfMsg->setEpochNumber(0);
     replysCertificate.addMsg(selfMsg, selfReplicaId);
 

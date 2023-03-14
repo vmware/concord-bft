@@ -14,7 +14,7 @@
 #include "db_editor_tests_base.h"
 #include "kv_blockchain_db_editor.hpp"
 #include "kvbc_key_types.hpp"
-#include "hex_tools.h"
+#include "util/hex_tools.hpp"
 
 namespace {
 
@@ -26,11 +26,23 @@ const auto kCategoryMerkle = "merkle"s;
 const auto kCategoryVersioned = "versioned"s;
 const auto kCategoryImmutable = "immutable"s;
 
+std::string version;
+
 class DbEditorTests : public DbEditorTestsBase {
  public:
-  void CreateBlockchain(std::size_t db_id, BlockId blocks, std::optional<BlockId> mismatch_at = std::nullopt) override {
+  void CreateBlockchain(std::size_t db_id,
+                        BlockId blocks,
+                        std::optional<BlockId> mismatch_at = std::nullopt,
+                        bool override_keys = false) override {
     auto db = TestRocksDb::create(db_id);
-    auto adapter = KeyValueBlockchain{
+    if (version == "categorized") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 1;
+    } else if (version == "v4") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 4;
+    } else {
+      throw std::invalid_argument{"KVBC type not match any"};
+    }
+    auto adapter = concord::kvbc::adapter::ReplicaBlockchain{
         concord::storage::rocksdb::NativeClient::fromIDBClient(db),
         true,
         std::map<std::string, CATEGORY_TYPE>{
@@ -48,11 +60,16 @@ class DbEditorTests : public DbEditorTestsBase {
       VersionedUpdates ver_updates;
       ImmutableUpdates immutable_updates;
       if (empty_block_id_ != i) {
-        for (auto j = 0u; j < num_keys_; ++j) {
-          merkle_updates.addUpdate(getSliver((j + i - 1) * kv_multiplier_).toString(),
-                                   getSliver((j + i - 1) * 2 * kv_multiplier_).toString());
-          ver_updates.addUpdate("vkey"s + std::to_string((j + i - 1) * kv_multiplier_),
-                                "vval"s + std::to_string((j + i - 1) * 2 * kv_multiplier_));
+        if (!override_keys) {
+          for (auto j = 0u; j < num_keys_; ++j) {
+            merkle_updates.addUpdate(getSliver((j + i - 1) * kv_multiplier_).toString(),
+                                     getSliver((j + i - 1) * 2 * kv_multiplier_).toString());
+            ver_updates.addUpdate("vkey"s + std::to_string((j + i - 1) * kv_multiplier_),
+                                  "vval"s + std::to_string((j + i - 1) * 2 * kv_multiplier_));
+          }
+        } else {
+          merkle_updates.addUpdate("km1", "kv1");
+          ver_updates.addUpdate("kv1", "vv1");
         }
       }
 
@@ -67,7 +84,7 @@ class DbEditorTests : public DbEditorTestsBase {
         immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
         updates.add("immutable", std::move(immutable_updates));
       }
-      ASSERT_NO_THROW(adapter.addBlock(std::move(updates)));
+      ASSERT_NO_THROW(adapter.add(std::move(updates)));
     }
 
     const auto status = db->multiPut(generateMetadata());
@@ -97,11 +114,24 @@ class DbEditorTests : public DbEditorTestsBase {
 
   void DeleteBlocksUntil(std::size_t db_id, BlockId until_block_id) override {
     auto db = TestRocksDb::createNative(db_id);
-    auto adapter = KeyValueBlockchain{db, true};
+    if (version == "categorized") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 1;
+    } else if (version == "v4") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 4;
+    } else {
+      throw std::invalid_argument{"KVBC type not match any"};
+    }
+    auto adapter = concord::kvbc::adapter::ReplicaBlockchain{db, true};
 
     for (auto i = 1ull; i < until_block_id; ++i) {
-      adapter.deleteBlock(i);
+      adapter.deleteGenesisBlock();
     }
+  }
+
+  BlockId AddBlock(std::size_t db_id, Updates&& updates) override {
+    auto db = TestRocksDb::createNative(db_id);
+    auto adapter = KeyValueBlockchain{db, true};
+    return adapter.addBlock(std::move(updates));
   }
 
  protected:
@@ -512,6 +542,7 @@ TEST_F(DbEditorTests, get_earliest_category_updates_versioned) {
 }
 
 TEST_F(DbEditorTests, get_category_earliest_stale_immutable) {
+  if (version == "v4") return;
   ASSERT_EQ(EXIT_SUCCESS,
             run(
                 CommandLineArguments{
@@ -526,6 +557,7 @@ TEST_F(DbEditorTests, get_category_earliest_stale_immutable) {
 }
 
 TEST_F(DbEditorTests, get_summary_stale_keys_invalid_argumets) {
+  if (version == "v4") return;
   ASSERT_EQ(EXIT_FAILURE,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "0", "5"}},
                 out_,
@@ -551,6 +583,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys_invalid_argumets) {
 }
 
 TEST_F(DbEditorTests, get_summary_stale_keys) {
+  if (version == "v4") return;
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
@@ -598,6 +631,107 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
+TEST_F(DbEditorTests, get_summary_stale_active_keys) {
+  if (version == "v4") return;
+  CreateBlockchain(other_path_db_id_, 1, std::nullopt, true);
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(other_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"0\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"1\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  // Now lets add a new block
+  Updates updates;
+  VersionedUpdates ver_updates;
+  ver_updates.addUpdate("kv2", "vv2");
+  updates.add(kCategoryVersioned, std::move(ver_updates));
+  ASSERT_EQ(AddBlock(other_path_db_id_, std::move(updates)), 2);
+
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(other_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"0\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"1\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  /*
+    At this point the blockchain contains 2 blocks and it has the following form:
+    {
+      "concord_internal": { "0x32": "0x0000000000000000"},
+      "immutable": {"0x696d6d757461626c655f6b657931": "0x696d6d757461626c655f76616c31"},
+      "merkle": { "0x6b6d31": "0x6b7631"},
+      "versioned": { "0x6b7631": "0x767631"}
+    }
+    {
+      "concord_internal": {  "0x32": "0x0000000000000001"},
+      "versioned": {  "0x6b7632": "0x767632"}
+    }
+
+    After deleting block 1, we expect to have the following form:
+    Active keys: "merkle": { "0x6b6d31" },  "versioned": { "0x6b7631"}
+  */
+  DeleteBlocksUntil(other_path_db_id_, 2);
+
+  /*
+    Add again in three consecutive blocks of the form:
+    {
+      "concord_internal": { "0x32": "0x0000000000000002"},
+      "merkle": { "0x6b6d31": "0x6d7631"},
+      "versioned": { "0x6b7631": "0x767631"}
+    }
+
+    After the addition, we expect to have the following blockchain:
+    {
+      "concord_internal": {  "0x32": "0x0000000000000001"},
+      "versioned": {  "0x6b7632": "0x767632"}
+    }
+    {
+      "concord_internal": { "0x32": "0x0000000000000002"},
+      "merkle": { "0x6b6d31": "0x6d7631"},
+      "versioned": { "0x6b7631": "0x767631"}
+    }
+    {
+      "concord_internal": { "0x32": "0x0000000000000002"},
+      "merkle": { "0x6b6d31": "0x6d7631"},
+      "versioned": { "0x6b7631": "0x767631"}
+    }
+    {
+      "concord_internal": { "0x32": "0x0000000000000002"},
+      "merkle": { "0x6b6d31": "0x6d7631"},
+      "versioned": { "0x6b7631": "0x767631"}
+    }
+
+    Active keys: "merkle": { "0x6b6d31" },  "versioned": { "0x6b7631"}
+
+  */
+  for (int i = 0; i < 3; i++) {
+    Updates updates;
+    VersionedUpdates ver_updates;
+    BlockMerkleUpdates merkle_updates;
+    ver_updates.addUpdate("kv1", "vv1");
+    merkle_updates.addUpdate("km1", "mv1");
+    updates.add(kCategoryVersioned, std::move(ver_updates));
+    updates.add(kCategoryMerkle, std::move(merkle_updates));
+    ASSERT_EQ(AddBlock(other_path_db_id_, std::move(updates)), 3 + i);
+  }
+
+  /*
+    Recall that 0x32 is stale on update, hence we expect to have the the following:
+    - 0x32 is stale 4 times (for 4 blocks)
+    - 0x6b7631 is stale 3 times (1 active key blocks 3, 4)
+    - 0x6b6d31 is stake 3 times (1 active key and blocks 3, 4)
+  */
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(other_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"3\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"0\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"7\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
 TEST_F(DbEditorTests, get_empty_block_key_values) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
@@ -628,7 +762,7 @@ TEST_F(DbEditorTests, get_value_latest) {
           out_,
           err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+  ASSERT_EQ("{\n  \"value\": \"0x00000050\",\n  \"version\": \"5\"\n}\n", out_.str());
 }
 
 TEST_F(DbEditorTests, get_value_with_block_version) {
@@ -796,12 +930,14 @@ TEST_F(DbEditorTests, remove_metadata) {
   const auto adapter = getAdapter(rocksDbPath(main_path_db_id_));
   const auto& kvp = generateMetadata();
   for (const auto& kv : kvp) {
-    ASSERT_TRUE(adapter.db()->asIDBClient()->has(kv.first).isNotFound());
+    ASSERT_TRUE(adapter.asIDBClient()->has(kv.first).isNotFound());
   }
-
-  ASSERT_NO_THROW(adapter.getRawBlock(5));
-  ASSERT_NE(adapter.getLastReachableBlockId(), 0);
-  ASSERT_NE(adapter.getLastReachableBlockId(), concord::kvbc::INITIAL_GENESIS_BLOCK_ID);
+  uint32_t size_mb = 30 * 1024 * 1024;  // 30mb
+  uint32_t real_size = 0;
+  auto buffer = std::string(size_mb, 0);
+  ASSERT_NO_THROW(adapter.getBlock(5, buffer.data(), size_mb, &real_size));
+  ASSERT_NE(adapter.getLastBlockId(), 0);
+  ASSERT_NE(adapter.getLastBlockId(), concord::kvbc::INITIAL_GENESIS_BLOCK_ID);
   ASSERT_EQ(concord::kvbc::INITIAL_GENESIS_BLOCK_ID, adapter.getGenesisBlockId());
 }
 
@@ -812,9 +948,50 @@ TEST_F(DbEditorTests, get_st_metadata) {
   ASSERT_TRUE(err_.str().empty());
 }
 
+TEST_F(DbEditorTests, list_column_families) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "listColumnFamilies"}}, out_, err_));
+  const std::string outStr = out_.str();
+  if (version == "v4") {
+    ASSERT_TRUE(outStr.find("v4") != std::string::npos);
+  } else {
+    ASSERT_THAT(outStr, HasSubstr("\"versioned_ver_values\""));
+    ASSERT_THAT(outStr, HasSubstr("\"versioned_ver_latest\""));
+  }
+}
+
+TEST_F(DbEditorTests, get_column_families_stats) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getColumnFamilyStats"}}, out_, err_));
+  const std::string outStr = out_.str();
+  ASSERT_THAT(outStr, HasSubstr("\"rocksdb.estimate-num-keys\" : 10"));
+}
+
+TEST_F(DbEditorTests, get_column_families_stats_with_args) {
+  std::string cf_name = "versioned_ver_values";
+  std::string expected = "\"rocksdb.estimate-num-keys\" : 27";
+  if (version == "v4") {
+    cf_name = "v4_blocks";
+    expected = "\"rocksdb.estimate-num-keys\" : 10";
+  }
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getColumnFamilyStats", cf_name}},
+                out_,
+                err_));
+  const std::string outStr = out_.str();
+  ASSERT_THAT(outStr, HasSubstr(expected));
+  ASSERT_THAT(outStr, Not(HasSubstr("\"block_merkle_keys\"")));
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
   InitGoogleTest(&argc, argv);
+  std::string v = argv[1];
+  if (v == "v4" || v == "categorized") {
+    version = v;
+  } else {
+    throw "Missing blockchain version argument [v4|categorized]";
+  }
   return RUN_ALL_TESTS();
 }

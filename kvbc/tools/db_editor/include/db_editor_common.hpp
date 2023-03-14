@@ -13,21 +13,12 @@
 
 #pragma once
 
-#include "json_output.hpp"
+#include "util/json_output.hpp"
 
 #include "merkle_tree_block.h"
 #include "storage/db_types.h"
 #include "rocksdb/client.h"
-
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
+#include "util/filesystem.hpp"
 
 namespace concord::kvbc::tools::db_editor {
 

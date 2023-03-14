@@ -1,1 +1,3 @@
 add_subdirectory(db_editor)
+add_subdirectory(migrations)
+add_subdirectory(object_store_utility)

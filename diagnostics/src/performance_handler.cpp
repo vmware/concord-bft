@@ -34,9 +34,11 @@ void Recorder::recordAtomic(int64_t val) {
 void PerformanceHandler::registerComponent(const std::string& name,
                                            const std::vector<std::shared_ptr<Recorder>>& recorders) {
   std::lock_guard<std::mutex> guard(mutex_);
+  // Comment: since registerComponent might be called from multiple threads, checking if registered before calling
+  // this function doesn't make sense. Do not terminate if component is already registered. just exit with warning.
   if (components_.count(name)) {
-    LOG_FATAL(DIAG_LOGGER, "Component already exists: " << name);
-    std::terminate();
+    LOG_WARN(DIAG_LOGGER, "Component already registered: " << name);
+    return;
   }
   Histograms histograms;
   for (const auto& recorder : recorders) {
@@ -47,16 +49,14 @@ void PerformanceHandler::registerComponent(const std::string& name,
 
 void PerformanceHandler::unRegisterComponent(const std::string& name) {
   std::lock_guard<std::mutex> guard(mutex_);
+
+  // Comment: since unRegisterComponent might be called from multiple threads, checking if registered before calling
+  // this function doesn't make sense. Do not terminate if component is not registered. just exit with warning.
   if (components_.count(name) == 0) {
-    LOG_FATAL(DIAG_LOGGER, "Component does not exist: " << name);
-    std::terminate();
+    LOG_WARN(DIAG_LOGGER, "Component is not registered: " << name);
+    return;
   }
   components_.erase(name);
-}
-
-bool PerformanceHandler::isRegisteredComponent(const std::string& name) {
-  std::lock_guard<std::mutex> guard(mutex_);
-  return components_.count(name) > 0;
 }
 
 std::string PerformanceHandler::list() const {
@@ -156,6 +156,8 @@ std::ostream& operator<<(std::ostream& os, const HistogramValues& values) {
   os << "  99.9: " << values.pct_99_9 << std::endl;
   os << "  99.99: " << values.pct_99_99 << std::endl;
   os << "  99.999: " << values.pct_99_999 << std::endl;
+  os << "  99.9999: " << values.pct_99_9999 << std::endl;
+  os << "  99.99999: " << values.pct_99_99999 << std::endl;
   return os;
 }
 

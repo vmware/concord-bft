@@ -12,10 +12,12 @@
 
 #pragma once
 
-#include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
-
+#include "util/Metrics.hpp"
+#include "ReplicasInfo.hpp"
+#include "Reconfiguration.hpp"
+#include "ReplicaConfig.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <optional>
 
@@ -23,11 +25,16 @@ namespace bftEngine {
 
 class RequestHandler : public IRequestsHandler {
  public:
-  RequestHandler() {
-    using namespace concord::reconfiguration;
-    reconfig_handler_ = std::make_shared<ReconfigurationHandler>();
-    reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
-    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
+  RequestHandler(
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>()) {
+    reconfig_handler_.push_back(
+        std::make_shared<impl::ReconfigurationHandler>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
+                                                       bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo));
+    for (const auto &rh : reconfig_handler_) {
+      reconfig_dispatcher_.addReconfigurationHandler(rh);
+    }
+    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<impl::ClientReconfigurationHandler>());
+    reconfig_dispatcher_.setAggregator(aggregator_);
   }
 
   void execute(ExecutionRequestsQueue &requests,
@@ -35,24 +42,21 @@ class RequestHandler : public IRequestsHandler {
                const std::string &batchCid,
                concordUtils::SpanWrapper &) override;
 
-  void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
-    if (userHdlr) {
-      userRequestsHandler_ = userHdlr;
-      reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
-    }
-  }
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override;
+
+  void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr);
 
   void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                  concord::reconfiguration::ReconfigurationHandlerType type =
-                                     concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
-    reconfig_dispatcher_.addReconfigurationHandler(rh, type);
-  }
+                                     concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override;
 
-  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg) {
-    cron_table_registry_ = reg;
-  }
-
+  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg);
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) override;
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
+  std::shared_ptr<IRequestsHandler> getUserHandler() { return userRequestsHandler_; }
 
  private:
   std::shared_ptr<IRequestsHandler> userRequestsHandler_;

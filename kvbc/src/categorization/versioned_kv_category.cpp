@@ -13,7 +13,7 @@
 
 #include "categorization/versioned_kv_category.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
@@ -169,7 +169,17 @@ std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory:
   }
   return found;
 }
-
+std::set<std::string> VersionedKeyValueCategory::getStaleActiveKeys(BlockId block_id,
+                                                                    const VersionedOutput &out) const {
+  std::set<std::string> stale_keys_;
+  for (const auto &[_, keys] : activeKeysFromPrunedBlocks(out.keys)) {
+    (void)_;
+    for (const auto &key : keys) {
+      stale_keys_.emplace(key);
+    }
+  }
+  return stale_keys_;
+}
 std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id,
                                                                       const VersionedOutput &out) const {
   std::vector<std::string> stale_keys_;
@@ -188,7 +198,7 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
 
 std::size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
                                                           const VersionedOutput &out,
-                                                          storage::rocksdb::NativeWriteBatch &batch) {
+                                                          detail::LocalWriteBatch &batch) {
   auto number_of_deletes = std::size_t{0};
 
   // Delete active keys from previously pruned genesis blocks.

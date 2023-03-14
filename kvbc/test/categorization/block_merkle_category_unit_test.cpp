@@ -160,7 +160,9 @@ class block_merkle_category : public Test {
 
   void deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput &out) {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(block_id, out, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(block_id, out, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -202,9 +204,8 @@ TEST_F(block_merkle_category, put_and_get) {
   // Get by hash works
   ASSERT_EQ(expected, asMerkle(cat.get(hashed_key1, block_id).value()));
 
-  // Getting the latest version by key and hash works
+  // Getting the latest version by key works
   ASSERT_EQ(block_id, cat.getLatestVersion(key1)->encode());
-  ASSERT_EQ(block_id, cat.getLatestVersion(hashed_key1)->encode());
 
   // Getting the key at the wrong block fails
   ASSERT_EQ(false, cat.get(key1, block_id + 1).has_value());

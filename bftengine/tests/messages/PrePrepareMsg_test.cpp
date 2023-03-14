@@ -15,7 +15,7 @@
 #include <iostream>
 #include <random>
 #include <memory>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "gtest/gtest.h"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
@@ -28,6 +28,8 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
+using concord::crypto::DigestGenerator;
+
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 ClientRequestMsg create_client_request() {
@@ -45,6 +47,7 @@ ClientRequestMsg create_client_request() {
                           request,
                           requestTimeoutMilli,
                           correlationId,
+                          0,
                           concordUtils::SpanContext{spanContext});
 }
 
@@ -84,6 +87,7 @@ void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>
                                                                           request.c_str(),
                                                                           requestTimeoutMilli,
                                                                           correlationId,
+                                                                          0,
                                                                           concordUtils::SpanContext{spanContext})});
     numMsgs--;
   }
@@ -96,7 +100,7 @@ class PrePrepareMsgTestFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo)) {}
 
@@ -134,7 +138,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   for (const auto& crm : crmv) {
     msg.addRequest(crm->body(), crm->size());
     Digest d;
-    DigestUtil::compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
+    DigestGenerator().compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
     dv.push_back({d.content(), sizeof(Digest)});
   }
   EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
@@ -144,8 +148,10 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   for (const auto& s : dv) {
     dod.append(s);
   }
+  dod.append(1, '0');
+
   Digest d;
-  DigestUtil::compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
+  DigestGenerator().compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
   EXPECT_EQ(d, msg.digestOfRequests());
   EXPECT_NO_THROW(msg.validate(replicaInfo));  // validate the same digest
 }
@@ -223,6 +229,35 @@ TEST_F(PrePrepareMsgTestFixture, base_methods) {
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
+}
+
+TEST_F(PrePrepareMsgTestFixture, test_prePrepare_size) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  // Create random span
+  uint span_size = rand() % 1024;
+  const std::string spanContext = getRandomStringOfLength(span_size);
+  PrePrepareMsg msg(senderId,
+                    viewNum,
+                    seqNum,
+                    commitPath,
+                    concordUtils::SpanContext{spanContext},
+                    config.getmaxExternalMessageSize());
+  std::vector<std::shared_ptr<ClientRequestMsg>> client_request;
+
+  while (true) {
+    client_request.clear();
+    create_random_client_requests(client_request, 1u);
+    if (client_request.front()->size() > msg.remainingSizeForRequests()) break;
+    msg.addRequest(client_request.front()->body(), client_request.front()->size());
+  }
+  msg.finishAddingRequests();
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
+  ASSERT_TRUE(msg.size() <= config.getmaxExternalMessageSize());
 }
 
 int main(int argc, char** argv) {

@@ -16,7 +16,7 @@
 #include <chrono>
 #include <sstream>
 
-#include "kvstream.h"
+#include "util/kvstream.h"
 #include "diagnostics.h"
 
 namespace bft::communication {

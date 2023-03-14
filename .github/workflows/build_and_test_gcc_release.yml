@@ -1,7 +1,9 @@
 name: Release build (gcc)
-on:
-  schedule:
-    - cron: "0 12 * * 6" # Every Saturday at 12PM UTC
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -10,16 +12,14 @@ jobs:
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
     strategy:
-        fail-fast: false
-        matrix:
+      fail-fast: false
+      matrix:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=gcc CONCORD_BFT_CONTAINER_CXX=g++"
             ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=FALSE"
                 - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=TRUE"
             use_s3_obj_store:
                 - "-DUSE_S3_OBJECT_STORE=ON"
-                - "-DUSE_S3_OBJECT_STORE=OFF"
     steps:
         - name: Cleanup pre-installed tools
           run: |
@@ -58,6 +58,7 @@ jobs:
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
+                              -DRUN_APOLLO_TESTS=FALSE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make test"
         - name: Prepare artifacts

@@ -16,7 +16,7 @@
 #include <utility>
 #include <type_traits>
 #include <atomic>
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 // TODO(GG): ItemFuncs should have operations on ItemType: init, free, reset, save, load
 

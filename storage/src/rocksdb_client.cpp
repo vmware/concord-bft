@@ -14,6 +14,8 @@
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <stdexcept>
+#include "util/filesystem.hpp"
+
 #ifdef USE_ROCKSDB
 
 #include <rocksdb/client.h>
@@ -27,8 +29,8 @@
 #include <atomic>
 #include <utility>
 
-#include "assertUtils.hpp"
-#include "Logger.hpp"
+#include "util/assertUtils.hpp"
+#include "log/logger.hpp"
 
 using concordUtils::Sliver;
 using concordUtils::Status;
@@ -180,7 +182,6 @@ void Client::openRocksDB(bool readOnly,
     }
     return ret;
   };
-
   if (cf_descs.empty()) {
     // Make sure we always get a handle for the default column family. Use the DB options to configure it.
     cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, db_options});
@@ -210,6 +211,11 @@ void Client::openRocksDB(bool readOnly,
       throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
                                s.ToString());
     dbInstance_.reset(txn_db_->GetBaseDB());
+    // create checkpoint instance
+    ::rocksdb::Checkpoint *checkpoint;
+    s = ::rocksdb::Checkpoint::Create(dbInstance_.get(), &checkpoint);
+    if (!s.ok()) throw std::runtime_error("Failed to create checkpoint instance for incremental db snapshot");
+    dbCheckPoint_.reset(checkpoint);
   }
   cf_handles_ = std::move(unique_cf_handles);
 }
@@ -320,7 +326,7 @@ void Client::init(bool readOnly) {
   initDB(readOnly, std::nullopt, applyOptimizations);
 }
 
-Status Client::get(const Sliver &_key, OUT std::string &_value) const {
+Status Client::get(const Sliver &_key, std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger(), "Reading count = " << g_rocksdb_called_read << ", key " << _key);
@@ -369,7 +375,7 @@ bool Client::columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle *cf) const {
  * @return Status NotFound if key is not present, Status GeneralError if error
  *         in Get, else Status OK.
  */
-Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver &_key, Sliver &_outValue) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -378,7 +384,7 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
 }
 
 // A memory for the output buffer is expected to be allocated by a caller.
-Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_realSize) const {
+Status Client::get(const Sliver &_key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -460,7 +466,7 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
   LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
 
   if (!s.ok()) {
-    LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value);
+    LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value << ", Error: " << s.ToString());
     return Status::GeneralError("Failed to put key");
   }
   return Status::OK();
@@ -482,13 +488,13 @@ Status Client::del(const Sliver &_key) {
   LOG_TRACE(logger(), "Rocksdb delete " << _key);
 
   if (!s.ok()) {
-    LOG_ERROR(logger(), "Failed to delete key " << _key);
+    LOG_ERROR(logger(), "Failed to delete key " << _key << ", Error: " << s.ToString());
     return Status::GeneralError("Failed to delete key");
   }
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
+Status Client::multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) {
   std::vector<std::string> values;
   std::vector<::rocksdb::Slice> keys;
   for (auto const &it : _keysVec) keys.push_back(toRocksdbSlice(it));
@@ -506,14 +512,15 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
   return Status::OK();
 }
 
-Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
+Status Client::launchBatchJob(::rocksdb::WriteBatch &batch, bool sync) {
   LOG_DEBUG(logger(), "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
+  wOptions.sync = sync;
   ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
   if (!status.ok()) {
-    LOG_ERROR(
-        logger(),
-        "Execution of batch job failed; batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
+    LOG_ERROR(logger(),
+              "Execution of batch job failed; batch data size=" << batch.GetDataSize() << " num updates="
+                                                                << batch.Count() << " Error:" << status.ToString());
     return Status::GeneralError("Execution of batch job failed");
   }
   LOG_DEBUG(
@@ -522,14 +529,14 @@ Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
   return Status::OK();
 }
 
-Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
+Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap, bool sync) {
   ::rocksdb::WriteBatch batch;
   LOG_DEBUG(logger(), "multiPut: keyValueMap.size() = " << keyValueMap.size());
   for (const auto &it : keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
     LOG_TRACE(logger(), "RocksDB Added entry: key =" << it.first << ", value= " << it.second << " to the batch job");
   }
-  Status status = launchBatchJob(batch);
+  Status status = launchBatchJob(batch, sync);
   if (status.isOK()) LOG_DEBUG(logger(), "Successfully put all entries to the database");
   return status;
 }
@@ -561,6 +568,82 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   }
   LOG_TRACE(logger(), "RocksDB successful range delete, begin=" << _beginKey << ", end=" << _endKey);
   return Status::OK();
+}
+
+std::string Client::getPathForCheckpoint(std::uint64_t checkpointId) const {
+  return (fs::path{dbCheckpointPath_} / std::to_string(checkpointId)).string();
+}
+
+Status Client::createCheckpoint(const uint64_t &checkPointId) {
+  if (!dbCheckPoint_.get()) return Status::GeneralError("Checkpoint instance is not initialized");
+  // create dir(remove if already exist)
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+
+  try {
+    if (dbCheckpointPath_.empty()) {
+      LOG_ERROR(logger(), "RocksDb checkpoint dir path not set");
+      return Status::GeneralError("checkpoint creation failed");
+    }
+    fs::path path{dbCheckpointPath_};
+    if (!fs::exists(path)) {
+      fs::create_directory(path);
+    }
+    fs::path chkptDirPath = getPathForCheckpoint(checkPointId);
+    // rocksDb create the dir for the checkpoint
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+
+    ::rocksdb::Status s = dbCheckPoint_.get()->CreateCheckpoint(chkptDirPath.string());
+    if (s.ok()) {
+      LOG_INFO(logger(), "created rocks db checkpoint: " << KVLOG(checkPointId));
+      return Status::OK();
+    }
+    LOG_ERROR(logger(),
+              "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string(), s.ToString()));
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+    return Status::GeneralError("checkpoint creation failed");
+  } catch (std::exception &e) {
+    LOG_FATAL(logger(), "Failed to create rocksdb checkpoint: " << e.what());
+    return Status::GeneralError("checkpoint creation failed");
+  }
+}
+std::vector<uint64_t> Client::getListOfCreatedCheckpoints() const {
+  std::vector<uint64_t> createdCheckPoints_;
+  try {
+    fs::path path{dbCheckpointPath_};
+    if (fs::exists(path)) {
+      for (const auto &entry : fs::directory_iterator(path)) {
+        auto dirName = entry.path().filename();
+        createdCheckPoints_.emplace_back(std::stoull(dirName));
+      }
+    }
+  } catch (std::exception &e) {
+    LOG_ERROR(logger(), "Failed to get list of checkpoints dir: " << e.what());
+  }
+  return createdCheckPoints_;
+}
+void Client::removeCheckpoint(const uint64_t &checkPointId) const {
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+  try {
+    fs::path path{dbCheckpointPath_};
+    fs::path chkptDirPath = path / std::to_string(checkPointId);
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+  } catch (std::exception &e) {
+    LOG_ERROR(logger(), "Failed to remove checkpoint id: " << checkPointId << " - " << e.what());
+  }
+}
+void Client::removeAllCheckpoints() const {
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+  try {
+    fs::path path{dbCheckpointPath_};
+    if (fs::exists(path)) {
+      for (const auto &entry : fs::directory_iterator(path)) {
+        fs::remove_all(entry.path());
+      }
+      fs::remove_all(path);
+    }
+  } catch (std::exception &e) {
+    LOG_FATAL(logger(), "Failed remove rocksdb checkpoint: " << e.what());
+  }
 }
 
 /**

@@ -19,7 +19,9 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
 #include "block_metadata.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
+#include "Replica.hpp"
+#include "ControlStateManager.hpp"
 
 namespace concord::kvbc {
 /*
@@ -68,7 +70,11 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
-  bool handle(const concord::messages::ClientTlsExchangeKey&, uint64_t, uint64_t, uint64_t);
+
+  logging::Logger& getLogger() const {
+    static logging::Logger logger_(logging::getLogger("concord.kvbc.StReconfigurationHandler"));
+    return logger_;
+  }
 
   kvbc::IReader& ro_storage_;
   BlockMetadata block_metadata_;

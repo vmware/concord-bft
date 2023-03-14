@@ -55,8 +55,6 @@ TEST(trc_hash, hash_data) {
 }
 
 TEST(trc_hash, trs_trc_legacy) {
-  concord::kvbc::KvbAppFilter kvb_app_filter(nullptr, "");
-
   // Data created on the TRS
   concord::kvbc::KvbFilteredUpdate kvb_update;
   kvb_update.block_id = 1337;
@@ -72,12 +70,10 @@ TEST(trc_hash, trs_trc_legacy) {
     data->set_value(kv.second);
   }
 
-  EXPECT_EQ(kvb_app_filter.hashUpdate(kvb_update), hashUpdate(data_update));
+  EXPECT_EQ(concord::kvbc::KvbAppFilter::hashUpdate(kvb_update), hashUpdate(data_update));
 }
 
 TEST(trc_hash, trs_trc_event_group) {
-  concord::kvbc::KvbAppFilter kvb_app_filter(nullptr, "");
-
   // Data created on the TRS
   concord::kvbc::KvbFilteredEventGroupUpdate kvb_update;
   kvb_update.event_group_id = 1337;
@@ -91,7 +87,7 @@ TEST(trc_hash, trs_trc_event_group) {
     *data_update.mutable_event_group()->add_events() = event.data;
   }
 
-  EXPECT_EQ(kvb_app_filter.hashEventGroupUpdate(kvb_update), hashUpdate(data_update));
+  EXPECT_EQ(concord::kvbc::KvbAppFilter::hashEventGroupUpdate(kvb_update), hashUpdate(data_update));
 }
 
 }  // anonymous namespace

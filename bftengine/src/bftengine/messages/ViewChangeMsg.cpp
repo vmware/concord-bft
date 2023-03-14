@@ -12,12 +12,15 @@
 #include <string.h>
 #include <cstring>
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
+
+#include "log/logger.hpp"
 #include "ViewsManager.hpp"
-#include "Logger.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
+
+using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -49,7 +52,7 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   auto bodySize = getBodySize();
   bodySize += b()->sizeOfAllComplaints;
-  DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
+  DigestGenerator().compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
 uint32_t ViewChangeMsg::getBodySize() const {
@@ -159,7 +162,7 @@ void ViewChangeMsg::finalizeMessage() {
   // |               Message Body               |
   // +------------------------------------------+
 
-  sigManager->sign(body(), bodySize, body() + bodySize, sigSize);
+  sigManager->sign(body(), bodySize, body() + bodySize);
 
   bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);
 
@@ -176,7 +179,8 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
-  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
+  if (!sigManager->verifySig(
+          idOfGeneratedReplica(), std::string_view{body(), dataLength}, std::string_view{body() + dataLength, sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));

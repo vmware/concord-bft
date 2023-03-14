@@ -5,10 +5,10 @@
 #ifdef USE_ROCKSDB
 
 #include "rocksdb/key_comparator.h"
-#include "Logger.hpp"
+#include "log/logger.hpp"
 
-#include "hex_tools.h"
-#include "sliver.hpp"
+#include "util/hex_tools.hpp"
+#include "util/sliver.hpp"
 #include "rocksdb/client.h"
 
 #include <chrono>

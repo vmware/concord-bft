@@ -33,10 +33,13 @@ client_sends_request_to_all_replicas_first_thresh: 2
 client_sends_request_to_all_replicas_period_thresh: 2
 clients_per_participant_node: 15
 comm_to_use: tls
+enable_tcp_socket_keep_alive: true
+socket_keep_alive_idle_time: 60
+socket_keep_alive_interval: 2
+socket_keep_alive_probes_num: 10
 concord-bft_communication_buffer_length: 16777216
 enable_mock_comm: false
 encrypted_config_enabled: false
-external_requests_queue_size: 0
 f_val: 1
 num_replicas: 4
 num_ro_replicas: 1
@@ -48,31 +51,40 @@ tls_certificates_folder_path: /clientservice/bft_certs
 tls_cipher_suite_list: ECDHE-ECDSA-AES256-GCM-SHA384
 tls_1_3_cipher_suite_list: TLS_AES_256_GCM_SHA384
 transaction_signing_enabled: true
+enable_multiplex_channel: false
+use_unified_certificates: false
 with_cre: false
+concord-bft_max_reply_message_size: 2097152
 node:
   - replica:
       - principal_id: 0
         replica_host: concord1
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord1
   - replica:
       - principal_id: 1
         replica_host: concord2
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord2
   - replica:
       - principal_id: 2
         replica_host: concord3
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord3
   - replica:
       - principal_id: 3
         replica_host: concord4
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord4
 participant_nodes:
   - participant_node:
       - participant_node_host: 0.0.0.0
+        clientservice_host_uuid: clientservice1
+        principal_id: 55
         external_clients:
           - client:
               - client_port: 3502

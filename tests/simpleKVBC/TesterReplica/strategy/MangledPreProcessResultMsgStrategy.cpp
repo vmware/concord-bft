@@ -16,13 +16,14 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
-#include "Digest.hpp"
+#include "crypto/digest.hpp"
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;
 using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
 using preprocessor::PreProcessResultMsg;
+using concord::crypto::DigestGenerator;
 
 std::string concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getStrategyName() {
   return CLASSNAME(MangledPreProcessResultMsgStrategy);
@@ -55,7 +56,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
       sigOrDigestOfRequest[idx].append(sig, req.requestSignatureLength());
     } else {
       Digest d;
-      DigestUtil::compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+      DigestGenerator().compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
       sigOrDigestOfRequest[idx].append(d.content(), sizeof(Digest));
     }
     idx++;
@@ -68,7 +69,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
     }
 
     Digest d;
-    DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+    DigestGenerator().compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
     LOG_INFO(logger_,
              "Finally the PrePrepare Message with correlation id : "

@@ -19,6 +19,7 @@
 #include "details.h"
 
 #include <rocksdb/options.h>
+#include <rocksdb/convenience.h>
 
 #include <memory>
 #include <optional>
@@ -89,9 +90,15 @@ void NativeClient::put(const std::string &cFamily, const KeySpan &key, const Val
 
 template <typename KeySpan>
 std::optional<std::string> NativeClient::get(const std::string &cFamily, const KeySpan &key) const {
+  return get(cFamily, detail::toSlice(key), ::rocksdb::ReadOptions{});
+}
+
+template <typename KeySpan>
+std::optional<std::string> NativeClient::get(const std::string &cFamily,
+                                             const KeySpan &key,
+                                             ::rocksdb::ReadOptions ro) const {
   auto value = std::string{};
-  auto s =
-      client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key), &value);
+  auto s = client_->dbInstance_->Get(ro, columnFamilyHandle(cFamily), detail::toSlice(key), &value);
   if (s.IsNotFound()) {
     return std::nullopt;
   }
@@ -142,6 +149,15 @@ void NativeClient::multiGet(const std::string &cFamily,
                             const std::vector<KeySpan> &keys,
                             std::vector<::rocksdb::PinnableSlice> &values,
                             std::vector<::rocksdb::Status> &statuses) const {
+  multiGet(cFamily, keys, values, statuses, ::rocksdb::ReadOptions{});
+}
+
+template <typename KeySpan>
+void NativeClient::multiGet(const std::string &cFamily,
+                            const std::vector<KeySpan> &keys,
+                            std::vector<::rocksdb::PinnableSlice> &values,
+                            std::vector<::rocksdb::Status> &statuses,
+                            ::rocksdb::ReadOptions ro) const {
   if (values.size() < keys.size()) {
     values.resize(keys.size());
   }
@@ -155,15 +171,18 @@ void NativeClient::multiGet(const std::string &cFamily,
   for (const auto &k : keys) {
     key_slices.emplace_back(detail::toSlice(k));
   }
-  client_->dbInstance_->MultiGet(::rocksdb::ReadOptions{},
-                                 columnFamilyHandle(cFamily),
-                                 key_slices.size(),
-                                 key_slices.data(),
-                                 values.data(),
-                                 statuses.data());
+  client_->dbInstance_->MultiGet(
+      ro, columnFamilyHandle(cFamily), key_slices.size(), key_slices.data(), values.data(), statuses.data());
 }
 
-inline NativeWriteBatch NativeClient::getBatch() const { return NativeWriteBatch{shared_from_this()}; }
+inline NativeWriteBatch NativeClient::getBatch(size_t reserved_bytes) const {
+  return reserved_bytes == 0 ? NativeWriteBatch{shared_from_this()}
+                             : NativeWriteBatch{shared_from_this(), reserved_bytes};
+}
+
+inline NativeWriteBatch NativeClient::getBatch(std::string &&data) const {
+  return NativeWriteBatch{shared_from_this(), std::move(data)};
+}
 
 inline NativeIterator NativeClient::getIterator() const {
   return std::unique_ptr<::rocksdb::Iterator>{client_->dbInstance_->NewIterator(::rocksdb::ReadOptions{})};
@@ -200,6 +219,27 @@ inline void NativeClient::write(NativeWriteBatch &&b) {
   detail::throwOnError("write(batch) failed"sv, std::move(s));
 }
 
+template <typename BeginSpan, typename EndSpan>
+inline void NativeClient::compactRange(const std::string &cFamily, const BeginSpan &startKey, const EndSpan &endKey) {
+  ::rocksdb::Slice startKeySlice(detail::toSlice(startKey));
+  ::rocksdb::Slice endKeySlice(detail::toSlice(endKey));
+  auto s = client_->dbInstance_->CompactRange(
+      ::rocksdb::CompactRangeOptions{}, columnFamilyHandle(cFamily), &startKeySlice, &endKeySlice);
+  detail::throwOnError("compact range failed"sv, std::move(s));
+}
+
+template <typename BeginSpan, typename EndSpan>
+inline void NativeClient::deleteFilesInRange(const std::string &cFamily,
+                                             const BeginSpan &startKey,
+                                             const EndSpan &endKey,
+                                             bool include_end) {
+  ::rocksdb::Slice startKeySlice(detail::toSlice(startKey));
+  ::rocksdb::Slice endKeySlice(detail::toSlice(endKey));
+  auto s = DeleteFilesInRange(
+      client_->dbInstance_.get(), columnFamilyHandle(cFamily), &startKeySlice, &endKeySlice, include_end);
+  detail::throwOnError("delete files in range failed"sv, std::move(s));
+}
+
 inline std::unordered_set<std::string> NativeClient::columnFamilies(const std::string &path) {
   auto families = std::vector<std::string>{};
   auto status = ::rocksdb::DB::ListColumnFamilies(::rocksdb::DBOptions{}, path, &families);
@@ -231,6 +271,29 @@ inline void NativeClient::createColumnFamily(const std::string &cFamily,
   client_->cf_handles_[cFamily] = std::move(handle);
 }
 
+inline void NativeClient::createColumnFamilyWithImport(const std::string &cFamily,
+                                                       const ::rocksdb::ImportColumnFamilyOptions &importOpts,
+                                                       const ::rocksdb::ExportImportFilesMetaData &metadata,
+                                                       const ::rocksdb::ColumnFamilyOptions &cfOpts) {
+  ::rocksdb::ColumnFamilyHandle *handlePtr{nullptr};
+  auto s = rawDB().CreateColumnFamilyWithImport(cfOpts, cFamily, importOpts, metadata, &handlePtr);
+  auto handleUniquePtr = Client::CfUniquePtr{handlePtr, Client::CfDeleter{client_.get()}};
+  detail::throwOnError("failed to import column family"sv, cFamily, std::move(s));
+  client_->cf_handles_[cFamily] = std::move(handleUniquePtr);
+}
+
+inline bool NativeClient::createColumnFamilyIfNotExisting(const std::string &cf,
+                                                          const ::rocksdb::CompactionFilter *filter) {
+  if (!hasColumnFamily(cf)) {
+    auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+    if (filter) {
+      cf_options.compaction_filter = filter;
+    }
+    createColumnFamily(cf, cf_options);
+    return true;
+  }
+  return false;
+}
 inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
   auto family = columnFamilyHandle(cFamily);
   auto descriptor = ::rocksdb::ColumnFamilyDescriptor{};
@@ -276,6 +339,18 @@ inline Client::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::str
   detail::throwOnError("cannot create column family handle"sv, cFamily, std::move(s));
   return ret;
 }
+
+inline void NativeClient::createCheckpointNative(const uint64_t &checkPointId) {
+  client_->createCheckpoint(checkPointId);
+}
+inline std::vector<uint64_t> NativeClient::getListOfCreatedCheckpointsNative() const {
+  return client_->getListOfCreatedCheckpoints();
+}
+
+inline void NativeClient::removeCheckpointNative(const uint64_t &checkPointId) const {
+  client_->removeCheckpoint(checkPointId);
+}
+inline void NativeClient::setCheckpointDirNative(const std::string &path) { client_->setCheckpointPath(path); }
 
 }  // namespace concord::storage::rocksdb
 

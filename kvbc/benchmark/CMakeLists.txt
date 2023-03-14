@@ -9,6 +9,7 @@ if(benchmark_FOUND)
     target_link_libraries(sparse_merkle_benchmark PUBLIC
         benchmark
         util
+        concord-crypto
         corebft
         kvbc
     )
@@ -27,5 +28,6 @@ endif(benchmark_FOUND)
 if (BUILD_TESTING)
     if (BUILD_ROCKSDB_STORAGE)
         add_subdirectory(kvbcbench)
+        add_subdirectory(state_snapshot_benchmarks)
     endif (BUILD_ROCKSDB_STORAGE)
 endif(BUILD_TESTING	)

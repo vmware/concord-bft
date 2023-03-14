@@ -14,10 +14,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <limits>
 
-#include "STDigest.hpp"
+#include "log/logger.hpp"
 #include "IStateTransfer.hpp"
-#include "Logger.hpp"
+#include "util/hex_tools.hpp"
 
 namespace bftEngine {
 namespace bcst {
@@ -39,89 +40,160 @@ class MsgType {
 };
 
 struct BCStateTranBaseMsg {
+  BCStateTranBaseMsg(uint16_t type, bool isIncomingMsg = false) : type(type), isIncomingMsg_(isIncomingMsg) {}
+
   uint16_t type;
+  // this flag is for monitoring messages buffer allocs and releases so it's mutable even though incoming ST msgs objs
+  // are const during handling
+  mutable uint8_t isIncomingMsg_;
+  // This struct and its derived structs are used to de/serialize message buffers sent over communication channels.
+  // Since virtual methods modify the memory layout of a struct, there cannot be any for both this base struct and its
+  // inheritors.
+};
+
+// VariableSizeMsg is useful for structs with a flexible array member
+template <typename T>
+class VariableSizeMsg {
+ public:
+  VariableSizeMsg(size_t dataSize) : buffer_(new concord::Byte[calcMsgSize(dataSize)]()) {}
+
+  T* operator->() const { return reinterpret_cast<T*>(buffer_.get()); }
+
+  char* getSerializedMsg() const { return reinterpret_cast<char*>(buffer_.get()); }
+
+  static size_t calcMsgSize(size_t dataSize) { return sizeof(T) - 1 + dataSize; }
+
+ private:
+  std::unique_ptr<concord::Byte[]> buffer_;
 };
 
 struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
-  AskForCheckpointSummariesMsg() {
-    memset(this, 0, sizeof(AskForCheckpointSummariesMsg));
-    type = MsgType::AskForCheckpointSummaries;
-  }
+  AskForCheckpointSummariesMsg()
+      : BCStateTranBaseMsg{MsgType::AskForCheckpointSummaries}, msgSeqNum{}, minRelevantCheckpointNum{} {}
 
   uint64_t msgSeqNum;
   uint64_t minRelevantCheckpointNum;
 };
 
 struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
-  CheckpointSummaryMsg() {
-    // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
-    memset(this, 0, sizeof(CheckpointSummaryMsg));
-    type = MsgType::CheckpointsSummary;
+  CheckpointSummaryMsg() = delete;
+
+  static VariableSizeMsg<CheckpointSummaryMsg> alloc(size_t rvbDataSize) {
+    VariableSizeMsg<CheckpointSummaryMsg> msg{rvbDataSize};
+    msg->type = MsgType::CheckpointsSummary;
+    msg->rvbDataSize = rvbDataSize;
+    return msg;
   }
 
+  static void free(void* context, const CheckpointSummaryMsg* msg) {
+    IReplicaForStateTransfer* rep = reinterpret_cast<IReplicaForStateTransfer*>(context);
+    rep->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(msg)));
+  }
+
+  size_t size() const { return VariableSizeMsg<CheckpointSummaryMsg>::calcMsgSize(rvbDataSize); }
+  size_t sizeofRvbData() const { return rvbDataSize; }
+
   uint64_t checkpointNum;
-  uint64_t lastBlock;
-  STDigest digestOfLastBlock;
-  STDigest digestOfResPagesDescriptor;
+  uint64_t maxBlockId;
+  Digest digestOfMaxBlockId;
+  Digest digestOfResPagesDescriptor;
   uint64_t requestMsgSeqNum;
 
+ private:
+  uint32_t rvbDataSize;
+
+ public:
+  char data[1];
+
+  static void logOnMismatch(const CheckpointSummaryMsg* a,
+                            const CheckpointSummaryMsg* b,
+                            uint16_t a_id = std::numeric_limits<uint16_t>::max(),
+                            uint16_t b_id = std::numeric_limits<uint16_t>::max()) {
+    auto logger = logging::getLogger("state-transfer");
+    std::ostringstream oss;
+    oss << "Mismatched Checkpoints for checkpointNum=" << a->checkpointNum << std::endl;
+
+    if (a_id != std::numeric_limits<uint16_t>::max()) {
+      oss << "Replica=" << a_id;
+    }
+    oss << " maxBlockId=" << a->maxBlockId << " digestOfMaxBlockId=" << a->digestOfMaxBlockId.toString()
+        << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
+        << " requestMsgSeqNum=" << a->requestMsgSeqNum << " rvbDataSize=" << a->rvbDataSize << std::endl;
+
+    if (b_id != std::numeric_limits<uint16_t>::max()) {
+      oss << "Replica=" << b_id;
+    }
+    oss << " maxBlockId=" << b->maxBlockId << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString()
+        << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
+        << " requestMsgSeqNum=" << b->requestMsgSeqNum << " requestMsgSeqNum=" << b->rvbDataSize << std::endl;
+    LOG_WARN(logger, oss.str());
+    if (a->rvbDataSize > 0) {
+      concordUtils::HexPrintBuffer adata{a->data, a->rvbDataSize};
+      LOG_TRACE(logger, KVLOG(adata));
+    }
+    if (b->rvbDataSize > 0) {
+      concordUtils::HexPrintBuffer bdata{b->data, b->rvbDataSize};
+      LOG_TRACE(logger, KVLOG(bdata));
+    }
+  }
+
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 88),
                   "Should newly added field be compared below?");
-    return ((a->lastBlock == b->lastBlock) and (a->checkpointNum == b->checkpointNum) and
-            (a->digestOfLastBlock == b->digestOfLastBlock) and
-            (a->digestOfResPagesDescriptor == b->digestOfResPagesDescriptor));
+    bool cmp1 =
+        ((a->maxBlockId == b->maxBlockId) && (a->checkpointNum == b->checkpointNum) &&
+         (a->digestOfMaxBlockId == b->digestOfMaxBlockId) &&
+         (a->digestOfResPagesDescriptor == b->digestOfResPagesDescriptor) && (a->rvbDataSize == b->rvbDataSize));
+    bool cmp2{true};
+    if (cmp1 && (a->rvbDataSize > 0)) {
+      cmp2 = (0 == memcmp(a->data, b->data, a->rvbDataSize));
+    }
+    bool equal = cmp1 && cmp2;
+    if (!equal) {
+      logOnMismatch(a, b);
+    }
+    return equal;
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
-    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 88),
                   "Should newly added field be compared below?");
-    if ((a->lastBlock != b->lastBlock) || (a->checkpointNum != b->checkpointNum) ||
-        (a->digestOfLastBlock != b->digestOfLastBlock) ||
-        (a->digestOfResPagesDescriptor != b->digestOfResPagesDescriptor)) {
-      auto logger = logging::getLogger("state-transfer");
-      LOG_WARN(logger,
-               "Mismatched Checkpoints for checkpointNum="
-                   << a->checkpointNum << std::endl
-
-                   << "    Replica=" << a_id << " lastBlock=" << a->lastBlock
-                   << " digestOfLastBlock=" << a->digestOfLastBlock.toString()
-                   << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
-                   << " requestMsgSeqNum=" << a->requestMsgSeqNum << std::endl
-
-                   << "    Replica=" << b_id << " lastBlock=" << b->lastBlock
-                   << " digestOfLastBlock=" << b->digestOfLastBlock.toString()
-                   << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
-                   << " requestMsgSeqNum=" << b->requestMsgSeqNum << std::endl);
+    if ((a->maxBlockId != b->maxBlockId) || (a->checkpointNum != b->checkpointNum) ||
+        (a->digestOfMaxBlockId != b->digestOfMaxBlockId) ||
+        (a->digestOfResPagesDescriptor != b->digestOfResPagesDescriptor) || (a->rvbDataSize != b->rvbDataSize) ||
+        (0 != memcmp(a->data, b->data, a->rvbDataSize))) {
+      logOnMismatch(a, b, a_id, b_id);
       return false;
     }
     return true;
   }
-
-  static void free(void* context, const CheckpointSummaryMsg* a) {
-    IReplicaForStateTransfer* w = reinterpret_cast<IReplicaForStateTransfer*>(context);
-
-    w->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(a)));
-  }
 };
 
 struct FetchBlocksMsg : public BCStateTranBaseMsg {
-  FetchBlocksMsg() {
-    memset(this, 0, sizeof(FetchBlocksMsg));
-    type = MsgType::FetchBlocks;
-  }
+  FetchBlocksMsg()
+      : BCStateTranBaseMsg{MsgType::FetchBlocks},
+        msgSeqNum{},
+        minBlockId{},
+        maxBlockId{},
+        maxBlockIdInCycle{},
+        rvbGroupId{},
+        lastKnownChunkInLastRequiredBlock{} {}
 
   uint64_t msgSeqNum;
-  uint64_t firstRequiredBlock;
-  uint64_t lastRequiredBlock;
+  uint64_t minBlockId;
+  uint64_t maxBlockId;
+  uint64_t maxBlockIdInCycle;
+  uint64_t rvbGroupId;
   uint16_t lastKnownChunkInLastRequiredBlock;
 };
 
 struct FetchResPagesMsg : public BCStateTranBaseMsg {
-  FetchResPagesMsg() {
-    memset(this, 0, sizeof(FetchResPagesMsg));
-    type = MsgType::FetchResPages;
-  }
+  FetchResPagesMsg()
+      : BCStateTranBaseMsg{MsgType::FetchResPages},
+        msgSeqNum{},
+        lastCheckpointKnownToRequester{},
+        requiredCheckpointNum{},
+        lastKnownChunk{} {}
 
   uint64_t msgSeqNum;
   uint64_t lastCheckpointKnownToRequester;
@@ -130,44 +202,64 @@ struct FetchResPagesMsg : public BCStateTranBaseMsg {
 };
 
 struct RejectFetchingMsg : public BCStateTranBaseMsg {
-  RejectFetchingMsg() {
-    memset(this, 0, sizeof(RejectFetchingMsg));
-    type = MsgType::RejectFetching;
-  }
+  class Reason {
+   public:
+    enum : uint16_t {
+      FIRST = 0,  // should not be used and must be first!
+
+      RES_PAGE_NOT_FOUND = 1,
+      IN_STATE_TRANSFER = 2,
+      BLOCK_RANGE_NOT_FOUND = 3,
+      IN_ACTIVE_SESSION = 4,
+      INVALID_NUMBER_OF_BLOCKS_REQUESTED = 5,
+      BLOCK_NOT_FOUND_IN_STORAGE = 6,
+      DIGESTS_FOR_RVBGROUP_NOT_FOUND = 7,
+
+      LAST,  // should not be used and must be last!
+    };
+  };
+  RejectFetchingMsg() = delete;
+  RejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum)
+      : BCStateTranBaseMsg{MsgType::RejectFetching}, requestMsgSeqNum{reqMsgSeqNum}, rejectionCode{rejCode} {}
 
   uint64_t requestMsgSeqNum;
+  uint16_t rejectionCode;
+
+  static inline std::map<uint16_t, const char*> reasonMessages = {
+      {Reason::RES_PAGE_NOT_FOUND, "Reserved page not found"},
+      {Reason::IN_STATE_TRANSFER, "In state transfer"},
+      {Reason::BLOCK_RANGE_NOT_FOUND, "Block range not found"},
+      {Reason::IN_ACTIVE_SESSION, "In active session"},
+      {Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED, "Invalid number of blocks requested"},
+      {Reason::BLOCK_NOT_FOUND_IN_STORAGE, "Block not found in storage"},
+      {Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, "Digests for RVB group not found"}};
 };
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
-  static ItemDataMsg* alloc(uint32_t dataSize) {
-    size_t s = sizeof(ItemDataMsg) - 1 + dataSize;
-    char* buff = reinterpret_cast<char*>(std::malloc(s));
-    memset(buff, 0, s);
-    ItemDataMsg* retVal = reinterpret_cast<ItemDataMsg*>(buff);
-    retVal->type = MsgType::ItemData;
-    retVal->dataSize = dataSize;
+  ItemDataMsg() = delete;
 
-    return retVal;
-  }
-
-  static void free(ItemDataMsg* i) {
-    void* buff = i;
-    std::free(buff);
+  static VariableSizeMsg<ItemDataMsg> alloc(size_t dataSize) {
+    VariableSizeMsg<ItemDataMsg> msg{dataSize};
+    msg->type = MsgType::ItemData;
+    msg->dataSize = dataSize;
+    return msg;
   }
 
   uint64_t requestMsgSeqNum;
-
   uint64_t blockNumber;
-
   uint16_t totalNumberOfChunksInBlock;
-
   uint16_t chunkNumber;
-
-  uint32_t dataSize;
   uint8_t lastInBatch;
-  char data[1];
+  uint32_t rvbDigestsSize;  // if non-zero, size in bytes  which is dedicated to RVB
+                            // digests from the total of dataSize (rvbDigestsSize < dataSize)
+ private:
+  uint32_t dataSize;
 
-  uint32_t size() const { return sizeof(ItemDataMsg) - 1 + dataSize; }
+ public:
+  char data[1];  // MSB[raw block of size dataSize-rvbDigestsSize|RVB DIGESTS of size rvbDigestsSize]LSB
+
+  uint32_t size() const { return VariableSizeMsg<ItemDataMsg>::calcMsgSize(dataSize); }
+  uint32_t getDataSize() const { return dataSize; }
 };
 
 #pragma pack(pop)

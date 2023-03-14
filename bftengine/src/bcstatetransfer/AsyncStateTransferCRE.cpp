@@ -14,11 +14,13 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/SigManager.hpp"
 #include "bftengine/EpochManager.hpp"
-#include "secrets_manager_plain.h"
+#include "secrets/secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "communication/ICommunication.hpp"
 #include "bftclient/bft_client.h"
+#include "ControlStateManager.hpp"
+#include "reconfiguration/ireconfiguration.hpp"
 
 namespace bftEngine::bcst::asyncCRE {
 using namespace concord::client::reconfiguration;
@@ -27,7 +29,7 @@ class Communication : public ICommunication {
  public:
   Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
       : msgsCommunicator_{msgsCommunicator}, repId_{bftEngine::ReplicaConfig::instance().replicaId} {
-    msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](bftEngine::impl::MessageBase* message) {
+    msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](std::unique_ptr<bftEngine::impl::MessageBase> message) {
       if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
     });
   }
@@ -46,22 +48,21 @@ class Communication : public ICommunication {
     if (!is_running_) return ConnectionStatus::Disconnected;
     return ConnectionStatus::Connected;
   }
-  int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
+  int send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
     if (destNode == repId_) {
       return msg.size();
     }
     return msgsCommunicator_->sendAsyncMessage(destNode, reinterpret_cast<char*>(msg.data()), msg.size());
   }
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
     auto ret = dests;
-    if (dests.find(repId_) != dests.end()) {
-      dests.erase(repId_);
-    }
+    dests.erase(repId_);
+
     msgsCommunicator_->send(dests, reinterpret_cast<char*>(msg.data()), msg.size());
     return ret;
   }
   void setReceiver(NodeNum receiverNum, IReceiver* receiver) override { receiver_ = receiver; }
-  void dispose(NodeNum i) override {}
+  void restartCommunication(NodeNum i) override {}
 
  private:
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
@@ -70,55 +71,79 @@ class Communication : public ICommunication {
   uint16_t repId_;
 };
 
-class ReplicaTLSKeyExchangeHandler : public IStateHandler {
+class InternalSigner : public concord::crypto::ISigner {
  public:
-  ReplicaTLSKeyExchangeHandler() {}
+  size_t signBuffer(const concord::Byte* dataIn, size_t dataLen, concord::Byte* sigOutBuffer) override {
+    return bftEngine::impl::SigManager::instance()->sign(dataIn, dataLen, sigOutBuffer);
+  }
 
+  size_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+  std::string getPrivKey() const override { return ""; }
+};
+
+class ScalingReplicaHandler : public IStateHandler {
+ public:
+  ScalingReplicaHandler() {}
   bool validate(const State& state) const override {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
+    if (crep.epoch < EpochManager::instance().getSelfEpochNumber()) return false;
+    if (std::holds_alternative<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response)) {
+      concord::messages::ClientsAddRemoveExecuteCommand command =
+          std::get<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
+      std::ofstream configurations_file;
+      configurations_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
+                                   concord::reconfiguration::configurationsFileName + "." +
+                                   std::to_string(bftEngine::ReplicaConfig::instance().replicaId),
+                               std::ios_base::app);
+      if (configurations_file.good()) {
+        std::stringstream stream;
+        stream << configurations_file.rdbuf();
+        std::string configs = stream.str();
+        return (configs.empty()) || (configs.find(command.config_descriptor) != std::string::npos);
+      }
+    }
+    return false;
   }
 
-  bool execute(const State& state, WriteState& out) override {
-    bool succ = true;
+  bool execute(const State& state, WriteState&) override {
+    LOG_INFO(getLogger(), "execute AddRemoveWithWedgeCommand");
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    auto command = std::get<concord::messages::ReplicaTlsExchangeKey>(crep.response);
-    auto sender_id = command.sender_id;
-    concord::messages::ReconfigurationResponse response;
-    std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                                         std::to_string(sender_id) + "/server/server.cert";
-    auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
-    if (current_rep_cert == command.cert) return succ;
-    LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
-    std::string cert = std::move(command.cert);
-    sm_.encryptFile(bft_replicas_cert_path, cert);
-    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    StateControl::instance().restartComm(sender_id);
-    return succ;
+    concord::messages::ClientsAddRemoveExecuteCommand command =
+        std::get<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
+    std::ofstream configuration_file;
+    configuration_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
+                                concord::reconfiguration::configurationsFileName + "." +
+                                std::to_string(bftEngine::ReplicaConfig::instance().replicaId),
+                            std::ios_base::app);
+    if (!configuration_file.good()) {
+      LOG_FATAL(getLogger(), "unable to open the reconfigurations file");
+    }
+    configuration_file << (command.config_descriptor + "\n");
+    configuration_file.close();
+    LOG_INFO(getLogger(), "getting new configuration");
+    bftEngine::ControlStateManager::instance().getNewConfiguration(command.config_descriptor, command.token);
+    bftEngine::ControlStateManager::instance().markRemoveMetadata();
+    LOG_INFO(getLogger(), "completed scaling procedure for " << command.config_descriptor << " restarting the replica");
+    if (command.restart) bftEngine::ControlStateManager::instance().restart();
+    return true;
   }
 
  private:
-  concord::secretsmanager::SecretsManagerPlain sm_;
-};
-class InternalSigner : public concord::util::crypto::ISigner {
- public:
-  std::string sign(const std::string& data) override {
-    std::string out;
-    out.resize(bftEngine::impl::SigManager::instance()->getMySigLength());
-    bftEngine::impl::SigManager::instance()->sign(data.data(), data.size(), out.data(), signatureLength());
-    return out;
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("bftEngine::bcst::asyncCRE.ScalingReplicaHandler"));
+    return logger_;
   }
-  uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
 };
-
 std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<MsgsCommunicator> msgsCommunicator,
                                                                 std::shared_ptr<MsgHandlersRegistrator> msgHandlers) {
   bft::client::ClientConfig bftClientConf;
   auto& repConfig = bftEngine::ReplicaConfig::instance();
   bftClientConf.f_val = repConfig.fVal;
   bftClientConf.c_val = repConfig.cVal;
+  bftClientConf.retry_timeout_config.initial_retry_timeout = bftClientConf.retry_timeout_config.min_retry_timeout =
+      bftClientConf.retry_timeout_config.max_retry_timeout = 1s;
   bftClientConf.id = bft::client::ClientId{repConfig.replicaId};
   for (uint16_t i = 0; i < repConfig.numReplicas; i++) {
     bftClientConf.all_replicas.emplace(bft::client::ReplicaId{i});
@@ -126,6 +151,7 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   for (uint16_t i = repConfig.numReplicas; i < repConfig.numReplicas + repConfig.numRoReplicas; i++) {
     bftClientConf.ro_replicas.emplace(bft::client::ReplicaId{i});
   }
+  bftClientConf.replicas_master_key_folder_path = std::nullopt;
   std::unique_ptr<ICommunication> comm = std::make_unique<Communication>(msgsCommunicator, msgHandlers);
   bft::client::Client* bftClient = new bft::client::Client(std::move(comm), bftClientConf);
   bftClient->setTransactionSigner(new InternalSigner());
@@ -135,7 +161,7 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
-  cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
+  if (!bftEngine::ReplicaConfig::instance().isReadOnly) cre->registerHandler(std::make_shared<ScalingReplicaHandler>());
   return cre;
 }
 }  // namespace bftEngine::bcst::asyncCRE

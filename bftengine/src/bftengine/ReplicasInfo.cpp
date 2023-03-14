@@ -11,7 +11,7 @@
 
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -28,17 +28,29 @@ namespace impl {
 //  [numReplicas+numRoReplicas, numReplicas+numRoReplicas+numOfClientProxies-1] inclusive
 //
 // External clients address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies-1,
+//  [numReplicas+numRoReplicas+numOfClientProxies,
 //  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
 //
+// Client services address range:
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients - (int)operatorEnabled,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients - (int)operatorEnabled + numOfClientServices-1]
+//  inclusive
+//
+//  Operator-id:
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices - 1
+//  Note that the operator is also added to the external clients list
+//
 // Internal clients address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1] inclusive
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices+1,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices+numOfInternalClients]
+//  inclusive
 //
 // Example:
-//  numReplicas = 7, numRoReplicas = 1, numOfClientProxies=14, numOfExternalClients=100, numOfInternalClients=7
-//  address range in this order: [0,6], [7,7], [8,21] , [22,121], [122,128] - total 129 participants
+//  numReplicas=7, numRoReplicas=1, numOfClientProxies=7, numOfExternalClients=100, numOfClientServices=2,
+//  operator=1, numOfInternalClients=7,
+//  address range in this order: [0,6], [7,7], [8,14], [15,114], [115,116], [117], [118-124] - total 125 participants
 //
+
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
@@ -47,14 +59,21 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _numberOfRoReplicas{config.numRoReplicas},
       _numOfClientProxies{config.numOfClientProxies},
       _numberOfExternalClients{config.numOfExternalClients},
+      _numberOfClientServices{config.numOfClientServices},
       _numberOfInternalClients{config.numReplicas},
       _maxValidPrincipalId{static_cast<uint16_t>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                                                 config.numOfExternalClients + _numberOfInternalClients - 1)},
+                                                 config.numOfExternalClients + _numberOfInternalClients +
+                                                 _numberOfClientServices - 1)},
       _fVal{config.fVal},
       _cVal{config.cVal},
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
 
+      /*
+       * Ids order is: [replicas, ro-replicas, clientProxies, client-service clients (aka external clients) including
+       * cre, client-service ID, operator, internal-clients]. Notice, that in case we have an operator, it is included
+       * in numOfExternalClients, so no need in any special handling.
+       */
       _idsOfPeerReplicas{[&config]() {
         std::set<ReplicaId> ret;
         for (auto i = 0; i < config.numReplicas; ++i)
@@ -92,17 +111,34 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         std::set<ReplicaId> ret;
         auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
         auto end = start + config.numOfExternalClients;
+        for (auto i = start; i < (end - ((uint16_t)config.operatorEnabled_)); ++i) {
+          ret.insert(i);
+        }
+        ret.insert(end + config.numOfClientServices - 1);
+        if (start != end)
+          LOG_INFO(GL,
+                   "Principal ids in _idsOfExternalClients: " << start << " to "
+                                                              << end - 1 - ((uint16_t)config.operatorEnabled_));
+        return ret;
+      }()},
+
+      _idsOfClientServices{[&config]() {
+        std::set<ReplicaId> ret;
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
+        auto end = start + config.numOfClientServices;
         for (auto i = start; i < end; ++i) {
           ret.insert(i);
         }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfExternalClients: " << start << " to " << end - 1);
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end - 1);
+        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end);
         return ret;
       }()},
 
       _idsOfInternalClients{[&config]() {
         std::set<ReplicaId> ret;
-        auto start =
-            config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients + config.numOfClientServices;
         auto end = start + config.numReplicas;
         for (auto i = start; i < end; ++i) {
           ret.insert(i);
@@ -110,6 +146,10 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
         return ret;
       }()} {
+  _operator_id = config.operatorEnabled_
+                     ? static_cast<PrincipalId>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                                                config.numOfExternalClients + config.numOfClientServices - 1)
+                     : 0;
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 

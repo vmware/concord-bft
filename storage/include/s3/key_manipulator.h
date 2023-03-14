@@ -13,8 +13,8 @@
 
 #pragma once
 
+#include "log/logger.hpp"
 #include "storage/key_manipulator_interface.h"
-#include "Logger.hpp"
 
 namespace concord::storage::s3 {
 

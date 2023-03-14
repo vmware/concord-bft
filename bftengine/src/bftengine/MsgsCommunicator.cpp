@@ -10,8 +10,9 @@
 // file.
 
 #include "MsgsCommunicator.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "communication/CommDefs.hpp"
+#include "diagnostics.h"
 
 namespace bftEngine::impl {
 
@@ -21,7 +22,14 @@ using namespace bft::communication;
 MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
                                    shared_ptr<IncomingMsgsStorage> incomingMsgsStorage,
                                    shared_ptr<IReceiver> msgReceiver)
-    : incomingMsgsStorage_(incomingMsgsStorage), msgReceiver_(msgReceiver), communication_(comm) {}
+    : incomingMsgsStorage_(incomingMsgsStorage), msgReceiver_(msgReceiver), communication_(comm) {
+  auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+
+  concord::diagnostics::StatusHandler handler(
+      "messages_communicator", "Msg Comm", [this]() { return incomingMsgsStorage_->status(); });
+
+  registrar.status.registerHandler(handler);
+}
 
 int MsgsCommunicator::startCommunication(uint16_t replicaId) {
   replicaId_ = replicaId;
@@ -60,15 +68,19 @@ void MsgsCommunicator::send(std::set<NodeNum> dests, char* message, size_t messa
 uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
   uint32_t ret{0};
   for (uint32_t i = 0; i < clusterSize; ++i) {
-    if (communication_->getCurrentConnectionStatus(i) == ConnectionStatus::Disconnected) continue;
-    ++ret;
+    if (communication_->getCurrentConnectionStatus(i) == ConnectionStatus::Connected) {
+      ++ret;
+    }
   }
   return ret;
 }
 
 bool MsgsCommunicator::isUdp() {
+#ifdef USE_COMM_UDP
   if (dynamic_cast<PlainUDPCommunication*>(communication_) == nullptr) return false;
   return true;
+#endif
+  return false;
 }
 bool MsgsCommunicator::isReplicaConnected(uint16_t repId) {
   return communication_->getCurrentConnectionStatus(repId) == ConnectionStatus::Connected;

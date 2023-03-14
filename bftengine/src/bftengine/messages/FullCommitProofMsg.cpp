@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "FullCommitProofMsg.hpp"
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {
@@ -38,7 +38,7 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
       (b()->epochNum != EpochManager::instance().getSelfEpochNumber()) ||
-      size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()))
+      size() < (sizeof(Header) + signatureLen() + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   // TODO(GG): TBD - check something about the collectors identity (and in other similar messages)

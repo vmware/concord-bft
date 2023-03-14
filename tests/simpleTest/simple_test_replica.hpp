@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include "assertUtils.hpp"
-#include "OpenTracing.hpp"
+#include "util/assertUtils.hpp"
+#include "util/OpenTracing.hpp"
 #include "communication/CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
@@ -25,8 +25,8 @@
 #include <thread>
 #include "commonDefs.h"
 #include "simple_test_replica_behavior.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
+#include "crypto/threshsign/IThresholdSigner.h"
+#include "crypto/threshsign/IThresholdVerifier.h"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -123,9 +123,14 @@ class SimpleAppState : public IRequestsHandler {
 
         st->markUpdate(statePtr, sizeof(State) * numOfClients);
       }
-      req.outExecutionStatus = 0;
+      req.outExecutionStatus = 0;  // SUCCESS
     }
   }
+
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override {}
 
   struct State {
     // Number of modifications made.
@@ -164,7 +169,8 @@ class SimpleTestReplica {
                                          comm,
                                          metaDataStorage,
                                          std::make_shared<concord::performance::PerformanceManager>(),
-                                         nullptr /*SecretsManagerEnc*/);
+                                         nullptr); /*SecretsManagerEnc*/
+    replica->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
   }
 
   ~SimpleTestReplica() {
@@ -243,7 +249,7 @@ class SimpleTestReplica {
         testCommConfig.GetTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #elif USE_COMM_TLS_TCP
     TlsTcpConfig conf =
-        testCommConfig.GetTlsTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
+        testCommConfig.GetTlsTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName, false);
 #else
     PlainUdpConfig conf =
         testCommConfig.GetUDPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);

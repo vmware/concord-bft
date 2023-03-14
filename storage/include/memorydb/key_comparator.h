@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "Logger.hpp"
-#include "sliver.hpp"
+#include "log/logger.hpp"
+#include "util/sliver.hpp"
 #include "storage/db_interface.h"
 
 namespace concord {

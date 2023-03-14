@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "sliver.hpp"
-#include "status.hpp"
+#include "util/assertUtils.hpp"
+#include "util/sliver.hpp"
+#include "util/status.hpp"
 #include <unordered_map>
 #include <vector>
-#include "Metrics.hpp"
-
-#define OUT
+#include "util/Metrics.hpp"
 
 namespace concord {
 namespace storage {
@@ -53,18 +52,18 @@ class ITransaction {
   ID id_;
 };
 
-class IDBClient {
+class IDBClient : public std::enable_shared_from_this<IDBClient> {
  public:
   typedef std::shared_ptr<IDBClient> ptr;
   virtual ~IDBClient() = default;
   virtual void init(bool readOnly = false) = 0;
-  virtual Status get(const Sliver& _key, OUT Sliver& _outValue) const = 0;
-  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const = 0;
+  virtual Status get(const Sliver& _key, Sliver& _outValue) const = 0;
+  virtual Status get(const Sliver& _key, char*& buf, uint32_t bufSize, uint32_t& _size) const = 0;
   virtual Status has(const Sliver& _key) const = 0;
   virtual Status put(const Sliver& _key, const Sliver& _value) = 0;
   virtual Status del(const Sliver& _key) = 0;
-  virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;
-  virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap) = 0;
+  virtual Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) = 0;
+  virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) = 0;
   virtual Status multiDel(const KeysVector& _keysVec) = 0;
   // Delete keys in the [_beginKey, _endKey) range (_beginKey included and _endKey excluded). If an inavlid range has
   // been passed (i.e. _endKey < _beginKey), the behavior is undefined. If _beginKey == _endKey, the call will not have
@@ -72,6 +71,14 @@ class IDBClient {
   // status will reflect it.
   virtual Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) = 0;
   virtual bool isNew() = 0;
+  virtual Status createCheckpoint(const uint64_t&) { return Status::IllegalOperation("Not supported"); };
+  virtual std::string getPath() const { return ""; };
+  virtual void setCheckpointPath(const std::string&){};
+  virtual std::string getCheckpointPath() const { return "NotSupported"; };
+  virtual std::string getPathForCheckpoint(std::uint64_t checkpointId) const { ConcordAssert(false); };
+  virtual std::vector<uint64_t> getListOfCreatedCheckpoints() const { return {}; }
+  virtual void removeCheckpoint(const uint64_t&) const {}
+  virtual void removeAllCheckpoints() const {};
 
   // the caller is responsible for transaction object lifetime
   // possible options: ITransaction::Guard or std::shared_ptr

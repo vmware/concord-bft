@@ -10,7 +10,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <endianness.hpp>
+#include "util/endianness.hpp"
 #include <future>
 #include "bftengine/ControlStateManager.hpp"
 #include "pruning_handler.hpp"
@@ -19,28 +19,30 @@
 
 namespace concord::kvbc::pruning {
 
-void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
+using bftEngine::ReplicaConfig;
+
+void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
   std::ostringstream oss;
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  std::string signature = signer_->sign(ser);
-  block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
+  std::vector<uint8_t> signature(signer_->signatureLength());
+  auto actualSignatureLength = signer_->sign(ser, signature.data());
+  ConcordAssertEQ(actualSignatureLength, signer_->signatureLength());
+  block.signature = std::move(signature);
 }
 
-RSAPruningSigner::RSAPruningSigner(const std::string& key)
-    : signer_{std::make_unique<concord::util::crypto::RSASigner>(
-          key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat)} {}
+PruningSigner::PruningSigner(const std::string& key)
+    : signer_{concord::crypto::Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo)} {}
 
-RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
+PruningVerifier::PruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
   auto i = 0u;
   for (auto& [idx, pkey] : replicasPublicKeys) {
-    replicas_.push_back(Replica{idx,
-                                std::make_unique<concord::util::crypto::RSAVerifier>(
-                                    pkey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat)});
+    replicas_.push_back(
+        Replica{idx, concord::crypto::Factory::getVerifier(pkey, ReplicaConfig::instance().replicaMsgSigningAlgo)});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {
-      throw std::runtime_error{"RSAPruningVerifier found duplicate replica principal_id: " +
+      throw std::runtime_error{"PruningVerifier found duplicate replica principal_id: " +
                                std::to_string(replicas_.back().principal_id)};
     }
 
@@ -50,7 +52,7 @@ RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const 
   }
 }
 
-bool RSAPruningVerifier::verify(const concord::messages::LatestPrunableBlock& block) const {
+bool PruningVerifier::verify(const concord::messages::LatestPrunableBlock& block) const {
   // LatestPrunableBlock can only be sent by replicas and not by client proxies.
   if (replica_ids_.find(block.replica) == std::end(replica_ids_)) {
     return false;
@@ -63,7 +65,7 @@ bool RSAPruningVerifier::verify(const concord::messages::LatestPrunableBlock& bl
   return verify(block.replica, ser, sig_str);
 }
 
-bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) const {
+bool PruningVerifier::verify(const concord::messages::PruneRequest& request) const {
   if (request.latest_prunable_block.size() != static_cast<size_t>(replica_ids_.size())) {
     return false;
   }
@@ -73,12 +75,7 @@ bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) 
     return false;
   }
 
-  // Make sure pruning parameters are in range.
-  if (request.tick_period_seconds <= 0 || request.batch_blocks_num <= 0) {
-    return false;
-  }
-
-  // Note RSAPruningVerifier does not handle verification of the operator's
+  // Note PruningVerifier does not handle verification of the operator's
   // signature authorizing this pruning order, as the operator's signature is a
   // dedicated application-level signature rather than one of the Concord-BFT
   // principals' RSA signatures.
@@ -98,7 +95,7 @@ bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) 
   return replica_ids_to_verify.empty();
 }
 
-bool RSAPruningVerifier::verify(std::uint64_t sender, const std::string& ser, const std::string& signature) const {
+bool PruningVerifier::verify(std::uint64_t sender, const std::string& ser, const std::string& signature) const {
   auto it = principal_to_replica_idx_.find(sender);
   if (it == std::cend(principal_to_replica_idx_)) {
     return false;
@@ -107,15 +104,18 @@ bool RSAPruningVerifier::verify(std::uint64_t sender, const std::string& ser, co
   return getReplica(it->second).verifier->verify(ser, signature);
 }
 
-const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector::size_type idx) const {
+const PruningVerifier::Replica& PruningVerifier::getReplica(ReplicaVector::size_type idx) const {
   return replicas_[idx];
 }
 
-PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
+PruningHandler::PruningHandler(const std::string& operator_pkey_path,
+                               concord::crypto::SignatureAlgorithm type,
+                               kvbc::IReader& ro_storage,
                                kvbc::IBlockAdder& blocks_adder,
                                kvbc::IBlocksDeleter& blocks_deleter,
                                bool run_async)
-    : logger_{logging::getLogger("concord.pruning")},
+    : concord::reconfiguration::OperatorCommandsReconfigurationHandler{operator_pkey_path, type},
+      logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
       verifier_{bftEngine::ReplicaConfig::instance().publicKeysOfReplicas},
       ro_storage_{ro_storage},
@@ -212,7 +212,7 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
     bftEngine::ControlStateManager::instance().setPruningProcess(true);
     auto prune = [this](kvbc::BlockId until) {
       try {
-        blocks_deleter_.deleteBlocksUntil(until);
+        blocks_deleter_.deleteBlocksUntil(until, false);
       } catch (std::exception& e) {
         LOG_FATAL(logger_, e.what());
         std::terminate();
@@ -242,7 +242,10 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             const std::optional<bftEngine::Timestamp>&,
                             concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
-  concord::messages::PruneStatus prune_status;
+  if (!std::holds_alternative<concord::messages::PruneStatus>(rres.response)) {
+    rres.response = concord::messages::PruneStatus{};
+  }
+  concord::messages::PruneStatus& prune_status = std::get<concord::messages::PruneStatus>(rres.response);
   std::lock_guard lock(pruning_status_lock_);
   const auto genesis_id = ro_storage_.getGenesisBlockId();
   prune_status.last_pruned_block = (genesis_id > INITIAL_GENESIS_BLOCK_ID ? genesis_id - 1 : 0);

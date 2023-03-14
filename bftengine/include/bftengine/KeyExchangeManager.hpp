@@ -14,44 +14,49 @@
 #include "ReplicaConfig.hpp"
 #include "KeyStore.h"
 #include "IKeyExchanger.hpp"
-#include "Timers.hpp"
-#include "Metrics.hpp"
-#include "secrets_manager_impl.h"
+#include "util/Timers.hpp"
+#include "util/Metrics.hpp"
+#include "secrets/secrets_manager_impl.h"
 #include "SysConsts.hpp"
-#include "crypto_utils.hpp"
+#include "crypto/crypto.hpp"
 #include <future>
+
 namespace bftEngine::impl {
 
 class IInternalBFTClient;
-
+class ReplicaImp;
 typedef int64_t SeqNum;  // TODO [TK] redefinition
 
 class KeyExchangeManager {
  public:
-  void exchangeTlsKeys(const SeqNum&);
+  void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
-  void sendKeyExchange(const SeqNum&);
+  void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
+  // Send the current main public key of the replica to consensus
+  void sendMainPublicKey();
   // Generates and publish the first replica's key,
-  void sendInitialKey(uint32_t prim = 0);
+  void sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& = 0);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
-  std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
+  std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer
   void loadPublicKeys();
+  void loadClientPublicKeys();
   // whether initial key exchange has occurred
+
   bool exchanged() const {
     uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+    bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
     return ReplicaConfig::instance().getkeyExchangeOnStart()
-               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1)
+               ? (publicKeys_.numOfExchangedReplicas() + 1 >= liveClusterSize) && exchange_self_keys
                : true;
   }
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
   ///////// Clients public keys interface///////////////
   // whether clients keys were published
-  bool clientKeysPublished() const { return clientsPublicKeys_.published_; }
-  void setClientKeysAsPublished() { clientsPublicKeys_.published_ = true; }
+  bool clientKeysPublished() const { return clientsPublicKeys_.published(); }
   void saveClientsPublicKeys(const std::string& keys) {
     metrics_->clients_keys_published_status.Get().Set("True");
     clientsPublicKeys_.save(keys);
@@ -60,10 +65,10 @@ class KeyExchangeManager {
   void sendInitialClientsKeys(const std::string&);
   void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
   // called on a new client key
-  void onClientPublicKeyExchange(const std::string& key, concord::util::crypto::KeyFormat, NodeIdType clientId);
+  void onClientPublicKeyExchange(const std::string& key, concord::crypto::KeyFormat, NodeIdType clientId);
   // called when client keys are loaded
   void loadClientPublicKey(const std::string& key,
-                           concord::util::crypto::KeyFormat,
+                           concord::crypto::KeyFormat,
                            NodeIdType clientId,
                            bool saveToReservedPages);
   ///////// end - Clients public keys interface///////////////
@@ -88,11 +93,15 @@ class KeyExchangeManager {
         std::string cid;
         // seqnum of key exchange request
         SeqNum sn;
+        // Key algorithm
+        concord::crypto::SignatureAlgorithm algorithm;
+
         void clear() {
           priv.clear();
           pub.clear();
           cid.clear();
           sn = 0;
+          algorithm = concord::crypto::SignatureAlgorithm::Uninitialized;
         }
       } generated;
       // seqnum -> private key
@@ -123,7 +132,7 @@ class KeyExchangeManager {
     }
     // save to secure store
     void save() {
-      LOG_INFO(KEY_EX_LOG, "");
+      LOG_INFO(KEY_EX_LOG, "Save key");
       std::stringstream ss;
       concord::serialize::Serializable::serialize(ss, data_);
       secretsMgr_->encryptFile(secrets_file_, ss.str());
@@ -179,11 +188,12 @@ class KeyExchangeManager {
   std::string generateCid(std::string);
   // build cryptosystem
   void notifyRegistry();
+  void exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn);
   /**
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
-  void waitForLiveQuorum(uint32_t prim = 0);
+  void waitForLiveQuorum(const ReplicaImp* repImpInstance);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted
@@ -207,7 +217,10 @@ class KeyExchangeManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
+  bool publishedMasterKey = false;
   std::mutex startup_mutex_;
+  // map to store seqNum and its candidate key
+  std::map<SeqNum, PrivateKeys::KeyData> seq_candidate_map_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;

@@ -21,6 +21,8 @@
 #include <map>
 #include <iostream>
 
+#include "log/logger.hpp"
+
 namespace bftEngine {
 
 namespace test {
@@ -75,6 +77,7 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
   }
   /**
    * Should be called at initialization if number of pages is not known at compile time
+   * This function must be called only from the ReplicaForStateTransfer constructor before stateTransfer->init().
    */
   static void setNumResPages(const uint32_t numPages) {
     Registry& reg = registry();
@@ -102,6 +105,9 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     return res_pages_->loadReservedPage(my_offset() + reservedPageId, copyLength, outReservedPage);
   }
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override {
+    LOG_TRACE(logging::getLogger("bftengine.res_page"),
+              typeid(T).name() << " page: " << reservedPageId << " offset: " << my_offset()
+                               << " abs page: " << my_offset() + reservedPageId);
     res_pages_->saveReservedPage(my_offset() + reservedPageId, copyLength, inReservedPage);
   }
   void zeroReservedPage(uint32_t reservedPageId) override {

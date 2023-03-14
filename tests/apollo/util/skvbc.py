@@ -16,6 +16,8 @@ import trio
 import time
 
 from collections import namedtuple
+
+from util.consts import CHECKPOINT_SEQUENCES
 from util.skvbc_exceptions import BadReplyError
 from util import eliot_logging as log
 from util import bft
@@ -55,7 +57,7 @@ class SimpleKVBCProtocol:
         as bft_network, and optionally an SkvbcTracker to use as tracker and a
         Boolean value specifying whether to enable pre execution on all requests
         as pre_exec_all.
-        
+
         Note pre_exec_all defaults to False if no tracker is given and to the
         tracker's value for pre_exec_all if a tracker is given, so passing an
         explicit value for pre_exec_all is unnecessary if a tracker is in use.
@@ -263,7 +265,9 @@ class SimpleKVBCProtocol:
             num_of_checkpoints_to_add=2,
             verify_checkpoint_persistency=True,
             assert_state_transfer_not_started=True,
-            without_clients=None):
+            without_clients=None,
+            timeout=30,
+            expected_starting_checkpoint=None):
         """
         A helper function used by tests to fill a window with data and then
         checkpoint it.
@@ -275,15 +279,19 @@ class SimpleKVBCProtocol:
         """
         with log.start_action(action_type="fill_and_wait_for_checkpoint"):
             client = self.bft_network.random_client(without_clients)
+            if expected_starting_checkpoint is not None:
+                expected_checkpoint_num = lambda cp: cp == expected_starting_checkpoint
+            else:
+                expected_checkpoint_num = None
             checkpoint_before = await self.bft_network.wait_for_checkpoint(
-                replica_id=random.choice(initial_nodes))
+                replica_id=random.choice(initial_nodes), expected_checkpoint_num=expected_checkpoint_num)
             # Write enough data to checkpoint and create a need for state transfer
-            for i in range(1 + num_of_checkpoints_to_add * 150):
+            for i in range(1 + num_of_checkpoints_to_add * CHECKPOINT_SEQUENCES):
                 key = self.random_key()
                 val = self.random_value()
                 reply = await self.send_write_kv_set(client, [(key, val)])
                 assert reply.success
-            
+
             await self.bft_network.wait_for_replicas_to_collect_stable_checkpoint(
                 initial_nodes, checkpoint_before + num_of_checkpoints_to_add)
 
@@ -291,13 +299,14 @@ class SimpleKVBCProtocol:
                 initial_nodes,
                 expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + num_of_checkpoints_to_add,
                 verify_checkpoint_persistency=verify_checkpoint_persistency,
-                assert_state_transfer_not_started=assert_state_transfer_not_started)
-    
+                assert_state_transfer_not_started=assert_state_transfer_not_started, timeout=timeout)
+
     async def network_wait_for_checkpoint(
             self, initial_nodes,
             expected_checkpoint_num=lambda ecn: ecn == 2,
             verify_checkpoint_persistency=True,
-            assert_state_transfer_not_started=True):
+            assert_state_transfer_not_started=True,
+            timeout=30):
         with log.start_action(action_type="network_wait_for_checkpoint"):
             if assert_state_transfer_not_started:
                 await self.bft_network.assert_state_transfer_not_started_all_up_nodes(
@@ -306,9 +315,9 @@ class SimpleKVBCProtocol:
             # Wait for initial replicas to take checkpoints (exhausting
             # the full window)
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
-            
-            if expected_checkpoint_num == None:
-                expected_checkpoint_num= await self.bft_network.wait_for_checkpoint(
+
+            if expected_checkpoint_num is None:
+                expected_checkpoint_num = await self.bft_network.wait_for_checkpoint(
                 replica_id=random.choice(initial_nodes))
 
             if verify_checkpoint_persistency:
@@ -318,7 +327,7 @@ class SimpleKVBCProtocol:
                 # Bring up the first 3 replicas and ensure that they have the
                 # checkpoint data.
                 [ self.bft_network.start_replica(i) for i in initial_nodes ]
-                await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
+                await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num, timeout)
 
     async def assert_successful_put_get(self):
         """ Assert that we can get a valid put """
@@ -401,45 +410,80 @@ class SimpleKVBCProtocol:
             assert kv2 == dict(kv)
             action.log(message_type=f'[READ-YOUR-WRITES] OK.')
 
-    async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True, raise_slowErrorIfAny=True):
-        with log.start_action(action_type="send_write_kv_set") as action:
-            readset = set()
-            read_version = 0
+    async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True,
+                                raise_slowErrorIfAny=True, description=''):
+        readset = set()
+        read_version = 0
+        kv_input = True
+        if client is None:
+            client = self.bft_network.random_client()
+        if kv is None and max_set_size is None:
+            kv_input = False
+            max_set_size = 0
+            key = self.random_key()
+            val = self.random_value()
+            writeset = [(key, val)]
+        elif kv is not None and max_set_size is None:
+            max_set_size = 0
             kv_input = True
-            if client is None:
-                client = self.bft_network.random_client()
-            if kv is None and max_set_size is None:
-                kv_input = False
-                max_set_size = 0
-                key = self.random_key()
-                val = self.random_value()
-                writeset = [(key, val)]
-            elif kv is not None and max_set_size is None:
-                max_set_size = 0
-                kv_input = True
-                writeset = kv
-            elif kv is None and max_set_size is not None:
-                writeset = self.writeset(max_set_size)
-            if self.tracker is not None:
-                max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
-                read_version = self.tracker.read_block_id()
-                readset = self.readset(0, max_read_set_size)
-            reply = await self.send_kv_set(client, readset, writeset, read_version, long_exec, assert_reply, raise_slowErrorIfAny)
-            action.log(message_type="[send_write_kv_set] OK")
-            if kv_input is True:
-                return reply
-            else:
-                return writeset[0][0],writeset[0][1]
+            writeset = kv
+        elif kv is None and max_set_size is not None:
+            writeset = self.writeset(max_set_size)
+        if self.tracker is not None:
+            max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
+            read_version = self.tracker.read_block_id()
+            readset = self.readset(0, max_read_set_size)
+        reply = await self.send_kv_set(client, readset, writeset, read_version, long_exec, assert_reply,
+                                       raise_slowErrorIfAny, description=f'write {description}')
+        if kv_input is True:
+            return reply
+        else:
+            return writeset[0][0], writeset[0][1]
 
-    async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True, raise_slowErrorIfAny=True):
-        with log.start_action(action_type="send_kv_set"):
+    async def validate_last_exec_seq_num_for_all_replicas(self, timeout):
+
+        # Validate if all replicas have same last executed sequence number after the write
+
+        with log.start_action(action_type="validate_last_exec_seq_num_for_all_replicas"):
+            with trio.fail_after(timeout):
+                while True:
+                    repl_counter = 0
+                    last_seq_num0 = await self.bft_network.wait_for_last_executed_seq_num(repl_counter)
+                    while repl_counter < self.bft_network.num_total_replicas() - 1:
+                        repl_counter += 1
+                        last_seq_num1 = await self.bft_network.wait_for_last_executed_seq_num(repl_counter)
+                        if last_seq_num0 != last_seq_num1:
+                            await trio.sleep(0.5)
+                            break
+                    if repl_counter == self.bft_network.num_total_replicas() - 1:
+                        return last_seq_num0
+
+    async def multiple_validate_last_exec_seq_num_for_all_replicas(self, timeout):
+
+        # We fetch last executed sequnce number which is equal for all replicas till we get such two equal sequence numbers.
+        # This is done to avoid the case where sequence numbers for all replicas are same
+        # but there are more sequence numbers remaining for each of them
+
+        with log.start_action(action_type="mutliple_validate_last_exec_seq_num_for_all_replicas"):
+            with trio.fail_after(timeout):
+                while True:
+                    seq_num1 = await self.validate_last_exec_seq_num_for_all_replicas(timeout)
+                    seq_num2 = await self.validate_last_exec_seq_num_for_all_replicas(timeout)
+                    if seq_num1 == seq_num2:
+                        break
+
+    async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True,
+                          raise_slowErrorIfAny=True, description='send_kv_set'):
+        seq_num = client.req_seq_num.next()
+        with log.start_action(action_type=description, seq=seq_num, client=client.client_id,
+                              readset_size=len(readset), writeset_size=len(writeset)) as action:
             msg = self.write_req(readset, writeset, read_version, long_exec)
-            seq_num = client.req_seq_num.next()
             client_id = client.client_id
             if self.tracker is not None:
                 self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
             try:
                 serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
+                action.log(message_type=f"received reply", client=client.client_id, seq=client.req_seq_num.val())
                 reply = self.parse_reply(serialized_reply)
                 if reply_assert is True:
                     assert reply.success
@@ -499,12 +543,12 @@ class SimpleKVBCProtocol:
                             write_count += 1
                     sent += len(clients)
             return write_count
-    
-    async def run_concurrent_ops(self, num_ops, write_weight=.70):
-        with log.start_action(action_type="run_concurrent_ops"):
-            max_concurrency = len(self.bft_network.clients) // 2
-            max_size = len(self.keys) // 2
-            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def run_concurrent_ops(self, num_ops: int, write_weight: float = .70):
+        return await self.send_concurrent_ops(exit_factor=num_ops,
+                                              max_concurrency=len(self.bft_network.clients) // 2,
+                                              max_size=len(self.keys) // 2,
+                                              write_weight=write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.tracker is not None:
@@ -539,28 +583,28 @@ class SimpleKVBCProtocol:
                                     for client in clients:
                                         nursery.start_soon(self.send_kv_set, client, readset, writeset, read_version, False, False, False)
                         await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes)
-                        
+
     async def send_concurrent_ops(
-            self, 
-            exit_factor, 
-            max_concurrency, 
-            max_size, 
-            write_weight, 
-            create_conflicts=False, 
+            self,
+            exit_factor,
+            max_concurrency,
+            max_size,
+            write_weight,
+            create_conflicts=False,
             exit_policy=ExitPolicy.COUNT):
         """
         exit_factor should be number of seconds to run if exit_policy is TIME
         and number of times to run if exit_policy is COUNT
-        """ 
+        """
         max_read_set_size = max_size
         if self.tracker is not None:
             max_read_set_size = 0 if self.tracker.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
-        total_run_duration = 0 
+        total_run_duration = 0
         if exit_policy is ExitPolicy.TIME:
-            total_run_duration = time.time() + exit_factor  
+            total_run_duration = time.time() + exit_factor
         clients = self.bft_network.random_clients(max_concurrency)
 
         def exit_predicate():
@@ -605,10 +649,10 @@ class SimpleKVBCProtocol:
                     pass
                 await trio.sleep(time_interval)
 
-    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01):
+    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01, excluded_clients=None):
         max_size = len(self.keys) // 2
         while True:
-            client = self.bft_network.random_client()
+            client = self.bft_network.random_client(without=excluded_clients)
             async with trio.open_nursery() as nursery:
                 try:
                     if random.random() < write_weight:
@@ -638,7 +682,7 @@ class SimpleKVBCProtocol:
             batch_seq_nums.append(seq_num)
             if self.tracker is not None:
                 self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
-        
+
         with log.start_action(action_type="send_tracked_kv_set_batch"):
             try:
                 replies = await client.write_batch(msg_batch, batch_seq_nums)
@@ -652,7 +696,16 @@ class SimpleKVBCProtocol:
                 if self.tracker is not None:
                     self.tracker.status.record_client_timeout(client_id)
                 return
-                
+
+    async def send_n_kvs_sequentially(self, kv_count: int, client: 'BftClient' = None):
+        """
+        Reaches a consensus over kv_count blocks, Waits for execution reply message after each block
+        so that multiple client requests are not batched
+        """
+        client = client or self.bft_network.random_client()
+        for i in range(kv_count):
+            await self.send_write_kv_set(client=client, kv=[(b'A' * i, b'')], description=f'{i}')
+
     def readset(self, min_size, max_size):
         return self.random_keys(random.randint(min_size, max_size))
 

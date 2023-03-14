@@ -3,8 +3,9 @@
  * Test multi* functions for RocksDBClient class.
  */
 
-#include "Logger.hpp"
 #include "gtest/gtest.h"
+
+#include "log/logger.hpp"
 #include "kv_types.hpp"
 #include "direct_kv_db_adapter.h"
 #include "direct_kv_block.h"
@@ -20,12 +21,10 @@ using concordUtils::Sliver;
 using concord::kvbc::KeysVector;
 using concord::kvbc::KeyValuePair;
 using concord::kvbc::SetOfKeyValuePairs;
-using concord::kvbc::BlockDigest;
 using concord::kvbc::BlockId;
-// using concord::storage::rocksdb::Client;
-// using concord::storage::rocksdb::KeyComparator;
 using concord::kvbc::v1DirectKeyValue::block::detail::create;
 using concord::kvbc::v1DirectKeyValue::block::detail::getUserData;
+using concord::crypto::BlockDigest;
 
 namespace {
 

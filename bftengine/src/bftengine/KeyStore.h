@@ -10,13 +10,13 @@
 // file.
 
 #pragma once
-#include "Serializable.h"
+#include "util/serializable.hpp"
 #include "IReservedPages.hpp"
 #include "ReservedPagesClient.hpp"
 #include "KeyExchangeMsg.hpp"
 #include <map>
 #include <optional>
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 
 namespace bftEngine::impl {
 
@@ -41,7 +41,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
   };
 
   ClusterKeyStore(uint32_t size) : clusterSize_(size), buffer_(sizeOfReservedPage(), 0) {
-    LOG_INFO(KEY_EX_LOG, "size: " << size);
+    LOG_INFO(KEY_EX_LOG, "Cluster Keys size: " << size);
     ConcordAssertGT(sizeOfReservedPage(), 0);
     loadAllReplicasKeyStoresFromReservedPages();
   }
@@ -110,9 +110,10 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
 // It stores the digest of the keys in the reserved pages and sets the published_ accordingly
 class ClientKeyStore : public ResPagesClient<ClientKeyStore, 1> {
  public:
-  bool published_{false};
-
-  ClientKeyStore() { checkAndSetState(); }
+  ClientKeyStore(bool key_exchange_enabled) : key_exchange_enabled_(key_exchange_enabled) {
+    LOG_INFO(KEY_EX_LOG, "Publish client keys is " << (key_exchange_enabled_ ? "enabled" : "disabled"));
+    checkAndSetState();
+  }
 
   // Save client keys to res pages and sets `published` to true.
   void save(const std::string&);
@@ -120,7 +121,7 @@ class ClientKeyStore : public ResPagesClient<ClientKeyStore, 1> {
   std::string load();
 
   void checkAndSetState() {
-    if (load() == "") {
+    if (load().empty() && key_exchange_enabled_) {
       LOG_WARN(KEY_EX_LOG, "Clients keys are empty, set publish flag to false");
       published_ = false;
       return;
@@ -128,5 +129,11 @@ class ClientKeyStore : public ResPagesClient<ClientKeyStore, 1> {
     LOG_DEBUG(KEY_EX_LOG, "Clients keys were published");
     published_ = true;
   }
+  bool published() const { return published_; }
+  bool key_exchange_enabled() const { return key_exchange_enabled_; }
+
+ private:
+  bool published_{false};
+  bool key_exchange_enabled_{false};
 };
 }  // namespace bftEngine::impl

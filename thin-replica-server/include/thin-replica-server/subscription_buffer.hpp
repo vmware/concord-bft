@@ -21,8 +21,9 @@
 #include <cstdint>
 #include <tuple>
 #include <unordered_set>
-#include "Logger.hpp"
-#include "assertUtils.hpp"
+
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"
 #include "kv_types.hpp"
@@ -234,6 +235,14 @@ class SubUpdateBuffer {
     return eg_queue_.front().event_group_id;
   }
 
+  // The caller needs to make sure that the queue is not empty when calling
+  SubEventGroupUpdate oldestEventGroup() {
+    std::unique_lock<std::mutex> lock(eg_mutex_);
+    // Undefined behavior if the queue is empty
+    ConcordAssertGT(eg_queue_.read_available(), 0);
+    return eg_queue_.front();
+  }
+
   bool Empty() {
     std::unique_lock<std::mutex> lock(mutex_);
     return !queue_.read_available();
@@ -306,7 +315,7 @@ class SubBufferList {
   virtual void removeBuffer(std::shared_ptr<SubUpdateBuffer> elem) {
     std::lock_guard<std::mutex> lock(mutex_);
     // If the assert fires then there is a logic error somewhere
-    ConcordAssert(subscriber_.erase(elem) == 1);
+    ConcordAssertEQ(subscriber_.erase(elem), 1);
   }
 
   // Populate updates to all subscribers

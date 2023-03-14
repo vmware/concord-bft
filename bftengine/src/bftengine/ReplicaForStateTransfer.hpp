@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <unordered_set>
+
 #include "ReplicaBase.hpp"
 #include "IStateTransfer.hpp"
 
@@ -29,6 +31,8 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
                           bool firstTime,  // TODO [TK] get rid of this
                           concordUtil::Timers& timers);
 
+  virtual ~ReplicaForStateTransfer() = default;
+
   IStateTransfer* getStateTransfer() const { return stateTransfer.get(); }
 
   // IReplicaForStateTransfer
@@ -37,7 +41,6 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void onTransferringComplete(uint64_t checkpointNumberOfNewState) override;
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
   Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override;
-
   bool isCollectingState() const { return stateTransfer->isCollectingState(); }
 
   void start() override;
@@ -47,24 +50,34 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   virtual void onTransferringCompleteImp(uint64_t checkpointNumberOfNewState) = 0;
 
   template <typename T>
-  void messageHandler(MessageBase* msg) {
-    T* trueTypeObj = new T(msg);
-    delete msg;
-    if (validateMessage(trueTypeObj))
-      onMessage<T>(static_cast<T*>(trueTypeObj));
-    else
-      delete trueTypeObj;
+  void peekConsensusMessage(MessageBase* msg) {
+    if (msgs_to_peek_.find(msg->type()) != msgs_to_peek_.end()) {
+      stateTransfer->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
+    }
+  }
+
+  template <typename T>
+  void messageHandler(std::unique_ptr<MessageBase> msg) {
+    auto trueTypeObj = std::make_unique<T>(msg.get());
+    msg.reset();
+    if (validateMessage(trueTypeObj.get())) {
+      onMessage<T>(std::move(trueTypeObj));
+    }
   }
 
   template <class T>
-  void onMessage(T*);
+  void onMessage(std::unique_ptr<T>);
 
  protected:
   std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;
   Timers::Handle stateTranTimer_;
   concordMetrics::CounterHandle metric_received_state_transfers_;
+#ifdef ENABLE_ALL_METRICS
   concordMetrics::GaugeHandle metric_state_transfer_timer_;
+#endif
   bool firstTime_;
+  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
+  std::unordered_set<uint16_t> msgs_to_peek_{MsgCode::PrePrepare};
 };
 
 }  // namespace bftEngine::impl

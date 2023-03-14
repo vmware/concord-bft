@@ -14,8 +14,8 @@
 #pragma once
 
 #include "updates.h"
+#include "blockchain_misc.hpp"
 #include "rocksdb/native_client.h"
-#include <memory>
 #include "blocks.h"
 #include "blockchain.h"
 #include "immutable_kv_category.h"
@@ -23,11 +23,17 @@
 #include "versioned_kv_category.h"
 #include "kv_types.hpp"
 #include "categorization/types.h"
-#include "thread_pool.hpp"
-#include "Metrics.hpp"
+#include "util/thread_pool.hpp"
+#include "util/Metrics.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "bftengine/ReplicaConfig.hpp"
+#include "categorized_kvbc_msgs.cmf.hpp"
+
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
 
 namespace concord::kvbc::categorization {
 
@@ -37,10 +43,9 @@ class KeyValueBlockchain {
  public:
   // Creates a key-value blockchain.
   // If `category_types` is nullopt, the persisted categories in storage will be used.
-  // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones will
-  // be created and persisted.
-  // Users are required to pass a value for `category_types` on first construction (i.e. a new blockchain) in order to
-  // specify the categories in use. Failure to do so will generate an exception.
+  // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones
+  // will be created and persisted. Users are required to pass a value for `category_types` on first construction
+  // (i.e. a new blockchain) in order to specify the categories in use. Failure to do so will generate an exception.
   KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                      bool link_st_chain,
                      const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types = std::nullopt);
@@ -69,6 +74,7 @@ class KeyValueBlockchain {
   }
 
   std::optional<Hash> parentDigest(BlockId block_id) const;
+  std::optional<Hash> calculateBlockDigest(BlockId block_id) const;
   bool hasBlock(BlockId block_id) const;
 
   std::vector<std::string> getStaleKeys(BlockId block_id,
@@ -82,6 +88,18 @@ class KeyValueBlockchain {
   std::vector<std::string> getStaleKeys(BlockId block_id,
                                         const std::string& category_id,
                                         const BlockMerkleOutput& updates_info) const;
+
+  std::set<std::string> getStaleActiveKeys(BlockId block_id,
+                                           const std::string& category_id,
+                                           const ImmutableOutput& updates_info) const;
+
+  std::set<std::string> getStaleActiveKeys(BlockId block_id,
+                                           const std::string& category_id,
+                                           const VersionedOutput& updates_info) const;
+
+  std::set<std::string> getStaleActiveKeys(BlockId block_id,
+                                           const std::string& category_id,
+                                           const BlockMerkleOutput& updates_info) const;
 
   /////////////////////// Read interface ///////////////////////
 
@@ -111,12 +129,29 @@ class KeyValueBlockchain {
 
   // Get a map of category_id and stale keys for `block_id`
   std::map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id) const;
+  std::map<std::string, std::set<std::string>> getStaleActiveKeys(BlockId block_id) const;
 
   // Get a map from category ID -> type for all known categories in the blockchain.
   const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return category_types_; }
 
+  // from_block_id is given as a hint, as supposed to be the next block after the last reachable block.
+  // until_block_id is the maximum block ID to be linked. If there are blocks with a block ID larger than
+  // until_block_id, they can be linked on future calls.
+  // returns the number of blocks connected
+  size_t linkUntilBlockId(BlockId from_block_id, BlockId until_block_id);
+
   std::shared_ptr<concord::storage::rocksdb::NativeClient> db() { return native_client_; }
   std::shared_ptr<const concord::storage::rocksdb::NativeClient> db() const { return native_client_; }
+
+  // Trims the DB snapshot such that its last reachable block is equal to `block_id_at_checkpoint`.
+  // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
+  // Precondition1: The current KeyValueBlockchain instance points to a DB snapshot.
+  // Precondition2: `block_id_at_checkpoint` >= INITIAL_GENESIS_BLOCK_ID
+  // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
+  void trimBlocksFromSnapshot(BlockId block_id_at_checkpoint);
+
+  // The key used in the default column family for persisting the current public state hash.
+  static std::string publicStateHashKey();
 
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
@@ -159,17 +194,17 @@ class KeyValueBlockchain {
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const ImmutableOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const VersionedOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const BlockMerkleOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
                                 const std::string& category_id,
@@ -219,7 +254,9 @@ class KeyValueBlockchain {
   VersionedRawBlock last_raw_block_;
 
   // currently we are operating with single thread
-  util::ThreadPool thread_pool_{1};
+  util::ThreadPool thread_pool_{"categorization::KeyValueBlockchain::thread_pool", 1};
+  // For concurrent deletion of the categories inside a block.
+  util::ThreadPool prunning_thread_pool_{"categorization::KeyValueBlockchain::prunning_thread_pool_,", 2};
 
   // metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
@@ -255,12 +292,10 @@ class KeyValueBlockchain {
     const VersionedRawBlock& getLastRawBlock(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
   };  // namespace concord::kvbc::categorization
 
-  std::string getPruningStatus();
-
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     delete_metrics_comp_.SetAggregator(aggregator_);
-    add_metrics_comp_.SetAggregator(aggregator);
+    add_metrics_comp_.SetAggregator(aggregator_);
   }
   friend struct KeyValueBlockchain_tester;
 

@@ -11,7 +11,7 @@
 // LICENSE file.
 
 #pragma once
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
 
 namespace concord::kvbc::strategy {

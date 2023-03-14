@@ -7,7 +7,7 @@
 #include <exception>
 #include <string>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "db_interfaces.h"
 #include "categorization/db_categories.h"
 
@@ -44,8 +44,9 @@ class BlockMetadata : public IBlockMetadata {
   BlockMetadata(const IReader& storage) : IBlockMetadata(storage) {
     logger_ = logging::getLogger("skvbc.MetadataStorage");
   }
-  virtual uint64_t getLastBlockSequenceNum() const override;
-  virtual std::string serialize(uint64_t sequence_num) const override;
+  uint64_t getLastBlockSequenceNum() const override;
+  std::string serialize(uint64_t sequence_num) const override;
+  static uint64_t getSequenceNum(const std::string& data);
 };
 
 }  // namespace kvbc

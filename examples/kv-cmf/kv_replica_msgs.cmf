@@ -1,0 +1,62 @@
+# Byzantine fault-tolerant K/V store messages/commands for the open source state machine example.
+#
+# Note KV effectively implements a versioned key-value store supporting
+# only keys and values that are byte strings.
+
+Msg KVReadRequest 3 {
+
+    # Note an KVReadRequest with read version 0 indicates that the latest
+    # version should be read.
+    uint64 read_version
+
+    list bytes keys
+}
+
+Msg KVWriteRequest 4 {
+    uint64 read_version
+
+    # if set to true, the Open Source replica KV will waste some time when it works
+    # on pre-processing this request, which may be useful for simulating certain
+    # workloads in testing.
+    bool long_exec
+
+    list bytes readset
+    list kvpair bytes bytes writeset
+}
+
+Msg KVGetLastBlockRequest 5 {
+}
+
+Msg KVGetBlockDataRequest 6 {
+    uint64 block_id
+}
+
+Msg KVReadReply 7 {
+    list kvpair bytes bytes reads
+}
+
+Msg KVWriteReply 8 {
+    bool success
+    uint64 latest_block
+}
+
+Msg KVGetLastBlockReply 9 {
+    uint64 latest_block
+}
+
+Msg KVRequest 1 {
+    oneof {
+        KVReadRequest
+        KVWriteRequest
+        KVGetLastBlockRequest
+        KVGetBlockDataRequest
+    } request
+}
+
+Msg KVReply 2 {
+    oneof {
+        KVReadReply
+        KVWriteReply
+        KVGetLastBlockReply
+    } reply
+}

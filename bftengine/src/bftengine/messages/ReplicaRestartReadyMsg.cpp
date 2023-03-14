@@ -10,7 +10,7 @@
 // file.
 
 #include <cstring>
-#include "OpenTracing.hpp"
+#include "util/OpenTracing.hpp"
 #include "ReplicaRestartReadyMsg.hpp"
 #include "SysConsts.hpp"
 #include "SigManager.hpp"
@@ -52,7 +52,7 @@ ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
   ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, r, extraData, spanContext);
   auto dataSize = sizeof(Header) + m->getExtraDataLength() + spanContext.data().size();
   auto position = m->body() + dataSize;
-  sigManager->sign(m->body(), dataSize, position, sigLen);
+  sigManager->sign(reinterpret_cast<const uint8_t*>(m->body()), dataSize, reinterpret_cast<uint8_t*>(position));
   //+-----------+-----------+----------+
   //| Header    | extraData | Signature|
   //+-----------+-----------+----------+
@@ -75,7 +75,8 @@ void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);
   if (size() < dataSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!sigManager->verifySig(idOfSenderReplica, body(), dataSize, body() + dataSize, sigLen))
+  if (!sigManager->verifySig(
+          idOfSenderReplica, std::string_view{body(), dataSize}, std::string_view{body() + dataSize, sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

@@ -16,14 +16,14 @@
 #include <map>
 #include <set>
 
-#include "boost/detail/endian.hpp"
-#include "assertUtils.hpp"
+#include "util/endianness.hpp"
+#include "util/assertUtils.hpp"
 
 using com::vmware::concord::thin_replica::Data;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
-using concord::util::openssl_utils::computeSHA256Hash;
+using concord::crypto::openssl::computeSHA256Hash;
 using std::invalid_argument;
 using std::list;
 using std::map;
@@ -52,19 +52,19 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
   string concatenated_entry_hashes;
   concatenated_entry_hashes.reserve(sizeof(block_id) + 2 * entry_hashes.size() * kThinReplicaHashLength);
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef CONCORD_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
-#else  // BOOST_LITTLE_ENDIAN not defined in this case
-#ifndef BOOST_BIG_ENDIAN
+#else  // CONCORD_LITTLE_ENDIAN not defined in this case
+#ifndef CONCORD_BIG_ENDIAN
   static_assert(false,
                 "Cannot determine endianness (needed for Thin Replica "
                 "mechanism hash function).");
-#endif  // BOOST_BIG_ENDIAN defined
+#endif  // CONCORD_BIG_ENDIAN defined
   const char* block_id_as_bytes = reinterpret_cast<const char*>(&block_id);
   for (size_t i = 1; i <= sizeof(block_id); ++i) {
     concatenated_entry_hashes.append((block_id_as_bytes + (sizeof(block_id) - i)), 1);
   }
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
 
   for (const auto& kvp_hashes : entry_hashes) {
     concatenated_entry_hashes.append(kvp_hashes.first);
@@ -78,19 +78,19 @@ static string hashUpdateFromEntryHashes(uint64_t id, const set<string>& entry_ha
   string concatenated_entry_hashes;
   concatenated_entry_hashes.reserve(sizeof(id) + entry_hashes.size() * kThinReplicaHashLength);
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef CONCORD_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char*>(&(id)), sizeof(id));
-#else  // BOOST_LITTLE_ENDIAN not defined in this case
-#ifndef BOOST_BIG_ENDIAN
+#else  // CONCORD_LITTLE_ENDIAN not defined in this case
+#ifndef CONCORD_BIG_ENDIAN
   static_assert(false,
                 "Cannot determine endianness (needed for Thin Replica "
                 "mechanism hash function).");
-#endif  // BOOST_BIG_ENDIAN defined
+#endif  // CONCORD_BIG_ENDIAN defined
   const char* id_as_bytes = reinterpret_cast<const char*>(&(id));
   for (size_t i = 1; i <= sizeof(id); ++i) {
     concatenated_entry_hashes.append((id_as_bytes + (sizeof(id) - i)), 1);
   }
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
+#endif  // if CONCORD_LITTLE_ENDIAN defined/else
 
   for (const auto& hash : entry_hashes) {
     concatenated_entry_hashes.append(hash);

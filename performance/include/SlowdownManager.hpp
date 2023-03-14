@@ -20,12 +20,13 @@
 #include <cstring>
 #include "Helper.hpp"
 #include "kv_types.hpp"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <functional>
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
 
 namespace concord::performance {
 

@@ -10,11 +10,12 @@
 // file.
 
 #include "SignedShareMsgs.hpp"
-#include "assertUtils.hpp"
-#include "Logger.hpp"
-#include "kvstream.h"
+
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
+#include "util/kvstream.h"
 #include "EpochManager.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "crypto/threshsign/IThresholdSigner.h"
 
 namespace bftEngine {
 namespace impl {
@@ -48,7 +49,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->thresSigLength = (uint16_t)sigLen;
 
   Digest tmpDigest;
-  Digest::calcCombination(digest, v, s, tmpDigest);
+  digest.calcCombination(v, s, tmpDigest);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());

@@ -58,7 +58,7 @@ class PersistentStorage {
 
   // end re-entrant write-only transaction
   // returns the number of remaining nested transactions
-  virtual uint8_t endWriteTran() = 0;
+  virtual uint8_t endWriteTran(bool sync = false) = 0;
 
   // return true IFF write-only transactions are running now
   virtual bool isInWriteTran() const = 0;
@@ -123,10 +123,12 @@ class PersistentStorage {
   virtual void setNewEpochFlag(bool flag) = 0;
   virtual bool getNewEpochFlag() = 0;
 
+  virtual bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) = 0;
+
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
-
+  virtual std::vector<uint8_t> getReplicaSpecificInfo(uint32_t index) = 0;
   virtual SeqNum getLastExecutedSeqNum() = 0;
   virtual SeqNum getPrimaryLastUsedSeqNum() = 0;
   virtual SeqNum getStrictLowerBoundOfSeqNums() = 0;
@@ -155,6 +157,8 @@ class PersistentStorage {
   virtual bool getCompletedMarkInCheckWindow(SeqNum seqNum) = 0;
 
   virtual std::optional<std::vector<std::uint8_t>> getUserData() const = 0;
+  virtual void setDbCheckpointMetadata(const std::vector<std::uint8_t> &) = 0;
+  virtual std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t &) = 0;
 };
 
 }  // namespace impl

@@ -35,7 +35,8 @@ class MsgsCertificate {
                   const uint16_t maxFailures,
                   const uint16_t numOfRequired,
                   const uint16_t selfReplicaId);
-
+  MsgsCertificate(const MsgsCertificate&) = delete;
+  MsgsCertificate& operator=(const MsgsCertificate&) = delete;
   ~MsgsCertificate();
 
   bool addMsg(T* msg, uint16_t replicaId);

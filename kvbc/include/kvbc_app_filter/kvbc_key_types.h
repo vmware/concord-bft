@@ -24,6 +24,8 @@ const char kKvbKeyEthBalance = 0x03;
 const char kKvbKeyEthCode = 0x04;
 const char kKvbKeyEthStorage = 0x05;
 const char kKvbKeyEthNonce = 0x06;
+const char kKvbKeyEthBlockHash = 0x07;
+const char kKvbKeyEthEventLog = 0x08;
 
 // Unused 0x10 - 0x1f
 
@@ -34,6 +36,7 @@ const char kKvbKeySummarizedTime = 0x22;
 const char kKvbKeyCorrelationId = 0x23;
 const char kKvbKeyLastAgreedPrunableBlockId = 0x24;
 const char kIndexKey = 0x25;
+const char kKvbKeyDeleteFilesInRange = 0x26;
 const char kClientsPublicKeys = 0x2b;
 
 // DAML 0x30 - 0x3f

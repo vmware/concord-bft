@@ -13,11 +13,11 @@
 
 #include <utility>
 
-#include "Metrics.hpp"
+#include "util/Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "InternalReplicaApi.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "Timers.hpp"
+#include "util/Timers.hpp"
 #include "performance_handler.h"
 
 namespace bftEngine::batchingLogic {
@@ -33,13 +33,13 @@ class RequestsBatchingLogic {
   uint32_t getMaxNumberOfPendingRequestsInRecentHistory() const { return maxNumberOfPendingRequestsInRecentHistory_; }
   uint32_t getBatchingFactor() const { return batchingFactor_; }
 
-  std::pair<PrePrepareMsg *, bool> batchRequests();
+  PrePrepareMsgCreationResult batchRequests();
 
  private:
   void onBatchFlushTimer(concordUtil::Timers::Handle timer);
-  std::pair<PrePrepareMsg *, bool> batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
-                                                                   uint64_t requestsInQueue,
-                                                                   SeqNum lastExecutedSeqNum);
+  PrePrepareMsgCreationResult batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
+                                                              uint64_t requestsInQueue,
+                                                              SeqNum lastExecutedSeqNum);
   void adjustPreprepareSize();
 
  private:

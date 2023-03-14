@@ -16,18 +16,21 @@
 #include <cassert>
 #include <string>
 #include <set>
-#include "assertUtils.hpp"
+
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
 #include "storage/db_interface.h"
-#include "STDigest.hpp"
-#include "Logger.hpp"
+#include "crypto/digest.hpp"
 
 using std::set;
 using concord::storage::ITransaction;
+using concord::crypto::Digest;
 
 namespace bftEngine {
 namespace bcst {
 namespace impl {
 
+using BlockId = uint64_t;
 class DataStoreTransaction;
 
 class DataStore : public std::enable_shared_from_this<DataStore> {
@@ -41,7 +44,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual bool initialized() = 0;
   virtual void setAsInitialized() = 0;
 
-  virtual void setReplicas(const set<uint16_t> replicas) = 0;
+  virtual void setReplicas(const set<uint16_t>& replicas) = 0;
   virtual set<uint16_t> getReplicas() = 0;
 
   virtual void setMyReplicaId(uint16_t id) = 0;
@@ -67,17 +70,33 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual uint64_t getFirstStoredCheckpoint() = 0;
 
   //////////////////////////////////////////////////////////////////////////
+  // Range Validation Blocks
+  //////////////////////////////////////////////////////////////////////////
+  virtual void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, Digest>>& prunedBlocksDigests) = 0;
+  virtual std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() = 0;
+
+  //////////////////////////////////////////////////////////////////////////
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
-
   struct CheckpointDesc {
+    void makeZero() {
+      checkpointNum = 0;
+      maxBlockId = 0;
+      digestOfMaxBlockId.makeZero();
+      digestOfResPagesDescriptor.makeZero();
+      rvbData.clear();
+    }
+
     uint64_t checkpointNum = 0;
-    uint64_t lastBlock = 0;
-    STDigest digestOfLastBlock;
-    STDigest digestOfResPagesDescriptor;
+    uint64_t maxBlockId = 0;
+    Digest digestOfMaxBlockId;
+    Digest digestOfResPagesDescriptor;
+    std::vector<char> rvbData{};
   };
 
-  virtual void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) = 0;
+  virtual void setCheckpointDesc(uint64_t checkpoint,
+                                 const CheckpointDesc& desc,
+                                 const bool checkIfAlreadyExists = true) = 0;
   virtual CheckpointDesc getCheckpointDesc(uint64_t checkpoint) = 0;
   virtual bool hasCheckpointDesc(uint64_t checkpoint) = 0;
   virtual void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) = 0;
@@ -95,12 +114,13 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
 
   virtual void associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                      uint64_t inCheckpoint,
-                                                     const STDigest& inPageDigest) = 0;
+                                                     const Digest& inPageDigest) = 0;
 
   virtual void setResPage(uint32_t inPageId,
                           uint64_t inCheckpoint,
-                          const STDigest& inPageDigest,
-                          const char* inPage) = 0;
+                          const Digest& inPageDigest,
+                          const char* inPage,
+                          const bool checkIfAlreadyExists = true) = 0;
   virtual bool getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) {
     return getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, nullptr, 0);
   }
@@ -111,7 +131,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual bool getResPage(uint32_t inPageId,
                           uint64_t inCheckpoint,
                           uint64_t* outActualCheckpoint,
-                          STDigest* outPageDigest,
+                          Digest* outPageDigest,
                           char* outPage,
                           uint32_t copylength) = 0;
 
@@ -120,7 +140,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   struct SingleResPageDesc {
     uint32_t pageId;
     uint64_t relevantCheckpoint;
-    STDigest pageDigest;
+    Digest pageDigest;
   };
 
   struct ResPagesDescriptor {
@@ -180,7 +200,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
  public:
   class Guard : public ITransaction::Guard {
    public:
-    Guard(DataStoreTransaction* t) : ITransaction::Guard(t) {}
+    explicit Guard(DataStoreTransaction* t) : ITransaction::Guard(t) {}
     DataStoreTransaction* txn() { return static_cast<DataStoreTransaction*>(txn_); }
   };
 
@@ -191,7 +211,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
    * DataStore implementation
    */
   void setAsInitialized() override { ds_->setAsInitialized(); }
-  void setReplicas(const set<uint16_t> replicas) override { ds_->setReplicas(replicas); }
+  void setReplicas(const set<uint16_t>& replicas) override { ds_->setReplicas(replicas); }
   void setMyReplicaId(uint16_t id) override { ds_->setMyReplicaId(id); }
   void setMaxNumOfStoredCheckpoints(uint64_t numChp) override { ds_->setMaxNumOfStoredCheckpoints(numChp); }
   void setNumberOfReservedPages(uint32_t numResPgs) override { ds_->setNumberOfReservedPages(numResPgs); }
@@ -211,18 +231,24 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   }
   void associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                              uint64_t inCheckpoint,
-                                             const STDigest& inPageDigest) override {
+                                             const Digest& inPageDigest) override {
     ds_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
   }
-  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override {
-    ds_->setCheckpointDesc(checkpoint, desc);
+  void setCheckpointDesc(uint64_t checkpoint,
+                         const CheckpointDesc& desc,
+                         const bool checkIfAlreadyExists = true) override {
+    ds_->setCheckpointDesc(checkpoint, desc, checkIfAlreadyExists);
   }
   void setFirstStoredCheckpoint(uint64_t c) override { ds_->setFirstStoredCheckpoint(c); }
   void setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t pageLen) override {
     ds_->setPendingResPage(inPageId, inPage, pageLen);
   }
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override {
-    ds_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  void setResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  const Digest& inPageDigest,
+                  const char* inPage,
+                  const bool checkIfAlreadyExists = true) override {
+    ds_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage, checkIfAlreadyExists);
   }
   bool initialized() override { return ds_->initialized(); }
   bool getIsFetchingState() override { return ds_->getIsFetchingState(); }
@@ -236,6 +262,10 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   uint64_t getLastStoredCheckpoint() override { return ds_->getLastStoredCheckpoint(); }
   uint64_t getFirstStoredCheckpoint() override { return ds_->getFirstStoredCheckpoint(); }
   uint64_t getFirstRequiredBlock() override { return ds_->getFirstRequiredBlock(); }
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, Digest>>& prunedBlocksDigests) override {
+    ds_->setPrunedBlocksDigests(prunedBlocksDigests);
+  }
+  std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() override { return ds_->getPrunedBlocksDigests(); }
   uint64_t getLastRequiredBlock() override { return ds_->getLastRequiredBlock(); }
   uint32_t numOfAllPendingResPage() override { return ds_->numOfAllPendingResPage(); }
   set<uint32_t> getNumbersOfPendingResPages() override { return ds_->getNumbersOfPendingResPages(); }
@@ -250,7 +280,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
-                  STDigest* outPageDigest,
+                  Digest* outPageDigest,
                   char* outPage,
                   uint32_t copylength) override {
     return ds_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);

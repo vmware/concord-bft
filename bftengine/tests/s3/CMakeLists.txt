@@ -5,7 +5,7 @@ if (USE_S3_OBJECT_STORE)
 
     target_link_libraries(s3_metrics_test PUBLIC
         GTest::Main
-        util_shared
+        util
         concordbft_storage
         kvbc
     )

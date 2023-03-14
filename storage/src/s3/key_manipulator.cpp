@@ -12,7 +12,7 @@
 // file.
 
 #include "s3/key_manipulator.h"
-#include "string.hpp"
+#include "util/string.hpp"
 #include <string>
 
 namespace concord::storage::s3 {

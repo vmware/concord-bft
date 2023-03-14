@@ -26,7 +26,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 46, "ClientRequestMsgHeader size is 46B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 52, "ClientRequestMsgHeader size is 52B");
   static concord::diagnostics::Recorder sigNatureVerificationRecorder;
   // TODO(GG): more asserts
 
@@ -38,10 +38,12 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
+                   uint32_t result = 1,  // UNKNOWN
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                    const char* requestSignature = nullptr,
                    uint32_t requestSignatureLen = 0,
-                   const uint32_t extraBufSize = 0);
+                   uint32_t extraBufSize = 0,
+                   uint16_t indexInBatch = 0);
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -55,6 +57,8 @@ class ClientRequestMsg : public MessageBase {
 
   uint64_t flags() const { return msgBody()->flags; }
 
+  uint32_t result() const { return msgBody()->result; }
+
   ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
   uint32_t requestLength() const { return msgBody()->requestLength; }
@@ -67,9 +71,13 @@ class ClientRequestMsg : public MessageBase {
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
+  uint16_t requestIndexInBatch() const { return msgBody()->indexInBatch; }
+
   std::string getCid() const;
 
   void validate(const ReplicasInfo& repInfo) const override { validateImp(repInfo); }
+
+  bool shouldValidateAsync() const override;
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
@@ -87,9 +95,11 @@ class ClientRequestMsg : public MessageBase {
                  uint32_t requestLength,
                  uint64_t flags,
                  uint64_t reqTimeoutMilli,
+                 uint32_t result,
                  const std::string& cid,
                  uint32_t requestSignatureLen,
-                 uint32_t extraBufSize);
+                 uint32_t extraBufSize,
+                 uint16_t offsetInBatch);
 };
 
 template <>

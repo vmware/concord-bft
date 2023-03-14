@@ -9,22 +9,28 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include <bftengine/Replica.hpp>
 #include <optional>
 #include <functional>
+#include <bitset>
+
+#include <bftengine/Replica.hpp>
+#include <messages/StateTransferMsg.hpp>
 #include "ReadOnlyReplica.hpp"
+
+#include "log/logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "CheckpointInfo.hpp"
-#include "Logger.hpp"
-#include "kvstream.h"
+#include "util/kvstream.h"
 #include "PersistentStorage.hpp"
 #include "MsgsCommunicator.hpp"
 #include "SigManager.hpp"
 #include "ReconfigurationCmd.hpp"
+#include "util/json_output.hpp"
+#include "SharedTypes.hpp"
+#include "communication/StateControl.hpp"
 
 using concordUtil::Timers;
 
@@ -35,37 +41,52 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
-                                 concordUtil::Timers &timers)
+                                 concordUtil::Timers &timers,
+                                 MetadataStorage *metadataStorage)
     : ReplicaForStateTransfer(config, requestsHandler, stateTransfer, msgComm, msgHandlerReg, true, timers),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
-  LOG_INFO(GL, "");
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+      metadataStorage_{metadataStorage} {
+  LOG_INFO(GL, "Initialising ReadOnly Replica");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
       MsgCode::Checkpoint, std::bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
   msgHandlers_->registerMsgHandler(
       MsgCode::ClientRequest,
       std::bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StateTransfer,
+      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
-  sigManager_.reset(SigManager::init(config_.replicaId,
-                                     config_.replicaPrivateKey,
-                                     config_.publicKeysOfReplicas,
-                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                     config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                     concord::util::crypto::KeyFormat::PemFormat,
-                                     *repsInfo));
+  SigManager::init(config_.replicaId,
+                   config_.replicaPrivateKey,
+                   config_.publicKeysOfReplicas,
+                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                   ReplicaConfig::instance().getPublicKeysOfClients(),
+                   concord::crypto::KeyFormat::PemFormat,
+                   {{repsInfo->getIdOfOperator(),
+                     ReplicaConfig::instance().getOperatorPublicKey(),
+                     concord::crypto::KeyFormat::PemFormat}},
+                   *repsInfo);
+
+  // Register status handler for Read-Only replica
+  registerStatusHandlers();
+  bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
+      [&](uint32_t id) { return SigManager::instance()->getPublicKeyOfVerifier(id); });
 }
 
 void ReadOnlyReplica::start() {
   ReplicaForStateTransfer::start();
-  askForCheckpointMsgTimer_ = timers_.add(std::chrono::seconds(5),  // TODO [TK] config
-                                          Timers::Timer::RECURRING,
-                                          [this](Timers::Handle) {
-                                            if (!this->isCollectingState()) sendAskForCheckpointMsg();
-                                          });
+  size_t sendAskForCheckpointMsgPeriodSec = config_.get("concord.bft.ro.sendAskForCheckpointMsgPeriodSec", 30);
+  askForCheckpointMsgTimer_ = timers_.add(
+      std::chrono::seconds(sendAskForCheckpointMsgPeriodSec), Timers::Timer::RECURRING, [this](Timers::Handle) {
+        if (!this->isCollectingState()) {
+          sendAskForCheckpointMsg();
+        }
+      });
   msgsCommunicator_->startMsgsProcessing(config_.replicaId);
 }
 
@@ -78,6 +99,7 @@ void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   lastExecutedSeqNum = newStateCheckpoint * checkpointWindowSize;
 
   ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+  last_executed_seq_num_ = lastExecutedSeqNum;
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
@@ -94,86 +116,96 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
 }
 
 template <>
-void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
+void ReadOnlyReplica::onMessage<StateTransferMsg>(std::unique_ptr<StateTransferMsg> msg) {
+  ReplicaForStateTransfer::onMessage(move(msg));
+}
+
+template <>
+void ReadOnlyReplica::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> msg) {
   if (isCollectingState()) {
-    delete msg;
     return;
   }
   ro_metrics_.received_checkpoint_msg_++;
-  const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
-  const SeqNum msgSeqNum = msg->seqNumber();
-  const Digest msgDigest = msg->digestOfState();
-  const bool msgIsStable = msg->isStableState();
-  const EpochNum msgEpochNum = msg->epochNumber();
-  EpochNum replicasLastKnownEpochVal = 0;
   LOG_INFO(GL,
-           KVLOG(msg->senderId(), msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable)
-               << ", digest: " << msgDigest.toString());
+           KVLOG(msg->senderId(),
+                 msg->idOfGeneratedReplica(),
+                 msg->seqNumber(),
+                 msg->epochNumber(),
+                 msg->size(),
+                 msg->isStableState(),
+                 msg->state(),
+                 msg->stateDigest(),
+                 msg->reservedPagesDigest(),
+                 msg->rvbDataDigest()));
+
   // Reconfiguration cmd block is synced to RO replica via reserved pages
+  EpochNum replicasLastKnownEpochVal = 0;
   auto epochNumberFromResPages = ReconfigurationCmd::instance().getReconfigurationCommandEpochNumber();
-  if (epochNumberFromResPages.has_value()) {
-    replicasLastKnownEpochVal = epochNumberFromResPages.value();
-  }
+  if (epochNumberFromResPages.has_value()) replicasLastKnownEpochVal = epochNumberFromResPages.value();
+
   // not relevant
-  if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
-
-  // previous CheckpointMsg from the same sender
-  auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
-  if (pos != tableOfStableCheckpoints.end() &&
-      (pos->second->seqNumber() >= msgSeqNum || msgEpochNum < replicasLastKnownEpochVal))
+  if (!msg->isStableState() || msg->seqNumber() <= lastExecutedSeqNum ||
+      msg->epochNumber() < replicasLastKnownEpochVal) {
     return;
-  if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
-  x->setEpochNumber(msgEpochNum);
-  tableOfStableCheckpoints[msgGenReplicaId] = x;
-  LOG_INFO(GL,
-           "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "
-               << msgGenReplicaId << " for seqNumber " << msgSeqNum << " sender node " << msg->senderId() << ")");
-
-  // not enough CheckpointMsg's
-  if ((uint16_t)tableOfStableCheckpoints.size() < config_.fVal + 1) return;
-
-  // check if got enough relevant CheckpointMsgs
-  uint16_t numRelevant = 0;
-  for (auto tableItrator = tableOfStableCheckpoints.begin(); tableItrator != tableOfStableCheckpoints.end();) {
-    if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
-      if (msgEpochNum <= replicasLastKnownEpochVal) {
-        delete tableItrator->second;
-        tableItrator = tableOfStableCheckpoints.erase(tableItrator);
-      } else {  // committer replicas have moved to higer epoch
-        numRelevant++;
-        tableItrator++;
-      }
-    } else {
-      numRelevant++;
-      tableItrator++;
-    }
   }
-  ConcordAssert(numRelevant == tableOfStableCheckpoints.size());
-  LOG_INFO(GL, "numRelevant=" << numRelevant);
-
+  // no self certificate
+  static std::map<SeqNum, CheckpointInfo<false>> checkpointsInfo;
+  const auto msgSeqNum = msg->seqNumber();
+  const auto idOfGeneratedReplica = msg->idOfGeneratedReplica();
+  checkpointsInfo[msgSeqNum].addCheckpointMsg(msg.release(), idOfGeneratedReplica);
   // if enough - invoke state transfer
-  if (numRelevant >= config_.fVal + 1) {
+  if (checkpointsInfo[msgSeqNum].isCheckpointCertificateComplete()) {
+    persistCheckpointDescriptor(msgSeqNum, checkpointsInfo[msgSeqNum]);
+    checkpointsInfo.clear();
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
   }
 }
 
+void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const CheckpointInfo<false> &chckpinfo) {
+  std::vector<CheckpointMsg *> msgs;
+  msgs.reserve(chckpinfo.getAllCheckpointMsgs().size());
+  for (const auto &m : chckpinfo.getAllCheckpointMsgs()) {
+    msgs.push_back(m.second);
+    LOG_INFO(GL,
+             KVLOG(m.second->seqNumber(),
+                   m.second->epochNumber(),
+                   m.second->state(),
+                   m.second->stateDigest(),
+                   m.second->reservedPagesDigest(),
+                   m.second->rvbDataDigest(),
+                   m.second->idOfGeneratedReplica()));
+  }
+  DescriptorOfLastStableCheckpoint desc(ReplicaConfig::instance().getnumReplicas(), msgs);
+  const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(ReplicaConfig::instance().getnumReplicas());
+  concord::serialize::UniquePtrToChar descBuf(new char[bufLen]);
+  char *descBufPtr = descBuf.get();
+  size_t actualSize = 0;
+  desc.serialize(descBufPtr, bufLen, actualSize);
+  ConcordAssertNE(actualSize, 0);
+
+  // TODO [TK] S3KeyGenerator
+  // checkpoints/<BlockId>/<RepId>
+  std::ostringstream oss;
+  oss << "checkpoints/" << msgs[0]->state() << "/" << config_.replicaId;
+  metadataStorage_->atomicWriteArbitraryObject(oss.str(), descBuf.get(), actualSize);
+}
+
 template <>
-void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  const NodeIdType senderId = m->senderId();
-  const NodeIdType clientId = m->clientProxyId();
-  const bool reconfig_flag = (m->flags() & MsgFlag::RECONFIG_FLAG) != 0;
-  const ReqId reqSeqNum = m->requestSeqNum();
-  const uint64_t flags = m->flags();
+void ReadOnlyReplica::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> msg) {
+  const NodeIdType senderId = msg->senderId();
+  const NodeIdType clientId = msg->clientProxyId();
+  const bool reconfig_flag = (msg->flags() & MsgFlag::RECONFIG_FLAG) != 0;
+  const ReqId reqSeqNum = msg->requestSeqNum();
+  const uint64_t flags = msg->flags();
 
-  SCOPED_MDC_CID(m->getCid());
-  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
+  SCOPED_MDC_CID(msg->getCid());
+  LOG_DEBUG(CNSUS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
-  const auto &span_context = m->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
+  const auto &span_context = msg->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
   span.setTag("rid", config_.getreplicaId());
-  span.setTag("cid", m->getCid());
+  span.setTag("cid", msg->getCid());
   span.setTag("seq_num", reqSeqNum);
 
   // A read only replica can handle only reconfiguration requests. Those requests are signed by the operator and
@@ -182,12 +214,9 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (reconfig_flag) {
     LOG_INFO(GL, "ro replica has received a reconfiguration request");
-    executeReadOnlyRequest(span, m);
-    delete m;
+    executeReadOnlyRequest(span, *(msg.get()));
     return;
   }
-
-  delete m;
 }
 
 void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, const ClientRequestMsg &request) {
@@ -195,10 +224,9 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   // Read only replica does not know who is the primary, so it always return 0. It is the client responsibility to treat
   // the replies accordingly.
   ClientReplyMsg reply(0, request.requestSeqNum(), config_.getreplicaId());
-
   const uint16_t clientId = request.clientProxyId();
 
-  int status = 0;
+  int executionResult = 0;
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
                                                                               static_cast<uint64_t>(lastExecutedSeqNum),
@@ -208,12 +236,14 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               request.requestBuf(),
                                                                               "",
                                                                               reply.maxReplyLength(),
-                                                                              reply.replyBuf()});
-
+                                                                              reply.replyBuf(),
+                                                                              request.requestSeqNum(),
+                                                                              request.requestIndexInBatch(),
+                                                                              request.result()});
   // DD: Do we need to take care of Time Service here?
   bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
-  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
-  status = single_request.outExecutionStatus;
+  IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  executionResult = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;
   const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
   LOG_DEBUG(GL,
@@ -223,20 +253,43 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                     reply.maxReplyLength(),
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,
-                                                    status));
+                                                    executionResult));
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-  if (!status) {
+  if (!executionResult) {
     if (actualReplyLength > 0) {
       reply.setReplyLength(actualReplyLength);
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
+      return;
     } else {
-      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+      LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
+      strcpy(single_request.outReply, "Executed data is empty");
+      single_request.outActualReplySize = strlen(single_request.outReply);
+      executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
+    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, executionResult));
   }
+  ClientReplyMsg replyMsg(
+      0, request.requestSeqNum(), single_request.outReply, single_request.outActualReplySize, executionResult);
+  send(&replyMsg, clientId);
+}
+
+void ReadOnlyReplica::registerStatusHandlers() {
+  auto h = concord::diagnostics::StatusHandler(
+      "replica-sequence-numbers", "Last executed sequence number of the read-only replica", [this]() {
+        concordUtils::BuildJson bj;
+
+        bj.startJson();
+        bj.startNested("sequenceNumbers");
+        bj.addKv("lastExecutedSeqNum", last_executed_seq_num_);
+        bj.endNested();
+        bj.endJson();
+
+        return bj.getJson();
+      });
+  concord::diagnostics::RegistrarSingleton::getInstance().status.registerHandler(h);
 }
 
 }  // namespace bftEngine::impl

@@ -14,7 +14,7 @@
 #pragma once
 
 #include "kv_types.hpp"
-#include "sha_hash.hpp"
+#include "crypto/digest.hpp"
 
 #include <cstddef>
 #include <ctime>
@@ -25,7 +25,7 @@
 
 namespace concord::kvbc::categorization {
 
-using Hasher = concord::util::SHA3_256;
+using Hasher = concord::crypto::SHA3_256;
 using Hash = Hasher::Digest;
 
 struct BasicValue {

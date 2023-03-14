@@ -15,12 +15,11 @@
 
 #include "updates.h"
 #include <utility>
-#include <block_digest.h>
 #include "details.h"
 #include "merkle_tree_serialization.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_db_adapter.h"
-#include "sliver.hpp"
+#include "util/sliver.hpp"
 #include "column_families.h"
 #include "categorization/types.h"
 

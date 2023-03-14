@@ -10,9 +10,13 @@
 // file.
 
 #include "NullStateTransfer.hpp"
-#include "assertUtils.hpp"
-#include "Digest.hpp"
-#include "Logger.hpp"
+
+#include "log/logger.hpp"
+#include "util/assertUtils.hpp"
+#include "crypto/digest.hpp"
+
+using concord::crypto::Digest;
+using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -50,21 +54,24 @@ bool NullStateTransfer::isRunning() const { return running; }
 
 void NullStateTransfer::createCheckpointOfCurrentState(uint64_t checkpointNumber) {}
 
-void NullStateTransfer::markCheckpointAsStable(uint64_t checkpointNumber) {}
-
 void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                               uint16_t sizeOfDigestBuffer,
-                                              char* outDigestBuffer) {
+                                              uint64_t& outBlockId,
+                                              char* outStateDigest,
+                                              char* outResPagesDigest,
+                                              char* outRBVDataDigest) {
   ConcordAssert(sizeOfDigestBuffer >= sizeof(Digest));
   LOG_WARN(GL, "State digest is only based on sequence number (because state transfer module has not been loaded)");
 
-  memset(outDigestBuffer, 0, sizeOfDigestBuffer);
-
   Digest d;
+  DigestGenerator().compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
 
-  DigestUtil::compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
-
-  memcpy(outDigestBuffer, d.content(), sizeof(d));
+  memset(outStateDigest, 0, sizeOfDigestBuffer);
+  memset(outResPagesDigest, 0, sizeOfDigestBuffer);
+  memset(outRBVDataDigest, 0, sizeOfDigestBuffer);
+  memcpy(outStateDigest, d.content(), sizeof(d));
+  memcpy(outResPagesDigest, d.content(), sizeof(d));
+  memcpy(outRBVDataDigest, d.content(), sizeof(d));
 }
 
 void NullStateTransfer::startCollectingState() {

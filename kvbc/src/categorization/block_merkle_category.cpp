@@ -15,9 +15,9 @@
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 
-#include "assertUtils.hpp"
+#include "util/assertUtils.hpp"
 #include "kv_types.hpp"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 
 using concord::storage::rocksdb::NativeWriteBatch;
 using concord::storage::rocksdb::detail::toSlice;
@@ -158,8 +158,8 @@ std::vector<Buffer> versionedKeys(const std::vector<std::string>& keys, const st
   return versioned_keys;
 }
 
-void putLatestKeyVersion(NativeWriteBatch& batch, const Hash& key_hash, TaggedVersion version) {
-  batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_hash, serializeThreadLocal(LatestKeyVersion{version.encode()}));
+void putLatestKeyVersion(NativeWriteBatch& batch, const std::string& key, TaggedVersion version) {
+  batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key, serializeThreadLocal(LatestKeyVersion{version.encode()}));
 }
 
 void putKeys(NativeWriteBatch& batch,
@@ -167,7 +167,7 @@ void putKeys(NativeWriteBatch& batch,
              std::vector<KeyHash>&& hashed_added_keys,
              std::vector<KeyHash>&& hashed_deleted_keys,
              BlockMerkleInput& updates) {
-  auto kv_it = updates.kv.begin();
+  auto kv_it = updates.kv.cbegin();
   for (auto key_it = hashed_added_keys.begin(); key_it != hashed_added_keys.end(); key_it++) {
     // Only serialize the Header of a DBValue, to prevent the need to copy a potentially large value.
     auto header = toSlice(serializeThreadLocal(DbValueHeader{false, static_cast<uint32_t>(kv_it->second.size())}));
@@ -177,27 +177,30 @@ void putKeys(NativeWriteBatch& batch,
     batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), val);
 
     // Put the latest version of the key
-    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->value, serialize(LatestKeyVersion{block_id}));
+    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, kv_it->first, serialize(LatestKeyVersion{block_id}));
 
-    kv_it++;
+    ++kv_it;
   }
 
   const bool deleted = true;
+  auto deletes_it = updates.deletes.cbegin();
   for (auto key_it = hashed_deleted_keys.begin(); key_it != hashed_deleted_keys.end(); key_it++) {
     // Write a tombstone to the value. This is necessary for deleteLastReachable().
     auto tombstone = serialize(DbValueHeader{true, 0});
     batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), tombstone);
-    putLatestKeyVersion(batch, key_it->value, TaggedVersion(deleted, block_id));
+    putLatestKeyVersion(batch, *deletes_it, TaggedVersion(deleted, block_id));
+    ++deletes_it;
   }
 }
-
-void putLatestTreeVersion(uint64_t tree_version, NativeWriteBatch& batch) {
+template <typename Batch>
+void putLatestTreeVersion(uint64_t tree_version, Batch& batch) {
   batch.put(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0), rootKey(tree_version));
 }
 
 // Write serialized stale keys at the given *tree* version. These keys are safe to delete when the
 // tree version is pruned.
-void putStaleKeys(NativeWriteBatch& batch, sparse_merkle::StaleNodeIndexes&& stale_batch) {
+template <typename Batch>
+void putStaleKeys(Batch& batch, sparse_merkle::StaleNodeIndexes&& stale_batch) {
   auto stale = StaleKeys{};
   for (auto& key : stale_batch.internal_keys) {
     stale.internal_keys.push_back(serialize(toBatchedInternalNodeKey(key)));
@@ -209,7 +212,8 @@ void putStaleKeys(NativeWriteBatch& batch, sparse_merkle::StaleNodeIndexes&& sta
   batch.put(BLOCK_MERKLE_STALE_CF, tree_version_key, serialize(stale));
 }
 
-void putMerkleNodes(NativeWriteBatch& batch, sparse_merkle::UpdateBatch&& update_batch) {
+template <typename Batch>
+void putMerkleNodes(Batch& batch, sparse_merkle::UpdateBatch&& update_batch) {
   for (const auto& [leaf_key, leaf_val] : update_batch.leaf_nodes) {
     auto ser_key = serialize(leafKeyToVersionedKey(leaf_key));
     batch.put(BLOCK_MERKLE_LEAF_NODES_CF, ser_key, leaf_val.value.string_view());
@@ -253,13 +257,15 @@ void removeMerkleNodes(NativeWriteBatch& batch, BlockId block_id, uint64_t tree_
 // Return any active key hashes.
 std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
                                         std::vector<Hash>&& hashed_keys,
+                                        std::vector<std::string>&& keys,
                                         const std::vector<std::optional<TaggedVersion>>& latest_versions,
-                                        NativeWriteBatch& batch,
+                                        detail::LocalWriteBatch& batch,
                                         size_t& deletes_counter) {
   std::vector<KeyHash> active_keys;
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
     auto& hashed_key = hashed_keys[i];
+    auto& key = keys[i];
     ConcordAssert(tagged_version.has_value());
     ConcordAssertLE(block_id, tagged_version->version);
 
@@ -268,7 +274,7 @@ std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
         // The latest version is a tombstone. We can delete the key and version.
         auto versioned_key = serialize(VersionedKey{KeyHash{hashed_key}, block_id});
         batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
-        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key);
+        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key);
         deletes_counter++;
       } else {
         active_keys.push_back(KeyHash{hashed_key});
@@ -299,7 +305,8 @@ std::vector<KeyHash> remainingActiveKeys(std::vector<KeyHash>& previously_active
   return active_keys;
 }
 
-void addStaleKeysToDeleteBatch(const ::rocksdb::PinnableSlice& slice, uint64_t tree_version, NativeWriteBatch& batch) {
+template <typename Batch>
+void addStaleKeysToDeleteBatch(const ::rocksdb::PinnableSlice& slice, uint64_t tree_version, Batch& batch) {
   auto stale = StaleKeys{};
   deserialize(slice, stale);
   for (auto& key : stale.internal_keys) {
@@ -356,21 +363,16 @@ std::optional<Value> BlockMerkleCategory::get(const Hash& hashed_key, BlockId bl
 }
 
 std::optional<Value> BlockMerkleCategory::getLatest(const std::string& key) const {
-  auto hashed_key = hash(key);
-  if (auto latest = getLatestVersion(hashed_key)) {
+  if (auto latest = getLatestVersion(key)) {
     if (!latest->deleted) {
-      return get(hashed_key, latest->version);
+      return get(hash(key), latest->version);
     }
   }
   return std::nullopt;
 }
 
 std::optional<TaggedVersion> BlockMerkleCategory::getLatestVersion(const std::string& key) const {
-  return getLatestVersion(hash(key));
-}
-
-std::optional<TaggedVersion> BlockMerkleCategory::getLatestVersion(const Hash& hashed_key) const {
-  const auto serialized = db_->getSlice(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key);
+  const auto serialized = db_->getSlice(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key);
   if (!serialized) {
     return std::nullopt;
   }
@@ -418,16 +420,10 @@ void BlockMerkleCategory::multiGet(const std::vector<Buffer>& versioned_keys,
 
 void BlockMerkleCategory::multiGetLatestVersion(const std::vector<std::string>& keys,
                                                 std::vector<std::optional<TaggedVersion>>& versions) const {
-  auto hashed_keys = hashedKeys(keys);
-  multiGetLatestVersion(hashed_keys, versions);
-}
-
-void BlockMerkleCategory::multiGetLatestVersion(const std::vector<Hash>& hashed_keys,
-                                                std::vector<std::optional<TaggedVersion>>& versions) const {
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
 
-  db_->multiGet(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_keys, slices, statuses);
+  db_->multiGet(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, keys, slices, statuses);
   versions.clear();
   for (auto i = 0ull; i < slices.size(); ++i) {
     const auto& status = statuses[i];
@@ -448,7 +444,7 @@ void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
                                          std::vector<std::optional<Value>>& values) const {
   auto hashed_keys = hashedKeys(keys);
   std::vector<std::optional<TaggedVersion>> versions;
-  multiGetLatestVersion(hashed_keys, versions);
+  multiGetLatestVersion(keys, versions);
 
   // Generate the set of versioned keys for all keys that have latest versions and are not deleted
   auto versioned_keys = std::vector<Buffer>{};
@@ -485,7 +481,7 @@ void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
 }
 
 std::unordered_map<BlockId, std::vector<KeyHash>> BlockMerkleCategory::findActiveKeysFromPrunedBlocks(
-    const std::vector<Hash>& hashed_keys) {
+    const std::vector<Hash>& hashed_keys) const {
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
   db_->multiGet(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, hashed_keys, slices, statuses);
@@ -518,7 +514,7 @@ PrunedBlock BlockMerkleCategory::getPrunedBlock(const Buffer& block_key) {
 }
 
 std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPrunedBlocks(
-    std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, NativeWriteBatch& batch) {
+    std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, detail::LocalWriteBatch& batch) {
   auto merkle_blocks_to_rewrite = SetOfKeyValuePairs{};
   auto merkle_blocks_to_delete = KeysVector{};
   for (auto& [block_id, keys] : deleted_keys) {
@@ -543,10 +539,29 @@ std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPru
   }
   return std::make_pair(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
 }
-
+std::set<std::string> BlockMerkleCategory::getStaleActiveKeys(BlockId block_id, const BlockMerkleOutput& out) const {
+  std::set<Hash> hash_stale_keys;
+  auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
+  (void)latest_versions;
+  (void)_;
+  auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
+  for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
+    for (const auto& hashed_key : kv.second) {
+      hash_stale_keys.emplace(Hash(hashed_key.value));
+    }
+  }
+  std::set<std::string> stale_keys;
+  for (auto& key : out.keys) {
+    if (std::find(hash_stale_keys.begin(), hash_stale_keys.end(), hash(key.first)) != hash_stale_keys.end()) {
+      stale_keys.emplace(key.first);
+    }
+  }
+  return stale_keys;
+}
 std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) const {
   std::vector<Hash> hash_stale_keys;
-  auto [hashed_keys, latest_versions] = getLatestVersions(out);
+  auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
+  (void)_;
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
     auto& hashed_key = hashed_keys[i];
@@ -575,15 +590,16 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
 
 size_t BlockMerkleCategory::deleteGenesisBlock(BlockId block_id,
                                                const BlockMerkleOutput& out,
-                                               NativeWriteBatch& batch) {
-  auto [hashed_keys, latest_versions] = getLatestVersions(out);
+                                               detail::LocalWriteBatch& batch) {
+  auto [hashed_keys, keys, latest_versions] = getLatestVersions(out);
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
   size_t num_of_deletes = 0;
   for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
     num_of_deletes += kv.second.size();
   }
   auto [block_adds, block_removes] = rewriteAlreadyPrunedBlocks(overwritten_active_keys_from_pruned_blocks, batch);
-  auto active_keys = deleteInactiveKeys(block_id, std::move(hashed_keys), latest_versions, batch, num_of_deletes);
+  auto active_keys =
+      deleteInactiveKeys(block_id, std::move(hashed_keys), std::move(keys), latest_versions, batch, num_of_deletes);
   if (active_keys.empty()) {
     block_removes.push_back(merkleKey(block_id));
   } else {
@@ -616,14 +632,14 @@ void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_id,
         // Preserve the deleted flag from the value into the version index.
         auto deleted = Deleted{};
         deserialize(iter.valueView(), deleted);
-        putLatestKeyVersion(batch, hashed_key.value, TaggedVersion(deleted.value, prev_key.version));
+        putLatestKeyVersion(batch, key, TaggedVersion(deleted.value, prev_key.version));
       } else {
         // This is the only version of the key - remove the latest version index too.
-        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key.value);
+        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key);
       }
     } else {
       // No previous keys means this is the only version of the key - remove the latest version index too.
-      batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key.value);
+      batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key);
     }
     // Remove the value for the key at `block_id`.
     batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
@@ -631,22 +647,26 @@ void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_id,
   removeMerkleNodes(batch, block_id, out.state_root_version);
 }
 
-std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> BlockMerkleCategory::getLatestVersions(
-    const BlockMerkleOutput& out) const {
+std::tuple<std::vector<Hash>, std::vector<std::string>, std::vector<std::optional<TaggedVersion>>>
+BlockMerkleCategory::getLatestVersions(const BlockMerkleOutput& out) const {
   std::vector<Hash> hashed_keys;
+  std::vector<std::string> keys;
   hashed_keys.reserve(out.keys.size());
+  keys.reserve(out.keys.size());
   for (auto& [key, _] : out.keys) {
     (void)_;
     hashed_keys.push_back(hash(key));
+    keys.push_back(key);
   }
 
   std::vector<std::optional<TaggedVersion>> latest_versions;
-  multiGetLatestVersion(hashed_keys, latest_versions);
+  multiGetLatestVersion(keys, latest_versions);
 
-  return std::make_pair(hashed_keys, latest_versions);
+  return std::make_tuple(hashed_keys, keys, latest_versions);
 }
 
-void BlockMerkleCategory::putLastDeletedTreeVersion(uint64_t tree_version, NativeWriteBatch& batch) {
+template <typename Batch>
+void BlockMerkleCategory::putLastDeletedTreeVersion(uint64_t tree_version, Batch& batch) {
   batch.put(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{0}), serialize(TreeVersion{tree_version}));
 }
 
@@ -688,7 +708,7 @@ void BlockMerkleCategory::deleteStaleBatch(uint64_t start, uint64_t end) {
   db_->write(std::move(batch));
 }
 
-void BlockMerkleCategory::deleteStaleData(uint64_t tree_version, NativeWriteBatch& batch) {
+void BlockMerkleCategory::deleteStaleData(uint64_t tree_version, detail::LocalWriteBatch& batch) {
   auto last_deleted = getLastDeletedTreeVersion();
   ConcordAssertLT(last_deleted, tree_version);
 
@@ -712,7 +732,7 @@ void BlockMerkleCategory::deleteStaleData(uint64_t tree_version, NativeWriteBatc
 MerkleBlockValue BlockMerkleCategory::computeRootHash(BlockId block_id,
                                                       const std::vector<KeyHash>& active_keys,
                                                       bool write_active_key,
-                                                      NativeWriteBatch& batch) {
+                                                      detail::LocalWriteBatch& batch) {
   auto hasher = Hasher{};
   hasher.init();
   MerkleBlockValue merkle_value;
@@ -738,7 +758,7 @@ MerkleBlockValue BlockMerkleCategory::computeRootHash(BlockId block_id,
 
 Sliver BlockMerkleCategory::writePrunedBlock(BlockId block_id,
                                              std::vector<KeyHash>&& active_keys,
-                                             NativeWriteBatch& batch) {
+                                             detail::LocalWriteBatch& batch) {
   static constexpr bool write_active_keys = true;
   auto merkle_value = computeRootHash(block_id, active_keys, write_active_keys, batch);
   auto block_key = serialize(BlockVersion{block_id});

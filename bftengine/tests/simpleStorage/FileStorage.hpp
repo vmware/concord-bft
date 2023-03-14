@@ -15,7 +15,7 @@
 
 #include <mutex>
 
-#include "Logger.hpp"
+#include "log/logger.hpp"
 #include "MetadataStorage.hpp"
 #include "MetadataStorageTypes.hpp"
 
@@ -29,19 +29,21 @@ class FileStorage : public MetadataStorage {
 
   ~FileStorage() override;
 
-  bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) override;
+  bool initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                            uint32_t metadataObjectsArrayLength) override;
 
   bool isNewStorage() override;
 
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
 
   void atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) override;
+  void atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) override {}
 
   void beginAtomicWriteOnlyBatch() override;
 
   void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) override;
 
-  void commitAtomicWriteOnlyBatch() override;
+  void commitAtomicWriteOnlyBatch(bool sync = false) override;
   void eraseData() override;
 
  private:

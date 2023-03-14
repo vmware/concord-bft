@@ -1,0 +1,486 @@
+syntax = "proto3";
+package vmware.concord.execution.v1;
+option java_package = "vmware.concord.execution.v1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+
+/*
+
+Overview
+========
+
+Concord is a system for building Byzantine fault-tolerant (BFT) distributed applications with privacy.
+
+Application developers build on Concord by implementing an Execution Engine that executes application
+requests against Concord's extended key-value store. This .proto file contains the definitions of
+the gRPC services that an Execution Engine MUST implement to work with Concord.
+
+Given a process implementing these gRPC services Concord provides:
+
+1. The Concord Client providing BFT implementations for submitting requests and
+   subscribing to changes on Concord's extended key-value store. Its services are defined
+   by the gRPC .proto files in https://github.com/vmware/concord-bft/tree/master/client/proto.
+   We expect readers to read them jointly with this .proto file
+
+2. The Concord Replicas that coordinate with BFT the execution of requests including reading and writing
+   to Concord's extended key-value store, in a way that runs the Execution Engines as replicated
+   state machines (https://en.wikipedia.org/wiki/State_machine_replication).
+
+Before defining the services we provide additional context in the following four sections on:
+Concord's Extended Key-Value Store, Topology, Terminology, and High-Level Information Flow.
+
+
+Concord's Extended Key-Value Store
+-----------------------------------
+
+Concord implements a bytes-to-bytes key-value store extended with the following three concepts:
+
+1. Automatic expiry: key-value pairs can be marked for automatic deletion by Concord after
+   an expiry time measured against Concord's time service. Execution Engines can use automatic
+   expiry to avoid storage leaks by only persisting state for a bounded amount of time.
+2. Access control: key-value pairs can be annotated with access control lists that determine
+   which Concord Clients can see them when fetching a state snapshot.
+3. Event log: every write to the extended key-value store can be annotated with one or more
+   access controlled events. Execution Engines can use the event log to distribute information
+   in an event-sourced manner to one or more Concord Clients, and their user applications.
+
+See the gRPC messages in the remainder of this .proto file to understand the detailed structure
+of Concord's key-value store.
+
+
+Topology
+--------
+
+The process topology of a Concord deployment looks as follows.
+
+
+   User Applications --> Concord Client --\   /--> Concord Replica ---> Execution Engine
+                                           \ /          ʌ
+                                            x           |
+                                           / \          v
+   Users Application --> Concord Client --/   \--> Concord Replica ---> Execution Engine
+
+
+In this diagram, all arrows origniate from the initiator of a request to the server handling the
+request. The processes are the following:
+
+- *Users Application* are processes that submit application request via the Concord Clients
+  request service
+  (see https://github.com/vmware/concord-bft/blob/master/client/proto/request/v1/request.proto)
+  or subscribe to events visible to the Concord Client via the event subscription service
+  (see https://github.com/vmware/concord-bft/blob/master/client/proto/event/v1/event.proto).
+
+- *Concord Clients* are processes provided by Concord. They expose the above gRPC
+  services and implement them using Concord internal protocols to communicate with the
+  Concord Replicas in a BFT fashion.
+
+- *Concord Replicas* are processes provided by Concord. They accept requests from
+  Concord Clients and communicate with the other Concord Replicas to order these
+  requests and execute them with BFT using their associated Execution Engine. Every
+  Concord Replica contains a complete, persistent copy of the extended key-value
+  store; and their copies are guarantee to be equal provided there are enough non-faulty
+  Concord Replicas.
+
+- *Execution Engines* are processes implementing the gRPC service defined in this .proto
+  file. They are stateless processes implementing the business logic of the application.
+  State that needs to be kept across multiple request invocations is written and read by the
+  Execution Engine from the extended key-value store managed by its calling Concord Replica.
+
+
+Terminology
+-----------
+
+We use the the uppercase key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" as described
+in https://www.rfc-editor.org/rfc/rfc2119.txt
+
+We use the terms 'Concord Client', 'Concord Replica', 'Execution Engine' as defined
+in the Topology section above.
+
+We additionally use the following terms:
+
+- EE: as an abbreviation for Execution Engine.
+- KV Store: as an abbreviation for Concord's extended key-value store described above.
+- Time service: a replicated State machine built into Concord that provides
+  unique timestamps at microsecond granularity for each request execution. EE's can
+  use these for example as unique identifiers for request exeuctions or
+  to implement time-locks.
+- Replica pruning: the process of removing a prefix of the event log and old versions
+  of key-value pairs from the KV store to reclaim physical storage space.
+
+
+High-Level Information Flow
+---------------------------
+
+All information flow between a Concord Replica and its EE is initiated
+by the Concord Replica. Before executing any requests the Concord Replica 
+repeatedly queries the health check service of the EE until it is available.
+This service must be implemented as per 
+https://github.com/grpc/grpc/blob/master/doc/health-checking.md
+
+Once Concord has initialized its connection to the EE it is ready to
+process application requests. All application requests are initiated by
+Users Application submitting requests against the Concord Clients' `RequestService`s
+defined in
+https://github.com/vmware/concord-bft/blob/master/client/proto/request/v1/request.proto
+
+The actual application requests sent from Concord to the EE are wrapped
+in `google.protobuf.Any`. The value in its `type_url` field is referred as application request
+type in this document. It SHOULD use reverse domain notation 
+(https://en.wikipedia.org/wiki/Reverse_domain_name_notation)
+to ensure they do not conflict with the types used by other Execution Engines.
+
+Each EE MUST work with a unique application request type. The matching between
+EE instance and request type is static - it is obtained from the Concord configuration.
+
+Concord MAY use the EE in three different modes. This is completely transparent to the
+EE instance because it doesn't affect the way an application request is processed. The
+only difference is the type of metadata which the EE returns to Concord. The three
+execution modes are:
+
+1. Read-Only Mode: can be used for requests that do not update the KV store. This mode
+   does not have to go through consensus, and is therefore more performant than the other
+   modes.
+
+2. Pre-Execution Mode: can be used for requests that update the KV store, but have
+   low contention. This mode executes requests before going through
+   consensus on f + 1 replicas, and only afterwards orders and commits the
+   the execution result provided its reads are still valid. This mode is more performant
+   than sequential execution, as it supports executing many requests in parallel.
+
+   Not writing the result on the blockchain immediately leads to some complications.
+   Two kinds race conditions might occur:
+     a. The record time managed by the time service advances during pre-execution.
+     b. Read-write conflicts can occur due to other requests changing key-value 
+        pairs read during pre-execution.
+
+   To overcome these complications the `ExecutionResult` message allows the
+   EE to specify conditions on the KV Store and record time that must be satisfied at 
+   commit time for the response to be valid. 
+
+   Concord Replicas guarantee that the conditions are checked in a serializable fashion 
+   against the state of the KV store at the point the `ExecutionResult` is sequenced by consensus. 
+   It is up to the `ExecutionService` to ensure that the conditions are set appropriately to guarantee
+   application level requirements with respect to serializability of request execution.
+
+3. Sequential Mode: can be used for requests that update the KV state, but do not
+   take a long time to execute. This mode executes requests in a blocking fashion
+   only after they have been ordered by consensus. No other request in sequential or
+   pre-execution mode can be committed while the executing a sequential request. No
+   additional parameters are required in the response.
+
+The request execution itself is initiated by the Concord Replica by sending
+a request for execution to the EE. Bi-directional streaming is used to enable the EE to send
+requests back to the Concord Replica to request reading batches of keys from the KV store.
+Request execution terminates with the EE sending an execution result back to the
+Concord Replica.
+
+The Execution Engine MUST return an `ExecutionResult` and that result MUST be deterministic
+provided equal answers to requests to read keys from the KV store. Failures of the EE 
+to execute a request are considered failures of the Concord Replica. The impact of these 
+failures depends on the request execution mode and whether the failures are correlated.
+
+*/
+
+
+// Service Definition
+//===================
+
+
+// The ExecutionService executes requests submitted by a Concord Replica on behalf of Concord Clients.
+//
+// The scheduling of request execution is coordinated by the Concord Replicas,
+// whereby each replica uses its own ExecutionService to execute requests.
+//
+// An ExecutionService SHOULD support executing many requests in parallel
+// for improved performance.
+service ExecutionService {
+  // Execute a single request.
+  //
+  // Bidirectional streaming is used to interleave request execution and reading
+  // values from the KV state of the Concord Replica. The flow in general is:
+  // 1. Request execution always starts with the Concord Replica issuing a new `Execute` rpc call, and sending
+  //    a single `ExecutionRequest` on the rpc call's input stream.
+  // 2.a) The rpc call instance can read values from the key-value store by sending one or more `ReadKeysRequest` message on
+  //      the output stream.
+  // 2.b) The Concord Replica answers each `ReadKeysRequests` in the order they are issued using matching
+  //      `ReadKeysResult` messages.
+  // 3. Request execution terminates when the Concord Replica receives an ExecutionResult sent by
+  //    the rpc call instance.
+  //
+  // Request execution MUST be deterministic, but MAY cache `ReadKeysResult`s across executions.
+  // Request execution MUST by default terminate with an `ExecutionResult`.
+  // If an EE fails to produce a result, Concord may retry the request to recover from
+  // transient failures. However, a correctly implemented EE should never consistently fail 
+  // to produce an `ExecutionResult` when processing a specific request. Otherwise, Concord
+  // may end up in state where it is unable to make progress.
+  //
+  // To limit the damages from a misbehaving EE Concord will respond to at most max_ee_read_requests
+  // ReadKeysRequest messages where max_ee_read_requests (a configuration parameter in Concord) is set
+  // to 10 by default.
+  //
+  // Fingerprints and caching
+  // ------------------------
+  //
+  // The KV store associates short unique fingerprints to all key-value pairs. They are used for
+  // read-write conflict detection, and can be used for caching the results of reads across
+  // `Execute` rpc calls.
+  //
+  // The fingerprint implementation itself is determined by Concord. There are no guarantees about the
+  // contents of the fingerprints and they can be changed at any time. Also there is no guarantee that the A-B-A
+  // problem can be detected via fingerprints. The Execution Engine MUST treat the fingerprint as an opaque
+  // value.
+  //
+  // Fingerprints are used as a shorthand for the values in the read set of the execution `ExecutionResult`
+  // If a key is not present in the KV Store, the KV Store MUST return `a special` fingerprint
+  // (different from all other ones).
+  //
+  // For illustration, a fingerprint can be the value itself, a hash of the value, or the block height at
+  // which the value was written.
+  rpc Execute (stream MessageToExecuteInstance) returns (stream MessageFromExecuteInstance) {}
+}
+
+
+// Request execution
+//==================
+
+// Messages sent from a Concord Replica to an EE.
+message MessageToExecuteInstance {
+  oneof message_to_instance {
+    ExecutionRequest execution_request = 1;
+    ReadKeysResult read_keys_result = 2;
+  }
+}
+
+// Messages sent from an EE to a Concord Replica.
+message MessageFromExecuteInstance {
+  oneof message_from_instance {
+    ExecutionResult execution_result = 1;
+    ReadKeysRequest read_keys_request = 2;
+  }
+}
+
+// An execution request submitted by a Concord Client with extra metadata provided by
+// the Concord Replica scheduling its execution.
+message ExecutionRequest {
+  // The actual application request is wrapped in `google.protobuf.Any`. The EE
+  // MUST determine the appropriate execution mode based on its `type_url`.
+  google.protobuf.Any application_request = 1;
+
+  // The Concord Client id of the client submitting the request.
+  // The EE can assume that Concord authenticated this id.
+  string submitting_client_id = 2;
+
+  // Correlation-id to use in log messages emitted when processing this request.
+  //
+  // The execution result MUST not depend on this ID.
+  string correlation_id = 101;
+}
+
+
+// The result of request execution.
+message ExecutionResult {
+  // If set, then the execution result is conditional on the record time associated to the request execution
+  // being equal or larger than this field.
+  google.protobuf.Timestamp min_record_time = 1;
+
+  // If set, then the execution result is conditional on the record time associated to the request execution
+  // being smaller or equal than this field.
+  google.protobuf.Timestamp max_record_time = 2;
+
+  // A list of keys stating for every key-value pair the fingerprint that must be associated with it for
+  // this request execution to be valid. If any of these fingerprints have changed, the request execution is
+  // aborted. This condition is intended to be used to guard against read-write conflicts due to concurrent
+  // request execution (both sequential and with pre-execution).
+  // Note that keys that are assumed to be non-existent must not have a fingerprint set.
+  ReadKeysRequest read_set = 3;
+
+  // Events to be appended to the event log *provided* the above conditions are satisfied.
+  //
+  // The event log can be used as message queue with access control to implement 
+  // exactly-once multi-cast message delivery of events to multiple Concord Clients.
+  repeated Event events = 4;
+
+  // Key-value pairs to be written *provided* the above conditions are satisfied.
+  // MUST not contain duplicate keys.
+  repeated KeyValueMetadataTriple write_set = 5;
+
+  // Response to be sent by the Concord Client to the application that submitted the request
+  // *provided* the above conditions are satisfied.
+  // 
+  // EEs SHOULD document how applications should parse these responses.
+  //
+  // The EE is responsible for ensuring that the bytes inside the `google.protobuf.Any` are 
+  // deterministic across the different EE instances executing the request. Protobuf serialization
+  // MAY be used, but EE developers should be aware of the caveats that apply wrt deterministic
+  // and canonical serialization in Protobuf: https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510
+  google.protobuf.Any client_response = 6;
+}
+
+
+// Concord's key-value-store
+//==========================
+
+
+// Concord's key-value store organizes keys within two separate storage spaces:
+//
+//  - STORAGE_SPACE_PLAIN: is a key-value store whose entries can only be read by Concord Replicas;
+//      and therefore no proof can be provided for these keys.
+//
+//  - STORAGE_SPACE_MERKLE: is a key value store whose entries can be read by both Concord
+//      replicas and Concord Clients. This key value store allows Concord Clients to receive proofs.
+//
+// Note that these are storage spaces and the same key bytes `k` can be mapped to different values
+// in these two storage spaces. The `KeyReference` type is used to unambigously reference
+// key-value pairs in these storage spaces.
+enum StorageSpace {
+  STORAGE_SPACE_PLAIN = 0;
+  STORAGE_SPACE_MERKLE = 1;
+}
+
+// An unambigous reference to a key within a storage space.
+message KeyReference {
+  StorageSpace storage_space = 1;
+  bytes key = 2;
+}
+
+
+// Reading from the key-value-store
+//---------------------------------
+
+// A request to atomically read multiple key-value pairs from a replica's KV store.
+// This message is used in two other messages - MessageFromExecuteInstance and ExecutionResult
+message ReadKeysRequest {
+  message ReadKeyRequest {
+    KeyReference key = 1;
+
+    // Represents the current value of the key according to the EE.
+    // If not set - EE considers that the key doesn't exist or is deleted.
+    // When defining a read-set, keys that were non-existent at the time of reading will not have
+    // this field set either.
+    optional bytes fingerprint = 2;
+  }
+
+  // The keys to read.
+  repeated ReadKeyRequest key_descriptors = 1;
+}
+
+// The result of a ReadKeysRequest.
+message ReadKeysResult {
+  // The result of reading a single key-value pair.
+  message ReadKeyResult {
+    message ValueAndFingerprint {
+      // Value is returned only if the key has been explicitly created.
+      optional bytes value = 1;
+
+      // Note that the fingerprint does not identify the value itself.
+      // Instead a fingerprint identifies the fact that the read key is
+      // currently assigned the given value.
+      //
+      // What does this mean in practice? Let's assume the following operations
+      // are performed:
+      //
+      //   1: x=1 with fingerprint f1
+      //   2: x=2 with fingerprint f2
+      //   3: x=1 with fingerprint f3
+      //
+      // Despite x having the same value after operations 1 and 3, there is neither
+      // a guarantee that f1 == f3 nor is there a guarantee that f1 != f3.
+      // The only guarantee that is given is that if the fingerprints of 
+      // two key-value pairs (k,v1) and (k,v2) agree, then v1 == v2. 
+      // This guarantee is sufficient for an EE to do conditional reads.
+      bytes fingerprint = 2;
+    }
+
+    KeyReference key = 1;
+
+    oneof read_result {
+      // A conditional read was made and the fingerprint matches.
+      google.protobuf.Empty matching_fingerprint = 2;
+
+      // The read value and its fingerprint.
+      ValueAndFingerprint value_and_fingerprint = 3;
+
+      // Key doesn't exist - either not created or deleted.
+      google.protobuf.Empty non_existent = 4;
+    }
+    
+  }
+
+  // The read key-value pairs are delivered in the same order as the key_descriptors
+  // of the ReadKeysRequest.
+  //
+  // All results have been read at the same block height (atomic reads).
+  repeated ReadKeyResult read_key_results = 1;
+}
+
+// Writing to the key-value store with event log
+//----------------------------------------------
+
+message Event {
+  // The payload that the EE would like to deliver to the Concord Clients.
+  bytes payload = 1;
+
+  // The Concord Clients that can see this event's payload.
+  AccessControlList access = 2;
+
+  bytes key = 3;
+}
+
+message AccessControlList {
+  message Restricted {
+    repeated string client_id = 1;
+  }
+  // Optional: if absent then the access is unrestricted (public). If present, it can still
+  // contain an empty client_id list, which means that no Concord Clients will see the
+  // access-controlled data.
+  Restricted restricted = 2;
+}
+
+// Represents a key-value pair with an ACL. There are two possible operations on the key:
+// - update, which either creates new key or updates existing one
+// - delete
+// All fields are required.
+message KeyValueMetadataTriple {
+  KeyReference key = 1;
+
+  message Update {
+    bytes value = 1;
+
+    // Hints for Concord on how to handle the KV pair.
+    KeyValueMetadata metadata = 2;
+  }
+
+  message Delete {}
+
+  oneof operation {
+    Update update = 2;
+    Delete delete = 3;
+  }
+
+}
+
+// Metadata for key-value pairs written to the KV store.
+message KeyValueMetadata {
+  // Keys with an expiry will be present in the state until the `expires_after` time
+  // as measured by the time service, unless manually deleted before.
+  //
+  // Concord may delete the key at any time after the expiry time (e.g. as part of Replica pruning),
+  // but there is no time bound on when the deletion must happen.
+  google.protobuf.Timestamp expires_after = 1;
+
+  // The Concord Clients that are allowed to see this key-value pair.
+  // Ignored for keys in STORAGE_SPACE_PLAIN.
+  AccessControlList access = 2;
+}
+
+// Contents of a time update entry which contains the block's summarized time.
+message TimeUpdateLogEntry {
+  google.protobuf.Timestamp record_time = 1;
+  oneof payload {
+    google.protobuf.Empty time_update_entry = 101;
+  }
+}

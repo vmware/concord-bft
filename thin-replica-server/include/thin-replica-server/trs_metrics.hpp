@@ -22,10 +22,15 @@ struct ThinReplicaServerMetrics {
   ThinReplicaServerMetrics(std::string stream_type, std::string client_id)
       : metrics_component_{"ThinReplicaServer", std::make_shared<concordMetrics::Aggregator>()},
         subscriber_list_size{metrics_component_.RegisterGauge("subscriber_list_size", 0)},
-        queue_size{metrics_component_.RegisterGauge(stream_type + client_id + "queue_size", 0)},
-        last_sent_block_id{metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_block_id", 0)},
-        last_sent_event_group_id{
-            metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_event_group_id", 0)} {
+        queue_size{metrics_component_.RegisterGauge(
+            "queue_size", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
+        last_sent_block_id{metrics_component_.RegisterGauge(
+            "last_sent_block_id", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
+        last_sent_event_group_id{metrics_component_.RegisterGauge(
+            "last_sent_event_group_id", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
+        num_skipped_event_groups{metrics_component_.RegisterCounter(
+            "num_skipped_event_groups", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
+        num_storage_reads{metrics_component_.RegisterCounter("num_storage_reads", 0)} {
     metrics_component_.Register();
   }
 
@@ -47,6 +52,10 @@ struct ThinReplicaServerMetrics {
   concordMetrics::GaugeHandle last_sent_block_id;
   // last sent event group id
   concordMetrics::GaugeHandle last_sent_event_group_id;
+  // number of event groups skipped after filtering
+  concordMetrics::CounterHandle num_skipped_event_groups;
+  // total number of reads from storage made by the TRS
+  concordMetrics::CounterHandle num_storage_reads;
 };
 }  // namespace thin_replica
 }  // namespace concord

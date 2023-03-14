@@ -1,0 +1,8 @@
+syntaxError
+preprocessorErrorDirective
+unknownMacro
+missingIncludeSystem
+unmatchedSuppression
+
+*:cryptlib.h:*
+*:gtest.h:*
