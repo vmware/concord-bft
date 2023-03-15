@@ -22,6 +22,7 @@ explanatory. Important structures will be mentioned explicitly below.
 All user interfaces live in the `bftEngine` namespace.
 
 # Clients
+
 A default client,
 [SimpleClient](../bftengine/include/bftengine/SimpleClient.hpp), is included
 with concord-bft. It is just one manner of implementing a client, and is
@@ -32,6 +33,7 @@ Python](../util/pyclient/bft_client.py) that we use for testing that does just
 that.
 
 ## Client Messages
+
 Client request and reply messages are prefixed with a `ClientRequestMsgHeader` or
 `ClientReplyMsgHeader` respectively. Each header, like all other messages in
 concord-bft is implemented as a packed C struct, meaning that there are no padding
@@ -111,7 +113,7 @@ committed. This is the hook that allows arbitrary SMR implemented in concord-bft
 to result in execution of application specific operations at all replicas in a
 total order.
 
-# ReplicaConfig
+## ReplicaConfig
 ReplicaConfig contains most configurable attributes of concord-bft and should be
 created by the application and passed into `Replica::createReplica(...)`.
 Note that other configurable attributes are set as part of the communication
