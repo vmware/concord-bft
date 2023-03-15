@@ -1671,6 +1671,56 @@ module Proof {
     }
   }
 
+  lemma HonestPreservesEveryCommitMsgIsRememberedByItsSenderForRecvPrepareStep(
+        c:Constants, 
+        v:Variables, 
+        v':Variables, 
+        step:Step,
+        stepper_v:Replica.Variables,
+        h_step:Replica.Step,
+        commitMsg:Message,
+        committer_c:Replica.Constants,
+        committer_v':Replica.Variables) returns (certificate:Messages.PreparedCertificate)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, stepper_v, h_step)
+    requires commitMsg in v'.network.sentMsgs 
+    requires commitMsg.payload.Commit? 
+    requires IsHonestReplica(c, commitMsg.sender)
+    requires committer_c == c.hosts[commitMsg.sender].replicaConstants
+    requires committer_v' == v'.hosts[commitMsg.sender].replicaVariables
+    requires commitMsg.payload.seqID in committer_v'.workingWindow.getActiveSequenceIDs(committer_c)
+    requires h_step.RecvPrepareStep?
+    ensures certificate == Replica.ExtractCertificateForSeqID(committer_c, committer_v', commitMsg.payload.seqID)
+    ensures certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
+    ensures !certificate.empty()
+    ensures certificate.prototype().view >= commitMsg.payload.view
+    ensures (certificate.prototype().view == commitMsg.payload.view 
+                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+  {
+    reveal_EveryCommitMsgIsRememberedByItsSender();
+    reveal_TemporarilyDisableCheckpointing();
+    reveal_RecordedViewChangeMsgsCameFromNetwork();
+    reveal_OneViewChangeMessageFromReplicaPerView();
+
+    assert EveryCommitMsgIsRememberedByItsSender(c, v);
+
+    var committer_v := v.hosts[commitMsg.sender].replicaVariables;
+
+    var oldCertificate := Replica.ExtractCertificateForSeqID(committer_c, committer_v, commitMsg.payload.seqID);
+    certificate := Replica.ExtractCertificateForSeqID(committer_c, committer_v', commitMsg.payload.seqID);
+
+    if(commitMsg !in v.network.sentMsgs) {
+      assert false;
+    }
+    assert Replica.PrepareProofSetWF(committer_c, committer_v'.workingWindow.preparesRcvd[commitMsg.payload.seqID]);
+
+    assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+    assert oldCertificate.votes <= certificate.votes;
+    assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+    assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID);
+    assume false;
+  }
+
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSender(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -1732,34 +1782,19 @@ module Proof {
                       h_v,
                       h_step,
                       commitMsg,
-                      h_c,
-                      h_v');
-        assert forall vcMsg
-                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
-                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
-        if(commitMsg !in v.network.sentMsgs) {
-          //assume false;
-          Messages.reveal_UniqueSenders();
-          var seqID := commitMsg.payload.seqID;
-          var workingWindowPreparesRecvd := set key | key in h_v.workingWindow.preparesRcvd[seqID]
-                                            :: h_v.workingWindow.preparesRcvd[seqID][key];
-          reveal_RecordedPreparesHaveValidSenderID();
-          assert RecordedPreparesHaveValidSenderID(c, v);
-          assert IsHonestReplica(c, step.id);
-          assert var prepareMap := v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd;
-             seqID in prepareMap;
-          assert forall sender | && sender in v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd
-                   :: && c.clusterConfig.IsReplica(sender)
-                      && v.hosts[step.id].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
-          CountPrepareMessages(h_v.workingWindow.preparesRcvd[seqID]);
-          assert |workingWindowPreparesRecvd| <= |h_v.workingWindow.preparesRcvd[seqID].Keys|;
-          assert Messages.PreparedCertificate(workingWindowPreparesRecvd).validFull(c.clusterConfig, seqID);
-        }
+                      c.hosts[commitMsg.sender].replicaConstants,
+                      v'.hosts[commitMsg.sender].replicaVariables);
       } else if(h_step.RecvPrepareStep?) {
-        assert forall vcMsg
-                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
-                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
-        assume false;
+        var res := HonestPreservesEveryCommitMsgIsRememberedByItsSenderForRecvPrepareStep(
+                      c,
+                      v,
+                      v',
+                      step,
+                      h_v,
+                      h_step,
+                      commitMsg,
+                      c.hosts[commitMsg.sender].replicaConstants,
+                      v'.hosts[commitMsg.sender].replicaVariables);
       } else if(h_step.PerformStateTransferStep?) {
         assert forall vcMsg
                   :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
