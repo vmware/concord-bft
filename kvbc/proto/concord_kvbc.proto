@@ -36,6 +36,7 @@ message Block {
    optional int64 timestamp = 6;
    optional int64 gas_limit = 7;
    optional int64 gas_used = 8;
+   optional bytes stateroot = 9;
 }
 
 message Transaction {
@@ -54,14 +55,18 @@ message Transaction {
    optional bytes sig_r = 13;           // 32 bytes
    optional bytes sig_s = 14;           // 32 bytes
    optional uint32 sig_v = 15;
-   repeated Log log = 16;
-   optional int64 gas_used = 17;
+   optional int64 gas_used = 16;
 }
 
 message Log {
    optional bytes address = 1;          // 20 bytes
    repeated bytes topic = 2;            // 32 bytes each
    optional bytes data = 3;
+}
+
+message TransactionLog {
+   optional int64 version = 1;
+   repeated Log logs = 2;
 }
 
 message Balance {
