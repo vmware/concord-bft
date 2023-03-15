@@ -17,7 +17,7 @@
 #include "secrets/secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "crypto/factory.hpp"
-#include "ReplicaConfig.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 using namespace concord::diagnostics;
 using namespace concord::secretsmanager;
