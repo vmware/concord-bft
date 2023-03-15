@@ -55,6 +55,8 @@ class ClientRequestMsg : public MessageBase {
 
   bool isReadOnly() const;
 
+  bool isPrimaryOnly() const;
+
   uint64_t flags() const { return msgBody()->flags; }
 
   uint32_t result() const { return msgBody()->result; }
