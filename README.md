@@ -33,7 +33,7 @@ It is designed to be used as a core building block for replicated distributed da
 
 For a real-life integration example, please take a look at [Project Concord](https://github.com/vmware/concord), a highly scalable and energy-efficient distributed trust infrastructure for consensus and smart contract execution.
 
-Start with example usage here: https://github.com/vmware/concord-bft/tree/master/examples
+Start with example usage [here](https://github.com/vmware/concord-bft/tree/master/examples).
 
 ## Documentation
 
