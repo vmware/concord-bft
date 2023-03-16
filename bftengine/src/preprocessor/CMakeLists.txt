@@ -26,7 +26,7 @@ if(BUILD_SLOWDOWN)
     target_compile_definitions(preprocessor PUBLIC USE_SLOWDOWN)
 endif()
 
-target_link_libraries(preprocessor PUBLIC diagnostics util bftcommunication yaml-cpp)
+target_link_libraries(preprocessor PUBLIC diagnostics util bftcommunication yaml-cpp corebft)
 
 if (BUILD_TESTING)
     add_subdirectory(tests)
