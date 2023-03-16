@@ -8,67 +8,23 @@ This example/demo will provide end to end functionality of Concord byzantine fau
 **Note:** Initially, we plan to do this using an open source key-value blockchain replica. However, once the setup is finished, we'll also use alternative open source execution engines, such Ethereum, WASM, etc.
 
 
-## Install and Build (Ubuntu Linux 18.04 or above)
-Concord-BFT supports two kinds of builds are,
-* Docker
-* Native
-
-The docker build is **strongly recommended**
-
-
-### Docker
-
-* [Install the latest docker] (https://docs.docker.com/engine/install/ubuntu/).
-* Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
-* Build concord-bft
-```sh
-git clone https://github.com/vmware/concord-bft
-cd concord-bft
-make
-```
-Run `make help` to see more commands.
-
-Note:
-* If you face any format related issues than run `make format` before running `make` command to format the changes.
-* The output binaries are stored in the host's `concord-bft/build`.
-* Default compiler is clang and clang++.
-* `Makefile` is configurable. If you want to use another compiler you may pass it to the `make`.
-For example,
-```
-make CONCORD_BFT_CONTAINER_CXX=g++ \
-    CONCORD_BFT_CONTAINER_CC=gcc \
-    build
-```
-Other build options, including passthrough options for CMake, are defined in the [Makefile](../Makefile) and prefixed with `CONCORD_BFT_`.
-
-
-### Native
-
-For native development environment, need to install some dependencies mentioned in [install_deps_release.sh](../install_deps_release.sh) script.
-```sh
-git clone https://github.com/vmware/concord-bft
-cd concord-bft
-sudo ./install_deps_release.sh    # Install all dependencies and 3rd parties
-mkdir build
-cd build
-cmake ..
-make
-```
+## Install and Build
+See [Getting Started](https://github.com/eyalrund/concord-bft/wiki/Getting-Started) for instructions.
 
 
 ## Run Example/Demo
-This simple example can be run from the script [test_osexample.sh](scripts/test_osexample.sh) under `example/script` directory.
+This simple example can be run from the script [test_osexample.sh](scripts/test_osexample.sh) under `examples/script` directory.
 Or, it can be directly run from python script [test_osexample.py](scripts/test_osexample.py.in).
 
 
 ### Simple scenario (4 replicas and 1 client)
 This demo can be run from inside the container once the build is finished.
 
-* Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/example/scripts` directory.
+* Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/examples/scripts` directory.
 ```sh
 ./test_osexample.sh
 ```
-* Run the [test_osexample.py](scripts/test_osexample.py.in) script from the container's `build/example/scripts` directory with default commandline arguments `-bft n=4,cl=1`, where n is number of replicas and cl is number of client.
+* Run the [test_osexample.py](scripts/test_osexample.py.in) script from the container's `build/examples/scripts` directory with default commandline arguments `-bft n=4,cl=1`, where n is number of replicas and cl is number of client.
 It is a configurable script which can be configured according to the need.
 ```sh
 ./test_osexample.py -bft n=4,cl=1
