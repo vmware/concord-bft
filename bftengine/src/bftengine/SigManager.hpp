@@ -29,8 +29,8 @@
 
 using concordMetrics::AtomicCounterHandle;
 
-class EdDSAMultisigSigner;
-class EdDSAMultisigVerifier;
+class IThresholdSigner;
+class IThresholdVerifier;
 
 namespace bftEngine {
 namespace impl {
@@ -105,8 +105,6 @@ class SigManager {
   SigManager& operator=(SigManager&&) = delete;
 
   concord::crypto::SignatureAlgorithm getMainKeyAlgorithm() const;
-  std::shared_ptr<EdDSAMultisigSigner> getCurrentReplicaSigner() const;
-  std::shared_ptr<EdDSAMultisigSigner> getLastReplicaSigner() const;
   const concord::crypto::IVerifier& getVerifier(PrincipalId otherPrincipal) const;
 
   std::string getClientsPublicKeys();
@@ -126,6 +124,11 @@ class SigManager {
 
   bool verifyOwnSignature(const concord::Byte* data, size_t dataLength, const concord::Byte* expectedSignature) const;
 
+  std::shared_ptr<concord::crypto::ISigner> extractSignerFromMultisig(
+      std::shared_ptr<IThresholdSigner> thresholdSigner) const;
+  const concord::crypto::IVerifier& extractVerifierFromMultisig(std::shared_ptr<IThresholdVerifier> thresholdVerifier,
+                                                                PrincipalId id) const;
+
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
 
@@ -142,6 +145,8 @@ class SigManager {
                            size_t dataLength,
                            const concord::Byte* sig,
                            uint16_t sigLength) const;
+
+  std::shared_ptr<IThresholdSigner> getCurrentReplicaSigner() const;
 
   const PrincipalId myId_;
   SeqNum replicaLastExecutedSeq_{0};

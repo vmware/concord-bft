@@ -18,8 +18,6 @@
 #include "crypto/threshsign/ThresholdSignaturesTypes.h"
 #include "crypto/threshsign/IThresholdSigner.h"
 #include "crypto/threshsign/IThresholdVerifier.h"
-#include "crypto/threshsign/eddsa/EdDSAMultisigVerifier.h"
-#include "crypto/threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
 #include "crypto/crypto.hpp"
@@ -91,10 +89,9 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   // This abstraction is broken to allow using the consensus key as the replica's main key (In SigManager), thus
   // enabling an operator to change it (key rotation).
   // This code will need to be refactored if a different implementation is used.
-  std::shared_ptr<EdDSAMultisigSigner> getSigner(SeqNum seq) const;
-  std::shared_ptr<EdDSAMultisigVerifier> getMultisigVerifier(SeqNum seq) const;
-  std::array<std::pair<SeqNum, std::shared_ptr<EdDSAMultisigVerifier>>, 2> getLatestVerifiers() const;
-  std::array<std::shared_ptr<EdDSAMultisigSigner>, 2> getLatestSigners() const;
+  std::shared_ptr<IThresholdSigner> getSigner(SeqNum seq) const;
+  std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> getLatestVerifiers() const;
+  std::array<std::shared_ptr<IThresholdSigner>, 2> getLatestSigners() const;
 
  private:
   /**

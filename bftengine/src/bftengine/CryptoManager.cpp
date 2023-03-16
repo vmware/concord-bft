@@ -116,40 +116,28 @@ void CryptoManager::onCheckpoint(uint64_t newCheckpoint) {
   assertMapSizeValid();
 }
 
-std::shared_ptr<EdDSAMultisigSigner> CryptoManager::getSigner(SeqNum seq) const {
-  auto signer = get(seq)->thresholdSigner_;
-  return std::reinterpret_pointer_cast<EdDSAMultisigSigner>(signer);
-}
+std::shared_ptr<IThresholdSigner> CryptoManager::getSigner(SeqNum seq) const { return get(seq)->thresholdSigner_; }
 
-std::shared_ptr<EdDSAMultisigVerifier> CryptoManager::getMultisigVerifier(SeqNum seq) const {
-  auto verifier = get(seq)->thresholdVerifierForOptimisticCommit_;
-  return std::reinterpret_pointer_cast<EdDSAMultisigVerifier>(verifier);
-}
-
-std::array<std::pair<SeqNum, std::shared_ptr<EdDSAMultisigVerifier>>, 2> CryptoManager::getLatestVerifiers() const {
+std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> CryptoManager::getLatestVerifiers() const {
   std::lock_guard<std::mutex> guard(mutex_);
   auto riter = checkpointToSystem().rbegin();
-  std::array<std::pair<SeqNum, std::shared_ptr<EdDSAMultisigVerifier>>, 2> result;
-  result[0] = {
-      riter->first,
-      std::reinterpret_pointer_cast<EdDSAMultisigVerifier>(riter->second->thresholdVerifierForOptimisticCommit_)};
+  std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> result;
+  result[0] = {riter->first, riter->second->thresholdVerifierForOptimisticCommit_};
   riter++;
   if (riter != checkpointToSystem().rend() && riter->second != nullptr) {
-    result[1] = {
-        riter->first,
-        std::reinterpret_pointer_cast<EdDSAMultisigVerifier>(riter->second->thresholdVerifierForOptimisticCommit_)};
+    result[1] = {riter->first, riter->second->thresholdVerifierForOptimisticCommit_};
   }
   return result;
 }
 
-std::array<std::shared_ptr<EdDSAMultisigSigner>, 2> CryptoManager::getLatestSigners() const {
+std::array<std::shared_ptr<IThresholdSigner>, 2> CryptoManager::getLatestSigners() const {
   std::lock_guard<std::mutex> guard(mutex_);
   auto riter = checkpointToSystem().rbegin();
-  std::array<std::shared_ptr<EdDSAMultisigSigner>, 2> result;
-  result[0] = std::reinterpret_pointer_cast<EdDSAMultisigSigner>(riter->second->thresholdSigner_);
+  std::array<std::shared_ptr<IThresholdSigner>, 2> result;
+  result[0] = riter->second->thresholdSigner_;
   ++riter;
   if (riter != checkpointToSystem().rend() && riter->second != nullptr) {
-    result[1] = std::reinterpret_pointer_cast<EdDSAMultisigSigner>(riter->second->thresholdSigner_);
+    result[1] = riter->second->thresholdSigner_;
   }
   return result;
 }

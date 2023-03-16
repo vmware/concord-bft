@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
+#include "crypto/threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "util/types.hpp"
 
 using namespace std;
@@ -188,6 +189,15 @@ class MultiSchemeSigManagerTest : public SigManagerTest {
   MultiSchemeSigManagerTest() : SigManagerTest(false) {}
 };
 
+TEST_F(SingleSchemeSigManagerTest, TestSignerExtraction) {
+  ASSERT_EQ(sigManager->extractSignerFromMultisig(cryptoManager->getSigner(0))->getPrivKey(), hexKeyPairs[0].first);
+}
+
+TEST_F(SingleSchemeSigManagerTest, TestVerifierExtraction) {
+  ASSERT_EQ(sigManager->extractVerifierFromMultisig(cryptoManager->getLatestVerifiers()[0].second, 0).getPubKey(),
+            hexKeyPairs[0].second);
+}
+
 TEST_F(SingleSchemeSigManagerTest, TestMySigLength) { ASSERT_GT(sigManager->getMySigLength(), 0); }
 
 TEST_F(SingleSchemeSigManagerTest, ReplicasOnlyCheckVerify) {
@@ -232,12 +242,13 @@ TEST_F(SingleSchemeSigManagerTest, TestSigIdempotency) {
 
 TEST_F(MultiSchemeSigManagerTest, TestSigDiffersWithMultipleSchemes) {
   std::vector<concord::Byte> msg = {'a', 'b', 'c'};
+  EdDSAMultisigSigner* multisigSigner = reinterpret_cast<EdDSAMultisigSigner*>(cryptoManager->getSigner(0).get());
   const size_t bufferSize = std::max(static_cast<size_t>(sigManager->getMySigLength()),
-                                     static_cast<size_t>(cryptoManager->getSigner(0)->signatureLength()));
+                                     static_cast<size_t>(multisigSigner->signatureLength()));
   std::vector<concord::Byte> firstSig(bufferSize);
   std::vector<concord::Byte> secondSig(bufferSize);
   sigManager->sign(0, msg.data(), msg.size(), firstSig.data());
-  cryptoManager->getSigner(0)->sign(msg, secondSig.data());
+  multisigSigner->sign(msg, secondSig.data());
   ASSERT_NE(firstSig, secondSig);
 }
 

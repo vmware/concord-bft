@@ -199,9 +199,7 @@ size_t ReplicaCRESigner::signBuffer(const concord::Byte* dataIn, size_t dataLen,
   return sigManager->sign(sigManager->getReplicaLastExecutedSeq(), dataIn, dataLen, sigOutBuffer);
 }
 
-size_t ReplicaCRESigner::signatureLength() const {
-  return bftEngine::impl::SigManager::instance()->getLastReplicaSigner()->signatureLength();
-}
-std::string ReplicaCRESigner::getPrivKey() const { ConcordAssert(false); }
+size_t ReplicaCRESigner::signatureLength() const { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+std::string ReplicaCRESigner::getPrivKey() const { return bftEngine::impl::SigManager::instance()->getSelfPrivKey(); }
 
 }  // namespace bftEngine::bcst::asyncCRE
