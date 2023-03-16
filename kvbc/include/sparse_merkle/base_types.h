@@ -243,7 +243,7 @@ class NibblePath {
   NibblePath() : num_nibbles_(0) {}
   NibblePath(size_t num_nibbles, const std::vector<uint8_t>& path) : num_nibbles_(num_nibbles), path_(path) {
     ConcordAssert(num_nibbles < Hash::MAX_NIBBLES);
-    ConcordAssert(path.size() == (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2));
+    ConcordAssert(path.size() == pathLengthInBytes(num_nibbles));
   }
 
   bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
@@ -261,6 +261,11 @@ class NibblePath {
       return true;
     }
     return false;
+  }
+
+  // Return the count of elements (bytes) in path_
+  static size_t pathLengthInBytes(size_t num_nibbles) {
+    return (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2);
   }
 
   // Return the length of the path_ in nibbles

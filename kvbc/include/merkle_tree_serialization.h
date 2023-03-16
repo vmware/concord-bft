@@ -317,11 +317,16 @@ inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const co
 
 template <>
 inline sparse_merkle::NibblePath deserialize<sparse_merkle::NibblePath>(const concordUtils::Sliver &buf) {
-  ConcordAssert(buf.length() >= sizeof(std::uint8_t));
+  static const int nibblePathSizePrefixInBytes = sizeof(std::uint8_t);
+  ConcordAssert(buf.length() >= nibblePathSizePrefixInBytes);
   // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-  const auto nibbleCount = static_cast<std::size_t>(buf[0]);
-  const auto path = deserialize<std::vector<std::uint8_t>>(
-      concordUtils::Sliver{buf, sizeof(std::uint8_t), buf.length() - sizeof(std::uint8_t)});
+  size_t nibbleCount = static_cast<std::uint8_t>(buf[0]);
+  size_t pathBytesCount = sparse_merkle::NibblePath::pathLengthInBytes(nibbleCount);
+  std::vector<std::uint8_t> path;
+  if (pathBytesCount > 0) {
+    path =
+        deserialize<std::vector<std::uint8_t>>(concordUtils::Sliver{buf, nibblePathSizePrefixInBytes, pathBytesCount});
+  }
   return sparse_merkle::NibblePath{nibbleCount, path};
 }
 
@@ -329,10 +334,11 @@ template <>
 inline std::string deserialize<std::string>(const concordUtils::Sliver &buf) {
   ConcordAssert(buf.length() >= sizeof(std::uint8_t));
   // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-  const auto addrSize = static_cast<std::size_t>(buf[0]);
+  const auto addrSize = static_cast<std::uint8_t>(buf[0]);
+  ConcordAssert(buf.length() > addrSize);
   std::string address;
   address.reserve(addrSize);
-  for (auto i = 0u; i < addrSize; ++i) {
+  for (auto i = 1u; i <= addrSize; ++i) {
     address.push_back(buf[i]);
   }
   return address;
@@ -348,13 +354,16 @@ inline sparse_merkle::LeafKey deserialize<sparse_merkle::LeafKey>(const concordU
 
 template <>
 inline sparse_merkle::InternalNodeKey deserialize<sparse_merkle::InternalNodeKey>(const concordUtils::Sliver &buf) {
+  static const int nibblePathSizePrefixInBytes = sizeof(std::uint8_t);  // 1 byte for the nibbleCount
   auto version = deserialize<sparse_merkle::Version>(buf);
   auto nibblePath = deserialize<sparse_merkle::NibblePath>(concordUtils::Sliver{
       buf, sparse_merkle::Version::SIZE_IN_BYTES, buf.length() - sparse_merkle::Version::SIZE_IN_BYTES});
-  std::string address =
-      deserialize<std::string>(concordUtils::Sliver{buf,
-                                                    sparse_merkle::Version::SIZE_IN_BYTES + nibblePath.length(),
-                                                    buf.length() - sparse_merkle::Version::SIZE_IN_BYTES});
+  std::string address = deserialize<std::string>(
+      concordUtils::Sliver{buf,
+                           sparse_merkle::Version::SIZE_IN_BYTES + nibblePathSizePrefixInBytes +
+                               sparse_merkle::NibblePath::pathLengthInBytes(nibblePath.length()),
+                           buf.length() - sparse_merkle::Version::SIZE_IN_BYTES - nibblePathSizePrefixInBytes -
+                               sparse_merkle::NibblePath::pathLengthInBytes(nibblePath.length())});
   return sparse_merkle::InternalNodeKey{std::move(version), std::move(nibblePath), std::move(address)};
 }
 

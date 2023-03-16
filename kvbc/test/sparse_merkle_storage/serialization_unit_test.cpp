@@ -294,12 +294,13 @@ TEST(key_manipulator, stale_db_key_internal) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
+  std::string address = "abcdefg123";
+  const auto internalKey = InternalNodeKey{defaultVersion, path, address};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genInternalDbKey(internalKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1 + address.size());
   ASSERT_TRUE(key == expected);
 }
 
