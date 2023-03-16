@@ -8,12 +8,13 @@ add_library(cre
         )
 
 target_include_directories(cre PUBLIC 
-        include
-        ${bftengine_SOURCE_DIR}/include/bftengine)
+        include)
 
 target_link_libraries(cre PUBLIC
         bftclient_new
         cmf_messages
+        concord-crypto
+        logging
         util)
 
 if (BUILD_TESTING)

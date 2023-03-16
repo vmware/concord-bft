@@ -13,6 +13,7 @@
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
 #include "crypto/openssl/certificates.hpp"
+#include "util/kvstream.h"
 
 #include <variant>
 #include <util/filesystem.hpp>
