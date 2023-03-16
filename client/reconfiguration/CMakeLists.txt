@@ -14,7 +14,6 @@ target_link_libraries(cre PUBLIC
         bftclient_new
         cmf_messages
         concord-crypto
-        logging
         util)
 
 if (BUILD_TESTING)
