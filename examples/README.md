@@ -32,12 +32,12 @@ It is a configurable script which can be configured according to the need.
 
 
 #### Explanation of the [test_osexample.sh](scripts/test_osexample.sh)
-On our example, we will use the script [test_osexample.py](scripts/test_osexample.py.in) and this script is used for following things,
+In our example, we will use the script [test_osexample.py](scripts/test_osexample.py.in) and this script is used for the following things,
 * It is used to generate the keys for replica's. For more [refer](../tools/README.md)
-* It is used to generate TLS certificates used in for TLSTCP communication which we are using as a default mode of communication. For more [refer](../scripts/linux/create_tls_certs.sh)
-* Running multiple replica's. Here we are running 4 replica's.
+* It is used to generate TLS certificates used for TLS/TCP communication which we are using as a default mode of communication. For more info [refer](../scripts/linux/create_tls_certs.sh)
+* Running multiple replica's. Here we are running 4 replica's
 * Running client
-* For resources cleanup.
+* For resources cleanup
 
 
 ## Directory Structure.
@@ -47,10 +47,10 @@ On our example, we will use the script [test_osexample.py](scripts/test_osexampl
 - [msg-configs](./msg-configs): Message configurations for read/write messages.
 - [scripts](./scripts): Build scripts, replica config file, etc.
 
-## How to use msg configs
+## How to use message configs
 Initially, we are planning to do this using an open source key-value blockchain replica.
 Message configs are used to set some parameters which will further used to create ClientRequestMsg.
-All the message configurations can be found [msg-configs](./msg-configs) folder.
+All messages configurations can be found [msg-configs](./msg-configs) folder.
 
 Following are the parameters from msg config file,
 * **type**: This is a message type parameters i.e. it shows the type of message Write, Read and Both. According to this parameter client request msg will be created.
@@ -62,7 +62,7 @@ Following are the parameters from msg config file,
 
 
 ## Future Plans
-In future we are planning to include open source execution engines for this demo, such as Ethereum, WASM, etc.
+In future we plan to include open source execution engines for this demo, such as Ethereum, WASM, etc.
 
 
 ## License
