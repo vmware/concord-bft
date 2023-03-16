@@ -79,7 +79,7 @@ BatchedInternalNodeKey toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey&&
   return BatchedInternalNodeKey{key.version().value(), std::move(path), key.address()};
 }
 
-std::vector<uint8_t> rootKey(uint64_t version, std::string address = "") {
+std::vector<uint8_t> rootKey(uint64_t version, const std::string& address = "") {
   auto v = sparse_merkle::Version(version);
   return serialize(toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey::root(v, address)));
 }

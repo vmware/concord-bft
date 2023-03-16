@@ -24,7 +24,7 @@ class TestDB : public IDBReader {
  public:
   void put(const LeafKey& key, const LeafNode& val) { leaf_nodes_[key] = val; }
   void put(const InternalNodeKey& key, const BatchedInternalNode& val) {
-    assert(internal_nodes_.find(key) == internal_nodes_.end());
+    ConcordAssert(internal_nodes_.find(key) == internal_nodes_.end());
 
     internal_nodes_[key] = val;
     if (latest_version_[key.address()] < key.version()) {
