@@ -199,9 +199,9 @@ Msg NibblePath 5001 {
 
 Msg BatchedInternalNodeKey 5002 {
     # The version of this key is the *tree* version, not block version
+    string address
     uint64 version
     NibblePath path
-    string address
 }
 
 Msg LeafChild 5003 {

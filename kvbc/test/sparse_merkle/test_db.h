@@ -36,7 +36,7 @@ class TestDB : public IDBReader {
     if (latest_version_.find(address) == latest_version_.end()) {
       return BatchedInternalNode();
     }
-    auto root_key = InternalNodeKey::root(latest_version_.at(address), address);
+    auto root_key = InternalNodeKey::root(address, latest_version_.at(address));
     return internal_nodes_.at(root_key);
   }
 

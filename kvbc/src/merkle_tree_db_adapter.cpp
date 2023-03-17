@@ -462,7 +462,7 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root(std::string address) cons
     return BatchedInternalNode{};
   }
 
-  return get_internal(InternalNodeKey::root(stateRootVersion, address));
+  return get_internal(InternalNodeKey::root(address, stateRootVersion));
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
@@ -708,7 +708,7 @@ KeysVector DBAdapter::internalProvableKeysForVersion(const Version &version) con
   // Rely on the fact that root internal keys always precede non-root ones - due to lexicographical ordering and root
   // internal keys having empty nibble paths. See InternalNodeKey serialization code.
   return keysForVersion(db_,
-                        DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(version, "")),
+                        DBKeyManipulator::genInternalDbKey(InternalNodeKey::root("", version)),
                         version,
                         EKeySubtype::Internal,
                         [](const Key &key) { return DBKeyManipulator::extractVersionFromInternalKey(key); });

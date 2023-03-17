@@ -182,13 +182,13 @@ TEST(key_manipulator, internal_key_even) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
+  const auto internalKey = InternalNodeKey{"", defaultVersion, path};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
+                                 serializeIntegral(std::uint8_t{0x0}) +
                                  serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{4}) +
-                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x34}) +
-                                 serializeIntegral(std::uint8_t{0x0}));
+                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x34}));
   ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1);
   ASSERT_TRUE(key == expected);
 }
@@ -202,14 +202,17 @@ TEST(key_manipulator, internal_key_odd) {
   path.append(0x02);
   // second byte of the nibble path is 0x30 (by appending 0x03)
   path.append(0x03);
-  const auto internalKey = InternalNodeKey{defaultVersion, path, ""};
+  std::string address = "test";
+  const auto internalKey = InternalNodeKey{address, defaultVersion, path};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
-  const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
-                                 serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
-                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}) +
-                                 serializeIntegral(std::uint8_t{0x0}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1);
+  const auto expected =
+      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
+               serializeIntegral(std::uint8_t{0x4}) + serializeIntegral(address[0]) + serializeIntegral(address[1]) +
+               serializeIntegral(address[2]) + serializeIntegral(address[3]) +
+               serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
+               serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}));
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1 + address.size());
   ASSERT_TRUE(key == expected);
 }
 
@@ -295,7 +298,7 @@ TEST(key_manipulator, stale_db_key_internal) {
   path.append(0x03);
   path.append(0x04);
   std::string address = "abcdefg123";
-  const auto internalKey = InternalNodeKey{defaultVersion, path, address};
+  const auto internalKey = InternalNodeKey{address, defaultVersion, path};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +

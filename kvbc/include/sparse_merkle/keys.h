@@ -25,13 +25,13 @@ namespace sparse_merkle {
 class InternalNodeKey {
  public:
   template <class T>
-  InternalNodeKey(Version version, const NibblePath& path, T&& address)
-      : version_(version), path_(path), address_(std::forward<T>(address)) {}
+  InternalNodeKey(T&& address, Version version, const NibblePath& path)
+      : address_(std::forward<T>(address)), version_(version), path_(path) {}
 
   // Return the root of a sparse merkle tree at a given version.
   template <class T>
-  static InternalNodeKey root(Version version, T&& address) {
-    return InternalNodeKey(version, NibblePath(), std::forward<T>(address));
+  static InternalNodeKey root(T&& address, Version version) {
+    return InternalNodeKey(std::forward<T>(address), version, NibblePath());
   }
 
   bool operator==(const InternalNodeKey& other) const { return version_ == other.version_ && path_ == other.path_; }
@@ -62,9 +62,9 @@ class InternalNodeKey {
   NibblePath& path() { return path_; }
 
  private:
+  std::string address_;
   Version version_;
   NibblePath path_;
-  std::string address_;
 };
 
 // The key for a leaf node of a sparse merkle tree.

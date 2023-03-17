@@ -111,9 +111,9 @@ inline std::string serializeImp(const sparse_merkle::Hash &hash) {
 }
 
 inline void serializeImp(const sparse_merkle::InternalNodeKey &key, std::string &out) {
+  serializeImp(key.address(), out);
   serializeImp(key.version().value(), out);
   serializeImp(key.path(), out);
-  serializeImp(key.address(), out);
 }
 
 inline std::string serializeImp(const sparse_merkle::InternalNodeKey &key) {
@@ -354,17 +354,18 @@ inline sparse_merkle::LeafKey deserialize<sparse_merkle::LeafKey>(const concordU
 
 template <>
 inline sparse_merkle::InternalNodeKey deserialize<sparse_merkle::InternalNodeKey>(const concordUtils::Sliver &buf) {
-  static const int nibblePathSizePrefixInBytes = sizeof(std::uint8_t);  // 1 byte for the nibbleCount
-  auto version = deserialize<sparse_merkle::Version>(buf);
-  auto nibblePath = deserialize<sparse_merkle::NibblePath>(concordUtils::Sliver{
-      buf, sparse_merkle::Version::SIZE_IN_BYTES, buf.length() - sparse_merkle::Version::SIZE_IN_BYTES});
-  std::string address = deserialize<std::string>(
+  static const int addressPathSizePrefixInBytes = sizeof(std::uint8_t);  // 1 byte for the address size
+  std::string address = deserialize<std::string>(buf);
+  auto version = deserialize<sparse_merkle::Version>(
       concordUtils::Sliver{buf,
-                           sparse_merkle::Version::SIZE_IN_BYTES + nibblePathSizePrefixInBytes +
-                               sparse_merkle::NibblePath::pathLengthInBytes(nibblePath.length()),
-                           buf.length() - sparse_merkle::Version::SIZE_IN_BYTES - nibblePathSizePrefixInBytes -
-                               sparse_merkle::NibblePath::pathLengthInBytes(nibblePath.length())});
-  return sparse_merkle::InternalNodeKey{std::move(version), std::move(nibblePath), std::move(address)};
+                           addressPathSizePrefixInBytes + address.size(),
+                           buf.length() - addressPathSizePrefixInBytes - address.size()});
+  auto nibblePath = deserialize<sparse_merkle::NibblePath>(concordUtils::Sliver{
+      buf,
+      addressPathSizePrefixInBytes + address.size() + sparse_merkle::Version::SIZE_IN_BYTES,
+      buf.length() - addressPathSizePrefixInBytes - address.size() - sparse_merkle::Version::SIZE_IN_BYTES});
+
+  return sparse_merkle::InternalNodeKey{std::move(address), std::move(version), std::move(nibblePath)};
 }
 
 template <>
