@@ -515,7 +515,7 @@ module Replica {
                                       newView,
                                       v.workingWindow.lastStableCheckpoint,
                                       CheckpointsQuorum(ExtractStableCheckpointProof(c, v)),
-                                      ExtractCertificatesFromWorkingWindow(c, v)));
+                                      ExtractCertificates(c, v)));
     // TODO: this should follow from the invariant and from the way we collect prepares.
     // && (forall seqID :: seqID in vcMsg.payload.certificates ==> 
     //            (vcMsg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum())))
@@ -535,33 +535,41 @@ module Replica {
               && msg.payload.committedClientOperations == stateUpToSeqID
   }
 
-  predicate IsRecordedViewChangeMsgForView(c:Constants, v:Variables, view:ViewNum, viewChangeMsg:Network.Message<Message>)
+  predicate IsRecordedViewChangeMsgForView(c:Constants, viewChangeMsgsRecvd:ViewChangeMsgs, view:ViewNum, viewChangeMsg:Network.Message<Message>)
   {
-    && v.WF(c)
+    && c.WF()
     && viewChangeMsg.payload.ViewChangeMsg?
-    && viewChangeMsg in v.viewChangeMsgsRecvd.msgs
+    && viewChangeMsg in viewChangeMsgsRecvd.msgs
     && viewChangeMsg.payload.newView == view
     && viewChangeMsg.sender == c.myId
   }
 
-  function GetViewChangeMsgForView(c:Constants, v:Variables, view:ViewNum) : Network.Message<Message>
-    requires v.WF(c)
-    requires exists viewChangeMsg :: IsRecordedViewChangeMsgForView(c, v, view, viewChangeMsg)
+  function GetViewChangeMsgForView(c:Constants, viewChangeMsgsRecvd:ViewChangeMsgs, view:ViewNum) : Network.Message<Message>
+    requires c.WF()
+    requires exists viewChangeMsg :: IsRecordedViewChangeMsgForView(c, viewChangeMsgsRecvd, view, viewChangeMsg)
   {
-    var viewChangeMsg :| IsRecordedViewChangeMsgForView(c, v, view, viewChangeMsg);
+    var viewChangeMsg :| IsRecordedViewChangeMsgForView(c, viewChangeMsgsRecvd, view, viewChangeMsg);
     viewChangeMsg
   }
 
-  function ExtractPreparedCertificateFromLatestViewChangeMsg(c:Constants, v:Variables, seqID:SequenceID) : PreparedCertificate
+  function ExtractPreparesFromWorkingWindow(c:Constants, v:Variables, seqID:SequenceID) : set<Network.Message<Message>>
+    requires v.WF(c)
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    if !exists vcMsg :: IsRecordedViewChangeMsgForView(c, v, v.view, vcMsg)
-      then PreparedCertificate({})
-    else if seqID !in GetViewChangeMsgForView(c, v, v.view).payload.certificates
-      then PreparedCertificate({})
-    else GetViewChangeMsgForView(c, v, v.view).payload.certificates[seqID]
+    set key | key in v.workingWindow.preparesRcvd[seqID]   // This set comprehension is the same as calling .Values,
+            :: v.workingWindow.preparesRcvd[seqID][key]    // but this way it is better for triggering in Dafny
   }
 
-  function ExtractCertificatesFromWorkingWindow(c:Constants, v:Variables) : map<SequenceID, PreparedCertificate>
+  function ExtractPreparesFromLatestViewChangeMsg(c:Constants, v:Variables, seqID:SequenceID) : set<Network.Message<Message>>
+  {
+    if !exists vcMsg :: IsRecordedViewChangeMsgForView(c, v.viewChangeMsgsRecvd, v.view, vcMsg)
+      then {}
+    else if seqID !in GetViewChangeMsgForView(c, v.viewChangeMsgsRecvd, v.view).payload.certificates
+      then {}
+    else GetViewChangeMsgForView(c, v.viewChangeMsgsRecvd, v.view).payload.certificates[seqID].votes
+  }
+
+  function ExtractCertificates(c:Constants, v:Variables) : map<SequenceID, PreparedCertificate>
     requires v.WF(c)
   {
     map seqID | seqID in v.workingWindow.getActiveSequenceIDs(c) :: ExtractCertificateForSeqID(c, v, seqID)
@@ -571,9 +579,8 @@ module Replica {
     requires v.WF(c)
     requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    var workingWindowPreparesRecvd := set key | key in v.workingWindow.preparesRcvd[seqID]  // This set comprehension is the same as calling .Values,
-                                                :: v.workingWindow.preparesRcvd[seqID][key];// but this way it is better for triggering in Dafny
-    var viewChangeMsgPreparesRecvd := ExtractPreparedCertificateFromLatestViewChangeMsg(c, v, seqID).votes;
+    var workingWindowPreparesRecvd := ExtractPreparesFromWorkingWindow(c, v, seqID);
+    var viewChangeMsgPreparesRecvd := ExtractPreparesFromLatestViewChangeMsg(c, v, seqID);
     if |workingWindowPreparesRecvd| >= c.clusterConfig.AgreementQuorum()
     then PreparedCertificate(workingWindowPreparesRecvd)
     else if |viewChangeMsgPreparesRecvd| >= c.clusterConfig.AgreementQuorum()

@@ -1671,6 +1671,19 @@ module Proof {
     }
   }
 
+  lemma FullQuorumOfPreparesEnsuresValidFullCertificate(
+        c:Constants, 
+        v:Variables,
+        h_c:Replica.Constants,
+        h_v:Replica.Variables,
+        seqID:Messages.SequenceID)
+    requires v.WF(c)
+    requires |Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).votes| >= h_c.clusterConfig.AgreementQuorum()
+    ensures Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).validFull(h_c.clusterConfig, seqID)
+  {
+
+  }
+
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSenderForRecvPrepareStep(
         c:Constants, 
         v:Variables, 
@@ -1701,6 +1714,9 @@ module Proof {
     reveal_TemporarilyDisableCheckpointing();
     reveal_RecordedViewChangeMsgsCameFromNetwork();
     reveal_OneViewChangeMessageFromReplicaPerView();
+    reveal_RecordedPreparesMatchHostView();
+    reveal_RecordedPreparesRecvdCameFromNetwork();
+    reveal_RecordedPreparesClientOpsMatchPrePrepare();
 
     assert EveryCommitMsgIsRememberedByItsSender(c, v);
 
@@ -1714,11 +1730,49 @@ module Proof {
     }
     assert Replica.PrepareProofSetWF(committer_c, committer_v'.workingWindow.preparesRcvd[commitMsg.payload.seqID]);
 
-    assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
-    assert oldCertificate.votes <= certificate.votes;
-    assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
-    assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID);
-    assume false;
+    if(step.id == commitMsg.sender) {
+      if(commitMsg.payload.view < committer_v.view) {
+        assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+
+        if(oldCertificate.votes == Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID)) {
+          assert committer_v'.viewChangeMsgsRecvd == committer_v.viewChangeMsgsRecvd;
+
+          assert Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID) ==
+                 Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v', commitMsg.payload.seqID);
+
+          assert |Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v', commitMsg.payload.seqID)| >=
+                 committer_c.clusterConfig.AgreementQuorum();
+          if(|Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID)| >= 
+             committer_c.clusterConfig.AgreementQuorum()) {
+            assert certificate == Messages.PreparedCertificate(Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID));
+            assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+          } else {
+            assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+          }
+        } else {
+          assert oldCertificate.votes == Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID);
+          assert Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID) <=
+                 Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID);
+          assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+        }
+
+      } else {
+        assume false;
+        assert Replica.ExtractCertificateForSeqID(committer_c, committer_v, commitMsg.payload.seqID).votes == 
+               Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID);
+        assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+        assert oldCertificate.votes <= certificate.votes;
+        assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+        assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID);
+      }
+
+      assume false;
+    } else {
+      assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+      assert oldCertificate.votes <= certificate.votes;
+      assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+      assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID); 
+    }
   }
 
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSender(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1797,20 +1851,20 @@ module Proof {
                       v'.hosts[commitMsg.sender].replicaVariables);
       } else if(h_step.PerformStateTransferStep?) {
         assert forall vcMsg
-                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
-                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
+                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v'.viewChangeMsgsRecvd, h_v'.view, vcMsg) ==
+                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v.viewChangeMsgsRecvd, h_v.view, vcMsg);
         assume false;
       } else if(h_step.AdvanceWorkingWindowStep?) {
         assert forall vcMsg
-                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
-                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
+                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v'.viewChangeMsgsRecvd, h_v'.view, vcMsg) ==
+                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v.viewChangeMsgsRecvd, h_v.view, vcMsg);
         assume false;
       } else if(h_step.RecvViewChangeMsgStep?) {
         assume false;
       } else {
         assert forall vcMsg
-                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v', h_v'.view, vcMsg) ==
-                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v, h_v.view, vcMsg);
+                  :: Replica.IsRecordedViewChangeMsgForView(h_c, h_v'.viewChangeMsgsRecvd, h_v'.view, vcMsg) ==
+                     Replica.IsRecordedViewChangeMsgForView(h_c, h_v.viewChangeMsgsRecvd, h_v.view, vcMsg);
       }
     }
 
