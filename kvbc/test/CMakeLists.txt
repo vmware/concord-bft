@@ -307,6 +307,15 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
+    add_executable(blocks_adder_adapter_test kvbc_adapter/v4blockchain/blocks_adder_adapter_test.cpp)
+    add_test(blocks_adder_adapter_test blocks_adder_adapter_test)
+    target_link_libraries(blocks_adder_adapter_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        corebft
+        kvbc
+    )
+
     add_executable(common_state_snapshot_adapter_test
             kvbc_adapter/common/state_snapshot_adapter_test.cpp )
     add_test(common_state_snapshot_adapter_test common_state_snapshot_adapter_test)

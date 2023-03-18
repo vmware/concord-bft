@@ -115,6 +115,49 @@ Msg ParentDigest 2006 {
     fixedlist uint8 32 value
 }
 
+Msg BlockHeaderData 2007 {
+    int64 version
+    uint64 number
+    fixedlist uint8 32 parent_hash
+    list fixedlist uint8 32 transactions
+    uint64 timestamp
+    uint64 gas_limit
+    uint64 gas_used
+    fixedlist uint8 32 stateroot
+    fixedlist uint8 32 extra_data
+    fixedlist uint8 32 miner
+    fixedlist uint8 8 nonce
+}
+
+Msg LogData 2008 {
+    fixedlist uint8 20 address
+    list fixedlist uint8 32 topics
+    bytes data
+}
+
+Msg TransactionLogData 2009 {
+    list LogData logs
+}
+
+Msg TransactionData 2010 {
+    int64 version
+    uint64 nonce
+    uint64 block_number
+    fixedlist uint8 20 from
+    fixedlist uint8 20 to
+    fixedlist uint8 20 contract_address
+    bytes input
+    int64 status
+    fixedlist uint8 32 value
+    uint64 gas_price
+    uint64 gas_limit
+    uint64 gas_used
+    bytes sig_r
+    bytes sig_s
+    uint64 sig_v
+}
+
+
 # Misc
 
 Msg BenchmarkMessage 3000 {

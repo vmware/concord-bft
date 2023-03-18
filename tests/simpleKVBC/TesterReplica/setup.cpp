@@ -85,6 +85,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.numOfClientServices = 1;
     replicaConfig.kvBlockchainVersion = 4;
     replicaConfig.useUnifiedCertificates = false;
+    replicaConfig.extraHeader = false;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;

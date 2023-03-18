@@ -16,6 +16,9 @@
 #include <string>
 
 namespace concord::kvbc::keyTypes {
+
+static const char kKvbKeyBlockHeaderHash = 0x10;
+
 static const char bft_seq_num_key = 0x21;
 static const char reconfiguration_pruning_key = 0x24;
 static const char reconfiguration_prune_compact_key = 0x25;

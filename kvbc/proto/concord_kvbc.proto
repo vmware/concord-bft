@@ -27,48 +27,6 @@ message ValueWithTrids {
    optional google.protobuf.Timestamp expires_after = 3;
 }
 
-message Block {
-   optional int64 version = 1;
-   optional int64 number = 2;
-   optional bytes hash = 3;             // 32 bytes
-   optional bytes parent_hash = 4;      // 32 bytes
-   repeated bytes transaction = 5;      // 32 bytes
-   optional int64 timestamp = 6;
-   optional int64 gas_limit = 7;
-   optional int64 gas_used = 8;
-   optional bytes stateroot = 9;
-}
-
-message Transaction {
-   optional int64 version = 1;
-   optional int64 block_number = 2;
-   optional int64 nonce = 3;
-   optional bytes block_hash = 4;       // 32 bytes
-   optional bytes from = 5;             // 20 bytes
-   optional bytes to = 6;               // 20 bytes
-   optional bytes contract_address = 7; // 20 bytes
-   optional bytes input = 8;
-   optional int64 status = 9;
-   optional bytes value = 10;
-   optional int64 gas_price = 11;
-   optional int64 gas_limit = 12;
-   optional bytes sig_r = 13;           // 32 bytes
-   optional bytes sig_s = 14;           // 32 bytes
-   optional uint32 sig_v = 15;
-   optional int64 gas_used = 16;
-}
-
-message Log {
-   optional bytes address = 1;          // 20 bytes
-   repeated bytes topic = 2;            // 32 bytes each
-   optional bytes data = 3;
-}
-
-message TransactionLog {
-   optional int64 version = 1;
-   repeated Log logs = 2;
-}
-
 message Balance {
    optional int64 version = 1;
    optional bytes balance = 2;          // 32 bytes
