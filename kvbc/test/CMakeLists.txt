@@ -270,6 +270,19 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
+    add_executable(v4_keys_history_unit_test
+            v4blockchain/v4_keys_history_test.cpp )
+    file(COPY v4blockchain/rocksdb_config_test.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    add_test(v4_keys_history_unit_test v4_keys_history_unit_test)
+    target_link_libraries(v4_keys_history_unit_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+            )
+
     add_executable(v4_blockchain_unit_test
         v4blockchain/blockchain_test.cpp )
     add_test(v4_blockchain_unit_test v4_blockchain_unit_test)

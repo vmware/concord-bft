@@ -457,6 +457,12 @@ BlockId Replica::getLastBlockId() const {
   return m_kvBlockchain->getLastBlockId();
 }
 
+std::optional<categorization::Value> Replica::getFromSnapshot(const std::string &category_id,
+                                                              const std::string &key,
+                                                              const BlockId snapshot_version) const {
+  return m_kvBlockchain->getFromSnapshot(category_id, key, snapshot_version);
+}
+
 void Replica::checkpointInProcess(bool flag, kvbc::BlockId id) { m_kvBlockchain->checkpointInProcess(flag, id); }
 
 void Replica::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }

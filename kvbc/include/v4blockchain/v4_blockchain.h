@@ -18,6 +18,7 @@
 #include "v4blockchain/detail/st_chain.h"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/blockchain.h"
+#include "v4blockchain/detail/keys_history.h"
 #include <memory>
 #include <string>
 
@@ -92,6 +93,9 @@ class KeyValueBlockchain {
                                            BlockId block_id) const;
 
   std::optional<categorization::Value> getLatest(const std::string &category_id, const std::string &key) const;
+  std::optional<categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                       const std::string &key,
+                                                       const BlockId version) const;
 
   void multiGet(const std::string &category_id,
                 const std::vector<std::string> &keys,
@@ -269,6 +273,7 @@ class KeyValueBlockchain {
   v4blockchain::detail::Blockchain block_chain_;
   v4blockchain::detail::StChain state_transfer_chain_;
   v4blockchain::detail::LatestKeys latest_keys_;
+  v4blockchain::detail::KeysHistory keys_history_;
   // flag to mark whether a checkpoint is being taken.
   std::optional<uint64_t> last_block_sn_;
   const float updates_to_final_size_ration_{2.5};

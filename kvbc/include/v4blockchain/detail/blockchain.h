@@ -30,6 +30,12 @@
 #include "v4blockchain/detail/column_families.h"
 
 namespace concord::kvbc::v4blockchain::detail {
+
+template <typename... Sliceable>
+auto getSliceArray(const Sliceable&... sls) {
+  return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
+}
+
 /*
   This class composes the blockchain out of detail::Block.
   It knows to :
@@ -63,7 +69,10 @@ class Blockchain {
   // Loads from storage the last and first block ids respectivly.
   std::optional<BlockId> loadLastReachableBlockId();
   std::optional<BlockId> loadGenesisBlockId();
-  void setLastReachable(BlockId id) { last_reachable_block_id_ = id; }
+  void setLastReachable(BlockId id) {
+    last_reachable_block_id_ = id;
+    global_latest_block_id = id;
+  }
   void setBlockId(BlockId id);
   BlockId getLastReachable() const { return last_reachable_block_id_; }
   BlockId getGenesisBlockId() const { return genesis_block_id_; }
@@ -71,7 +80,6 @@ class Blockchain {
     genesis_block_id_ = id;
     global_genesis_block_id = id;
   }
-
   // Returns the buffer that represents the block
   std::optional<std::string> getBlockData(concord::kvbc::BlockId id) const;
   std::optional<categorization::Updates> getBlockUpdates(BlockId id) const;
@@ -110,6 +118,7 @@ class Blockchain {
   uint64_t from_future{};
   uint64_t from_storage{};
   static std::atomic<BlockId> global_genesis_block_id;
+  static std::atomic<BlockId> global_latest_block_id;
   void deleteBlock(BlockId id, storage::rocksdb::NativeWriteBatch& wb) {
     ConcordAssertLE(id, last_reachable_block_id_);
     ConcordAssertGE(id, genesis_block_id_);
