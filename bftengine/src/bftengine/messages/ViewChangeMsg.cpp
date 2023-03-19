@@ -162,8 +162,6 @@ void ViewChangeMsg::finalizeMessage() {
   // |               Message Body               |
   // +------------------------------------------+
 
-  // TODO: since there are multiple message with different sequences, make sure that lastStable()
-  // is the correct value
   sigManager->sign(lastStable(), body(), bodySize, body() + bodySize);
 
   bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);

@@ -135,16 +135,17 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
 
   if (config.isReadOnly) return nullptr;
 
-  // TODO(yf): protect this code with a feature flag
-  config.thresholdVerificationKeys_.resize(config.numReplicas);
-  for (auto& [i, hexKey] : config.publicKeysOfReplicas) {
-    if (i < config.numReplicas) {
-      config.thresholdVerificationKeys_[i] = hexKey;
-      LOG_INFO(GL, KVLOG(i, hexKey));
+  if (config.singleSignatureScheme) {
+    config.thresholdVerificationKeys_.resize(config.numReplicas);
+    for (auto& [i, hexKey] : config.publicKeysOfReplicas) {
+      if (i < config.numReplicas) {
+        config.thresholdVerificationKeys_[i] = hexKey;
+        LOG_INFO(GL, KVLOG(i, hexKey));
+      }
     }
-  }
 
-  config.thresholdPrivateKey_ = config.replicaPrivateKey;
+    config.thresholdPrivateKey_ = config.replicaPrivateKey;
+  }
 
   return Cryptosystem::fromConfiguration(input,
                                          "common",

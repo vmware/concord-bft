@@ -170,7 +170,9 @@ SigManager::SigManager(PrincipalId myId,
     }
   }
 
-  clientsPublicKeys_.version = 2;  // version `1` suggests RSAVerifier.
+  /* version `1` suggests RSAVerifier.
+   * version `2` suggests EdDSAVerifier. */
+  clientsPublicKeys_.version = 2;
   LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();
 

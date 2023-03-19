@@ -57,9 +57,10 @@ class KeyExchangeManager {
   // Called at the end of state transfer
   void loadPublicKeys();
   void loadClientPublicKeys();
-  // whether initial key exchange has occurred
 
-  bool exchanged() const;
+  // True if all of the replicas have completed a key rotation on startup.
+  // The startup key rotation is only executed if ReplicaConfig::instance().getkeyExchangeOnStart() is true.
+  bool isInitialConsensusExchangeComplete() const;
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
   ///////// Clients public keys interface///////////////

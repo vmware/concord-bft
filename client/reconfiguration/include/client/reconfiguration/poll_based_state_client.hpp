@@ -24,6 +24,14 @@
 
 namespace concord::client::reconfiguration {
 
+/**
+ * A polling client which fetches reconfiguration updates from replicas.
+ * Used by:
+ * 1. Clients - Clients use this mechanism to get the main key of a replica, which allows
+ *              them to validate tls certificates when replicas replace them.
+ * 2. Replicas - Replicas in state transfer use this polling client in a best effort
+ *               to execute reconfiguration requests which were missed during ST (e.g wedges, scaling)
+ */
 class PollBasedStateClient : public IStateClient {
  public:
   PollBasedStateClient(bft::client::Client* client,

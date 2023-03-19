@@ -396,13 +396,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
   // -  in case replica keys haven't been exchanged for all replicas, and it's not a key exchange msg then don't accept
   // the msgs.
   // -  the public keys of the clients haven't been published yet.
-  if (!KeyExchangeManager::instance().exchanged() ||
+  if (!KeyExchangeManager::instance().isInitialConsensusExchangeComplete() ||
       (!KeyExchangeManager::instance().clientKeysPublished() && repsInfo->isIdOfClientProxy(senderId))) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG,
-               "Didn't complete yet, dropping msg" << KVLOG(KeyExchangeManager::instance().exchanged(),
-                                                            KeyExchangeManager::instance().clientKeysPublished(),
-                                                            repsInfo->isIdOfClientProxy(senderId)));
+               "Didn't complete yet, dropping msg"
+                   << KVLOG(KeyExchangeManager::instance().isInitialConsensusExchangeComplete(),
+                            KeyExchangeManager::instance().clientKeysPublished(),
+                            repsInfo->isIdOfClientProxy(senderId)));
       return;
     }
   }
@@ -2250,6 +2251,11 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
 
+/**
+ * Replicas accumulate checkpoints messages to decide whether they should start
+ * state transfer. Checkpoint message signatures are not validated, as replicas
+ * rely on state transfer to fetch the most recent keys.
+ */
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message) {
   auto *msg = message.release();
@@ -2800,10 +2806,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(std::unique_ptr<ReplicaStatusMsg> m
       }
     }
   }
-
-  /*if (msgLastStable > lastStableSeqNum + (checkpointWindowSize * 2) && !isCollectingState()) {
-    startCollectingState("On receiving ReplicaStatusMsg");
-  }*/
 
   delete msg;
 }
@@ -4405,7 +4407,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   LOG_INFO(GL, "Initialising Replica" << KVLOG(firstTime));
 
   onViewNumCallbacks_.add([&](bool) {
-    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
+    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
       KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
     }
@@ -4415,7 +4417,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // which syncs its state through ST, we need to make sure that it completes
     // initial key exchange after completing ST
     if (!isCollectingState()) {
-      if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+      if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
+          !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
         KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this, lastExecutedSeqNum);
         LOG_INFO(GL, "Send key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
@@ -4650,7 +4653,8 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
+      !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
     KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
   } else {
     // If key exchange is disabled, first publish the replica's main key to clients
@@ -5695,7 +5699,7 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
                                                                         req.outReplicaSpecificInfoSize,
                                                                         executionResult);
         if (replyMsg) {
-          LOG_INFO(GL, "Sending reply for req " << req.requestSequenceNum);
+          LOG_DEBUG(GL, "Sending reply for req " << req.requestSequenceNum);
           send(replyMsg.get(), req.clientId);
           free(req.outReply);
         } else {

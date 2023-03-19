@@ -104,11 +104,11 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
   // The key will be used from this sequence forwards
   // new keys are used two checkpoints after reaching consensus
   const SeqNum sn = kemsg.generated_sn;
-  LOG_INFO(KEY_EX_LOG, KVLOG(kemsg.toString(), sn, cid, exchanged()));
+  LOG_INFO(KEY_EX_LOG, KVLOG(kemsg.toString(), sn, cid, isInitialConsensusExchangeComplete()));
   // client query
   if (kemsg.op == KeyExchangeMsg::HAS_KEYS) {
-    LOG_INFO(KEY_EX_LOG, "Has keys: " << std::boolalpha << exchanged() << std::noboolalpha);
-    if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
+    LOG_INFO(KEY_EX_LOG, "Has keys: " << std::boolalpha << isInitialConsensusExchangeComplete() << std::noboolalpha);
+    if (!isInitialConsensusExchangeComplete()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
   uint64_t my_epoch = EpochManager::instance().getSelfEpochNumber();
@@ -129,8 +129,8 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= liveQuorumSize))
     LOG_INFO(KEY_EX_LOG,
              "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]"
-                           << KVLOG(kemsg.repID, initial_exchange_, exchanged()));
-  if (!initial_exchange_ && exchanged()) {
+                           << KVLOG(kemsg.repID, initial_exchange_, isInitialConsensusExchangeComplete()));
+  if (!initial_exchange_ && isInitialConsensusExchangeComplete()) {
     initial_exchange_ = true;
     if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
         ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
@@ -170,7 +170,7 @@ void KeyExchangeManager::loadPublicKeys() {
   // after State Transfer public keys for all replicas are expected to exist
   auto num_loaded = publicKeys_.loadAllReplicasKeyStoresFromReservedPages();
   uint32_t liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-  if (ReplicaConfig::instance().getkeyExchangeOnStart() && exchanged()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && isInitialConsensusExchangeComplete()) {
     ConcordAssertGE(num_loaded, liveQuorumSize);
   }
   LOG_INFO(KEY_EX_LOG, "rebuilding crypto system after state transfer" << KVLOG(num_loaded));
@@ -440,7 +440,7 @@ std::string KeyExchangeManager::getStatus() const {
   using concordUtils::toPair;
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result;
-  result.insert(toPair("exchanged", exchanged()));
+  result.insert(toPair("exchanged", isInitialConsensusExchangeComplete()));
   result.insert(toPair("sent_key_exchange_on_start", metrics_->sent_key_exchange_on_start_status.Get().Get()));
   result.insert(toPair("sent_key_exchange", metrics_->sent_key_exchange_counter.Get().Get()));
   result.insert(toPair("self_key_exchange", metrics_->self_key_exchange_counter.Get().Get()));
@@ -469,7 +469,7 @@ bool KeyExchangeManager::PrivateKeys::load() {
   return true;
 }
 
-bool KeyExchangeManager::exchanged() const {
+bool KeyExchangeManager::isInitialConsensusExchangeComplete() const {
   uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
   bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
   LOG_DEBUG(KEY_EX_LOG,

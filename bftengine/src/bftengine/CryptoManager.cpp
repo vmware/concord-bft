@@ -133,6 +133,7 @@ std::array<std::pair<SeqNum, std::shared_ptr<IThresholdVerifier>>, 2> CryptoMana
 std::array<std::shared_ptr<IThresholdSigner>, 2> CryptoManager::getLatestSigners() const {
   std::lock_guard<std::mutex> guard(mutex_);
   auto riter = checkpointToSystem().rbegin();
+  ConcordAssertNE(riter->second, nullptr);
   std::array<std::shared_ptr<IThresholdSigner>, 2> result;
   result[0] = riter->second->thresholdSigner_;
   ++riter;
@@ -172,13 +173,12 @@ CheckpointNum CryptoManager::getCheckpointOfCryptosystemForSeq(const SeqNum sn) 
     }
   }
 
-  // Replicas might encounter old messages, crashing is not
+  // Replicas might encounter old messages, crashing is not a valid behavior
   auto fallbackSystemCheckpoint = checkpointToSystem().rbegin()->first;
   LOG_WARN(logger(),
            "Cryptosystem not found, returning latest"
                << KVLOG(sn, checkpointUpperBound, checkpointToSystem().size(), fallbackSystemCheckpoint));
   return fallbackSystemCheckpoint;
-  // ConcordAssert(false && "should never reach here");
 }
 
 std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::get(const SeqNum& sn) const {

@@ -577,7 +577,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         for i in range(301): # Produce 301 new blocks
             await skvbc.send_write_kv_set()
         # Now, lets switch keys to all replicas
-        exchanged_replicas = bft_network.all_replicas(without={1,2,3,4,5,6})
+        exchanged_replicas = bft_network.all_replicas()
         await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, affected_replicas=[r for r in range(bft_network.config.n + 1)])
         bft_network.copy_certs_from_server_to_clients(7)
         bft_network.restart_clients(False, False)
