@@ -264,7 +264,7 @@ TEST_F(v4_kvbc, simulation) {
 }
 
 // Add a block which contains updates per category.
-// Each category handles its updates and returs an output which goes to the block structure.
+// Each category handles its updates and returns an output which goes to the block structure.
 // The block structure is then inserted into the DB.
 // we test that the block that is written to DB contains the expected data.
 TEST_F(v4_kvbc, creation) {
@@ -272,6 +272,7 @@ TEST_F(v4_kvbc, creation) {
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::ST_CHAIN_CF));
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::LATEST_KEYS_CF));
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::IMMUTABLE_KEYS_CF));
+  ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::KEYS_HISTORY_CF));
 }
 
 TEST_F(v4_kvbc, add_blocks) {
@@ -2501,6 +2502,160 @@ TEST_F(v4_kvbc, digest_checks) {
   concord::crypto::BlockDigest empty_digest;
   empty_digest.fill(0);
   ASSERT_NE(empty_digest, blockchain->calculateBlockDigest(max_block));
+}
+
+TEST_F(v4_kvbc, get_from_snapshot) {
+  // Add blocks:
+  {  // block 1
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value_block1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block1");
+    updates.add("merkle", std::move(merkle_updates));
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)1);
+  }
+  {  // block 2
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value_block2");
+    merkle_updates.addUpdate("merkle_key3", "merkle_value_block2");
+    updates.add("merkle", std::move(merkle_updates));
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)2);
+  }
+  {  // block 3
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block3");
+    merkle_updates.addUpdate("merkle_key3", "merkle_value_block3");
+    updates.add("merkle", std::move(merkle_updates));
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)3);
+  }
+  {  // block 4
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block4");
+    updates.add("merkle", std::move(merkle_updates));
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)4);
+  }
+  auto opt_val = blockchain->getFromSnapshot("merkle", "merkle_key2", 2);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 1);
+  opt_val = blockchain->getFromSnapshot("merkle", "merkle_key3", 2);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 2);
+  opt_val = blockchain->getFromSnapshot("merkle", "merkle_key1", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 2);
+  opt_val = blockchain->getFromSnapshot("merkle", "merkle_key3", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 3);
+  opt_val = blockchain->getFromSnapshot("merkle", "merkle_key1", 4);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 2);
+
+  BlockId orig_max_blocks_to_look = bftEngine::ReplicaConfig::instance().keysHistoryMaxBlocksNum;
+  bftEngine::ReplicaConfig::instance().setkeysHistoryMaxBlocksNum(2);
+  // compact keys-history CF to clear "merkle_key1" history
+  db->rawDB().CompactRange(::rocksdb::CompactRangeOptions{},
+                           db->columnFamilyHandle(v4blockchain::detail::KEYS_HISTORY_CF),
+                           nullptr,
+                           nullptr);
+  // make sure that getFromSnapshot() uses getLatest() when it is possible
+  opt_val = blockchain->getFromSnapshot("merkle", "merkle_key1", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<categorization::MerkleValue>(*opt_val).block_id, 2);
+  bftEngine::ReplicaConfig::instance().setkeysHistoryMaxBlocksNum(orig_max_blocks_to_look);
+}
+
+TEST_F(v4_kvbc, get_from_snapshot_all_categories) {
+  std::mt19937 rgen;
+  std::uniform_int_distribution<uint32_t> dist(10, 100);
+  const uint64_t max_block = dist(rgen);
+  const uint32_t num_merkle_each = dist(rgen);
+  const uint32_t num_versioned_each = dist(rgen);
+  const uint32_t num_immutable_each = dist(rgen);
+
+  // Keys are: <category_name>_key_<key_id>
+  // Values are: <category_name>_value_<blockId>_<key_id>
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    categorization::Updates updates;
+    // merkle keys: add once in 3 blocks
+    if (blk % 3 == 1) {
+      categorization::BlockMerkleUpdates merkle_updates;
+      for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+        std::string key = "merkle_key_" + std::to_string(kid);
+        std::string val = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        merkle_updates.addUpdate(std::move(key), std::move(val));
+      }
+      updates.add("merkle", std::move(merkle_updates));
+    }
+    // versioned key: add once in 2 blocks
+    if (blk % 2 == 0) {
+      categorization::VersionedUpdates ver_updates;
+      ver_updates.calculateRootHash(false);
+      for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+        std::string key = "versioned_key_" + std::to_string(kid);
+        std::string val = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        ver_updates.addUpdate(std::move(key), std::move(val));
+      }
+      updates.add("versioned", std::move(ver_updates));
+    }
+    // immutable keys: add in every block
+    categorization::ImmutableUpdates immutable_updates;
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(kid);
+      std::string val = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_updates.addUpdate(std::move(key), {std::move(val), {std::to_string(blk), std::to_string(kid)}});
+    }
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)blk);
+  }
+  ASSERT_EQ(blockchain->getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), max_block);
+
+  //////////// Checking the getFromSnapshot ////////////
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    // merkle
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      const std::string key = "merkle_key_" + std::to_string(kid);
+      auto val = blockchain->getFromSnapshot("merkle", key, blk);
+      ASSERT_TRUE(val);
+      const uint64_t expected_version = ((blk - 1) / 3) * 3 + 1;
+      const std::string expected_val = "merkle_value_" + std::to_string(expected_version) + "_" + std::to_string(kid);
+      auto merkle_val = std::get<categorization::MerkleValue>(*val);
+      ASSERT_EQ(merkle_val.block_id, expected_version);
+      ASSERT_EQ(merkle_val.data, expected_val);
+    }
+    // versioned
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      const std::string key = "versioned_key_" + std::to_string(kid);
+      auto val = blockchain->getFromSnapshot("versioned", key, blk);
+      if (blk > 1) {
+        ASSERT_TRUE(val);
+        auto ver_val = std::get<categorization::VersionedValue>(*val);
+        const uint64_t expected_version = blk - (blk % 2);
+        const std::string expected_val =
+            "versioned_value_" + std::to_string(expected_version) + "_" + std::to_string(kid);
+        ASSERT_EQ(ver_val.block_id, expected_version);
+        ASSERT_EQ(ver_val.data, expected_val);
+      } else {
+        ASSERT_FALSE(val);
+      }
+    }
+
+    // immutable
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      const std::string key = "immutable_key_" + std::to_string(kid);
+      auto val = blockchain->getFromSnapshot("immutable", key, blk);
+      ASSERT_TRUE(val);
+      auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+      const uint64_t expected_version = blk;
+      const std::string expected_val =
+          "immutable_value_" + std::to_string(expected_version) + "_" + std::to_string(kid);
+      ASSERT_EQ(immutable_val.block_id, expected_version);
+      ASSERT_EQ(immutable_val.data, expected_val);
+    }
+  }
 }
 
 // TEST_F(v4_kvbc, trim_blocks) {

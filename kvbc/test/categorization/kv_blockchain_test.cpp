@@ -2412,6 +2412,76 @@ TEST_F(categorized_kvbc, trim_blocks_from_snapshot_called_with_bigger_block_id) 
   ASSERT_DEATH(kvbc.trimBlocksFromSnapshot(4), "");
 }
 
+TEST_F(categorized_kvbc, get_from_snapshot) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  {  // block 1
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value_block1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block1");
+    merkle_updates.addUpdate("merkle_key4", "merkle_value_block1");
+    updates.add(kExecutionProvableCategory, std::move(merkle_updates));
+    ASSERT_EQ(kvbc.addBlock(std::move(updates)), (BlockId)1);
+  }
+  {  // block 2
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value_block2");
+    merkle_updates.addUpdate("merkle_key3", "merkle_value_block2");
+    updates.add(kExecutionProvableCategory, std::move(merkle_updates));
+    ASSERT_EQ(kvbc.addBlock(std::move(updates)), (BlockId)2);
+  }
+  {  // block 3
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block3");
+    merkle_updates.addUpdate("merkle_key3", "merkle_value_block3");
+    updates.add(kExecutionProvableCategory, std::move(merkle_updates));
+    ASSERT_EQ(kvbc.addBlock(std::move(updates)), (BlockId)3);
+  }
+  {  // block 4
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value_block4");
+    merkle_updates.addUpdate("merkle_key4", "merkle_value_block4");
+    merkle_updates.addDelete("merkle_key3");
+    updates.add(kExecutionProvableCategory, std::move(merkle_updates));
+    ASSERT_EQ(kvbc.addBlock(std::move(updates)), (BlockId)4);
+  }
+  auto opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key2", 2);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 1);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key3", 2);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 2);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key1", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 2);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key3", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 3);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key3", 4);
+  ASSERT_FALSE(opt_val);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key1", 4);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 2);
+
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key4", 3);
+  ASSERT_TRUE(opt_val);
+  ASSERT_EQ(std::get<MerkleValue>(*opt_val).block_id, 1);
+
+  BlockId orig_max_blocks_to_look = bftEngine::ReplicaConfig::instance().keysHistoryMaxBlocksNum;
+  bftEngine::ReplicaConfig::instance().setkeysHistoryMaxBlocksNum(2);
+  opt_val = kvbc.getFromSnapshot(kExecutionProvableCategory, "merkle_key4", 3);
+  ASSERT_FALSE(opt_val);
+  bftEngine::ReplicaConfig::instance().setkeysHistoryMaxBlocksNum(orig_max_blocks_to_look);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

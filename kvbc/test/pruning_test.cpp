@@ -149,6 +149,12 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
 
   BlockId getLastBlockId() const override { return bc_.getLastReachableBlockId(); }
 
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                                      const std::string &key,
+                                                                      const BlockId snapshot_version) const override {
+    return std::nullopt;
+  }
+
   // IBlocksDeleter interface
   void deleteGenesisBlock() override {
     const auto genesisBlock = bc_.getGenesisBlockId();

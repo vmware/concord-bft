@@ -115,6 +115,12 @@ class ReplicaBlockchain : public IBlocksDeleter,
 
   // Get the last block ID in the system.
   BlockId getLastBlockId() const override final { return reader_->getLastBlockId(); }
+
+  std::optional<categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                       const std::string &key,
+                                                       const BlockId snapshot_version) const override final {
+    return reader_->getFromSnapshot(category_id, key, snapshot_version);
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

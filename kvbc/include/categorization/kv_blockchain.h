@@ -153,6 +153,10 @@ class KeyValueBlockchain {
   // The key used in the default column family for persisting the current public state hash.
   static std::string publicStateHashKey();
 
+  std::optional<Value> getFromSnapshot(const std::string& category_id,
+                                       const std::string& key,
+                                       const BlockId snapshot_version);
+
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 

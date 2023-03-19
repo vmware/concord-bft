@@ -79,6 +79,11 @@ class KeyValueBlockchain : public IReader, public IBlockAdder {
 
   // Get the last block ID in the system.
   BlockId getLastBlockId() const override final { return kvbc_->getLastReachableBlockId(); }
+
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(
+      const std::string &category_id, const std::string &key, const BlockId snapshot_version) const override final {
+    return kvbc_->getFromSnapshot(category_id, key, snapshot_version);
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
