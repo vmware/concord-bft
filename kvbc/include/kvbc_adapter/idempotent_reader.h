@@ -76,6 +76,12 @@ class IdempotentReader : public IReader {
 
   BlockId getLastBlockId() const override { return kvbc_->getLastBlockId(); }
 
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                                      const std::string &key,
+                                                                      const BlockId snapshot_version) const override {
+    return kvbc_->getFromSnapshot(category_id, key, snapshot_version);
+  }
+
  private:
   const std::shared_ptr<const ReplicaBlockchain> kvbc_;
 };

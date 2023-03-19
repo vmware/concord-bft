@@ -415,6 +415,36 @@ void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) 
   }
 }
 
+std::optional<Value> KeyValueBlockchain::getFromSnapshot(const std::string& category_id,
+                                                         const std::string& key,
+                                                         const BlockId snapshot_version) {
+  auto opt_latest = getLatest(category_id, key);
+  if (opt_latest) {
+    BlockId latest_version;
+    std::visit([&latest_version](const auto& opt_latest) { latest_version = opt_latest.block_id; }, *opt_latest);
+    if (snapshot_version >= latest_version) {
+      return opt_latest;
+    }
+  }
+
+  auto latest_ver = getLatestVersion(category_id, key);
+  if (opt_latest || latest_ver) {
+    BlockId limit = 0;
+    BlockId max_blocks_to_look = bftEngine::ReplicaConfig::instance().keysHistoryMaxBlocksNum;
+    if (snapshot_version > max_blocks_to_look) {
+      limit = snapshot_version - max_blocks_to_look;
+    }
+    for (auto i = snapshot_version; i > limit; i--) {
+      auto opt_value = get(category_id, key, i);
+      // key was updated or deleted at version i
+      if (opt_value || (latest_ver && latest_ver.value().version == i)) {
+        return opt_value;
+      }
+    }
+  }
+  return std::nullopt;
+}
+
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   diagnostics::TimeRecorder scoped_timer(*histograms_.deleteBlock);

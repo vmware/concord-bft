@@ -23,5 +23,6 @@ inline const auto LATEST_KEYS_CF = std::string{"v4_latest_keys"};
 inline const auto IMMUTABLE_KEYS_CF = std::string{"v4_immutable_keys"};
 inline const auto CATEGORIES_CF = std::string{"v4_categories"};
 inline const auto MISC_CF = std::string{"v4_misc"};
+inline const auto KEYS_HISTORY_CF = std::string{"v4_keys_history"};
 
 }  // namespace concord::kvbc::v4blockchain::detail

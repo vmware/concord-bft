@@ -133,6 +133,12 @@ class replica_state_sync_test : public Test, public IReader {
 
   BlockId getLastBlockId() const override { throw std::logic_error{"IReader::getLastBlockId() should not be called"}; }
 
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                                      const std::string &key,
+                                                                      const BlockId snapshot_version) const override {
+    throw std::logic_error{"IReader::getFromSnapshot() should not be called"};
+  }
+
  protected:
   void addBlockWithBftSeqNum(std::uint64_t seq_number) {
     auto updates = Updates{};
