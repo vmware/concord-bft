@@ -283,6 +283,15 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                concord::crypto::SignatureAlgorithm::EdDSA,
                "A flag to specify the operator message signing algorithm. It is defaulted to use EDDSA algo.");
 
+  CONFIG_PARAM(keysHistoryMaxBlocksNum,
+               std::uint64_t,
+               10000u,
+               "threshold for pruning from keys history, versions below latest_block_id - this_value can be pruned."
+               "If set to 0, versions below the genesis block will be pruned, i.e. the whole available history will be "
+               "kept (archival).");
+
+  CONFIG_PARAM(enableKeysHistoryCF, bool, true, "Feature flag for keys history column family");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -418,6 +427,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, kvBlockchainVersion);
     serialize(outStream, operatorMsgSigningAlgo);
     serialize(outStream, replicaMsgSigningAlgo);
+    serialize(outStream, keysHistoryMaxBlocksNum);
+    serialize(outStream, enableKeysHistoryCF);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -518,6 +529,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, kvBlockchainVersion);
     deserialize(inStream, operatorMsgSigningAlgo);
     deserialize(inStream, replicaMsgSigningAlgo);
+    deserialize(inStream, keysHistoryMaxBlocksNum);
+    deserialize(inStream, enableKeysHistoryCF);
   }
 
  private:

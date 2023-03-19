@@ -72,6 +72,13 @@ class BlocksReaderAdapter : public IReader {
 
   // Get the last block ID in the system.
   BlockId getLastBlockId() const override final { return kvbc_->getLastReachableBlockId(); }
+
+  // Get the version of 'key' that is the closest from below or equal to 'snapshot_version'
+  // Return std::nullopt if the key doesn't exist or is deleted at given version
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(
+      const std::string &category_id, const std::string &key, const BlockId snapshot_version) const override final {
+    return kvbc_->getFromSnapshot(category_id, key, snapshot_version);
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
  private:
