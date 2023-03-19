@@ -102,7 +102,7 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
 
   try {
     auto ret = blocks_adder_.add(std::move(updates));
-    LOG_INFO(GL, "Persist result: " << KVLOG(ret));
+    LOG_DEBUG(GL, "Persist result: " << KVLOG(ret));
     return ret;
   } catch (const std::exception& e) {
     LOG_ERROR(GL, "failed to persist the reconfiguration block: " << e.what());
@@ -443,7 +443,6 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
           } else if (command_type == std::string{kvbc::keyTypes::reconfiguration_rep_main_key}) {
             concord::messages::ReplicaMainKeyUpdate cmd;
             concord::messages::deserialize(data_buf, cmd);
-            cmd.seq_num -= (cmd.seq_num < 2 * checkpointWindowSize ? 0 : 2 * checkpointWindowSize);
             creply.response = cmd;
           }
           auto epoch_data =

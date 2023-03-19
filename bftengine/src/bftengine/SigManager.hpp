@@ -86,11 +86,11 @@ class SigManager {
   size_t sign(SeqNum seq, const concord::Byte* data, size_t dataLength, concord::Byte* outSig) const;
   size_t sign(SeqNum seq, const char* data, size_t dataLength, char* outSig) const;
 
-  bool verifyReplicaSig(PrincipalId replicaID,
-                        const concord::Byte* data,
-                        size_t dataLength,
-                        const concord::Byte* sig,
-                        uint16_t sigLength) const;
+  bool verifyReplicaSigUsingMultisigVerifier(PrincipalId replicaID,
+                                             const concord::Byte* data,
+                                             size_t dataLength,
+                                             const concord::Byte* sig,
+                                             uint16_t sigLength) const;
 
   uint16_t getMySigLength() const;
   bool isClientTransactionSigningEnabled() { return clientTransactionSigningEnabled_; }
@@ -110,13 +110,14 @@ class SigManager {
   std::string getClientsPublicKeys();
 
   // Hex format
-  std::pair<SeqNum, std::string> getMyLatestPublicKey() const;
+  std::pair<std::string, std::string> getMyLatestKeyPair() const;
 
   // Used by AsyncTLSConnection to verify tls certificates which replicas sign using their main key
   // Up to replicaIdentityHistoryCount keys are returned by replicas
   std::array<std::string, replicaIdentityHistoryCount> getPublicKeyOfVerifier(uint32_t id) const;
 
   // Used only by replicas
+  // Returns the private key which corresponds to the last executed sequence
   std::string getSelfPrivKey() const;
 
   void setReplicaLastExecutedSeq(SeqNum seq);
@@ -124,8 +125,7 @@ class SigManager {
 
   bool verifyOwnSignature(const concord::Byte* data, size_t dataLength, const concord::Byte* expectedSignature) const;
 
-  std::shared_ptr<concord::crypto::ISigner> extractSignerFromMultisig(
-      std::shared_ptr<IThresholdSigner> thresholdSigner) const;
+  const concord::crypto::ISigner& extractSignerFromMultisig(std::shared_ptr<IThresholdSigner> thresholdSigner) const;
   const concord::crypto::IVerifier& extractVerifierFromMultisig(std::shared_ptr<IThresholdVerifier> thresholdVerifier,
                                                                 PrincipalId id) const;
 
@@ -140,11 +140,11 @@ class SigManager {
              const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
              const ReplicasInfo& replicasInfo);
 
-  bool verifyNonReplicaSig(PrincipalId pid,
-                           const concord::Byte* data,
-                           size_t dataLength,
-                           const concord::Byte* sig,
-                           uint16_t sigLength) const;
+  bool verifySigUsingInternalMap(PrincipalId pid,
+                                 const concord::Byte* data,
+                                 size_t dataLength,
+                                 const concord::Byte* sig,
+                                 uint16_t sigLength) const;
 
   std::shared_ptr<IThresholdSigner> getCurrentReplicaSigner() const;
 

@@ -99,7 +99,6 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
                                               const SeqNum& req_sn,
                                               const std::string& cid) {
   const bool isSelfKeyExchange = kemsg.repID == repID_;
-  bool sentKeyUpdateToExecution = false;
   SCOPED_MDC_SEQ_NUM(std::to_string(kemsg.generated_sn));
   // The key will be used from this sequence forwards
   // new keys are used two checkpoints after reaching consensus
@@ -135,14 +134,14 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
     if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
         ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
       sendMainPublicKey();
-      sentKeyUpdateToExecution = true;
+      return "ok";
     }
   }
 
   // The key was exchanged successfully, write a block containing the new key to the chain
   // TODO: need to persist key state and new block atomically
   // (Cannot be done with current reserved pages implementation)
-  if (ReplicaConfig::instance().singleSignatureScheme && isSelfKeyExchange && !sentKeyUpdateToExecution) {
+  if (ReplicaConfig::instance().singleSignatureScheme && isSelfKeyExchange) {
     sendMainPublicKey();
   }
   return "ok";
@@ -246,7 +245,15 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   LOG_INFO(KEY_EX_LOG, "Replica communication restarted after tls exchange");
 }
 void KeyExchangeManager::sendMainPublicKey() {
-  auto [seq, latestPublicKey] = SigManager::instance()->getMyLatestPublicKey();
+  constexpr const uint64_t defaultGenerationSeq = 0;
+  uint64_t generationSeq = defaultGenerationSeq;
+  auto [latestPrivateKey, latestPublicKey] = SigManager::instance()->getMyLatestKeyPair();
+
+  if (ReplicaConfig::instance().singleSignatureScheme && exchangedSelfConsensusKeys()) {
+    generationSeq =
+        private_keys_.key_data().getGenerationSequenceByPrivateKey(latestPrivateKey).value_or(defaultGenerationSeq);
+  }
+
   concord::messages::ReconfigurationRequest req;
   req.sender = repID_;
   req.command =
@@ -254,7 +261,7 @@ void KeyExchangeManager::sendMainPublicKey() {
                                               latestPublicKey,
                                               "hex",
                                               static_cast<uint8_t>(SigManager::instance()->getMainKeyAlgorithm()),
-                                              static_cast<uint64_t>(seq) * checkpointWindowSize};
+                                              generationSeq};
   // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
@@ -265,7 +272,7 @@ void KeyExchangeManager::sendMainPublicKey() {
   concord::messages::serialize(data_vec, req);
   std::string cid = "ReplicaMainKeyUpdate_" + std::to_string(repID_);
   client_->sendRequest(RECONFIG_FLAG, data_vec.size(), reinterpret_cast<char*>(data_vec.data()), cid);
-  LOG_INFO(KEY_EX_LOG, cid + " sent to reconfiguration engine");
+  LOG_INFO(KEY_EX_LOG, cid + " sent to reconfiguration engine" << KVLOG(generationSeq, latestPublicKey));
 }
 
 void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn) {
@@ -469,9 +476,13 @@ bool KeyExchangeManager::PrivateKeys::load() {
   return true;
 }
 
+bool KeyExchangeManager::exchangedSelfConsensusKeys() const {
+  return publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
+}
+
 bool KeyExchangeManager::isInitialConsensusExchangeComplete() const {
   uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-  bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
+  bool exchange_self_keys = exchangedSelfConsensusKeys();
   LOG_DEBUG(KEY_EX_LOG,
             KVLOG(ReplicaConfig::instance().waitForFullCommOnStartup,
                   clusterSize_,

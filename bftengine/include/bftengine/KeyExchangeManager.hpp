@@ -118,6 +118,15 @@ class KeyExchangeManager {
       // seqnum -> private key
       std::map<SeqNum, std::string> keys;
 
+      std::optional<SeqNum> getGenerationSequenceByPrivateKey(const std::string& hexPrivateKeyToSearch) {
+        for (auto& [generationSeq, privateKeyHex] : keys) {
+          if (hexPrivateKeyToSearch == privateKeyHex) {
+            return generationSeq;
+          }
+        }
+        return std::nullopt;
+      }
+
      protected:
       void serializeDataMembers(std::ostream& outStream) const override {
         serialize(outStream, generated.priv);
@@ -143,7 +152,7 @@ class KeyExchangeManager {
     }
     // save to secure store
     void save() {
-      LOG_INFO(KEY_EX_LOG, "Save keys to " << fs::absolute(secrets_file_));
+      LOG_INFO(KEY_EX_LOG, "Persisting keys in file: " << fs::absolute(secrets_file_));
       std::stringstream ss;
       concord::serialize::Serializable::serialize(ss, data_);
       secretsMgr_->encryptFile(secrets_file_, ss.str());
@@ -207,6 +216,8 @@ class KeyExchangeManager {
   void waitForLiveQuorum(const ReplicaImp* repImpInstance);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
+  // True if the replica's own consensus keys were exchanged
+  bool exchangedSelfConsensusKeys() const;
   // deleted
   KeyExchangeManager(const KeyExchangeManager&) = delete;
   KeyExchangeManager(const KeyExchangeManager&&) = delete;

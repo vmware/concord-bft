@@ -320,7 +320,7 @@ class Cryptosystem {
                                          std::string& thrPublicKey,
                                          std::vector<std::string>& thrVerificationKeys);
   /**
-   * Update a key pair
+   * Update own key pair
    */
   void updateKeys(const std::string& shareSecretKey, const std::string& shareVerificationKey);
 

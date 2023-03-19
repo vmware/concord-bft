@@ -29,7 +29,7 @@ ValidationOnlyIdentityManager::ValidationOnlyIdentityManager(
 
 bool ValidationOnlyIdentityManager::verifySig(
     PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
-  return verifyNonReplicaSig(pid, data, dataLength, sig, sigLength);
+  return verifySigUsingInternalMap(pid, data, dataLength, sig, sigLength);
 }
 
 // This method is assumed to be called by a single thread

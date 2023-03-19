@@ -27,11 +27,9 @@ constexpr size_t RANDOM_DATA_SIZE = 1000U;
 std::default_random_engine generator;
 
 using concord::crypto::ISigner;
-using concord::crypto::IVerifier;
 using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
 using bftEngine::CryptoManager;
-using concord::crypto::SignatureAlgorithm;
 using concord::crypto::generateEdDSAKeyPair;
 
 std::vector<std::pair<std::string, std::string>> generateKeyPairs(size_t count) {
@@ -160,7 +158,8 @@ class SigManagerTest : public ::testing::Test {
       consensusHexReplicaPublicKeys = hexReplicaPublicKeys;
     } else {
       consensusHexKeyPairs = generateKeyPairs(config.numReplicas);
-      for (auto& [privateKey, publicKey] : consensusHexKeyPairs) {
+      for (auto& pair : consensusHexKeyPairs) {
+        auto& publicKey = pair.second;
         consensusHexReplicaPublicKeys.push_back(publicKey);
       }
     }
@@ -190,7 +189,7 @@ class MultiSchemeSigManagerTest : public SigManagerTest {
 };
 
 TEST_F(SingleSchemeSigManagerTest, TestSignerExtraction) {
-  ASSERT_EQ(sigManager->extractSignerFromMultisig(cryptoManager->getSigner(0))->getPrivKey(), hexKeyPairs[0].first);
+  ASSERT_EQ(sigManager->extractSignerFromMultisig(cryptoManager->getSigner(0)).getPrivKey(), hexKeyPairs[0].first);
 }
 
 TEST_F(SingleSchemeSigManagerTest, TestVerifierExtraction) {

@@ -123,6 +123,7 @@ class MofNQuorum:
     def __str__(self):
         return f"n: {self.replicas}, m: {self.required}"
 
+
 class BftClient(ABC):
     COUNTER = WriteCounter(val=int(1e6))
 

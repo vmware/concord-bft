@@ -134,7 +134,6 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   void assertMapSizeValid() const;
   const CheckpointToSystemMap& checkpointToSystem() const;
 
-  // chckp -> CryptoSys
   // TODO: this can be converted to a concurrent queue instead of using a mutex
   CheckpointToSystemMap cryptoSystems_;
   // Old cryptosystems can be removed on a checkpoint/cryptosystem creation which might invalidate

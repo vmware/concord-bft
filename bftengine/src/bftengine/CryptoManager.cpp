@@ -83,18 +83,18 @@ void CryptoManager::syncPrivateKeyAfterST(const std::string& secretKey, const st
 
 void CryptoManager::onPrivateKeyExchange(const std::string& secretKey,
                                          const std::string& verificationKey,
-                                         const SeqNum& sn) {
-  LOG_INFO(logger(), "Private key exchange:" << KVLOG(sn, verificationKey));
-  auto sys_wrapper = create(sn);
+                                         const SeqNum& keyGenerationSn) {
+  LOG_INFO(logger(), "Private key exchange:" << KVLOG(keyGenerationSn, verificationKey));
+  auto sys_wrapper = create(keyGenerationSn);
   sys_wrapper->cryptosys_->updateKeys(secretKey, verificationKey);
   sys_wrapper->init();
 }
 
 void CryptoManager::onPublicKeyExchange(const std::string& verificationKey,
                                         const std::uint16_t& signerIndex,
-                                        const SeqNum& sn) {
-  LOG_INFO(logger(), "Public key exchange:" << KVLOG(sn, signerIndex, verificationKey));
-  auto sys = create(sn);
+                                        const SeqNum& keyGenerationSn) {
+  LOG_INFO(logger(), "Public key exchange:" << KVLOG(keyGenerationSn, signerIndex, verificationKey));
+  auto sys = create(keyGenerationSn);
   sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex);
   sys->init();
 }
@@ -186,13 +186,13 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::get(const Seq
   return checkpointToSystem().at(getCheckpointOfCryptosystemForSeq(sn));
 }
 
-std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const SeqNum& sn) {
+std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const SeqNum& keyGenerationSn) {
   std::lock_guard<std::mutex> guard(mutex_);
   assertMapSizeValid();
   // Cryptosystem for this sn will be activated upon reaching a second checkpoint from now
-  uint64_t chckp = (sn / checkpointWindowSize) + 2;
+  CheckpointNum chckp = (keyGenerationSn / checkpointWindowSize) + 2;
   if (auto it = checkpointToSystem().find(chckp); it != checkpointToSystem().end()) {
-    LOG_WARN(logger(), "Cryptosystem already exists for checkpoint " << chckp);
+    LOG_WARN(logger(), "Cryptosystem already exists for checkpoint " << KVLOG(keyGenerationSn, chckp));
     return it->second;
   }
 
@@ -205,7 +205,7 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const 
   auto ret = insert_result.first->second;
   LOG_INFO(logger(),
            "Created new cryptosystem for checkpoint: " << chckp << ", insertion success: " << insert_result.second
-                                                       << KVLOG(cryptoSystems_.size()));
+                                                       << KVLOG(cryptoSystems_.size(), keyGenerationSn));
   return ret;
 }
 
