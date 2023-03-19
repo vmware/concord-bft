@@ -93,6 +93,10 @@ class Replica : public IReplica,
 
   // Get the last block ID in the system.
   BlockId getLastBlockId() const override final;
+
+  std::optional<categorization::Value> getFromSnapshot(const std::string &category_id,
+                                                       const std::string &key,
+                                                       const BlockId snapshot_version) const override final;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // checkpoint
   void checkpointInProcess(bool flag, kvbc::BlockId);

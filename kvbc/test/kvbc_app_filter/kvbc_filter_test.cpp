@@ -199,6 +199,12 @@ class FakeStorage : public concord::kvbc::IReader {
 
   BlockId getLastBlockId() const override { return blockId_; }
 
+  std::optional<concord::kvbc::categorization::Value> getFromSnapshot(
+      const std::string &category_id, const std::string &key, const BlockId snapshot_version) const override final {
+    ADD_FAILURE() << "getFromSnapshot() should not be called by this test";
+    return {};
+  }
+
   // Dummy method to fill DB for testing, each client id can watch only the
   // block id that equals to their client id.
   void fillWithData(BlockId num_of_blocks) {
