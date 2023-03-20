@@ -95,7 +95,7 @@ install_boost() {
     cd boost
     mkdir build
     cd build
-    cmake -DBOOST_INCLUDE_LIBRARIES="program_options;thread;locale;asio;lockfree;bimap" ..
+    cmake -DBOOST_INCLUDE_LIBRARIES="program_options;thread;locale;asio;lockfree;bimap;histogram" ..
     make install
     cd ${HOME}
     rm -rf boost

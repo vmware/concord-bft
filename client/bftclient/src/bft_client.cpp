@@ -17,7 +17,7 @@
 #include "secrets/secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "crypto/factory.hpp"
-#include "ReplicaConfig.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 using namespace concord::diagnostics;
 using namespace concord::secretsmanager;
@@ -78,7 +78,7 @@ Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<c
 }
 
 Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {
-  uint8_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
+  uint64_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
   size_t expected_sig_len = 0;
   bool write_req_with_pre_exec = !read_only && config.pre_execute;
 
@@ -92,6 +92,11 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   if (config.reconfiguration) {
     flags |= RECONFIG_FLAG;
   }
+
+  if (config.primary_only) {
+    flags |= PRIMARY_ONLY_REQ;
+  }
+
   auto header_size = sizeof(ClientRequestMsgHeader);
   auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size();
   if (transaction_signer_) {
@@ -318,10 +323,24 @@ void Client::wait(SeqNumToReplyMap& replies) {
       auto request = reply_certificates_.find(reply.metadata.seq_num);
       if (request == reply_certificates_.end()) continue;
       if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
-      if (auto match = request->second.onReply(std::move(reply))) {
-        primary_ = request->second.getPrimary();
-        replies.insert(std::make_pair(request->first, match->reply));
-        reply_certificates_.erase(request->first);
+
+      if (request->second.isPrimaryOnly()) {
+        // isPrimaryOnly flag set case - we process reply from Primary Node
+        //  and ignore all other replies from non-Primary nodes
+        if (reply.metadata.primary.value().val == reply.rsi.from.val) {
+          LOG_DEBUG(logger_, "Reply received with isPrimaryOnly flag from Primary node");
+          primary_ = reply.metadata.primary;
+          std::map<ReplicaId, Msg> trsi = {{reply.rsi.from, reply.rsi.data}};
+          replies.insert(std::make_pair(request->first, Reply{reply.metadata.result, reply.data, trsi}));
+          reply_certificates_.erase(request->first);
+        }
+      } else {
+        // Generic case
+        if (auto match = request->second.onReply(std::move(reply))) {
+          primary_ = request->second.getPrimary();
+          replies.insert(std::make_pair(request->first, match->reply));
+          reply_certificates_.erase(request->first);
+        }
       }
     }
   }
@@ -362,6 +381,11 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
   } else {
     mc.quorum = quorum_converter_.toMofN(std::get<MofN>(read_config.quorum));
   }
+
+  if (read_config.request.primary_only) {
+    mc.is_primary_only = read_config.request.primary_only;
+  }
+
   return mc;
 }
 

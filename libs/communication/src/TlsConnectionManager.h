@@ -117,6 +117,18 @@ class ConnectionManager {
   // callback for steady timer timeout during socket connect
   void handleConnectTimeout(NodeNum i, const std::error_code &error_code);
 
+  static void disableKeepAlive(boost::asio::ip::tcp::socket &socket,
+                               const std::string &option,
+                               int rc,
+                               logging::Logger &logger);
+  static void setKeepAliveOption(boost::asio::ip::tcp::socket &socket, bool value);
+  static void enableKeepAlive(boost::asio::ip::tcp::socket &socket,
+                              const TcpKeepAliveConfig &keepAliveConfig,
+                              logging::Logger &logger);
+  static void setSocketOptions(boost::asio::ip::tcp::socket &socket,
+                               const TcpKeepAliveConfig &keepAliveConfig,
+                               logging::Logger &logger);
+
  private:
   logging::Logger logger_;
   TlsTcpConfig config_;

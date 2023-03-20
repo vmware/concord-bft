@@ -459,7 +459,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendAndIncrementMetric(MessageBase*, NodeIdType, CounterHandle&);
 
   bool tryToEnterView();
-  void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
+  void onNewView(std::vector<std::shared_ptr<PrePrepareMsg>>& prePreparesForNewView);
   void MoveToHigherView(ViewNum nextView);  // also sends the ViewChangeMsg message
   void goToNextView();
 
@@ -627,8 +627,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::CallbackRegistry<> stopCallbacks_;
 
   void addTimers();
-  void startConsensusProcess(PrePrepareMsgUPtr pp, bool isCreatedEarlier);
-  void startConsensusProcess(PrePrepareMsgUPtr pp);
+  void startConsensusProcess(PrePrepareMsgShPtr& pp, bool isCreatedEarlier);
+  void startConsensusProcess(PrePrepareMsgShPtr& pp);
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo

@@ -17,6 +17,7 @@ target_link_libraries(privacy-wallet-service PUBLIC
 )
 
 add_library(privacy-wallet-service-lib ${privacy-wallet-service-src})
+
 target_link_libraries(privacy-wallet-service-lib PUBLIC
   privacy-wallet-service-proto utt_client_api privacy_wallet_lib nlohmann_json::nlohmann_json stdc++fs
 )

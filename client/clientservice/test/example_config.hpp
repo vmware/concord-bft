@@ -33,6 +33,10 @@ client_sends_request_to_all_replicas_first_thresh: 2
 client_sends_request_to_all_replicas_period_thresh: 2
 clients_per_participant_node: 15
 comm_to_use: tls
+enable_tcp_socket_keep_alive: true
+socket_keep_alive_idle_time: 60
+socket_keep_alive_interval: 2
+socket_keep_alive_probes_num: 10
 concord-bft_communication_buffer_length: 16777216
 enable_mock_comm: false
 encrypted_config_enabled: false
@@ -50,6 +54,7 @@ transaction_signing_enabled: true
 enable_multiplex_channel: false
 use_unified_certificates: false
 with_cre: false
+concord-bft_max_reply_message_size: 2097152
 node:
   - replica:
       - principal_id: 0

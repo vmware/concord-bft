@@ -91,4 +91,6 @@ uint64_t Wallet::getBalance() const { return user_->getBalance(); }
 uint64_t Wallet::getBudget() const { return user_->getPrivacyBudget(); }
 
 bool Wallet::isRegistered() const { return registered_; }
+
+std::vector<utt::client::CoinDescriptor> Wallet::getCoinsDescriptors() const { return user_->getCoinsDescriptors(); }
 }  // namespace utt::walletservice

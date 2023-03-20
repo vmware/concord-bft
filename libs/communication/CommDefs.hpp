@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include "communication/ICommunication.hpp"
-#include "communication/StatusInfo.h"
+#include "communication/StatusInfo.hpp"
 #include "util/assertUtils.hpp"
 
 #ifdef USE_COMM_TLS_TCP
@@ -111,6 +111,14 @@ class PlainUdpConfig : public BaseCommConfig {
       : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, nodes, selfId, std::move(statusCallback)) {}
 };
 #endif
+
+struct TcpKeepAliveConfig {
+  bool enableSocketKeepAlive = false;
+  uint32_t socketKeepAliveIdleTime = 60;
+  uint32_t socketKeepAliveInterval = 2;
+  uint32_t socketKeepAliveProbesNum = 10;
+};
+
 #if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
 class PlainTcpConfig : public BaseCommConfig {
  public:
@@ -120,14 +128,21 @@ class PlainTcpConfig : public BaseCommConfig {
                  NodeMap nodes,
                  int32_t maxServerId,
                  NodeNum selfId,
+                 const TcpKeepAliveConfig *tcpKeepAliveConfig,
                  UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
       : BaseCommConfig(CommType::PlainTcp, host, port, bufLength, nodes, selfId, std::move(statusCallback)),
-        maxServerId_{maxServerId} {}
+        maxServerId_{maxServerId} {
+    if (tcpKeepAliveConfig != nullptr) {
+      tcpKeepAliveConfig_ = *tcpKeepAliveConfig;
+    }
+  }
 
  public:
   int32_t maxServerId_;
+  TcpKeepAliveConfig tcpKeepAliveConfig_;
 };
 #endif
+
 #ifdef USE_COMM_TLS_TCP
 class TlsTcpConfig : public PlainTcpConfig {
  public:
@@ -142,9 +157,11 @@ class TlsTcpConfig : public PlainTcpConfig {
                const std::string &certRootPath,
                const std::string &cipherSuite,
                bool useUnifiedCerts,
+               const TcpKeepAliveConfig *tcpKeepAliveConfig,
                UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
-      : PlainTcpConfig(host, port, bufLength, nodes, maxServerId, selfId, std::move(statusCallback)),
+      : PlainTcpConfig(
+            host, port, bufLength, nodes, maxServerId, selfId, tcpKeepAliveConfig, std::move(statusCallback)),
         certificatesRootPath_{certRootPath},
         cipherSuite_{cipherSuite},
         useUnifiedCertificates_{useUnifiedCerts},
@@ -171,6 +188,7 @@ class TlsMultiplexConfig : public TlsTcpConfig {
                      const std::string &cipherSuite,
                      bool useUnifiedCerts,
                      std::unordered_map<NodeNum, NodeNum> &endpointIdToNodeIdMap,
+                     const TcpKeepAliveConfig *tcpKeepAliveConfig,
                      UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                      std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
       : TlsTcpConfig(host,
@@ -182,6 +200,7 @@ class TlsMultiplexConfig : public TlsTcpConfig {
                      certRootPath,
                      cipherSuite,
                      useUnifiedCerts,
+                     tcpKeepAliveConfig,
                      std::move(statusCallback),
                      secretData),
         endpointIdToNodeIdMap_(endpointIdToNodeIdMap) {
@@ -192,6 +211,7 @@ class TlsMultiplexConfig : public TlsTcpConfig {
   std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap_;
 };
 #endif
+
 #ifdef USE_COMM_UDP
 class PlainUDPCommunication : public ICommunication {
  public:

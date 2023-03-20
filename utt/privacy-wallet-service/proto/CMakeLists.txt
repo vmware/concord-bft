@@ -13,3 +13,9 @@ grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${CMAKE_CURRENT_BINARY_DIR}
 add_library(privacy-wallet-service-proto STATIC ${PROTO_SRCS} ${GRPC_SRCS})
 target_link_libraries(privacy-wallet-service-proto PRIVATE protobuf::libprotobuf gRPC::grpc++)
 target_include_directories(privacy-wallet-service-proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+
+include(CheckCCompilerFlag)
+check_c_compiler_flag(-Wsign-conversion HAVE_SIGN_CONVERSION)
+if (HAVE_SIGN_CONVERSION)
+    target_compile_options(privacy-wallet-service-proto PRIVATE -Wno-sign-conversion)
+endif (HAVE_SIGN_CONVERSION)

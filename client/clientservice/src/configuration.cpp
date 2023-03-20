@@ -65,14 +65,12 @@ static void readYamlField(const YAML::Node& yaml,
 }
 
 static void parseConfigFileForStateSnapshot(StateSnapshotConfig& state_snapshot_config, const YAML::Node& yaml) {
-  // Set the default number of threads and then override
-  // that with the value available from config.
+  // Set the default number of threads and then override that with the value available from config.
   // It's not mandatory that config will provide a value.
   state_snapshot_config.num_threads = std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 8;
   readYamlField(yaml, "state_snapshot_num_threads", state_snapshot_config.num_threads, false);
 
-  // Setting 5 sec as default.
-  // This is not mandatory setting.
+  // Setting 5 sec as default. This is not mandatory setting.
   state_snapshot_config.timeout_in_sec = 5;
   readYamlField(yaml, "state_snapshot_operation_timeout", state_snapshot_config.timeout_in_sec, false);
 }
@@ -95,6 +93,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   readYamlField(yaml, "client_batching_flush_timeout_ms", config.topology.client_batching_flush_timeout_ms);
   readYamlField(yaml, "replicas_master_key_path", config.topology.path_to_replicas_master_key, false);
   readYamlField(yaml, "metrics_dump_interval_ms", config.metrics_dump_interval_ms, false);
+  readYamlField(yaml, "concord-bft_max_reply_message_size", config.max_reply_buffer_size);
 
   parseConfigFileForStateSnapshot(config.state_snapshot_config, yaml);
 
@@ -133,6 +132,10 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     readYamlField(yaml, "tls_certificates_folder_path", config.transport.tls_cert_root_path);
     readYamlField(yaml, "tls_cipher_suite_list", config.transport.tls_cipher_suite);
     readYamlField(yaml, "use_unified_certificates", config.transport.use_unified_certs);
+    readYamlField(yaml, "enable_tcp_socket_keep_alive", config.transport.tcpKeepAliveConfig.enableSocketKeepAlive);
+    readYamlField(yaml, "socket_keep_alive_idle_time", config.transport.tcpKeepAliveConfig.socketKeepAliveIdleTime);
+    readYamlField(yaml, "socket_keep_alive_interval", config.transport.tcpKeepAliveConfig.socketKeepAliveInterval);
+    readYamlField(yaml, "socket_keep_alive_probes_num", config.transport.tcpKeepAliveConfig.socketKeepAliveProbesNum);
   } else if (comm == "udp") {
     comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
   } else {
@@ -221,9 +224,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                                config.subscribe_config.id + ").");
     }
   } else {
-    LOG_WARN(logger,
-             "TLS for thin replica client is disabled, falling back to "
-             "insecure channel");
+    LOG_WARN(logger, "TLS for thin replica client is disabled, falling back to insecure channel");
   }
 }
 
@@ -246,7 +247,7 @@ void configureTransport(concord::client::concordclient::ConcordClientConfig& con
       server_cert_path = tls_path + "/server.cert";
       // read server TLS certs for this TRC instance
       // server_cert_path specifies the path to a composite cert file i.e., a
-      // concatentation of the certificates of all known servers
+      // concatenation of the certificates of all known servers
       readCert(server_cert_path, config.transport.event_pem_certs);
     }
   }

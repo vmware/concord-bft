@@ -56,7 +56,6 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
                                                               PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
   try {
-    // TODO: cleanup after service is hardened...
     if (request->has_privacy_app_config()) {
       std::cout << "Processing privacy app config request" << request->ShortDebugString() << std::endl;
       return handleApplicationConfigRequest(context, request, response);
@@ -373,6 +372,10 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   auto state_resp = response->mutable_get_state_response();
   state_resp->set_budget(wallet_->getBudget());
   state_resp->set_balance(wallet_->getBalance());
+  state_resp->set_user_id(wallet_->getUserId());
+  for (const auto& coin : wallet_->getCoinsDescriptors()) {
+    (*(state_resp->mutable_coins()))[coin.nullifier_] = coin.value_;
+  }
   return grpc::Status::OK;
 }
 }  // namespace utt::walletservice

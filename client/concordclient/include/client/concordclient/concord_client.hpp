@@ -31,6 +31,7 @@
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "util/Metrics.hpp"
 #include "client/thin-replica-client/replica_state_snapshot_client.hpp"
+#include "communication/CommDefs.hpp"
 
 namespace concord::client::concordclient {
 
@@ -84,6 +85,7 @@ struct BftClientInfo {
 struct TransportConfig {
   enum CommunicationType { Invalid, TlsTcp, PlainUdp };
   CommunicationType comm_type;
+  bft::communication::TcpKeepAliveConfig tcpKeepAliveConfig;
   bool enable_multiplex_channel;
   // for testing purposes
   bool enable_mock_comm;
@@ -103,7 +105,7 @@ struct SubscribeConfig {
   std::string id;
   // If set to false then all certificates related to subscription will be ignored
   bool use_tls;
-  // Buffer with the client's PEM encoded certififacte chain
+  // Buffer with the client's PEM encoded certificate chain
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
   std::string pem_private_key;
@@ -130,6 +132,7 @@ struct ConcordClientConfig {
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;
   uint64_t metrics_dump_interval_ms = 600;
+  std::uint32_t max_reply_buffer_size;
 };
 
 struct StateSnapshotRequest {
@@ -180,6 +183,9 @@ class ConcordClient {
 
   // Get subscription id.
   std::string getSubscriptionId() const { return config_.subscribe_config.id; }
+
+  // Get max reply buffer size
+  std::uint32_t getMaxReplyBufferSize() const { return config_.max_reply_buffer_size; }
 
   // Get client-pool health status
   // The caller has the responsibility of making sure that client_pool_ object exists before the method is called.

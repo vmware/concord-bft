@@ -23,10 +23,6 @@ namespace impl {
 void DescriptorOfLastExitFromView::clean() {
   delete myViewChangeMsg;
   myViewChangeMsg = nullptr;
-  for (auto elem : elements) {
-    delete elem.prepareFull;
-    delete elem.prePrepare;
-  }
   elements.clear();
 }
 
@@ -95,8 +91,8 @@ void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size
   ConcordAssert(id < elements.size());
   ConcordAssert(bufLen >= maxElementSize());
 
-  PrePrepareMsg *prePrepareMsg = (id < elements.size()) ? elements[id].prePrepare : nullptr;
-  PrepareFullMsg *prePrepareFullMsg = (id < elements.size()) ? elements[id].prepareFull : nullptr;
+  PrePrepareMsg *prePrepareMsg = (id < elements.size()) ? elements[id].prePrepare.get() : nullptr;
+  PrepareFullMsg *prePrepareFullMsg = (id < elements.size()) ? elements[id].prepareFull.get() : nullptr;
 
   actualSize += MessageBase::serializeMsg(buf, prePrepareMsg);
   actualSize += MessageBase::serializeMsg(buf, prePrepareFullMsg);
@@ -166,18 +162,18 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   actualSize = 0;
 
   size_t msgSize1 = 0, msgSize2 = 0;
-  PrePrepareMsg *prePrepareMsgPtr = nullptr;
-  PrepareFullMsg *prepareFullMsgPtr = nullptr;
+  std::shared_ptr<PrePrepareMsg> prePrepareMsgPtr;
+  std::shared_ptr<PrepareFullMsg> prepareFullMsgPtr;
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize1));
     if (baseMsg) {
-      prePrepareMsgPtr = new PrePrepareMsg(baseMsg.get());
+      prePrepareMsgPtr = std::make_shared<PrePrepareMsg>(baseMsg.get());
     }
   }
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize2));
     if (baseMsg) {
-      prepareFullMsgPtr = new PrepareFullMsg(baseMsg.get());
+      prepareFullMsgPtr = std::make_shared<PrepareFullMsg>(baseMsg.get());
     }
   }
 

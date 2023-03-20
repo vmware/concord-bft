@@ -17,13 +17,7 @@
 #include "communication/CommFactory.hpp"
 #include "communication/ICommunication.hpp"
 
-namespace concord {
-
-namespace config {
-class ConcordConfiguration;
-}  // namespace config
-
-namespace config_pool {
+namespace concord::config_pool {
 typedef struct ExternalClient {
   std::uint16_t client_port;
   std::uint16_t principal_id;
@@ -73,6 +67,7 @@ typedef struct ConcordClientPoolConfig {
   std::deque<ParticipantNode> participant_nodes;
   secretsmanager::SecretData secret_data;
   std::string path_to_replicas_master_key = std::string();
+  bft::communication::TcpKeepAliveConfig tcpKeepAliveConfig;
 } ConcordClientPoolConfig;
 
 class ClientPoolConfig {
@@ -120,9 +115,7 @@ class ClientPoolConfig {
   ClientPoolConfig();
 
  private:
-  // Logger
   logging::Logger logger_;
 };
 
-}  // namespace config_pool
-}  // namespace concord
+}  // namespace concord::config_pool
