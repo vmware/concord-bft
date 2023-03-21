@@ -73,8 +73,7 @@ const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
       std::cout << "Processing user registration update request" << request->ShortDebugString() << std::endl;
       return handleUserRegistrationUpdateRequest(context, request, response);
     } else if (request->has_claim_coins_request()) {
-      std::cout << "Processing claim request" << TxType::TxType_Name(request->claim_coins_request().type())
-                << std::endl;
+      std::cout << "Processing claim request" << TxType_Name(request->claim_coins_request().type()) << std::endl;
       return handleUserClaimCoinsRequest(context, request, response);
     } else if (request->has_generate_mint_tx_request()) {
       std::cout << "Processing mint request" << request->ShortDebugString() << std::endl;
