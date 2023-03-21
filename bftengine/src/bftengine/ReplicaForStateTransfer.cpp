@@ -79,22 +79,29 @@ void ReplicaForStateTransfer::start() {
   stateTransfer->addOnTransferringCompleteCallback(
       [this](std::uint64_t checkpoint) {
         // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - consider refactor or move outside
+        // RO replica relies on async CRE to receive key state updates
         if (!config_.isReadOnly) {
-          // Load the public keys of the other replicas from reserved pages
-          // so that their responses can be validated
-          KeyExchangeManager::instance().loadPublicKeys();
+          if (ReplicaConfig::instance().singleSignatureScheme) {
+            auto &keyExchangeManager = KeyExchangeManager::instance();
+            auto &cryptoManager = CryptoManager::instance();
+            auto &sigManager = *SigManager::instance();
+            // Load the public keys of the other replicas from reserved pages
+            // so that their responses can be validated
+            keyExchangeManager.loadPublicKeys();
 
-          // Make sure to sign the reconfiguration client messages using the key
-          // other replicas expect
-          SigManager::instance()->setReplicaLastExecutedSeq(checkpoint * checkpointWindowSize);
+            // Make sure to sign the reconfiguration client messages using the key
+            // other replicas expect
+            sigManager.setReplicaLastExecutedSeq(checkpoint * checkpointWindowSize);
 
-          // Need to update private key to match the loaded public key in case they differ (key exchange was executed
-          // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
-          // This can be done by iterating the saved cryptosystems and updating their private key if their
-          // public key matches the candidate saved in KeyExchangeManager
-          CryptoManager::instance().onCheckpoint(checkpoint);
-          auto [priv, pub] = KeyExchangeManager::instance().getCandidateKeyPair();
-          CryptoManager::instance().syncPrivateKeyAfterST(priv, pub);
+            // Need to update private key to match the loaded public key in case they differ (key exchange was executed
+            // on other replicas but not on this one, finishing ST does not mean that missed key exchanges are executed)
+            // This can be done by iterating the saved cryptosystems and updating their private key if their
+            // public key matches the candidate saved in KeyExchangeManager
+            cryptoManager.onCheckpoint(checkpoint);
+
+            auto candidatesToPersist = cryptoManager.syncPrivateKeysAfterST(keyExchangeManager.getCandidates());
+            keyExchangeManager.persistCandidates(candidatesToPersist);
+          }
 
           // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
           // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
@@ -103,8 +110,9 @@ void ReplicaForStateTransfer::start() {
           auto *pbc =
               reinterpret_cast<concord::client::reconfiguration::PollBasedStateClient *>(cre_->getStateClient());
 
-          // TODO: remove loop so that state transfer doesn't hang if it cannot complete reconfiguration requests
-          // The current implementation expects f + 1 identical responses
+          /* TODO: remove loop so that state transfer doesn't hang if it cannot complete reconfiguration requests,
+           as it is assumed to require only a valid communication channel
+           The current implementation expects f + 1 identical responses */
           bool succ = false;
           while (!succ) {
             auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();

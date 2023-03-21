@@ -73,25 +73,25 @@ std::string KeyExchangeManager::generateCid(std::string cid) {
 }
 
 void KeyExchangeManager::registerNewKeyPair(uint16_t repID,
-                                            SeqNum sn,
+                                            SeqNum keyGenerationSn,
                                             const std::string& pubkey,
                                             const std::string& cid) {
   const bool isSelfKeyExchange = repID == repID_;
-  publicKeys_.push(repID, pubkey, sn);
+  publicKeys_.push(repID, pubkey, keyGenerationSn);
   if (!isSelfKeyExchange) {
-    for (auto* e : registryToExchange_) e->onPublicKeyExchange(pubkey, repID, sn);
+    for (auto* e : registryToExchange_) e->onPublicKeyExchange(pubkey, repID, keyGenerationSn);
     metrics_->public_key_exchange_for_peer_counter++;
     return;
   }
 
-  private_keys_.key_data().generated = seq_candidate_map_[sn].generated;
-  seq_candidate_map_[sn].generated.clear();
-  candidate_private_keys_.generated.clear();
-  // erasing seqnum from the map
-  seq_candidate_map_.erase(sn);
+  ConcordAssertNE(seq_candidate_map_.find(keyGenerationSn), seq_candidate_map_.end());
+  private_keys_.key_data().generated = seq_candidate_map_[keyGenerationSn];
+  seq_candidate_map_.erase(keyGenerationSn);
+  // TODO: Figure out when old candidates can be removed
   ConcordAssert(private_keys_.key_data().generated.pub == pubkey);
-  private_keys_.onKeyExchange(cid, sn);
-  for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], pubkey, sn);
+  private_keys_.onKeyExchange(cid, keyGenerationSn);
+  for (auto e : registryToExchange_)
+    e->onPrivateKeyExchange(private_keys_.key_data().keys[keyGenerationSn], pubkey, keyGenerationSn);
   metrics_->self_key_exchange_counter++;
 }
 
@@ -121,6 +121,10 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
     return "gen_seq_num_ouside_workingwindow";
   }
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
+
+  if (isSelfKeyExchange && seq_candidate_map_.find(sn) == seq_candidate_map_.end()) {
+    return "missing_candidate";
+  }
 
   registerNewKeyPair(kemsg.repID, sn, kemsg.pubkey, cid);
 
@@ -283,14 +287,11 @@ void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqN
     return;
   }
 
-  auto& candidate = candidate_private_keys_.generated;
-  bool generateNewPair = candidate.cid.empty() && (seq_candidate_map_.count(sn) == 0);
-  KeyExchangeMsg msg;
-  msg.repID = repID_;
-  msg.generated_sn = sn;
-  msg.epoch = EpochManager::instance().getSelfEpochNumber();
+  bool generateNewPair = seq_candidate_map_.find(sn) == seq_candidate_map_.end();
 
   if (generateNewPair) {
+    seq_candidate_map_[sn] = {};
+    auto& candidate = seq_candidate_map_[sn];
     auto cid = generateCid(kInitialKeyExchangeCid);
     auto [prv, pub, algorithm] = multiSigKeyHdlr_->generateMultisigKeyPair();
     candidate.algorithm = algorithm;
@@ -298,19 +299,23 @@ void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqN
     candidate.pub = pub;
     candidate.cid = cid;
     candidate.sn = sn;
-    seq_candidate_map_[sn] = candidate_private_keys_;
     LOG_INFO(KEY_EX_LOG, "Added new candidate" << KVLOG(candidate.cid, sn));
   } else {
-    LOG_INFO(
-        KEY_EX_LOG,
-        "we already have a candidate for this sequence number, trying to send it again" << KVLOG(candidate.cid, sn));
-    candidate_private_keys_.generated.sn = sn;
-    seq_candidate_map_[sn] = candidate_private_keys_;
+    LOG_INFO(KEY_EX_LOG,
+             "we already have a candidate for this sequence number, trying to send it again"
+                 << KVLOG(seq_candidate_map_.at(sn).cid, sn));
   }
 
+  auto& candidate = seq_candidate_map_.at(sn);
+  KeyExchangeMsg msg;
+  msg.repID = repID_;
+  msg.generated_sn = candidate.sn;
+  msg.epoch = EpochManager::instance().getSelfEpochNumber();
   msg.pubkey = candidate.pub;
   msg.algorithm = candidate.algorithm;
-  LOG_INFO(KEY_EX_LOG, "Sending consensus key exchange :" << KVLOG(sn, candidate.cid, msg.pubkey, msg.algorithm));
+  LOG_INFO(KEY_EX_LOG,
+           "Sending consensus key exchange message:" << KVLOG(
+               candidate.sn, candidate.cid, msg.pubkey, msg.algorithm, generateNewPair));
   client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, msg, candidate.cid);
   metrics_->sent_key_exchange_counter++;
 }
@@ -494,9 +499,21 @@ bool KeyExchangeManager::isInitialConsensusExchangeComplete() const {
              ? (publicKeys_.numOfExchangedReplicas() + 1 >= liveClusterSize) && exchange_self_keys
              : true;
 }
-std::pair<std::string, std::string> KeyExchangeManager::getCandidateKeyPair() const {
-  auto& candidate = candidate_private_keys_.generated;
-  return {candidate.priv, candidate.pub};
+
+std::map<SeqNum, std::pair<std::string, std::string>> KeyExchangeManager::getCandidates() const {
+  std::map<SeqNum, std::pair<std::string, std::string>> result;
+  for (auto& [seq, generatedPairInfo] : seq_candidate_map_) {
+    result[seq] = {generatedPairInfo.priv, generatedPairInfo.pub};
+  }
+  return result;
+}
+
+void KeyExchangeManager::persistCandidates(const std::set<SeqNum>& candidatesToPersist) {
+  for (auto keyGenerationSn : candidatesToPersist) {
+    auto& keyPairInfo = seq_candidate_map_[keyGenerationSn];
+    LOG_INFO(KEY_EX_LOG, "Persisting candidate's private key" << KVLOG(keyGenerationSn, keyPairInfo.pub));
+    registerNewKeyPair(repID_, keyPairInfo.sn, keyPairInfo.pub, keyPairInfo.cid);
+  }
 }
 
 }  // namespace bftEngine::impl

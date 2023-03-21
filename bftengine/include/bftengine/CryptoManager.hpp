@@ -13,6 +13,7 @@
 
 #include <mutex>
 #include <memory>
+#include <experimental/map>
 
 #include "log/logger.hpp"
 #include "crypto/threshsign/ThresholdSignaturesTypes.h"
@@ -69,16 +70,16 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
                            const SeqNum& sn) override;
 
   /**
-   * Iterates saved cryptosystems and updates their private key if their public key matches verificationKey
-   * After ST, if a replica has not executed its key exchange but the network did, the internal private key state needs
-   * to be synchronized.
-   * @param secretKey
-   * @param verificationKey
+   * Synchronizes the private keys of existing cryptosystems with the candidate state from KeyExchangeManager
+   * After ST. If a replica has not executed a key exchange it had previously initiated,
+   * but the network did execute it, the internal private key state needs to be synchronized.
+   * @param candidateKeys - The keys for which a cryptosystem has yet to be created
+   * @return A map containing candidates to persist
    * @note: Assumes all keys are formatted as hex strings
    * @note: TODO: Current implementation is not crash consistent, a ST which was completed after the termination
-   *              of the replica process will lose the new private key
+   *              of the replica process will result in the loss of a new private key
    */
-  void syncPrivateKeyAfterST(const std::string& secretKey, const std::string& verificationKey);
+  std::set<SeqNum> syncPrivateKeysAfterST(const std::map<SeqNum, std::pair<std::string, std::string>>& candidateKeys);
 
   void onCheckpoint(uint64_t newCheckpoint);
 

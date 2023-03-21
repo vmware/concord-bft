@@ -60,7 +60,7 @@ inline void printCallStack() {
           free(ret);
         }
       }
-      LOG_INFO(GL, "\n" << os.str());
+      LOG_FATAL(GL, "\n" << os.str());
       std::free(symbolsList);
     }
   }

@@ -11,7 +11,7 @@
 
 #include "ReplicaConfig.hpp"
 #include "CryptoManager.hpp"
-#include <experimental/map>
+#include "util/containers.hpp"
 
 namespace bftEngine {
 
@@ -69,16 +69,27 @@ std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> Crypto
   return {priv, pub, getLatestSignatureAlgorithm()};
 }
 
-void CryptoManager::syncPrivateKeyAfterST(const std::string& secretKey, const std::string& verificationKey) {
+std::set<SeqNum> CryptoManager::syncPrivateKeysAfterST(
+    const std::map<SeqNum, std::pair<std::string, std::string>>& candidateKeys) {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
   std::lock_guard<std::mutex> guard(mutex_);
-  for (auto& [checkpoint, cryptoSystem] : checkpointToSystem()) {
-    auto currentKey = cryptoSystem->cryptosys_->getMyVerificationKey();
-    LOG_INFO(logger(), "checking keys after ST" << KVLOG(checkpoint, currentKey, secretKey, verificationKey));
-    if (currentKey == verificationKey) {
-      cryptoSystem->cryptosys_->updateKeys(secretKey, verificationKey);
-      LOG_INFO(logger(), "Updated private key for cryptosystem with checkpoint:" << checkpoint);
+  std::set<SeqNum> candidatesToPersist;
+  for (auto& [keyGenerationSn, keyPair] : candidateKeys) {
+    auto effeciveCheckpoint = (keyGenerationSn / checkpointWindowSize) + 2;
+    if (checkpointToSystem().find(effeciveCheckpoint) != checkpointToSystem().end()) {
+      auto& cryptoSystem = checkpointToSystem().at(effeciveCheckpoint)->cryptosys_;
+      auto& [privateKey, publicKey] = keyPair;
+      LOG_INFO(logger(),
+               "Found candidate matching the same checkpoint as an existing cryptoSystem"
+                   << KVLOG(keyGenerationSn, effeciveCheckpoint, publicKey, cryptoSystem->getMyVerificationKey()));
+      if (cryptoSystem->getMyVerificationKey() == publicKey) {
+        cryptoSystem->updateKeys(privateKey, publicKey);
+        candidatesToPersist.emplace(keyGenerationSn);
+        LOG_INFO(logger(), "Updated private key for cryptosystem with checkpoint:" << effeciveCheckpoint);
+      }
     }
   }
+  return candidatesToPersist;
 }
 
 void CryptoManager::onPrivateKeyExchange(const std::string& secretKey,
@@ -104,7 +115,7 @@ void CryptoManager::onCheckpoint(uint64_t newCheckpoint) {
   std::vector<CheckpointNum> checkpointsToRemove;
   auto checkpointOfCurrentCryptoSystem = getCheckpointOfCryptosystemForSeq(newCheckpoint * checkpointWindowSize);
 
-  std::experimental::erase_if(
+  concord::util::containers::erase_if(
       cryptoSystems_, [this, checkpointOfCurrentCryptoSystem, newCheckpoint](const auto& checkpointToSystem) {
         auto checkpoint = checkpointToSystem.first;
         if (checkpoint < checkpointOfCurrentCryptoSystem) {
@@ -197,6 +208,9 @@ std::shared_ptr<CryptoManager::CryptoSystemWrapper> CryptoManager::create(const 
   }
 
   // copy construct new Cryptosystem from a last one as we want it to include all the existing keys
+  // Cryptosystems are created either by key exchanges or ST, in ST they are rebuilt in ascending sequence order
+  // If a key exchange execution results in copying the wrong cryptosystem, the key state will be rebuilt
+  // in the next ST cycle
   std::unique_ptr<Cryptosystem> cs =
       std::make_unique<Cryptosystem>(*checkpointToSystem().rbegin()->second->cryptosys_.get());
 

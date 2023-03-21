@@ -45,13 +45,13 @@ class KeyExchangeManager {
   // The new key pair will be used from two checkpoints after kemsg.generated_sn
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
   /**
-   * Updates new key pair in both volatile (CryptoManager) and persistent (Reserved pages) memory
+   * Updates new key pair in both volatile (CryptoManager) and persistent (reserved pages) memory
    * @param repID - The id of the replica which uses pubkey
-   * @param effective_key_sn - The sequence number from which the new key is to be used
+   * @param keyGenerationSn - The sequence number in which the key was generated
    * @param pubkey - The public key of replica repID
    * @param cid
    */
-  void registerNewKeyPair(uint16_t repID, SeqNum effective_key_sn, const std::string& pubkey, const std::string& cid);
+  void registerNewKeyPair(uint16_t repID, SeqNum keyGenerationSn, const std::string& pubkey, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer
@@ -81,7 +81,8 @@ class KeyExchangeManager {
                            NodeIdType clientId,
                            bool saveToReservedPages);
 
-  std::pair<std::string, std::string> getCandidateKeyPair() const;
+  void persistCandidates(const std::set<SeqNum>& candidatesToPersist);
+
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;
@@ -94,7 +95,7 @@ class KeyExchangeManager {
    public:
     // internal persistent private keys impl
     struct KeyData : public concord::serialize::SerializableFactory<KeyData> {
-      struct {
+      struct GeneratedKeyPairInfo {
         // generated private key
         std::string priv;
         // generated public key
@@ -115,6 +116,8 @@ class KeyExchangeManager {
           algorithm = concord::crypto::SignatureAlgorithm::Uninitialized;
         }
       } generated;
+      // TODO: A map containing all generated candidates should replace this single candidate.
+
       // seqnum -> private key
       std::map<SeqNum, std::string> keys;
 
@@ -203,6 +206,8 @@ class KeyExchangeManager {
     return km;
   }
 
+  std::map<SeqNum, std::pair<std::string, std::string>> getCandidates() const;
+
  private:  // methods
   KeyExchangeManager(InitData* id);
   std::string generateCid(std::string);
@@ -230,7 +235,6 @@ class KeyExchangeManager {
   uint32_t quorumSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
-  PrivateKeys::KeyData candidate_private_keys_;
   ClientKeyStore clientsPublicKeys_;
   // A flag to prevent race on the replica's internal client.
   std::atomic_bool initial_exchange_;
@@ -242,7 +246,7 @@ class KeyExchangeManager {
   bool publishedMasterKey = false;
   std::mutex startup_mutex_;
   // map to store seqNum and its candidate key
-  std::map<SeqNum, PrivateKeys::KeyData> seq_candidate_map_;
+  std::map<SeqNum, PrivateKeys::KeyData::GeneratedKeyPairInfo> seq_candidate_map_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;

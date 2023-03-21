@@ -23,14 +23,6 @@
 namespace bftEngine::bcst::asyncCRE {
 class CreFactory {
  public:
-  /*
-   * TODO: Transaction signing needs to be disabled for replicas, as state transfer may change
-   * a replica's consensus (and therefore main) key. Apollo tests currently run with transaction signing enabled,
-   * we therefore use the latest key published by this replica.
-   * If a consensus was reached over a key exchange which was initiated by this replica
-   * prior to issuing CRE client requests, the other replicas are guaranteed to be able to use
-   * this replica's latest main key assuming an honest execution of the exchange.
-   */
   static std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> create(
       std::shared_ptr<MsgsCommunicator> msgsCommunicator,
       std::shared_ptr<MsgHandlersRegistrator> msgHandlers,

@@ -386,7 +386,12 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
     LOG_WARN(KEY_EX_LOG, "Illegal id for client " << id);
   }
 }
-bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != verifiers_.end(); }
+bool SigManager::hasVerifier(PrincipalId pid) {
+  if (ReplicaConfig::instance().singleSignatureScheme && replicasInfo_.isIdOfReplica(pid)) {
+    return true;
+  }
+  return verifiers_.find(pid) != verifiers_.end();
+}
 
 concord::crypto::SignatureAlgorithm SigManager::getMainKeyAlgorithm() const { return concord::crypto::EdDSA; }
 
@@ -407,7 +412,6 @@ std::pair<std::string, std::string> SigManager::getMyLatestKeyPair() const {
   auto& system = CryptoManager::instance().getLatestCryptoSystem();
   std::pair<std::string, std::string> ret = {system->getPrivateKey(replicasInfo_.myId()),
                                              system->getMyVerificationKey()};
-  LOG_INFO(GL, KVLOG(ret.first, ret.second));
   return ret;
 }
 
@@ -445,7 +449,7 @@ const concord::crypto::IVerifier& SigManager::getVerifier(PrincipalId otherPrinc
 }
 
 void SigManager::setReplicaLastExecutedSeq(SeqNum seq) {
-  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
   replicaLastExecutedSeq_ = seq;
 }
 

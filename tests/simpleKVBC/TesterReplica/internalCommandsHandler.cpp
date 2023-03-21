@@ -110,7 +110,7 @@ void InternalCommandsHandler::loadClientStateFromStorage() {
   for (auto [clientId, reqId] : deserialized) {
     m_clientToMaxExecutedReqId[clientId] = reqId;
   }
-  LOG_INFO(GL, "raw client state: " << KVLOG(raw_json));
+  LOG_DEBUG(GL, "Raw client state: " << KVLOG(raw_json));
 }
 
 void InternalCommandsHandler::add(std::string &&key,
@@ -165,7 +165,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
       bool isBlockAccumulationEnabled =
           ((requests.size() > 1) && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG));
       sequenceNum = req.executionSequenceNum;
-      LOG_INFO(GL, KVLOG(req.clientId, req.cid, req.requestSequenceNum));
+      LOG_DEBUG(GL, KVLOG(req.clientId, req.cid, req.requestSequenceNum));
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -316,12 +316,12 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
     }
   }
 
-  // Handle main key updates which should be ignored by the tests
+  // Handle main key updates which should be ignored by the linearizability checker of apollo tests
   for (auto &filteredCategory : {kConcordReconfigurationCategoryId}) {
     const auto concordUpdates = updates->categoryUpdates(filteredCategory);
     if (concordUpdates) {
-      const auto &u = std::get<VersionedInput>(concordUpdates->get());
-      for (const auto &[key, valueWithFlags] : u.kv) {
+      const auto &update = std::get<VersionedInput>(concordUpdates->get());
+      for (const auto &[key, valueWithFlags] : update.kv) {
         UNUSED(valueWithFlags);
         if (key[0] == concord::kvbc::keyTypes::reconfiguration_rep_main_key) {
           // Test categories and deployment categories are expected to be mutually exclusive
@@ -384,7 +384,7 @@ std::string InternalCommandsHandler::serializeClientState() const {
   }
   serializer.to_json(json, serialized);
   auto serialized_raw_json = json.dump();
-  LOG_INFO(GL, KVLOG(serialized_raw_json));
+  LOG_DEBUG(GL, KVLOG(serialized_raw_json));
   return json.dump();
 }
 
