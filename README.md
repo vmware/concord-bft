@@ -37,7 +37,7 @@ Start with example usage [here](https://github.com/vmware/concord-bft/tree/maste
 
 ## Documentation
 
-See the github [wiki](https://github.com/eyalrund/concord-bft/wiki) for detailed explanation.
+See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.
 
 ## Community
 
