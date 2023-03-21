@@ -1717,6 +1717,7 @@ module Proof {
     reveal_RecordedPreparesMatchHostView();
     reveal_RecordedPreparesRecvdCameFromNetwork();
     reveal_RecordedPreparesClientOpsMatchPrePrepare();
+    Messages.reveal_UniqueSenders();
 
     assert EveryCommitMsgIsRememberedByItsSender(c, v);
 
@@ -1732,32 +1733,20 @@ module Proof {
 
     if(step.id == commitMsg.sender) {
       if(commitMsg.payload.view < committer_v.view) {
-        assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
-
-        if(oldCertificate.votes == Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID)) {
-          assert committer_v'.viewChangeMsgsRecvd == committer_v.viewChangeMsgsRecvd;
-
-          assert Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID) ==
-                 Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v', commitMsg.payload.seqID);
-
-          assert |Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v', commitMsg.payload.seqID)| >=
-                 committer_c.clusterConfig.AgreementQuorum();
-          if(|Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID)| >= 
-             committer_c.clusterConfig.AgreementQuorum()) {
-            assert certificate == Messages.PreparedCertificate(Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID));
-            assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
-          } else {
-            assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+        if(oldCertificate.votes != Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID)) {
+          forall prepare | prepare in Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID)
+                 ensures prepare in Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID) {
+            assert committer_v.workingWindow.preparesRcvd[commitMsg.payload.seqID][prepare.sender] == 
+                   committer_v'.workingWindow.preparesRcvd[commitMsg.payload.seqID][prepare.sender]; //Trigger
           }
-        } else {
-          assert oldCertificate.votes == Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID);
-          assert Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID) <=
-                 Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID);
-          assert certificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
+          SubsetCardinality(Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID),
+                 Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID));
         }
-
+        assert certificate.valid(c.clusterConfig, commitMsg.payload.seqID); 
       } else {
-        assume false;
+        assert commitMsg.payload.view == committer_v.view by {
+          reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+        }
         assert Replica.ExtractCertificateForSeqID(committer_c, committer_v, commitMsg.payload.seqID).votes == 
                Replica.ExtractPreparesFromLatestViewChangeMsg(committer_c, committer_v, commitMsg.payload.seqID);
         assert oldCertificate.validFull(c.clusterConfig, commitMsg.payload.seqID);
