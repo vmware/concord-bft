@@ -17,8 +17,8 @@
 #include <thread>
 #include <unistd.h>
 
-#include "diagnostics.h"
-#include "diagnostics_server.h"
+#include "diagnostics.hpp"
+#include "diagnostics_server.hpp"
 
 using namespace std::chrono_literals;
 

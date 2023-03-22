@@ -31,7 +31,7 @@
 #include "ReplicaLoader.hpp"
 #include "PersistentStorage.hpp"
 #include "util/OpenTracing.hpp"
-#include "diagnostics.h"
+#include "diagnostics.hpp"
 #include "TimeUtils.hpp"
 #include "util/json_output.hpp"
 

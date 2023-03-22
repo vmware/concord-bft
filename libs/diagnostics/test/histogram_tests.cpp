@@ -12,7 +12,7 @@
 // file.
 
 #include "gtest/gtest.h"
-#include "performance_handler.h"
+#include "performance_handler.hpp"
 
 using namespace concord::diagnostics;
 

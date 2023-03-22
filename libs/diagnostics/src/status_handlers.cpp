@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "status_handlers.h"
+#include "status_handlers.hpp"
 
 #include "log/logger.hpp"
 

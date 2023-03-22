@@ -19,10 +19,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "diagnostics_server.h"
+#include "diagnostics_server.hpp"
 #include "gtest/gtest.h"
-#include "diagnostics.h"
-#include "protocol.h"
+#include "diagnostics.hpp"
+#include "protocol.hpp"
 
 using namespace concord::diagnostics;
 

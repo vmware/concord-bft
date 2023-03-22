@@ -15,8 +15,8 @@
 #include "util/Metrics.hpp"
 #include "util/assertUtils.hpp"
 #include "throughput.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 
 #include <boost/lockfree/queue.hpp>
 #include <yaml-cpp/yaml.h>

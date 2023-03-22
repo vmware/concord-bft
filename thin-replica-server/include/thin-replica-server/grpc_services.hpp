@@ -19,8 +19,8 @@
 
 #include <memory>
 
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 #include "thin_replica.grpc.pb.h"
 
 #ifdef RUN_PERF_TRS_TRC_TOOL
