@@ -31,8 +31,6 @@ Blockchains](https://arxiv.org/pdf/1804.01626.pdf).
 
 It is designed to be used as a core building block for replicated distributed data stores, and is especially suited to serve as the basis of permissioned Blockchain systems.
 
-For a real-life integration example, please take a look at [Project Concord](https://github.com/vmware/concord), a highly scalable and energy-efficient distributed trust infrastructure for consensus and smart contract execution.
-
 Start with example usage [here](https://github.com/vmware/concord-bft/tree/master/examples).
 
 ## Documentation
