@@ -1,74 +1,30 @@
 # Overview
-We are providing an open-source illustration and demonstration of example/demo. This will help us to understand the usage of the concord-bft library. Since concord-bft is an open-source consensus, this application will also assist us in comprehending the internals of concord-bft.
+We provide an open-source illustration and demonstration of example/demo. This will help demonstrating the usage of the concord-bft library. Since concord-bft is an open-source consensus, this application also assists in comprehending the internals of concord-bft.
 
-It is responsible for assisting and guiding large number of concord-bft users around the globe, including those who want to understand more about concord-bft, its usage, and how it works.
+It is designed to assist and guide large number of concord-bft users around the globe, including those who want to understand more about concord-bft, its usage, and how it works.
 
-This example/demo will provide end to end functionality of Concord byzantine fault tolerant state machine replication library about its usage. This can be used as a library to build a distributed trust infrastructure that is extremely scalable and low-power for smart contract execution.
+This example/demo demonstrates end to end functionality of Concord byzantine fault tolerant state machine replication library. It can be used as a library to build a distributed trust infrastructure that is extremely scalable and low-power for smart contract execution.
 
-**Note:** Initially, we plan to do this using an open source key-value blockchain replica. However, once the setup is finished, we'll also use alternative open source execution engines, such Ethereum, WASM, etc.
-
-
-## Install and Build (Ubuntu Linux 18.04 or above)
-Concord-BFT supports two kinds of builds are,
-* Docker
-* Native
-
-The docker build is **strongly recommended**
+**Note:** Initially, we plan to do this using an open source key-value blockchain replica. However, once the setup is finished, we'll also use alternative open source execution engines, such as EVM, WASM, etc.
 
 
-### Docker
-
-* [Install the latest docker] (https://docs.docker.com/engine/install/ubuntu/).
-* Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
-* Build concord-bft
-```sh
-git clone https://github.com/vmware/concord-bft
-cd concord-bft
-make
-```
-Run `make help` to see more commands.
-
-Note:
-* If you face any format related issues than run `make format` before running `make` command to format the changes.
-* The output binaries are stored in the host's `concord-bft/build`.
-* Default compiler is clang and clang++.
-* `Makefile` is configurable. If you want to use another compiler you may pass it to the `make`.
-For example,
-```
-make CONCORD_BFT_CONTAINER_CXX=g++ \
-    CONCORD_BFT_CONTAINER_CC=gcc \
-    build
-```
-Other build options, including passthrough options for CMake, are defined in the [Makefile](../Makefile) and prefixed with `CONCORD_BFT_`.
-
-
-### Native
-
-For native development environment, need to install some dependencies mentioned in [install_deps_release.sh](../install_deps_release.sh) script.
-```sh
-git clone https://github.com/vmware/concord-bft
-cd concord-bft
-sudo ./install_deps_release.sh    # Install all dependencies and 3rd parties
-mkdir build
-cd build
-cmake ..
-make
-```
+## Install and Build
+See [Getting Started](https://github.com/vmware/concord-bft/wiki/Getting-Started) for instructions.
 
 
 ## Run Example/Demo
-This simple example can be run from the script [test_osexample.sh](scripts/test_osexample.sh) under `example/script` directory.
+This simple example can be run from the script [test_osexample.sh](scripts/test_osexample.sh) under `examples/script` directory.
 Or, it can be directly run from python script [test_osexample.py](scripts/test_osexample.py.in).
 
 
 ### Simple scenario (4 replicas and 1 client)
 This demo can be run from inside the container once the build is finished.
 
-* Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/example/scripts` directory.
+* Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/examples/scripts` directory.
 ```sh
 ./test_osexample.sh
 ```
-* Run the [test_osexample.py](scripts/test_osexample.py.in) script from the container's `build/example/scripts` directory with default commandline arguments `-bft n=4,cl=1`, where n is number of replicas and cl is number of client.
+* Run the [test_osexample.py](scripts/test_osexample.py.in) script from the container's `build/examples/scripts` directory with default commandline arguments `-bft n=4,cl=1`, where n is number of replicas and cl is number of client.
 It is a configurable script which can be configured according to the need.
 ```sh
 ./test_osexample.py -bft n=4,cl=1
@@ -76,12 +32,12 @@ It is a configurable script which can be configured according to the need.
 
 
 #### Explanation of the [test_osexample.sh](scripts/test_osexample.sh)
-On our example, we will use the script [test_osexample.py](scripts/test_osexample.py.in) and this script is used for following things,
+In our example, we use the script [test_osexample.py](scripts/test_osexample.py.in) and this script is used to achieve the following:
 * It is used to generate the keys for replica's. For more [refer](../tools/README.md)
-* It is used to generate TLS certificates used in for TLSTCP communication which we are using as a default mode of communication. For more [refer](../scripts/linux/create_tls_certs.sh)
-* Running multiple replica's. Here we are running 4 replica's.
+* It is used to generate TLS certificates used for TLS/TCP communication which we are using as a default mode of communication. For more info [refer](../scripts/linux/create_tls_certs.sh)
+* Running multiple replica's. Here we are running 4 replica's
 * Running client
-* For resources cleanup.
+* For resources cleanup
 
 
 ## Directory Structure.
@@ -91,10 +47,10 @@ On our example, we will use the script [test_osexample.py](scripts/test_osexampl
 - [msg-configs](./msg-configs): Message configurations for read/write messages.
 - [scripts](./scripts): Build scripts, replica config file, etc.
 
-## How to use msg configs
-Initially, we are planning to do this using an open source key-value blockchain replica.
+## How to use message configs
+Initially, we plan to do this using an open source key-value blockchain replica.
 Message configs are used to set some parameters which will further used to create ClientRequestMsg.
-All the message configurations can be found [msg-configs](./msg-configs) folder.
+All messages configurations can be found [msg-configs](./msg-configs) folder.
 
 Following are the parameters from msg config file,
 * **type**: This is a message type parameters i.e. it shows the type of message Write, Read and Both. According to this parameter client request msg will be created.
@@ -106,7 +62,7 @@ Following are the parameters from msg config file,
 
 
 ## Future Plans
-In future we are planning to include open source execution engines for this demo, such as Ethereum, WASM, etc.
+In future we plan to include open source execution engines for this demo, such as EVM, WASM, etc.
 
 
 ## License
