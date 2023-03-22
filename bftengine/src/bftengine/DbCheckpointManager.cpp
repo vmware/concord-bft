@@ -54,19 +54,15 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       }
       auto end_ckpnt = Clock::now();
       auto duration_chpnt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_ckpnt - start);
-      LOG_INFO(getLogger(), "just checkpoint duation: " << KVLOG(duration_chpnt_ms.count()));
+      LOG_INFO(getLogger(), "just checkpoint duration: " << KVLOG(duration_chpnt_ms.count()));
       prepareCheckpointCb_(lastBlockId, dbClient_->getPathForCheckpoint(checkPointId));
       auto end = Clock::now();
 
       auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-      LOG_INFO(getLogger(), "checkpoint with cb duation: " << KVLOG(duration_ms.count()));
+      LOG_INFO(getLogger(), "checkpoint with cb duration: " << KVLOG(duration_ms.count()));
       lastDbCheckpointBlockId_.Get().Set(lastBlockId);
-      numOfDbCheckpointsCreated_++;
       auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
       maxDbCheckpointCreationTimeMsec_.Get().Set(std::max(maxSoFar, static_cast<uint64_t>(duration_ms.count())));
-      auto count = numOfDbCheckpointsCreated_.Get().Get();
-      (void)count;
-      metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count(), seqNum));
       lastCheckpointSeqNum_ = seqNum;
       {
@@ -84,6 +80,8 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       if (cb) cb(seqNum);
     }
     checkpointInProcessCb_(false, lastBlockId);
+    numOfDbCheckpointsCreated_++;
+    metrics_.UpdateAggregator();
   }
   updateMetrics();
   return Status::OK();
