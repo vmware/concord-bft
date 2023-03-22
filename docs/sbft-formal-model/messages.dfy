@@ -60,6 +60,11 @@ module Messages {
     predicate empty() {
       && |votes| == 0
     }
+    predicate votesRespectView(view:ViewNum) 
+      requires WF()
+    {
+      !empty() ==> prototype().view < view
+    }
   }
 
   datatype ViewChangeMsgsSelectedByPrimary = ViewChangeMsgsSelectedByPrimary(msgs:set<Network.Message<Message>>) {
@@ -130,7 +135,8 @@ module Messages {
                          requires ViewChangeMsg?
                        {
                          && (forall seqID | seqID in certificates
-                                     :: certificates[seqID].valid(clusterConfig, seqID))
+                                     :: && certificates[seqID].valid(clusterConfig, seqID)
+                                        && certificates[seqID].votesRespectView(newView))
                          && proofForLastStable.valid(lastStableCheckpoint, clusterConfig.AgreementQuorum())
                        }
                        predicate validNewViewMsg(clusterConfig:ClusterConfig.Constants)
