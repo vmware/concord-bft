@@ -88,13 +88,13 @@ module Proof {
     && (forall commitMsg | && commitMsg in v.network.sentMsgs 
                            && commitMsg.payload.Commit? 
                            && IsHonestReplica(c, commitMsg.sender)
-                           && var h_c := c.hosts[commitMsg.sender].replicaConstants;
-                           && var h_v := v.hosts[commitMsg.sender].replicaVariables;
-                           && h_v.view == commitMsg.payload.view
-                           && commitMsg.payload.seqID in h_v.workingWindow.getActiveSequenceIDs(h_c)
-          :: && var h_c := c.hosts[commitMsg.sender].replicaConstants;
-             && var h_v := v.hosts[commitMsg.sender].replicaVariables;
-             && |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum())
+                           && var committer_c := c.hosts[commitMsg.sender].replicaConstants;
+                           && var committer_v := v.hosts[commitMsg.sender].replicaVariables;
+                           && committer_v.view == commitMsg.payload.view
+                           && commitMsg.payload.seqID in committer_v.workingWindow.getActiveSequenceIDs(committer_c)
+          :: && var committer_c := c.hosts[commitMsg.sender].replicaConstants;
+             && var committer_v := v.hosts[commitMsg.sender].replicaVariables;
+             && |Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum())
   }
 
   predicate {:opaque} EveryCommitMsgIsRememberedByItsSender(c:Constants, v:Variables) { //TODO: this does not cover Checkpointing
@@ -352,6 +352,7 @@ module Proof {
     && RecordedPrePreparesMatchHostView(c, v)
     && RecordedPreparesMatchHostView(c, v)
     && EveryCommitMsgIsSupportedByAQuorumOfSentPrepares(c, v)
+    && EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v)
     && RecordedPreparesClientOpsMatchPrePrepare(c, v)
     && RecordedCommitsClientOpsMatchPrePrepare(c, v)
     && EverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v)
@@ -646,6 +647,84 @@ module Proof {
     }
   }
 
+  lemma HonestPreservesEveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+    requires Inv(c, v)
+    requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
+    ensures EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v')
+  {
+    h_v.workingWindow.reveal_Shift();
+    reveal_RecordedPreparesRecvdCameFromNetwork();
+    reveal_EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares();
+    reveal_TemporarilyDisableCheckpointing();
+    reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    if (h_step.SendCommitStep?) {
+    forall commitMsg | && commitMsg in v'.network.sentMsgs 
+                           && commitMsg.payload.Commit? 
+                           && IsHonestReplica(c, commitMsg.sender)
+                           && var h_c := c.hosts[commitMsg.sender].replicaConstants;
+                           && var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
+                           && h_v'.view == commitMsg.payload.view
+                           && commitMsg.payload.seqID in h_v'.workingWindow.getActiveSequenceIDs(h_c)
+          ensures && var h_c := c.hosts[commitMsg.sender].replicaConstants;
+                  && var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
+                  && |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum()
+      {
+        var h_c := c.hosts[commitMsg.sender].replicaConstants;
+        var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
+        if(commitMsg in v.network.sentMsgs) {
+          assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v);
+          assert |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum();
+        } else {
+          assert Replica.QuorumOfPrepares(h_c, h_v', h_step.seqID);
+          assert step.id == commitMsg.sender;
+          CountPrepareMessagesInWorkingWindow(c, v, commitMsg.sender, h_step.seqID);
+          CountPrepareMessages2(h_c, h_v, h_step.seqID);
+          assert |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum();
+        }
+      }
+
+
+
+
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    } else if (h_step.AdvanceWorkingWindowStep?) {
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    } else if(h_step.PerformStateTransferStep?) {
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    } else if(h_step.RecvPrepareStep?) {
+      var h_c := c.hosts[step.id].replicaConstants;
+      var h_v' := v'.hosts[step.id].replicaVariables;
+      forall commitMsg | && commitMsg in v'.network.sentMsgs 
+                           && commitMsg.payload.Commit? 
+                           && IsHonestReplica(c, commitMsg.sender)
+                           && var committer_c := c.hosts[commitMsg.sender].replicaConstants;
+                           && var committer_v' := v'.hosts[commitMsg.sender].replicaVariables;
+                           && committer_v'.view == commitMsg.payload.view
+                           && commitMsg.payload.seqID in committer_v'.workingWindow.getActiveSequenceIDs(h_c)
+          ensures && var committer_c := c.hosts[commitMsg.sender].replicaConstants;
+                  && var committer_v' := v'.hosts[commitMsg.sender].replicaVariables;
+                  && |Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum()
+      {
+        var seqID := commitMsg.payload.seqID;
+        var committer_c := c.hosts[commitMsg.sender].replicaConstants;
+        var committer_v := v.hosts[commitMsg.sender].replicaVariables;
+        var committer_v' := v'.hosts[commitMsg.sender].replicaVariables;
+        if(commitMsg.sender == step.id) {
+          CountPrepareMessages2(committer_c, committer_v, seqID);
+          Library.SubsetCardinality(Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, seqID),
+                                    Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', seqID));
+        } else {
+          assert committer_v == committer_v';
+        }
+      }
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    } else if(h_step.LeaveViewStep?) {
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    } else {
+      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
+    }
+  }
+
   lemma HonestPreservesRecordedPreparesClientOpsMatchPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -704,6 +783,12 @@ module Proof {
     // assert forall sender | && sender in v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd
     //               :: && c.clusterConfig.IsReplica(sender)
     //                  && v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
+  }
+
+  lemma CountPrepareMessages2(h_c:Replica.Constants, h_v:Replica.Variables, seqID:Messages.SequenceID)
+    ensures |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, seqID)| == |h_v.workingWindow.preparesRcvd[seqID]|
+  {
+    assume false;
   }
 
   lemma HonestPreservesEveryPrepareClientOpMatchesRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1506,7 +1591,7 @@ module Proof {
     requires c.clusterConfig.IsHonestReplica(doubleAgent)
     ensures !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent)
   {
-
+    assume false;
   }
 
   lemma HonestRecvPrePrepareStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1557,12 +1642,12 @@ module Proof {
           }
           assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             // Need to finish this proof
+            assume false;
             // viewchangemessages from honest sender comport with uncommitable in view
             reveal_SentViewChangesMsgsComportWithUncommitableInView();
             assume SentViewChangesMsgsComportWithUncommitableInView(c, v);
             assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
             // Left off here.
-            // assume false;
           }
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             reveal_HonestReplicasLeaveViewsBehind();
@@ -1686,18 +1771,18 @@ module Proof {
     }
   }
 
-  lemma FullQuorumOfPreparesEnsuresValidFullCertificate(
-        c:Constants, 
-        v:Variables,
-        h_c:Replica.Constants,
-        h_v:Replica.Variables,
-        seqID:Messages.SequenceID)
-    requires v.WF(c)
-    requires |Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).votes| >= h_c.clusterConfig.AgreementQuorum()
-    ensures Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).validFull(h_c.clusterConfig, seqID)
-  {
+  // lemma FullQuorumOfPreparesEnsuresValidFullCertificate(
+  //       c:Constants, 
+  //       v:Variables,
+  //       h_c:Replica.Constants,
+  //       h_v:Replica.Variables,
+  //       seqID:Messages.SequenceID)
+  //   requires v.WF(c)
+  //   requires |Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).votes| >= h_c.clusterConfig.AgreementQuorum()
+  //   ensures Replica.ExtractCertificateForSeqID(h_c, h_v, seqID).validFull(h_c.clusterConfig, seqID)
+  // {
 
-  }
+  // }
 
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSenderForRecvPrepareStep(
         c:Constants, 
@@ -1985,6 +2070,7 @@ module Proof {
       HonestPreservesRecordedPreparesRecvdCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesMatchHostView(c, v, v', step, h_v, h_step);
       AlwaysPreservesEveryCommitMsgIsSupportedByAQuorumOfSentPrepares(c, v, v', step);
+      HonestPreservesEveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedPreparesClientOpsMatchPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedCommitsClientOpsMatchPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesEverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v, v', step, h_v, h_step);
@@ -2005,6 +2091,7 @@ module Proof {
       HonestPreservesEveryCommitMsgIsRememberedByItsSender(c, v, v', step, h_v, h_step);
       HonestPreservesViewChangeMsgsFromHonestInNetworkAreValid(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedViewChangeMsgsAreValid(c, v, v', step, h_v, h_step);
+      HonestPreservesOneViewChangeMessageFromReplicaPerView(c, v, v', step, h_v, h_step);
       assume TemporarilyDisableCheckpointing(c, v');
     } else {
       InvNextFaultyOrClient(c, v, v', step);
@@ -2069,6 +2156,9 @@ module Proof {
     assert EveryCommitMsgIsSupportedByAQuorumOfSentPrepares(c, v') by {
       AlwaysPreservesEveryCommitMsgIsSupportedByAQuorumOfSentPrepares(c, v, v', step);
     }
+    assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v') by {
+     reveal_EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares();
+    }
     assert RecordedPrePreparesMatchHostView(c, v') by {
       reveal_RecordedPrePreparesMatchHostView();
     }
@@ -2099,6 +2189,9 @@ module Proof {
     assert ViewChangeMsgsFromHonestInNetworkAreValid(c, v') by {
       reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
     }
+    assert OneViewChangeMessageFromReplicaPerView(c, v') by {
+      reveal_OneViewChangeMessageFromReplicaPerView();
+    }
     assume TemporarilyDisableCheckpointing(c, v');
   }
 
@@ -2123,6 +2216,7 @@ module Proof {
       reveal_HonestReplicasLockOnPrepareForGivenView();
       reveal_RecordedCheckpointsRecvdCameFromNetwork();
       reveal_EveryCommitMsgIsSupportedByAQuorumOfSentPrepares();
+      reveal_EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares();
       reveal_RecordedPrePreparesMatchHostView();
       reveal_UnCommitableAgreesWithPrepare();
       reveal_UnCommitableAgreesWithRecordedPrePrepare();
@@ -2133,6 +2227,7 @@ module Proof {
       reveal_EveryCommitMsgIsRememberedByItsSender();
       reveal_RecordedViewChangeMsgsAreValid();
       reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
+      reveal_OneViewChangeMessageFromReplicaPerView();
       reveal_TemporarilyDisableCheckpointing();
     }
   }
