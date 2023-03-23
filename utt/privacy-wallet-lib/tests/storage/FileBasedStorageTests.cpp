@@ -12,15 +12,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
+#include <util/filesystem.hpp>
 #include "testUtils/testUtils.hpp"
 #include "mint.hpp"
 #include <storage/FileBasedUserStorage.hpp>

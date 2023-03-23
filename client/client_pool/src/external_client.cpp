@@ -252,7 +252,8 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
                               static_cast<uint32_t>(bufferLength),
                               pool_config_.replicas,
                               static_cast<int32_t>(pool_config_.num_replicas - 1),
-                              selfId};
+                              selfId,
+                              nullptr};
 #endif
     ConcordAssert(false && "FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
   } else if (commType == TlsTcp) {

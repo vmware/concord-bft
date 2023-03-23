@@ -168,7 +168,7 @@ bft::communication::PlainTcpConfig TestCommConfig::GetTCPConfig(bool is_replica,
       SetUpNodes(is_replica, node_id, ip, port, num_of_clients, num_of_replicas, config_file_name);
 
   bft::communication::PlainTcpConfig ret_val(
-      default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id);
+      default_listen_ip_, port, buf_length_, nodes, num_of_replicas - 1, node_id, nullptr);
   return ret_val;
 }
 #endif

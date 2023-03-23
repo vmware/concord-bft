@@ -601,7 +601,7 @@ INSTANTIATE_TEST_CASE_P(validate_statistics_parametrized,
                         MultiSizeBufferPoolParametrizedTestFixture1,
                         ::testing::Values(MultiSizeBufferPool::SubpoolsConfig{{300, 3, 3}},
                                           MultiSizeBufferPool::SubpoolsConfig{{300, 1, 3}},
-                                          MultiSizeBufferPool::SubpoolsConfig{{300, 2, 6}, {400, 4, 6}}), );
+                                          MultiSizeBufferPool::SubpoolsConfig{{300, 2, 6}, {400, 4, 6}}));
 
 // with a single subpool, take all buffers and then wait with numMaxBuffers threads. See that every time a single
 // buffer is returned, 1 waiting thread is freed and taking the returned buffer.
