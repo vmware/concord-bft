@@ -12,9 +12,8 @@
 #include "client/reconfiguration/default_handlers.hpp"
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
-#include "crypto/crypto.hpp"
-#include "ReplicaConfig.hpp"
 #include "crypto/openssl/certificates.hpp"
+#include "util/kvstream.h"
 
 #include <variant>
 #include <util/filesystem.hpp>
@@ -22,7 +21,6 @@
 
 namespace concord::client::reconfiguration::handlers {
 
-using bftEngine::ReplicaConfig;
 using concord::crypto::SignatureAlgorithm;
 using concord::crypto::EdDSAHexToPem;
 using concord::crypto::generateSelfSignedCert;
@@ -75,8 +73,7 @@ void ClientTlsKeyExchangeHandler::exchangeTlsKeys(const std::string& pkey_path,
   std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
-  auto cert = generateSelfSignedCert(
-      cert_path, new_cert_keys.second, master_key, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  auto cert = generateSelfSignedCert(cert_path, new_cert_keys.second, master_key, sig_algorithm_);
 
   sm_->encryptFile(pkey_path, new_cert_keys.first);
   psm_.encryptFile(cert_path, cert);
@@ -123,14 +120,16 @@ ClientTlsKeyExchangeHandler::ClientTlsKeyExchangeHandler(
     const std::vector<uint32_t>& bft_clients,
     uint16_t clientservice_pid,
     bool use_unified_certificates,
-    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
+    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+    SignatureAlgorithm sig_algorithm)
     : master_key_path_{master_key_path},
       cert_folder_{cert_folder},
       enc_{enc},
       sm_{sm},
       bft_clients_{bft_clients},
       clientservice_pid_{clientservice_pid},
-      use_unified_certificates_{use_unified_certificates} {
+      use_unified_certificates_{use_unified_certificates},
+      sig_algorithm_{sig_algorithm} {
   version_path_ = cert_folder + "/version";
   if (!fs::exists(version_path_)) fs::create_directories(version_path_);
   version_path_ += "/exchange.version";
@@ -141,8 +140,13 @@ ClientMasterKeyExchangeHandler::ClientMasterKeyExchangeHandler(
     uint32_t client_id,
     const std::string& master_key_path,
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+    SignatureAlgorithm sig_algorithm,
     uint64_t last_update_block)
-    : client_id_{client_id}, master_key_path_{master_key_path}, sm_{sm}, init_last_update_block_{last_update_block} {}
+    : client_id_{client_id},
+      master_key_path_{master_key_path},
+      sm_{sm},
+      sig_algorithm_{sig_algorithm},
+      init_last_update_block_{last_update_block} {}
 bool ClientMasterKeyExchangeHandler::validate(const State& state) const {
   concord::messages::ClientStateReply crep;
   concord::messages::deserialize(state.data, crep);
@@ -159,7 +163,7 @@ bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out
   std::pair<std::string, std::string> hex_keys;
   std::pair<std::string, std::string> pem_keys;
 
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+  if (sig_algorithm_ == SignatureAlgorithm::EdDSA) {
     hex_keys = concord::crypto::generateEdDSAKeyPair();
     pem_keys = EdDSAHexToPem(hex_keys);
   }

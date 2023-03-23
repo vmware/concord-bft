@@ -260,11 +260,13 @@ int main(int argc, char** argv) {
       bft_clients,
       creParams.bftConfig.id.val,
       creParams.bftConfig.use_unified_certs,
-      sm_));
+      sm_,
+      creParams.bftConfig.message_sigs_algorithm));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientMasterKeyExchangeHandler>(
       creParams.CreConfig.id_,
       creParams.bftConfig.transaction_signing_private_key_file_path.value(),
       sm_,
+      creParams.bftConfig.message_sigs_algorithm,
       last_pk_status));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientRestartHandler>(
       last_resatrt_status, creParams.CreConfig.id_));
