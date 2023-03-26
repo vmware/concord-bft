@@ -11,7 +11,7 @@
 #include <rocksdb/sst_file_manager.h>
 
 #include <rocksdb/utilities/memory_util.h>
-#include "rocksdb/client.h"
+//#include "../rocksdb/client.h"
 #include <unordered_set>
 
 #endif
@@ -64,18 +64,18 @@ class InMemoryStorageMetrics {
  */
 
 class RocksDbStorageMetrics {
-  static constexpr size_t update_metrics_interval_millisec = 100;  // every 100msec
+  static constexpr size_t update_metrics_interval_millisec = 50;  // every 100msec
   static constexpr size_t update_mem_usage_metrics_factor =
-      600;  // update_metrics_interval_millisec * 600 = every 1 minute
+      1;  // update_metrics_interval_millisec * 600 = every 1 minute
 
  public:
   concordMetrics::Component metrics_;
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
-  RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers> &tickers,
-                        const concord::storage::rocksdb::Client &owningClient)
+  RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers> &tickers/*,
+                        const concord::storage::rocksdb::Client &owningClient*/)
       : metrics_({"storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()}),
-        owning_client_(owningClient),
+        /*owning_client_(owningClient),*/
         total_db_disk_size_(metrics_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)),
         all_mem_tables_ram_usage_(metrics_.RegisterAtomicGauge("storage_rocksdb_mem_tables_ram_usage", 0)),
         all_unflushed_mem_tables_ram_usage_(
@@ -98,7 +98,7 @@ class RocksDbStorageMetrics {
    * For now, we have a hardcoded default metrics configuration list.
    * In the future we may add a rocksdb configuration file to enable flexibility.
    */
-  RocksDbStorageMetrics(const concord::storage::rocksdb::Client &owningClient)
+  RocksDbStorageMetrics(/*const concord::storage::rocksdb::Client &owningClient*/)
       : RocksDbStorageMetrics({::rocksdb::Tickers::NUMBER_KEYS_WRITTEN,
                                ::rocksdb::Tickers::NUMBER_KEYS_READ,
                                ::rocksdb::Tickers::BYTES_WRITTEN,
@@ -111,13 +111,10 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::BLOCK_CACHE_HIT,
                                ::rocksdb::Tickers::BLOOM_FILTER_PREFIX_USEFUL,
                                ::rocksdb::Tickers::BLOOM_FILTER_FULL_POSITIVE,
-                               ::rocksdb::Tickers::BLOOM_FILTER_FULL_TRUE_POSITIVE},
-                              owningClient) {}
+                               ::rocksdb::Tickers::BLOOM_FILTER_FULL_TRUE_POSITIVE}/*,
+                              owningClient*/) {}
 
   ~RocksDbStorageMetrics() { update_metrics_.reset(); }
-
-  void setMetricsDataSources(std::shared_ptr<::rocksdb::SstFileManager> sourceSstFm,
-                             std::shared_ptr<::rocksdb::Statistics> sourceStatistics);
 
   // update and print to log rocksdb RAM usage
   void updateDBMemUsageMetrics(){};
@@ -160,7 +157,7 @@ class RocksDbStorageMetrics {
 
  private:
   // const ref to the Client enclosing this obj, in order to use RocksDB APIs it has
-  const concord::storage::rocksdb::Client &owning_client_;
+  // const concord::storage::rocksdb::Client &owning_client_;
   // map of all tickers we monitor into our metrics
   std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
   // total disk size
