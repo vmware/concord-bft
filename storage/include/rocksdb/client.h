@@ -67,9 +67,9 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath), storage_metrics_(RocksDbStorageMetrics(*this)) {}
   Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
+      : m_dbPath(_dbPath), comparator_(std::move(comparator)), storage_metrics_(RocksDbStorageMetrics(*this)) {}
 
   ~Client() {
     // Clear column family handles before the DB as handle destruction calls a DB instance member and we want that to
