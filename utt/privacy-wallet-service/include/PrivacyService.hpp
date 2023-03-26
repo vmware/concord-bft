@@ -26,7 +26,7 @@ namespace utt::walletservice {
 //@TODO hide on its own file..
 class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Service {
  public:
-  PrivacyWalletServiceImpl() {}
+  PrivacyWalletServiceImpl();
   ::grpc::Status PrivacyWalletService(
       ::grpc::ServerContext* context,
       const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,

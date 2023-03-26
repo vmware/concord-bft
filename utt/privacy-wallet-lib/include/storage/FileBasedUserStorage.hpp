@@ -32,12 +32,16 @@ class FileBasedUserStorage : public IStorage {
   void removeCoin(const libutt::api::Coin&) override;
   void startTransaction() override;
   void commit() override;
+  void setUserId(const std::string& user_id) override;
+  void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) override;
 
   libutt::api::types::CurvePoint getClientSideSecret() override;
   libutt::api::types::CurvePoint getSystemSideSecret() override;
   libutt::api::types::Signature getRcmSignature() override;
   std::vector<libutt::api::Coin> getCoins() override;
   std::pair<std::string, std::string> getKeyPair() override;
+  std::string getUserId() override;
+  libutt::api::PublicConfig getUttPublicConfig() override;
 
  protected:
   std::string state_path_;

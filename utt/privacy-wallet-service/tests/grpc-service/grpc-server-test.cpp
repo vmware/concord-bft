@@ -47,12 +47,13 @@ using namespace ::vmware::concord::privacy::wallet::api::v1;
 class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_instance {
  protected:
   void SetUp() override {
+    server_ = std::make_unique<utt::walletservice::PrivacyWalletService>();
     libutt::api::testing::test_utt_instance::setUp(false, false, false);
-    server_.StartServer(grpc_uri_);
+    server_->StartServer(grpc_uri_);
   }
   void TearDown() override {
     fs::remove_all("wallet-db");
-    server_.Shutdown();
+    server_->Shutdown();
   }
 
   std::pair<grpc::Status, PrivacyWalletResponse> configureWallet(size_t index) {
@@ -202,8 +203,18 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
       ASSERT_TRUE(status.ok());
     }
   }
+  void restartServer() {
+    server_->Shutdown();
+    server_.release();
+    server_ = std::make_unique<utt::walletservice::PrivacyWalletService>();
+    // We listen on a different port to avoid Error code 14 : failed to connect to all addresses
+    std::string grpc_uri_2 = "127.0.0.1:50052";
+    server_->StartServer(grpc_uri_2);
+    channel_ = grpc::CreateChannel(grpc_uri_2, grpc::InsecureChannelCredentials());
+    stub_ = ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::NewStub(channel_);
+  }
   const std::string grpc_uri_{"127.0.0.1:50051"};
-  utt::walletservice::PrivacyWalletService server_;
+  std::unique_ptr<utt::walletservice::PrivacyWalletService> server_;
   std::shared_ptr<grpc::Channel> channel_ = grpc::CreateChannel(grpc_uri_, grpc::InsecureChannelCredentials());
   std::unique_ptr<::vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::Stub> stub_ =
       ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletService::NewStub(channel_);
@@ -470,6 +481,15 @@ TEST_F(test_privacy_wallet_grpc_service, test_merge_and_transfer_cycles) {
   ASSERT_EQ(cycles, 3);
 }
 
+TEST_F(test_privacy_wallet_grpc_service, test_server_state_restore) {
+  configureWallet(0);
+  restartServer();
+
+  auto [status2, _] = configureWallet(0);
+  ASSERT_EQ(status2.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+  ASSERT_EQ(status2.error_message(), "wallet is already configured");
+  (void)_;
+}
 }  // namespace
 
 int main(int argc, char** argv) {

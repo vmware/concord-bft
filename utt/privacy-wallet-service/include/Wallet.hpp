@@ -47,8 +47,10 @@ class Wallet {
   uint64_t getBudget() const;
   bool isRegistered() const;
   std::vector<utt::client::CoinDescriptor> getCoinsDescriptors() const;
+  static std::unique_ptr<Wallet> recoverFromStorage(const std::string& storage_path);
 
  private:
+  Wallet() = default;
   std::string userId_;
   std::string private_key_;
   std::unique_ptr<utt::client::User> user_;

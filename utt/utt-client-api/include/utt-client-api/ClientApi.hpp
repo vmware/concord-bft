@@ -58,6 +58,6 @@ std::unique_ptr<User> createUser(const std::string& userId,
                                  std::shared_ptr<IStorage> storage);
 
 // Load an existing user from storage
-std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
+std::unique_ptr<User> loadUserFromStorage(std::shared_ptr<IStorage> storage);
 
 }  // namespace utt::client

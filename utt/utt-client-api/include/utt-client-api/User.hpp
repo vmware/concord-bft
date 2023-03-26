@@ -123,7 +123,7 @@ class User {
                                           const std::string& public_key,
                                           std::shared_ptr<IStorage> storage);
 
-  friend std::unique_ptr<User> loadUserFromStorage(IStorage& storage);
+  friend std::unique_ptr<User> loadUserFromStorage(std::shared_ptr<IStorage> storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
                                              const utt::PublicConfig& config,
@@ -131,7 +131,7 @@ class User {
                                              const std::string& public_key,
                                              std::shared_ptr<IStorage> storage);
 
-  void recoverFromStorage(IStorage& storage);
+  static std::unique_ptr<User> recoverFromStorage(std::shared_ptr<IStorage> storage);
 
   struct Impl;
   std::unique_ptr<Impl> pImpl_;
