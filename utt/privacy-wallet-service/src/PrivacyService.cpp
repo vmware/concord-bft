@@ -22,8 +22,9 @@ using namespace ::vmware::concord::privacy::wallet::api::v1;
 namespace utt::walletservice {
 const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
 
-PrivacyWalletService::PrivacyWalletService() : privacy_wallet_service_(std::make_unique<PrivacyWalletServiceImpl>()) {
+PrivacyWalletService::PrivacyWalletService() {
   utt::client::Initialize();
+  privacy_wallet_service_ = std::make_unique<PrivacyWalletServiceImpl>();
 }
 
 PrivacyWalletService::~PrivacyWalletService() { std::cout << " Destroying privacy wallet service...\n"; }
