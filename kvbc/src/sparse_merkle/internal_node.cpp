@@ -173,8 +173,12 @@ size_t BatchedInternalNode::insertInternalChildren(size_t index,
   return index;
 }
 
-BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(
-    size_t index, Version version, Nibble child_key, size_t prefix_bits_in_common, LeafChild child1, LeafChild child2) {
+BatchedInternalNode::InsertResult BatchedInternalNode::insertTwoLeafChildren(size_t index,
+                                                                             Version version,
+                                                                             Nibble child_key,
+                                                                             size_t prefix_bits_in_common,
+                                                                             const LeafChild& child1,
+                                                                             const LeafChild& child2) {
   size_t child1_index = 0;
   size_t child2_index = 0;
   // prefix_bits_in_common start from MSB. At most there can be 3 bits in common
