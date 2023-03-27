@@ -93,7 +93,8 @@ inline bool createColumnFamilyIfNotExisting(const std::string &cf, storage::rock
   return false;
 }
 
-inline void sortAndRemoveDuplicates(std::vector<std::string> &vec) {
+template <typename T>
+inline void sortAndRemoveDuplicates(T &vec) {
   std::sort(vec.begin(), vec.end());
   vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }

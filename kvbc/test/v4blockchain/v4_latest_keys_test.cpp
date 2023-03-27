@@ -25,6 +25,7 @@
 #include "categorization/db_categories.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "rocksdb/native_client.h"
+#include "util/string.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
@@ -148,6 +149,244 @@ TEST(column_family, set_filter) {
     auto options = db->columnFamilyOptions(v4blockchain::detail::LATEST_KEYS_CF);
     ASSERT_NE(options.compaction_filter, nullptr);
     ASSERT_EQ(std::string(options.compaction_filter->Name()), std::string("LatestKeysCompactionFilter"));
+  }
+}
+
+TEST_F(v4_kvbc, throw_on_adding_overlap_to_range_delete) {
+  categorization::BlockMerkleUpdates merkle_updates;
+  std::vector<std::pair<std::string, std::string>> ranges = {{"a", "b"}, {"d", "dg"}, {"m", "q"}};
+  for (const auto& [k, v] : ranges) {
+    merkle_updates.addRangeDelete(std::string(k), std::string(v));
+  }
+
+  std::mt19937 rgen;
+  std::uniform_int_distribution<uint32_t> char_dist(97, 122);
+  std::uniform_int_distribution<uint32_t> string_length_dist(1, 10);
+  int hit = 0;
+  int miss = 0;
+  for (int i = 0; i < 1000; ++i) {
+    std::string key;
+    uint64_t length = (uint64_t)string_length_dist(rgen);
+    for (uint64_t j = 0; j < length; ++j) {
+      bool isWithin = false;
+      key.push_back((char)char_dist(rgen));
+      for (const auto& [start, end] : ranges) {
+        if (concord::util::isWithinRange(key, start, end)) {
+          isWithin = true;
+        }
+      }
+      if (isWithin) {
+        ++hit;
+        ASSERT_THROW(merkle_updates.addUpdate(std::string(key), std::string{"val"}), std::logic_error);
+      } else {
+        ++miss;
+        merkle_updates.addUpdate(std::string(key), std::string{"val"});
+      }
+    }
+  }
+}
+
+TEST_F(v4_kvbc, range_delete_markers) {
+  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  std::string cat = "merkle";
+  auto cat_prefix = latest_keys.getCategoryPrefix(cat);
+
+  categorization::BlockMerkleUpdates merkle_updates;
+  categorization::Updates updates;
+  std::vector<std::pair<std::string, std::string>> ranges = {{"a", "b"}, {"stam", "end"}, {"start", "end"}};
+  merkle_updates.addUpdate(std::string("key1"), std::string("val1"));
+  for (const auto& [k, v] : ranges) {
+    merkle_updates.addRangeDelete(std::string(k), std::string(v));
+  }
+
+  auto wb = db->getBatch();
+  updates.add(cat, std::move(merkle_updates));
+  latest_keys.addBlockKeys(updates, 1, wb);
+  db->write(std::move(wb));
+
+  auto opt_val = latest_keys.getValue(cat, "key1");
+  ASSERT_TRUE(opt_val.has_value());
+
+  auto itr = db->getIterator(v4blockchain::detail::LATEST_KEYS_CF);
+  itr.seekAtLeast(latest_keys.RANGE_DELETE_PREFIX);
+  int i = 0;
+  while (itr && itr.keyView().substr(0, 1) == latest_keys.RANGE_DELETE_PREFIX) {
+    auto [db_start, db_end] = latest_keys.extractRange(itr);
+    auto [start, end] = ranges[i++];
+    ASSERT_EQ(cat_prefix + start, db_start);
+    ASSERT_EQ(cat_prefix + end, db_end);
+    itr.next();
+  }
+  ASSERT_EQ(i, ranges.size());
+}
+
+TEST_F(v4_kvbc, apply_range_delete_simple) {
+  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  std::string cat = "merkle";
+  auto cat_prefix = latest_keys.getCategoryPrefix(cat);
+
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    std::vector<std::pair<std::string, std::string>> ranges = {
+        {"abc", "val1"}, {"abd", "val2"}, {"aberer", "val3"}, {"abf", "val4"}};
+    for (const auto& [k, v] : ranges) {
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+    auto wb = db->getBatch();
+    updates.add(cat, std::move(merkle_updates));
+    latest_keys.addBlockKeys(updates, 1, wb);
+    db->write(std::move(wb));
+
+    for (const auto& [k, v] : ranges) {
+      auto opt_val = latest_keys.getValue(cat, k);
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+    }
+  }
+
+  {
+    auto opt_val = latest_keys.getValue(cat, "abc");
+    ASSERT_TRUE(opt_val.has_value());
+  }
+
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    merkle_updates.addRangeDelete(std::string("ab"), std::string("abf"));
+
+    auto wb = db->getBatch();
+    updates.add(cat, std::move(merkle_updates));
+    latest_keys.addBlockKeys(updates, 2, wb);
+    db->write(std::move(wb));
+  }
+
+  latest_keys.ApplyRangeDelete();
+
+  {
+    auto opt_val = latest_keys.getValue(cat, "abc");
+    ASSERT_FALSE(opt_val.has_value());
+  }
+
+  {
+    auto opt_val = latest_keys.getValue(cat, "abf");
+    ASSERT_TRUE(opt_val.has_value());
+  }
+
+  {
+    auto itr = db->getIterator(v4blockchain::detail::LATEST_KEYS_CF);
+    itr.seekAtLeast(latest_keys.RANGE_DELETE_PREFIX);
+    int i = 0;
+    while (itr && itr.keyView().substr(0, 1) == latest_keys.RANGE_DELETE_PREFIX) {
+      ++i;
+      itr.next();
+    }
+    ASSERT_EQ(i, 0);
+  }
+
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    std::vector<std::pair<std::string, std::string>> ranges = {{"abc", "val1"}, {"abd", "val2"}, {"aberer", "val3"}};
+    for (const auto& [k, v] : ranges) {
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+    auto wb = db->getBatch();
+    updates.add(cat, std::move(merkle_updates));
+    latest_keys.addBlockKeys(updates, 3, wb);
+    db->write(std::move(wb));
+
+    for (const auto& [k, v] : ranges) {
+      auto opt_val = latest_keys.getValue(cat, k);
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+    }
+  }
+}
+
+TEST_F(v4_kvbc, apply_range_delete_automated) {
+  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  std::string cat = "merkle";
+  auto cat_prefix = latest_keys.getCategoryPrefix(cat);
+  char hex[15] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'e', 'f'};
+  std::vector<std::pair<std::string, std::string>> kvs;
+  std::mt19937 rgen;
+  std::uniform_int_distribution<uint32_t> char_dist(0, 15);
+  std::uniform_int_distribution<uint32_t> string_length_dist(30, 60);
+
+  std::string start;
+  std::string end;
+
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    std::string val{"val"};
+    for (int i = 0; i < 1000; ++i) {
+      std::string key;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        key.push_back(hex[ch]);
+      }
+      kvs.push_back({key, val});
+    }
+    for (const auto& [k, v] : kvs) {
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+    auto wb = db->getBatch();
+    updates.add(cat, std::move(merkle_updates));
+    latest_keys.addBlockKeys(updates, 1, wb);
+    db->write(std::move(wb));
+
+    for (const auto& [k, v] : kvs) {
+      auto opt_val = latest_keys.getValue(cat, k);
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+    }
+  }
+
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    std::string str;
+    std::string str2;
+    auto length = string_length_dist(rgen);
+    for (uint32_t j = 0; j < length; ++j) {
+      auto ch = char_dist(rgen);
+      str.push_back(hex[ch]);
+    }
+    for (uint32_t j = 0; j < length; ++j) {
+      auto ch = char_dist(rgen);
+      str2.push_back(hex[ch]);
+    }
+    if (str < str2) {
+      start = str;
+      end = str2;
+    } else {
+      start = str2;
+      end = str;
+    }
+    merkle_updates.addRangeDelete(std::string(start), std::string(end));
+
+    auto wb = db->getBatch();
+    updates.add(cat, std::move(merkle_updates));
+    latest_keys.addBlockKeys(updates, 2, wb);
+    db->write(std::move(wb));
+  }
+
+  latest_keys.ApplyRangeDelete();
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = latest_keys.getValue(cat, k);
+    if (concord::util::isWithinRange(k, start, end)) {
+      ASSERT_FALSE(opt_val.has_value());
+    } else {
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+    }
   }
 }
 

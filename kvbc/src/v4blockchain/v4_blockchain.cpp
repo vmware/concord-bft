@@ -95,6 +95,9 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
                              << " size of final block is " << write_batch.size() << " total bytes written to stroage "
                              << total_size);
   auto sequence_number = future_seq_num_.get();
+  if (sequence_number > last_block_sn_) {
+    latest_keys_.ApplyRangeDelete(&block_chain_);
+  }
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(block_id);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);
@@ -474,6 +477,7 @@ void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, const ca
   state_transfer_chain_.deleteBlock(block_id, write_batch);
   auto new_block_id = add(updates, block, write_batch);
   native_client_->write(std::move(write_batch));
+  latest_keys_.ApplyRangeDelete();
   block_chain_.setBlockId(new_block_id);
   pruneOnSTLink(updates);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);

@@ -22,6 +22,7 @@
 #include "util/endianness.hpp"
 #include "util/hex_tools.hpp"
 #include "rocksdb/snapshot.h"
+#include "v4blockchain/detail/blockchain.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 
@@ -47,8 +48,9 @@ class LatestKeys {
   // E.L need to be used with compaction filter
   static constexpr Flags STALE_ON_UPDATE = {0x1};
   static constexpr size_t FLAGS_SIZE = STALE_ON_UPDATE.size();
-  static constexpr size_t VERSION_SIZE = sizeof(std::uint64_t);
+  static constexpr size_t VERSION_SIZE = sizeof(BlockId);
   static constexpr size_t VALUE_POSTFIX_SIZE = VERSION_SIZE + FLAGS_SIZE;
+  const std::string RANGE_DELETE_PREFIX{v4blockchain::detail::Categories::PREFIX_START - 1};
   LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&,
              const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>&);
   void addBlockKeys(const concord::kvbc::categorization::Updates&, BlockId, storage::rocksdb::NativeWriteBatch&);
@@ -139,6 +141,8 @@ class LatestKeys {
   }
 
   const std::string& getColumnFamilyFromCategory(const std::string& category_id) const;
+  // This filter is used to delete stale on update keys if their version is smaller than the genesis block
+  // It's being called by RocksDB on compaction
   struct LKCompactionFilter : ::rocksdb::CompactionFilter {
     static ::rocksdb::CompactionFilter* getFilter() {
       static LKCompactionFilter instance;
@@ -155,10 +159,38 @@ class LatestKeys {
 
   void setDeletedKeysMetric(concordMetrics::CounterHandle* m) { deleted_keys_ = m; }
 
- private:
-  // This filter is used to delete stale on update keys if their version is smaller than the genesis block
-  // It's being called by RocksDB on compaction
+  //////////////// Range Delete//////////////////////////////
+  // Apply any range-delete that was written to storage as part of block addition.
+  // Apply should be called on a stable state of the storage i.e. recovery will not be called on crash.
+  void ApplyRangeDelete(v4blockchain::detail::Blockchain* blockchain = nullptr);
 
+  // Extracts the [start,end) of a range-delete marker that was written to storage as part of block addition
+  std::pair<std::string_view, std::string_view> extractRange(concord::storage::rocksdb::NativeIterator& itr) const;
+
+  // Restore updates that were added to storage after the range-delete marker, but were deleted since
+  // the call to ApplyRangeDelete has been performed after adding them.
+  void restoreUpdatesAfterRangeDelete(const concord::kvbc::categorization::BlockMerkleInput& updates,
+                                      std::string_view start_range,
+                                      std::string_view end_range,
+                                      storage::rocksdb::NativeWriteBatch& write_batch,
+                                      const std::string& category_prefix,
+                                      const std::string& block_id);
+
+  void restoreUpdatesAfterRangeDelete(const concord::kvbc::categorization::VersionedInput& updates,
+                                      std::string_view start_range,
+                                      std::string_view end_range,
+                                      storage::rocksdb::NativeWriteBatch& write_batch,
+                                      const std::string& category_prefix,
+                                      const std::string& block_id);
+
+  void restoreUpdatesAfterRangeDelete(const concord::kvbc::categorization::ImmutableInput& updates,
+                                      std::string_view start_range,
+                                      std::string_view end_range,
+                                      storage::rocksdb::NativeWriteBatch& write_batch,
+                                      const std::string& category_prefix,
+                                      const std::string& block_id);
+
+ private:
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   v4blockchain::detail::Categories category_mapping_;
   concordMetrics::CounterHandle* deleted_keys_{nullptr};
