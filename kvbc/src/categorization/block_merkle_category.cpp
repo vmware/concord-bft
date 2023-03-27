@@ -71,12 +71,12 @@ VersionedKey leafKeyToVersionedKey(const sparse_merkle::LeafKey& leaf_key) {
 // favor of the one immediately below it.
 BatchedInternalNodeKey toBatchedInternalNodeKey(const sparse_merkle::InternalNodeKey& key) {
   auto path = NibblePath{static_cast<uint8_t>(key.path().length()), key.path().data()};
-  return BatchedInternalNodeKey{key.address(), key.version().value(), std::move(path)};
+  return BatchedInternalNodeKey{key.address().value(), key.version().value(), std::move(path)};
 }
 
 BatchedInternalNodeKey toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey&& key) {
   auto path = NibblePath{static_cast<uint8_t>(key.path().length()), key.path().move_data()};
-  return BatchedInternalNodeKey{key.address(), key.version().value(), std::move(path)};
+  return BatchedInternalNodeKey{key.address().value(), key.version().value(), std::move(path)};
 }
 
 std::vector<uint8_t> rootKey(uint64_t version, const std::string& address = "") {

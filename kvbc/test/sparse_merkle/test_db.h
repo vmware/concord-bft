@@ -27,8 +27,8 @@ class TestDB : public IDBReader {
     ConcordAssert(internal_nodes_.find(key) == internal_nodes_.end());
 
     internal_nodes_[key] = val;
-    if (latest_version_[key.address()] < key.version()) {
-      latest_version_[key.address()] = key.version();
+    if (latest_version_[key.address().value()] < key.version()) {
+      latest_version_[key.address().value()] = key.version();
     }
   }
 

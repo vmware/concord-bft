@@ -101,7 +101,7 @@ void remove(Walker& walker, const Hash& key_hash) {
 
     if (auto rv = std::get_if<BatchedInternalNode::RemoveComplete>(&result)) {
       histograms.remove_depth->record(walker.depth());
-      auto stale = LeafKey(key_hash, rv->version);
+      auto stale = LeafKey(key_hash, rv->version, walker.address());
       return walker.ascendToRoot(stale);
     }
 
@@ -111,7 +111,7 @@ void remove(Walker& walker, const Hash& key_hash) {
     }
 
     if (auto rv = std::get_if<BatchedInternalNode::RemoveBatchedInternalNode>(&result)) {
-      walker.markStale(LeafKey(key_hash, rv->removed_version));
+      walker.markStale(LeafKey(key_hash, rv->removed_version, walker.address()));
       return removeBatchedInternalNode(walker, rv->promoted);
     }
 
@@ -169,7 +169,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
       leaf_hash = hasher.hash(val.data(), val.length());
     }
     LeafNode leaf_node{val};
-    LeafKey leaf_key{hasher.hash(key.data(), key.length()), version};
+    LeafKey leaf_key{hasher.hash(key.data(), key.length()), version, address_};
     LeafChild child{leaf_hash, leaf_key};
     Walker walker(cache, address_);
     insert(walker, child);

@@ -56,6 +56,8 @@ class Walker {
 
   void insertEmptyRootAtCurrentVersion();
 
+  const std::string& address() const { return address_; }
+
  private:
   void ascend();
   std::pair<Nibble, Hash> pop();
