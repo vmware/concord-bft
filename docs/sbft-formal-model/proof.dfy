@@ -657,6 +657,8 @@ module Proof {
     reveal_EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares();
     reveal_TemporarilyDisableCheckpointing();
     reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
+    reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
+
     if (h_step.SendCommitStep?) {
     forall commitMsg | && commitMsg in v'.network.sentMsgs 
                            && commitMsg.payload.Commit? 
@@ -671,25 +673,11 @@ module Proof {
       {
         var h_c := c.hosts[commitMsg.sender].replicaConstants;
         var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
-        if(commitMsg in v.network.sentMsgs) {
-          assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v);
-          assert |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum();
-        } else {
-          assert Replica.QuorumOfPrepares(h_c, h_v', h_step.seqID);
-          assert step.id == commitMsg.sender;
-          CountPrepareMessagesInWorkingWindow(c, v, commitMsg.sender, h_step.seqID);
-          CountPrepareMessages2(h_c, h_v, h_step.seqID);
-          assert |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v', commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum();
+        if(commitMsg !in v.network.sentMsgs) {
+          // CountPrepareMessagesInWorkingWindow(c, v, commitMsg.sender, h_step.seqID);
+          CountPrepareMessages2(c, v, commitMsg.sender, h_c, h_v, h_step.seqID);
         }
       }
-
-
-
-
-      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
-    } else if (h_step.AdvanceWorkingWindowStep?) {
-      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
-    } else if(h_step.PerformStateTransferStep?) {
       assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
     } else if(h_step.RecvPrepareStep?) {
       var h_c := c.hosts[step.id].replicaConstants;
@@ -710,15 +698,14 @@ module Proof {
         var committer_v := v.hosts[commitMsg.sender].replicaVariables;
         var committer_v' := v'.hosts[commitMsg.sender].replicaVariables;
         if(commitMsg.sender == step.id) {
-          CountPrepareMessages2(committer_c, committer_v, seqID);
+          forall p | p in Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, seqID)
+                  ensures p in Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', seqID) {
+            assert p.sender in committer_v'.workingWindow.preparesRcvd[seqID]; // Trigger
+          }
           Library.SubsetCardinality(Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, seqID),
                                     Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v', seqID));
-        } else {
-          assert committer_v == committer_v';
         }
       }
-      assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
-    } else if(h_step.LeaveViewStep?) {
       assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
     } else {
       assert EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v');
@@ -785,10 +772,34 @@ module Proof {
     //                  && v.hosts[replicaId].replicaVariables.workingWindow.preparesRcvd[seqID][sender].sender == sender;
   }
 
-  lemma CountPrepareMessages2(h_c:Replica.Constants, h_v:Replica.Variables, seqID:Messages.SequenceID)
+  lemma CountPrepareMessages2(c:Constants, v:Variables, replicaID:HostId, h_c:Replica.Constants, h_v:Replica.Variables, seqID:Messages.SequenceID)
+    requires v.WF(c)
+    requires IsHonestReplica(c, replicaID)
+    requires h_c == c.hosts[replicaID].replicaConstants
+    requires h_v == v.hosts[replicaID].replicaVariables
+    requires seqID in h_v.workingWindow.getActiveSequenceIDs(h_c)
+    requires RecordedPreparesHaveValidSenderID(c, v)
     ensures |Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, seqID)| == |h_v.workingWindow.preparesRcvd[seqID]|
   {
-    assume false;
+    var senders := h_v.workingWindow.preparesRcvd[seqID].Keys;
+    var f := sender requires sender in senders => h_v.workingWindow.preparesRcvd[seqID][sender];
+     forall x, y | && x in senders
+                           && y in senders
+                           && f(x) == f(y)
+                        ensures x == y {
+      reveal_RecordedPreparesHaveValidSenderID();
+      assert c.clusterConfig.IsReplica(x); // Trigger
+      assert c.clusterConfig.IsReplica(y); // Trigger
+    }
+    var filtered := set x | x in senders :: f(x);
+    var filtered2 := set x | x in senders :: f(x);
+    assert filtered == filtered2;
+
+    MappedSetCardinality(senders, f, filtered);
+    assert |senders| == |filtered|;
+    assert h_v.workingWindow.preparesRcvd[seqID].Keys == senders;
+    assert |h_v.workingWindow.preparesRcvd[seqID]|  == |h_v.workingWindow.preparesRcvd[seqID].Keys|;
+    assert Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, seqID) == filtered;
   }
 
   lemma HonestPreservesEveryPrepareClientOpMatchesRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
