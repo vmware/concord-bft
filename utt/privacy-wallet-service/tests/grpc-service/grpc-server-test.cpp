@@ -205,7 +205,7 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
   }
   void restartServer() {
     server_->Shutdown();
-    server_.release();
+    (void)server_.release();
     server_ = std::make_unique<utt::walletservice::PrivacyWalletService>();
     // We listen on a different port to avoid Error code 14 : failed to connect to all addresses
     std::string grpc_uri_2 = "127.0.0.1:50052";
