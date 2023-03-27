@@ -155,9 +155,10 @@ TEST(key_manipulator, extract_key_from_non_provable_stale_key) {
 TEST(key_manipulator, data_key_leaf) {
   const auto leafKey = LeafKey{defaultHash, defaultVersion};
   const auto key = DBKeyManipulator::genDataDbKey(leafKey);
+  std::string emptyAddress(concord::kvbc::sparse_merkle::PaddedAddress::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(leafKey.version().value()));
-  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8);
+                                 serializeIntegral(leafKey.version().value()) + emptyAddress);
+  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 
@@ -166,9 +167,10 @@ TEST(key_manipulator, data_key_leaf) {
 TEST(key_manipulator, data_key_sliver) {
   const auto version = 42ul;
   const auto key = DBKeyManipulator::genDataDbKey(defaultSliver, version);
+  std::string emptyAddress(concord::kvbc::sparse_merkle::PaddedAddress::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(version));
-  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8);
+                                 serializeIntegral(version) + emptyAddress);
+  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 
@@ -316,7 +318,7 @@ TEST(key_manipulator, stale_db_key_leaf) {
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genDataDbKey(leafKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 32 + 8);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 
