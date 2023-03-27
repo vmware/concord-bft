@@ -68,9 +68,9 @@ class Client;
  */
 
 class RocksDbStorageMetrics {
-  static constexpr size_t update_metrics_interval_millisec = 50;  // every 100msec
+  static constexpr size_t update_metrics_interval_millisec = 100;  // every 100msec
   static constexpr size_t update_mem_usage_metrics_factor =
-      1;  // update_metrics_interval_millisec * 600 = every 1 minute
+      600;  // update_metrics_interval_millisec * 600 = every 1 minute
 
  public:
   concordMetrics::Component metrics_;
