@@ -53,7 +53,7 @@ creParams setupCreParams(int argc, char** argv) {
                                         {"use-unified-certs", optional_argument, 0, 'U'},
                                         {0, 0, 0, 0}};
   creParams cre_param;
-  cre_param.replicasKeysFolder = "./replicas_rsa_keys";
+  cre_param.replicasKeysFolder = "./replicas_main_keys";
   ClientConfig& client_config = cre_param.bftConfig;
   int o = 0;
   int optionIndex = 0;

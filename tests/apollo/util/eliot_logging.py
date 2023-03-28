@@ -56,11 +56,12 @@ def set_file_destination():
         latest_shortcut.unlink()
     latest_shortcut.symlink_to(target=Path(f'../{relative_current_run_logs}'), target_is_directory=True)
 
+    # Set the log file path
+    to_file(open(test_log, "a+"))
 
     test_log_file = open(test_log, "a+")
     to_file(test_log_file)
     atexit.register(lambda: test_log_file.close())
-
 
 def format_eliot_message(message):
     if message.get("action_status", "") == "succeeded":
