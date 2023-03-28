@@ -101,6 +101,23 @@ message GetStateResponse {
     map<string, uint64> coins = 4;
 }
 
+message SetAppDataRequest {
+    string key = 1;
+    string value = 2;
+}
+
+message SetAppDataResponse {
+    bool succ = 1;
+}
+
+message GetAppDataRequest {
+    string key = 1;
+}
+
+message GetAppDataResponse {
+    string value= 1;
+}
+
 message PrivacyWalletRequest {
     oneof req {
         PrivacyAppConfigRequest privacy_app_config = 1;
