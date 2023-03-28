@@ -26,12 +26,13 @@ class IProofProcessor {
  public:
   virtual ~IProofProcessor() = default;
 
+  // Initialize with proper parameters.
   virtual void Init(uint numVersionsStored) = 0;
-
+  // Process all the updates that will be persisted.
   virtual void ProcessUpdates(const categorization::Updates& updates) = 0;
-
+  // Get a serialized object serving as proof for correctness.
   virtual std::string GetProof(const std::string& key) = 0;
-
+  // In case of async processing we use this call to sync and wait for all async tasks to complete.
   virtual void WaitForScheduledTasks() = 0;
 };
 
