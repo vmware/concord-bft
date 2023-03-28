@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 #include "categorization/updates.h"
-#include "proof_builder/IProofBuilder.h"
+#include "proof_processor/IProofProcessor.h"
 #include "util/sliver.hpp"
 
 namespace concord {
@@ -24,27 +24,27 @@ namespace kvbc {
 namespace sparse_merkle {
 
 // This is an interface used for managing a set of Merle trees' storage.
-class IMerkleBuilder : public IProofBuilder {
+class IMerkleProcessor : public IProofProcessor {
  public:
   using address = concordUtils::Sliver;
   static const unsigned int address_size = 20;
   using value = std::array<unsigned char, 32>;
 
-  virtual ~IMerkleBuilder() = default;
+  virtual ~IMerkleProcessor() = default;
 
-  virtual void Init(uint numVersionsStored) override = 0;  // from IProofBuilder
+  virtual void Init(uint numVersionsStored) override = 0;  // from IProofProcessor
 
   virtual void BeginVersionUpdateBatch() = 0;
   virtual void UpdateAccountTree(const address& addr, const std::string& key, const value& data) = 0;
   virtual void CommitVersionUpdateBatch() = 0;
 
-  virtual void ProcessUpdates(const categorization::Updates& updates) override = 0;  // from IProofBuilder
+  virtual void ProcessUpdates(const categorization::Updates& updates) override = 0;  // from IProofProcessor
 
   virtual std::vector<std::string> GetAccountMerkleRootPath(const address& addr) = 0;
   virtual std::vector<std::string> GetAccountStorageKeyMerklePath(const address& addr, const std::string& key) = 0;
-  virtual std::string GetProof(const std::string& key) override = 0;  // from IProofBuilder
+  virtual std::string GetProof(const std::string& key) override = 0;  // from IProofProcessor
   virtual bool VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) = 0;
-  virtual void WaitForScheduledTasks() override = 0;  // from IProofBuilder
+  virtual void WaitForScheduledTasks() override = 0;  // from IProofProcessor
 };
 
 }  // namespace sparse_merkle

@@ -20,7 +20,7 @@
 #include "v4blockchain/detail/categories.h"
 #include <rocksdb/compaction_filter.h>
 #include "rocksdb/snapshot.h"
-#include "proof_builder/IProofBuilder.h"
+#include "proof_processor/IProofProcessor.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 
@@ -30,10 +30,10 @@ class VerifiabilityManagementLayer {
  public:
   VerifiabilityManagementLayer();
 
-  IProofBuilder* getBuilder() { return proofBuilder_.get(); }
+  IProofProcessor* getProcessor() { return proofProcessor_.get(); }
 
  private:
-  std::unique_ptr<IProofBuilder> proofBuilder_;
+  std::unique_ptr<IProofProcessor> proofProcessor_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

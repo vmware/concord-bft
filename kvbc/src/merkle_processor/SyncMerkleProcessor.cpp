@@ -10,7 +10,7 @@
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
-#include "merkle_builder/SyncMerkleBuilder.h"
+#include "merkle_processor/SyncMerkleProcessor.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "util/hex_tools.hpp"
 
@@ -20,34 +20,34 @@ namespace sparse_merkle {
 
 using concordUtils::bufferToHex;
 
-void SyncMerkleBuilder::Init(uint numVersionsStored) {}
+void SyncMerkleProcessor::Init(uint numVersionsStored) {}
 
-void SyncMerkleBuilder::BeginVersionUpdateBatch() {}
+void SyncMerkleProcessor::BeginVersionUpdateBatch() {}
 
-void SyncMerkleBuilder::UpdateAccountTree(const address& addr, const std::string& key, const value& data) {
+void SyncMerkleProcessor::UpdateAccountTree(const address& addr, const std::string& key, const value& data) {
   LOG_INFO(V4_BLOCK_LOG,
-           "MerkleBuilder: UpdateAccountTree(addr=" << bufferToHex(addr.data(), sizeof(addr))
+           "MerkleProcessor: UpdateAccountTree(addr=" << bufferToHex(addr.data(), sizeof(addr))
                                                     << ", key=" << bufferToHex(key.c_str(), key.size()));
 }
 
-void SyncMerkleBuilder::CommitVersionUpdateBatch() {
-  LOG_INFO(V4_BLOCK_LOG, "MerkleBuilder: CommitVersionUpdateBatch");
+void SyncMerkleProcessor::CommitVersionUpdateBatch() {
+  LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: CommitVersionUpdateBatch");
 }
 
-std::vector<std::string> SyncMerkleBuilder::GetAccountMerkleRootPath(const address& addr) { return {}; }
+std::vector<std::string> SyncMerkleProcessor::GetAccountMerkleRootPath(const address& addr) { return {}; }
 
-std::vector<std::string> SyncMerkleBuilder::GetAccountStorageKeyMerklePath(const address& addr,
+std::vector<std::string> SyncMerkleProcessor::GetAccountStorageKeyMerklePath(const address& addr,
                                                                            const std::string& key) {
   return {};
 }
 
-std::string SyncMerkleBuilder::GetProof(const std::string& key) { return {}; }
+std::string SyncMerkleProcessor::GetProof(const std::string& key) { return {}; }
 
-bool SyncMerkleBuilder::VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) {
+bool SyncMerkleProcessor::VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) {
   return true;
 }
 
-void SyncMerkleBuilder::WaitForScheduledTasks() {}
+void SyncMerkleProcessor::WaitForScheduledTasks() {}
 
 }  // namespace sparse_merkle
 }  // namespace kvbc

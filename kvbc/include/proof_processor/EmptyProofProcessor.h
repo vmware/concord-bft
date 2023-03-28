@@ -12,27 +12,22 @@
 
 #pragma once
 
-//#include <stdint.h>
-#include <string>
-#include <vector>
-#include "categorization/updates.h"
-#include "util/sliver.hpp"
+#include "IProofProcessor.h"
+#include "kvbc_app_filter/kvbc_key_types.h"
 
 namespace concord {
 namespace kvbc {
 
-// This is an interface of a general proof builder.
-class IProofBuilder {
+class EmptyProofProcessor : public IProofProcessor {
  public:
-  virtual ~IProofBuilder() = default;
+  virtual ~EmptyProofProcessor() = default;
 
-  virtual void Init(uint numVersionsStored) = 0;
+  virtual void Init(uint numVersionsStored) override {}
 
-  virtual void ProcessUpdates(const categorization::Updates& updates) = 0;
+  virtual void ProcessUpdates(const categorization::Updates& updates) override {}
 
-  virtual std::string GetProof(const std::string& key) = 0;
-
-  virtual void WaitForScheduledTasks() = 0;
+  virtual std::string GetProof(const std::string& key) override { return {}; }
+  virtual void WaitForScheduledTasks() override {}
 };
 
 }  // namespace kvbc

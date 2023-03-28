@@ -16,8 +16,8 @@
 #include "log/logger.hpp"
 #include "v4blockchain/detail/blockchain.h"
 #include "rocksdb/details.h"
-#include "proof_builder/EmptyProofBuilder.h"
-#include "merkle_builder/SyncMerkleBuilder.h"
+#include "proof_processor/EmptyProofProcessor.h"
+#include "merkle_processor/SyncMerkleProcessor.h"
 
 using namespace concord::kvbc;
 namespace concord::kvbc::v4blockchain::detail {
@@ -26,9 +26,9 @@ static const int NUM_MAINTAINED_TREE_VERSIONS = 10;
 
 VerifiabilityManagementLayer::VerifiabilityManagementLayer() {
   // TODO: instantiate based on configuration.
-  proofBuilder_ = std::make_unique<EmptyProofBuilder>();
+  proofProcessor_ = std::make_unique<EmptyProofProcessor>();
   // TODO: get configuration parameters from config manager
-  proofBuilder_->Init(NUM_MAINTAINED_TREE_VERSIONS);
+  proofProcessor_->Init(NUM_MAINTAINED_TREE_VERSIONS);
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail

@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "BaseMerkleBuilder.h"
+#include "BaseMerkleProcessor.h"
 
 namespace concord {
 namespace kvbc {
@@ -20,9 +20,9 @@ namespace sparse_merkle {
 
 using concordUtils::bufferToHex;
 
-class SyncMerkleBuilder : public BaseMerkleBuilder {
+class SyncMerkleProcessor : public BaseMerkleProcessor {
  public:
-  virtual ~SyncMerkleBuilder() = default;
+  virtual ~SyncMerkleProcessor() = default;
 
   virtual void Init(uint numVersionsStored) override;
 

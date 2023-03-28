@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "IMerkleBuilder.h"
+#include "IMerkleProcessor.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "categorization/base_types.h"
 
@@ -22,7 +22,7 @@ namespace sparse_merkle {
 
 using Hasher = concord::kvbc::categorization::Hasher;
 
-class BaseMerkleBuilder : public IMerkleBuilder {
+class BaseMerkleProcessor : public IMerkleProcessor {
  public:
   bool needProcessing(char type) const {
     if (type == kKvbKeyEthBalance || type == kKvbKeyEthCode || type == kKvbKeyEthStorage || type == kKvbKeyEthNonce) {
@@ -32,18 +32,19 @@ class BaseMerkleBuilder : public IMerkleBuilder {
   }
 
   address getAddress(const std::string& key) const {
-    ConcordAssert(key.size() > IMerkleBuilder::address_size);  // Include 1 byte indicating key type
-    return address(&key[1], IMerkleBuilder::address_size);
+    ConcordAssert(key.size() > IMerkleProcessor::address_size);  // Include 1 byte indicating key type
+    return address(&key[1], IMerkleProcessor::address_size);
   }
 
   virtual void ProcessUpdates(const categorization::Updates& updates) override {
+    BeginVersionUpdateBatch();
     for (const auto& k : updates.categoryUpdates().kv) {
       if (const categorization::BlockMerkleInput* pval = std::get_if<categorization::BlockMerkleInput>(&k.second)) {
         for (const auto& v : pval->kv) {
           if (needProcessing(v.first[0])) {
             auto hasher = Hasher{};
             const auto value_hash = hasher.digest(v.second.data(), v.second.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleBuilder: categorization::BlockMerkleInput");
+            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::BlockMerkleInput");
             UpdateAccountTree(getAddress(v.first), v.first, value_hash);
           }
         }
@@ -52,7 +53,7 @@ class BaseMerkleBuilder : public IMerkleBuilder {
           if (needProcessing(v.first[0])) {
             auto hasher = Hasher{};
             const auto value_hash = hasher.digest(v.second.data.data(), v.second.data.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleBuilder: categorization::VersionedInput");
+            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::VersionedInput");
             UpdateAccountTree(getAddress(v.first), v.first, value_hash);
           }
         }
@@ -61,7 +62,7 @@ class BaseMerkleBuilder : public IMerkleBuilder {
           if (needProcessing(v.first[0])) {
             auto hasher = Hasher{};
             const auto value_hash = hasher.digest(v.second.data.data(), v.second.data.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleBuilder: categorization::ImmutableInput");
+            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::ImmutableInput");
             UpdateAccountTree(getAddress(v.first), v.first, value_hash);
           }
         }
