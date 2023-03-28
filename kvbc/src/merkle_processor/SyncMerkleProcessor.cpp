@@ -27,7 +27,7 @@ void SyncMerkleProcessor::BeginVersionUpdateBatch() {}
 void SyncMerkleProcessor::UpdateAccountTree(const address& addr, const std::string& key, const value& data) {
   LOG_INFO(V4_BLOCK_LOG,
            "MerkleProcessor: UpdateAccountTree(addr=" << bufferToHex(addr.data(), sizeof(addr))
-                                                    << ", key=" << bufferToHex(key.c_str(), key.size()));
+                                                      << ", key=" << bufferToHex(key.c_str(), key.size()));
 }
 
 void SyncMerkleProcessor::CommitVersionUpdateBatch() {
@@ -37,7 +37,7 @@ void SyncMerkleProcessor::CommitVersionUpdateBatch() {
 std::vector<std::string> SyncMerkleProcessor::GetAccountMerkleRootPath(const address& addr) { return {}; }
 
 std::vector<std::string> SyncMerkleProcessor::GetAccountStorageKeyMerklePath(const address& addr,
-                                                                           const std::string& key) {
+                                                                             const std::string& key) {
   return {};
 }
 
