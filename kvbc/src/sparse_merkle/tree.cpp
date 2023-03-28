@@ -101,7 +101,7 @@ void remove(Walker& walker, const Hash& key_hash) {
 
     if (auto rv = std::get_if<BatchedInternalNode::RemoveComplete>(&result)) {
       histograms.remove_depth->record(walker.depth());
-      auto stale = LeafKey(key_hash, rv->version, walker.address());
+      auto stale = LeafKey(key_hash, rv->version, walker.customPrefix());
       return walker.ascendToRoot(stale);
     }
 
@@ -111,7 +111,7 @@ void remove(Walker& walker, const Hash& key_hash) {
     }
 
     if (auto rv = std::get_if<BatchedInternalNode::RemoveBatchedInternalNode>(&result)) {
-      walker.markStale(LeafKey(key_hash, rv->removed_version, walker.address()));
+      walker.markStale(LeafKey(key_hash, rv->removed_version, walker.customPrefix()));
       return removeBatchedInternalNode(walker, rv->promoted);
     }
 
@@ -133,14 +133,14 @@ UpdateBatch Tree::update(const concord::kvbc::SetOfKeyValuePairs& updates,
   histograms.num_deleted_keys->record(deleted_keys.size());
   TimeRecorder scoped_timer(*histograms.update);
   reset();
-  UpdateCache cache(root_, db_reader_, address_);
+  UpdateCache cache(root_, db_reader_, custom_prefix_);
   return update_impl(updates, deleted_keys, cache);
 }
 
 std::pair<UpdateBatch, UpdateCache> Tree::update_with_cache(const concord::kvbc::SetOfKeyValuePairs& updates,
                                                             const concord::kvbc::KeysVector& deleted_keys) {
   reset();
-  UpdateCache cache(root_, db_reader_, address_);
+  UpdateCache cache(root_, db_reader_, custom_prefix_);
   auto batch = update_impl(updates, deleted_keys, cache);
   return std::make_pair(batch, cache);
 }
@@ -155,7 +155,7 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
   // Deletes come before inserts because it makes more semantic sense. A user can delete a key and then write a new
   // version, but it makes no sense to add a new version and then delete a key.
   for (auto& key : deleted_keys) {
-    Walker walker(cache, address_);
+    Walker walker(cache, custom_prefix_);
     auto key_hash = hasher.hash(key.data(), key.length());
     sparse_merkle::remove(walker, key_hash);
   }
@@ -169,9 +169,9 @@ UpdateBatch Tree::update_impl(const concord::kvbc::SetOfKeyValuePairs& updates,
       leaf_hash = hasher.hash(val.data(), val.length());
     }
     LeafNode leaf_node{val};
-    LeafKey leaf_key{hasher.hash(key.data(), key.length()), version, address_};
+    LeafKey leaf_key{hasher.hash(key.data(), key.length()), version, custom_prefix_};
     LeafChild child{leaf_hash, leaf_key};
-    Walker walker(cache, address_);
+    Walker walker(cache, custom_prefix_);
     insert(walker, child);
     batch.leaf_nodes.emplace_back(leaf_key, leaf_node);
   }

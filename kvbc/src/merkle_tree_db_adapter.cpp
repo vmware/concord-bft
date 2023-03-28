@@ -446,7 +446,7 @@ std::pair<sparse_merkle::UpdateBatch, sparse_merkle::detail::UpdateCache> DBAdap
   return smTree_.update_with_cache(updates, KeysVector{std::cbegin(deletes), std::cend(deletes)});
 }
 
-BatchedInternalNode DBAdapter::Reader::get_latest_root(std::string address) const {
+BatchedInternalNode DBAdapter::Reader::get_latest_root(std::string custom_prefix) const {
   const auto lastBlock = adapter_.getLastReachableBlockId();
   if (lastBlock == 0) {
     return BatchedInternalNode{};
@@ -462,7 +462,7 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root(std::string address) cons
     return BatchedInternalNode{};
   }
 
-  return get_internal(InternalNodeKey::root(address, stateRootVersion));
+  return get_internal(InternalNodeKey::root(custom_prefix, stateRootVersion));
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {

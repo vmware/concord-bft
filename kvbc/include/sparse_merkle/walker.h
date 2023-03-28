@@ -28,7 +28,8 @@ typedef std::stack<BatchedInternalNode, std::vector<BatchedInternalNode>> NodeSt
 // A class for ascending and descending the tree. This is used for updates.
 class Walker {
  public:
-  Walker(UpdateCache& cache, std::string address) : cache_(cache), current_node_(cache.getRoot()), address_(address) {
+  Walker(UpdateCache& cache, std::string custom_prefix)
+      : cache_(cache), current_node_(cache.getRoot()), custom_prefix_(custom_prefix) {
     // Save the version of the root node, in case we only update the root node.
     stale_version_ = current_node_.version();
   }
@@ -56,7 +57,7 @@ class Walker {
 
   void insertEmptyRootAtCurrentVersion();
 
-  const std::string& address() const { return address_; }
+  const std::string& customPrefix() const { return custom_prefix_; }
 
  private:
   void ascend();
@@ -76,7 +77,7 @@ class Walker {
   NodeStack stack_;
   BatchedInternalNode current_node_;
   NibblePath nibble_path_;
-  std::string address_;
+  std::string custom_prefix_;
 };
 
 }  // namespace detail

@@ -27,16 +27,16 @@ class TestDB : public IDBReader {
     ConcordAssert(internal_nodes_.find(key) == internal_nodes_.end());
 
     internal_nodes_[key] = val;
-    if (latest_version_[key.address().value()] < key.version()) {
-      latest_version_[key.address().value()] = key.version();
+    if (latest_version_[key.customPrefix().value()] < key.version()) {
+      latest_version_[key.customPrefix().value()] = key.version();
     }
   }
 
-  BatchedInternalNode get_latest_root(std::string address = "") const override {
-    if (latest_version_.find(address) == latest_version_.end()) {
+  BatchedInternalNode get_latest_root(std::string custom_prefix = "") const override {
+    if (latest_version_.find(custom_prefix) == latest_version_.end()) {
       return BatchedInternalNode();
     }
-    auto root_key = InternalNodeKey::root(address, latest_version_.at(address));
+    auto root_key = InternalNodeKey::root(custom_prefix, latest_version_.at(custom_prefix));
     return internal_nodes_.at(root_key);
   }
 

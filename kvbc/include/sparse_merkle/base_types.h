@@ -53,8 +53,8 @@ class Version {
   Type value_ = 0;
 };
 
-// A type safe address wrapper
-class Address {
+// A type safe custom prefix wrapper
+class CustomPrefix {
  public:
   using Type = std::string;
   using SIZE_PREFIX_TYPE = std::uint8_t;
@@ -63,41 +63,41 @@ class Address {
   static constexpr auto TOTAL_SIZE = SIZE_PREFIX_BYTES + SIZE_IN_BYTES;
 
  public:
-  Address() = default;
-  Address(size_t size) {
+  CustomPrefix() = default;
+  CustomPrefix(size_t size) {
     ConcordAssert(size <= SIZE_IN_BYTES);
-    addr_.assign('\0', size);
+    prefix_.assign('\0', size);
   }
-  Address(const Type& val) : addr_(val) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
-  Address(Type&& val) : addr_(std::move(val)) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
+  CustomPrefix(const Type& val) : prefix_(val) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
+  CustomPrefix(Type&& val) : prefix_(std::move(val)) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
 
   void set(std::uint8_t pos, char c) {
-    ConcordAssert(pos < addr_.size());
-    addr_[pos] = c;
+    ConcordAssert(pos < prefix_.size());
+    prefix_[pos] = c;
   }
   char get(std::uint8_t pos) const {
-    ConcordAssert(pos < addr_.size());
-    return addr_[pos];
+    ConcordAssert(pos < prefix_.size());
+    return prefix_[pos];
   }
-  bool operator==(const Address& other) const { return addr_ == other.addr_; }
-  bool operator!=(const Address& other) const { return addr_ != other.addr_; }
-  bool operator<(const Address& other) const { return addr_ < other.addr_; }
+  bool operator==(const CustomPrefix& other) const { return prefix_ == other.prefix_; }
+  bool operator!=(const CustomPrefix& other) const { return prefix_ != other.prefix_; }
+  bool operator<(const CustomPrefix& other) const { return prefix_ < other.prefix_; }
 
-  const Type& value() const { return addr_; }
-  size_t size() const { return addr_.size(); }
+  const Type& value() const { return prefix_; }
+  size_t size() const { return prefix_.size(); }
 
  protected:
-  Type addr_;
+  Type prefix_;
 };
 
-class PaddedAddress : public Address {
+class PaddedCustomPrefix : public CustomPrefix {
  public:
   template <class T>
-  PaddedAddress(T&& arg) : Address(std::forward<T>(arg)) {}
+  PaddedCustomPrefix(T&& arg) : CustomPrefix(std::forward<T>(arg)) {}
   char get(std::uint8_t pos) const {
     ConcordAssert(pos < SIZE_IN_BYTES);
-    if (pos < addr_.size()) {
-      return addr_[pos];
+    if (pos < prefix_.size()) {
+      return prefix_[pos];
     } else {
       return '\0';
     }

@@ -155,9 +155,9 @@ TEST(key_manipulator, extract_key_from_non_provable_stale_key) {
 TEST(key_manipulator, data_key_leaf) {
   const auto leafKey = LeafKey{defaultHash, defaultVersion};
   const auto key = DBKeyManipulator::genDataDbKey(leafKey);
-  std::string emptyAddress(concord::kvbc::sparse_merkle::PaddedAddress::TOTAL_SIZE, '\0');
+  std::string emptyCustomPrefix(concord::kvbc::sparse_merkle::PaddedCustomPrefix::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(leafKey.version().value()) + emptyAddress);
+                                 serializeIntegral(leafKey.version().value()) + emptyCustomPrefix);
   ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
@@ -167,9 +167,9 @@ TEST(key_manipulator, data_key_leaf) {
 TEST(key_manipulator, data_key_sliver) {
   const auto version = 42ul;
   const auto key = DBKeyManipulator::genDataDbKey(defaultSliver, version);
-  std::string emptyAddress(concord::kvbc::sparse_merkle::PaddedAddress::TOTAL_SIZE, '\0');
+  std::string emptyCustomPrefix(concord::kvbc::sparse_merkle::PaddedCustomPrefix::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(version) + emptyAddress);
+                                 serializeIntegral(version) + emptyCustomPrefix);
   ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
@@ -204,17 +204,17 @@ TEST(key_manipulator, internal_key_odd) {
   path.append(0x02);
   // second byte of the nibble path is 0x30 (by appending 0x03)
   path.append(0x03);
-  std::string address = "test";
-  const auto internalKey = InternalNodeKey{address, defaultVersion, path};
+  std::string custom_prefix = "test";
+  const auto internalKey = InternalNodeKey{custom_prefix, defaultVersion, path};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
-  const auto expected =
-      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
-               serializeIntegral(std::uint8_t{0x4}) + serializeIntegral(address[0]) + serializeIntegral(address[1]) +
-               serializeIntegral(address[2]) + serializeIntegral(address[3]) +
-               serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
-               serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1 + address.size());
+  const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
+                                 serializeIntegral(std::uint8_t{0x4}) + serializeIntegral(custom_prefix[0]) +
+                                 serializeIntegral(custom_prefix[1]) + serializeIntegral(custom_prefix[2]) +
+                                 serializeIntegral(custom_prefix[3]) +
+                                 serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
+                                 serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}));
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1 + custom_prefix.size());
   ASSERT_TRUE(key == expected);
 }
 
@@ -299,13 +299,13 @@ TEST(key_manipulator, stale_db_key_internal) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  std::string address = "abcdefg123";
-  const auto internalKey = InternalNodeKey{address, defaultVersion, path};
+  std::string custom_prefix = "abcdefg123";
+  const auto internalKey = InternalNodeKey{custom_prefix, defaultVersion, path};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genInternalDbKey(internalKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1 + address.size());
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1 + custom_prefix.size());
   ASSERT_TRUE(key == expected);
 }
 

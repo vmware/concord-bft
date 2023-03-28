@@ -15,7 +15,7 @@
 namespace concord::kvbc::sparse_merkle {
 
 std::ostream& operator<<(std::ostream& os, const LeafKey& key) {
-  os << key.address().value() << "-" << key.hash() << "-" << key.version();
+  os << key.hash() << "-" << key.version() << "-" << key.customPrefix().value();
   return os;
 }
 

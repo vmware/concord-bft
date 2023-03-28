@@ -25,23 +25,23 @@ namespace sparse_merkle {
 class InternalNodeKey {
  public:
   template <class T>
-  InternalNodeKey(T&& address, Version version, const NibblePath& path)
-      : address_(std::forward<T>(address)), version_(version), path_(path) {}
+  InternalNodeKey(T&& custom_prefix, Version version, const NibblePath& path)
+      : custom_prefix_(std::forward<T>(custom_prefix)), version_(version), path_(path) {}
 
   // Return the root of a sparse merkle tree at a given version.
   template <class T>
-  static InternalNodeKey root(T&& address, Version version) {
-    return InternalNodeKey(std::forward<T>(address), version, NibblePath());
+  static InternalNodeKey root(T&& custom_prefix, Version version) {
+    return InternalNodeKey(std::forward<T>(custom_prefix), version, NibblePath());
   }
 
   bool operator==(const InternalNodeKey& other) const {
-    return address_ == other.address_ && version_ == other.version_ && path_ == other.path_;
+    return custom_prefix_ == other.custom_prefix_ && version_ == other.version_ && path_ == other.path_;
   }
 
   // Compare by address, version and then by path
   bool operator<(const InternalNodeKey& other) const {
-    if (address_ != other.address_) {
-      return address_ < other.address_;
+    if (custom_prefix_ != other.custom_prefix_) {
+      return custom_prefix_ < other.custom_prefix_;
     }
     if (version_ != other.version_) {
       return version_ < other.version_;
@@ -51,20 +51,20 @@ class InternalNodeKey {
 
   std::string toString() const {
     if (path_.empty()) {
-      return address_.value() + std::string("-<ROOT>") + "-" + version_.toString();
+      return custom_prefix_.value() + std::string("-<ROOT>") + "-" + version_.toString();
     }
-    return address_.value() + "-" + path_.toString() + "-" + version_.toString();
+    return custom_prefix_.value() + "-" + path_.toString() + "-" + version_.toString();
   }
 
   Version version() const { return version_; }
 
-  const Address& address() const { return address_; }
+  const CustomPrefix& customPrefix() const { return custom_prefix_; }
 
   const NibblePath& path() const { return path_; }
   NibblePath& path() { return path_; }
 
  private:
-  Address address_;
+  CustomPrefix custom_prefix_;
   Version version_;
   NibblePath path_;
 };
@@ -76,22 +76,22 @@ class InternalNodeKey {
 // merkle tree.
 class LeafKey {
  public:
-  static constexpr auto SIZE_IN_BYTES = PaddedAddress::TOTAL_SIZE + Hash::SIZE_IN_BYTES + Version::SIZE_IN_BYTES;
+  static constexpr auto SIZE_IN_BYTES = PaddedCustomPrefix::TOTAL_SIZE + Hash::SIZE_IN_BYTES + Version::SIZE_IN_BYTES;
 
  public:
   template <class T>
-  LeafKey(Hash key, Version version, T&& address) : key_(key), version_(version), address_(std::forward<T>(address)) {}
-  LeafKey(Hash key, Version version) : key_(key), version_(version), address_("") {}
+  LeafKey(Hash key, Version version, T&& address) : key_(key), version_(version), prefix_(std::forward<T>(address)) {}
+  LeafKey(Hash key, Version version) : key_(key), version_(version), prefix_("") {}
 
   bool operator==(const LeafKey& other) const {
-    return address_ == other.address_ && key_ == other.key_ && version_ == other.version_;
+    return prefix_ == other.prefix_ && key_ == other.key_ && version_ == other.version_;
   }
   bool operator!=(const LeafKey& other) const { return !(*this == other); }
 
-  // Compare by addres, key_ and then version_
+  // Compare by prefix_, key_ and then version_
   bool operator<(const LeafKey& other) const {
-    if (address_ != other.address_) {
-      return address_ < other.address_;
+    if (prefix_ != other.prefix_) {
+      return prefix_ < other.prefix_;
     }
     if (key_ != other.key_) {
       return key_ < other.key_;
@@ -99,14 +99,14 @@ class LeafKey {
     return version_ < other.version_;
   }
 
-  std::string toString() const { return key_.toString() + "-" + version_.toString() + "-" + address_.value(); }
+  std::string toString() const { return key_.toString() + "-" + version_.toString() + "-" + prefix_.value(); }
 
   Nibble getNibble(const size_t n) const {
     ConcordAssert(n < Hash::MAX_NIBBLES);
     return key_.getNibble(n);
   }
 
-  const PaddedAddress& address() const { return address_; }
+  const PaddedCustomPrefix& customPrefix() const { return prefix_; }
 
   Version version() const { return version_; }
 
@@ -115,7 +115,7 @@ class LeafKey {
  private:
   Hash key_;
   Version version_;
-  PaddedAddress address_;
+  PaddedCustomPrefix prefix_;
 };
 
 std::ostream& operator<<(std::ostream& os, const LeafKey&);

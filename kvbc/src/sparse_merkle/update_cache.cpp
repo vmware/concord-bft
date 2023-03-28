@@ -29,7 +29,7 @@ void UpdateCache::putStale(const std::optional<LeafKey>& key) {
 }
 
 const BatchedInternalNode& UpdateCache::getRoot() {
-  auto it = internal_nodes_.find({address_, version_, NibblePath()});
+  auto it = internal_nodes_.find({custom_prefix_, version_, NibblePath()});
   if (it != internal_nodes_.end()) {
     return it->second;
   }
