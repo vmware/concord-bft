@@ -22,7 +22,7 @@ static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
 TEST(histogram_tests, snapshots) {
   const std::string component_name("test_replica");
   const std::string hist_name("some_histogram");
-  auto recorder = std::make_shared<Recorder>(hist_name, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder = std::make_shared<Recorder>(hist_name, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
   PerformanceHandler handler;
 
   handler.registerComponent(component_name, {recorder});

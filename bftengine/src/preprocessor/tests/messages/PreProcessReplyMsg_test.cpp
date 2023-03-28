@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
+#include <iostream>
 #include "PrimitiveTypes.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
 #include "messages/PreProcessResultHashCreator.hpp"
@@ -43,6 +44,7 @@ class PreProcessReplyMsgTestFixture : public testing::Test {
 };
 
 void clearDiagnosticsHandlers() {
+  std::cout << "Clear################";
   auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
   registrar.perf.clear();
   registrar.status.clear();

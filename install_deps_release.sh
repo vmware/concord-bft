@@ -112,22 +112,6 @@ install_yaml() {
     rm -rf xvzf yaml-cpp
 }
 
-install_HdrHistogram_lib() {
-    cd ${HOME}
-    wget ${WGET_FLAGS} \
-        https://github.com/HdrHistogram/HdrHistogram_c/archive/0.9.12.tar.gz && \
-        tar -xzf 0.9.12.tar.gz && \
-        rm 0.9.12.tar.gz && \
-        cd HdrHistogram_c-0.9.12 && \
-        mkdir build && cd build && \
-        cmake .. && \
-        make -j$(nproc) && \
-        make install && \
-        cd ${HOME} && \
-        rm -r HdrHistogram_c-0.9.12
-
-}
-
 install_googletest() {
     cd ${HOME}
     git clone https://github.com/google/googletest.git && \
@@ -389,7 +373,6 @@ install_third_party_libraries
 install_cmake
 install_boost
 install_yaml
-install_HdrHistogram_lib
 install_googletest
 install_rocksdb_lib
 install_rapidcheck

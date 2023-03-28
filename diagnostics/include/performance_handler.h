@@ -18,8 +18,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <chrono>
-
-#include <hdr/hdr_interval_recorder.h>
+#include <boost/histogram.hpp>
 
 #include "log/logger.hpp"
 #include "util/assertUtils.hpp"
@@ -42,30 +41,25 @@ enum class Unit {
   COUNT
 };
 
+using namespace boost::histogram;
+using axes_t = std::vector<axis::regular<>>;
+
 // A recorder is a thread-safe type that should always be created in a shared pointer to ensure
 // proper destruction. The recorder is used to add values to the histogram in the recording thread.
 // Interval histograms can be extracted in other threads.
 struct Recorder {
-  // These values, (except for unit), come directly from hdr histogram.
-  // https://github.com/HdrHistogram/HdrHistogram_c/blob/master/src/hdr_interval_recorder.h#L28-L32
-  Recorder(const std::string& name,
-           int64_t lowest_trackable_value,
-           int64_t highest_trackable_value,
-           int significant_figures,
-           Unit unit)
-      : Recorder(lowest_trackable_value, highest_trackable_value, significant_figures, unit) {
+  Recorder(const std::string& name, int64_t highest_trackable_value, Unit unit)
+      : Recorder(highest_trackable_value, unit) {
     this->name = name;
   }
 
-  Recorder(int64_t lowest_trackable_value, int64_t highest_trackable_value, int significant_figures, Unit unit)
-      : unit(unit) {
-    ConcordAssert(lowest_trackable_value > 0);
-    auto rv =
-        hdr_interval_recorder_init_all(&recorder, lowest_trackable_value, highest_trackable_value, significant_figures);
-    ConcordAssertEQ(0, rv);
+  Recorder(int64_t highest_trackable_value, Unit unit) : unit(unit) {
+    recorder = make_histogram(axis::regular<>(highest_trackable_value, 0, highest_trackable_value));
   }
 
-  ~Recorder() { hdr_interval_recorder_destroy(&recorder); }
+  ~Recorder() {
+    // recorder.reset();
+  }
   Recorder(const Recorder&) = delete;
   Recorder& operator=(const Recorder&) = delete;
 
@@ -76,18 +70,17 @@ struct Recorder {
   // Record to a histogram safely across threads. Please use this method sparingly. It should not be necessary in most
   // cases. Do NOT mix calls with `record` in the same recorder.
   void recordAtomic(int64_t val);
-
-  hdr_interval_recorder recorder;
+  histogram<axes_t> recorder;
   Unit unit;
+  std::mutex mutex_;
   // Set during registration
   std::string name;
 };
 
-#define MAKE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::make_shared<concord::diagnostics::Recorder>(name, lowest, highest, sigfig, unit)
+#define MAKE_SHARED_RECORDER(name, highest, unit) std::make_shared<concord::diagnostics::Recorder>(name, highest, unit)
 
-#define DEFINE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::shared_ptr<concord::diagnostics::Recorder> name = MAKE_SHARED_RECORDER(#name, lowest, highest, sigfig, unit)
+#define DEFINE_SHARED_RECORDER(name, highest, unit) \
+  std::shared_ptr<concord::diagnostics::Recorder> name = MAKE_SHARED_RECORDER(#name, highest, unit)
 // This class should be instantiated to measure a duration of a scope and add it to a histogram
 // recorder. The measurement is taken and recorded in the destructor.
 template <bool IsAtomic = false>
@@ -185,7 +178,7 @@ class TimeRecorder {
 template <typename Key, bool IsAtomic = false>
 class AsyncTimeRecorderMap {
  public:
-  AsyncTimeRecorderMap(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
+  AsyncTimeRecorderMap(const std::shared_ptr<Recorder> recorder) : recorder_(recorder) {}
 
   void start(Key key) { timers_.emplace(key, *recorder_); }
   void end(Key key) { timers_.erase(key); }
@@ -206,7 +199,7 @@ class AsyncTimeRecorderMap {
 template <bool IsAtomic = false>
 class AsyncTimeRecorder {
  public:
-  AsyncTimeRecorder(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
+  AsyncTimeRecorder(const std::shared_ptr<Recorder> recorder) : recorder_(recorder) {}
   void start() {
     // If a timer was already started, it will record if start is called again before end.
     // This behavior can be prevented by explicitly calling clear().
@@ -226,23 +219,17 @@ class AsyncTimeRecorder {
 };
 
 struct Histogram {
-  Histogram(const std::shared_ptr<Recorder>& recorder)
+  Histogram(const std::shared_ptr<Recorder> recorder)
       : recorder(recorder), start(std::chrono::system_clock::now()), snapshot_start(start), snapshot_end(start) {
-    snapshot = hdr_interval_recorder_sample_and_recycle(&(recorder->recorder), snapshot);
-    auto rv = hdr_init(
-        snapshot->lowest_trackable_value, snapshot->highest_trackable_value, snapshot->significant_figures, &history);
-    ConcordAssertEQ(0, rv);
+    snapshot = recorder->recorder;
+    history = snapshot;
   }
 
-  ~Histogram() {
-    hdr_close(snapshot);
-    hdr_close(history);
-    snapshot = nullptr;
-    history = nullptr;
-  }
+  ~Histogram() {}
+  Histogram() {}
 
-  Histogram(const Histogram&) = delete;
-  Histogram& operator=(const Histogram&) = delete;
+  // Histogram(const Histogram&) = delete;
+  // Histogram& operator=(const Histogram&) = delete;
 
   void takeSnapshot();
 
@@ -253,39 +240,88 @@ struct Histogram {
   std::chrono::system_clock::time_point snapshot_end;
 
   // The histogram interval starting from when the last snapshot was taken
-  hdr_histogram* snapshot = nullptr;
-
+  histogram<axes_t> snapshot;
   // History doesn't include the latest snapshot.
-  hdr_histogram* history = nullptr;
+  histogram<axes_t> history;
+  std::mutex mutex_;
 };
 
 using Name = std::string;
 using Histograms = std::map<Name, Histogram>;
 
-// Useful data extracted from hdr_histogram(s)
+// Useful data extracted from histogram(s)
 //
 // By extracting this data we can return it in a thread-safe manner, without having to copy the
 // entire histogram.
 //
 // We specifically don't return the average, as it's a completely meaningless metric.
 struct HistogramValues {
-  HistogramValues(hdr_histogram* h) : memory_used(hdr_get_memory_size(h)) {
-    max = hdr_max(h);
+  HistogramValues(histogram<axes_t> h) : memory_used(sizeof(h)) {
+    max = get_max_value(h);
     if (max == 0) return;  // Histogram is empty
-    min = hdr_min(h);
-    count = h->total_count;
-    pct_10 = hdr_value_at_percentile(h, 10);
-    pct_25 = hdr_value_at_percentile(h, 25);
-    pct_50 = hdr_value_at_percentile(h, 50);
-    pct_75 = hdr_value_at_percentile(h, 75);
-    pct_90 = hdr_value_at_percentile(h, 90);
-    pct_95 = hdr_value_at_percentile(h, 95);
-    pct_99 = hdr_value_at_percentile(h, 99);
-    pct_99_9 = hdr_value_at_percentile(h, 99.9);
-    pct_99_99 = hdr_value_at_percentile(h, 99.99);
-    pct_99_999 = hdr_value_at_percentile(h, 99.999);
-    pct_99_9999 = hdr_value_at_percentile(h, 99.9999);
-    pct_99_99999 = hdr_value_at_percentile(h, 99.99999);
+    min = get_min_value(h);
+    count = get_total_element(h);
+    pct_10 = get_bin_value_greater_than_percent(h, 10);
+    pct_25 = get_bin_value_greater_than_percent(h, 25);
+    pct_50 = get_bin_value_greater_than_percent(h, 50);
+    pct_75 = get_bin_value_greater_than_percent(h, 75);
+    pct_90 = get_bin_value_greater_than_percent(h, 90);
+    pct_95 = get_bin_value_greater_than_percent(h, 95);
+    pct_99 = get_bin_value_greater_than_percent(h, 99);
+    pct_99_9 = get_bin_value_greater_than_percent(h, 99.9);
+    pct_99_99 = get_bin_value_greater_than_percent(h, 99.99);
+    pct_99_999 = get_bin_value_greater_than_percent(h, 99.999);
+    pct_99_9999 = get_bin_value_greater_than_percent(h, 99.9999);
+    pct_99_99999 = get_bin_value_greater_than_percent(h, 99.99999);
+  }
+
+  int64_t get_total_element(const histogram<axes_t>& h) {
+    // Compute the cumulative sum of bin heights
+    int64_t total_elem = 0;
+    int count = h.axis().size();
+    for (auto i = 0; i < count; ++i) {
+      total_elem += h.at(i);
+    }
+    return total_elem;
+  }
+
+  int64_t get_max_value(const histogram<axes_t>& h) {
+    int last_bin = 0;
+    for (auto i = h.axis().size() - 1; i >= 0; i--) {
+      if (h.at(i) > 0) {
+        last_bin = i;
+        break;
+      }
+    }
+    return last_bin;
+  }
+
+  int64_t get_min_value(const histogram<axes_t>& h) {
+    int first_bin = 0;
+    for (auto i = 0; i < h.axis().size(); i++) {
+      if (h.at(i) > 0) {
+        first_bin = i;
+        break;
+      }
+    }
+    return first_bin;
+  }
+
+  int64_t get_bin_value_greater_than_percent(const histogram<axes_t>& h, double percent) {
+    int64_t cumsum = get_total_element(h);
+
+    // Find the bin value which is greater than the percentage of all values
+    double threshold = percent / 100.0 * cumsum;
+    int bin_index = 0;
+    double sum = 0.0;
+    for (auto i = 0; i < h.axis().size(); ++i) {
+      sum += h.at(i);
+      if (sum >= threshold) {
+        bin_index = i;
+        break;
+      }
+    }
+    return bin_index;
   }
 
   bool operator==(const HistogramValues& other) const {

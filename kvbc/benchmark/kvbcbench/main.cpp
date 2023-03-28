@@ -330,8 +330,8 @@ using namespace concord;
 
 int main(int argc, char** argv) {
   auto& registrar = diagnostics::RegistrarSingleton::getInstance();
-  DEFINE_SHARED_RECORDER(add_block_recorder, 1, 500000, 3, diagnostics::Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(conflict_detection_recorder, 1, 100000, 3, diagnostics::Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(add_block_recorder, 500000, diagnostics::Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(conflict_detection_recorder, 100000, diagnostics::Unit::MICROSECONDS);
   registrar.perf.registerComponent("bench", {add_block_recorder, conflict_detection_recorder});
   concord::diagnostics::Server diagnostics_server;
 

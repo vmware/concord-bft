@@ -273,8 +273,8 @@ class Replica : public IReplica,
 
     ~Recorders() {}
 
-    DEFINE_SHARED_RECORDER(get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(put_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get_block_duration, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(put_block_duration, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
   };
   // All these recorders need to be shared
   Recorders histograms_;

@@ -38,10 +38,10 @@ int main() {
   registrar.status.registerHandler(handler1);
   registrar.status.registerHandler(handler2);
 
-  auto recorder1 = std::make_shared<Recorder>("histogram1", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder2 = std::make_shared<Recorder>("histogram2", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder3 = std::make_shared<Recorder>("histogram3", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder4 = std::make_shared<Recorder>("histogram4", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder1 = std::make_shared<Recorder>("histogram1", MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+  auto recorder2 = std::make_shared<Recorder>("histogram2", MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+  auto recorder3 = std::make_shared<Recorder>("histogram3", MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+  auto recorder4 = std::make_shared<Recorder>("histogram4", MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
 
   registrar.perf.registerComponent("component1", {recorder1, recorder2});
   registrar.perf.registerComponent("component2", {recorder3, recorder4});

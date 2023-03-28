@@ -940,49 +940,53 @@ class BCStateTran : public IStateTransfer {
     // Shared Recorders - match the above registered recorders
     //////////////////////////////////////////////////////////
     // common
-    DEFINE_SHARED_RECORDER(on_timer, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        time_in_incoming_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        incoming_events_queue_size, 1, MAX_INCOMING_EVENTS_QUEUE_SIZE, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(
-        compute_block_digest_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(compute_block_digest_size, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(
-        time_to_clear_io_contexts, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    // destination
-    DEFINE_SHARED_RECORDER(
-        dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        dst_time_between_sendFetchBlocksMsg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        dst_num_pending_blocks_to_commit, 1, MAX_PENDING_BLOCKS_SIZE, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(
-        dst_digest_calc_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(dst_time_ItemData_msg_in_incoming_events_queue,
-                           1,
+    DEFINE_SHARED_RECORDER(on_timer, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(time_in_incoming_events_queue,
                            MAX_VALUE_MICROSECONDS,
-                           3,
                            concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        time_in_post_processing_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(incoming_events_queue_size,
+                           MAX_INCOMING_EVENTS_QUEUE_SIZE,
+                           concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(compute_block_digest_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(compute_block_digest_size, MAX_BLOCK_SIZE, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(time_to_clear_io_contexts, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    // destination
+    DEFINE_SHARED_RECORDER(dst_handle_ItemData_msg, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(dst_time_between_sendFetchBlocksMsg,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(dst_num_pending_blocks_to_commit,
+                           MAX_PENDING_BLOCKS_SIZE,
+                           concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(dst_digest_calc_duration, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(dst_time_ItemData_msg_in_incoming_events_queue,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(time_in_post_processing_events_queue,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
     // source
-    DEFINE_SHARED_RECORDER(
-        src_handle_FetchBlocks_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        src_handle_FetchResPages_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(
-        src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        src_send_prefetched_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        src_send_on_spot_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(
-        src_send_batch_num_of_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(
-        src_next_block_wait_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_handle_FetchBlocks_msg_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_handle_FetchResPages_msg_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_get_block_size_bytes, MAX_BLOCK_SIZE, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(src_send_batch_duration, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_send_prefetched_batch_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_send_on_spot_batch_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, MAX_BATCH_SIZE_BYTES, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(src_send_batch_num_of_chunks, MAX_BATCH_SIZE_BLOCKS, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(src_next_block_wait_duration,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 
