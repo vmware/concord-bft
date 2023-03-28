@@ -20,6 +20,9 @@ class ReplicaConfig;
 
 namespace impl {
 
+/**
+ * An immutable class holding the the ids of all the participants in the network
+ */
 class ReplicasInfo {
  public:
   ReplicasInfo(const ReplicaConfig&, bool dynamicCollectorForPartialProofs, bool dynamicCollectorForExecutionProofs);
@@ -110,7 +113,7 @@ class ReplicasInfo {
   const std::set<PrincipalId> _idsOfInternalClients;
 
   // Currently we support only a single operator entity in the system
-  PrincipalId _operator_id;
+  const PrincipalId _operator_id = 0;
 };
 }  // namespace impl
 }  // namespace bftEngine

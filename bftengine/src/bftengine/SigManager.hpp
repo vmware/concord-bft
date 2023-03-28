@@ -19,6 +19,7 @@
 #include "crypto/signer.hpp"
 #include "crypto/verifier.hpp"
 #include "SysConsts.hpp"
+#include "ReplicasInfo.hpp"
 #include <utility>
 #include <vector>
 #include <map>
@@ -35,8 +36,6 @@ class IThresholdVerifier;
 namespace bftEngine {
 namespace impl {
 
-class ReplicasInfo;
-
 class SigManager {
  public:
   using Key = std::string;
@@ -44,6 +43,7 @@ class SigManager {
 
   virtual ~SigManager() = default;
   static SigManager* instance();
+  static std::shared_ptr<SigManager> owningInstance();
   static void reset(std::shared_ptr<SigManager> other);
 
   // It is the caller responsibility to deallocate (delete) the object
@@ -129,6 +129,8 @@ class SigManager {
   const concord::crypto::IVerifier& extractVerifierFromMultisig(std::shared_ptr<IThresholdVerifier> thresholdVerifier,
                                                                 PrincipalId id) const;
 
+  const ReplicasInfo& getReplicasInfo() const;
+
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
 
@@ -153,7 +155,7 @@ class SigManager {
   std::unique_ptr<concord::crypto::ISigner> mySigner_;
   std::map<PrincipalId, std::shared_ptr<concord::crypto::IVerifier>> verifiers_;
   bool clientTransactionSigningEnabled_ = true;
-  const ReplicasInfo& replicasInfo_;
+  const ReplicasInfo replicasInfo_;
 
   // The ownership model of a SigManager object depends on its use
   static std::shared_ptr<SigManager> s_sm;

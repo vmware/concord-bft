@@ -316,8 +316,21 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
 
 void Replica::createReplicaAndSyncState() {
   ConcordAssertNE(m_kvBlockchain, nullptr);
+
+  ReplicasInfo repsInfo{replicaConfig_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs};
+  SigManager::init(
+      replicaConfig_.replicaId,
+      replicaConfig_.replicaPrivateKey,
+      replicaConfig_.publicKeysOfReplicas,
+      concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+      replicaConfig_.getPublicKeysOfClients(),
+      concord::crypto::KeyFormat::PemFormat,
+      {{repsInfo.getIdOfOperator(), replicaConfig_.getOperatorPublicKey(), concord::crypto::KeyFormat::PemFormat}},
+      repsInfo);
+
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
+
   m_replicaPtr = bftEngine::ReplicaFactory::createReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());

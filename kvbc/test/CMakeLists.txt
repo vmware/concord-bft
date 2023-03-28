@@ -306,8 +306,8 @@ if (BUILD_ROCKSDB_STORAGE)
             stdc++fs
     )
 
-    
-    add_executable(pruning_test pruning_test.cpp)
+    add_executable(pruning_test pruning_test.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/tests/messages/helper.cpp)
+    target_include_directories(pruning_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/tests/messages)
     add_test(pruning_test pruning_test)
     target_link_libraries(pruning_test
             GTest::GTest

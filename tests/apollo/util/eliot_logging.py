@@ -34,9 +34,6 @@ def set_file_destination():
         now = logdir_timestamp()
         test_name = f"apollo_run_{now}"
 
-    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4":
-        test_name = test_name + "_v4"
-
     relative_apollo_logs = 'tests/apollo/logs'
     relative_current_run_logs = f'{relative_apollo_logs}/{logdir_timestamp()}'
     logs_dir = f'../../build/{relative_current_run_logs}'
@@ -56,8 +53,6 @@ def set_file_destination():
         latest_shortcut.unlink()
     latest_shortcut.symlink_to(target=Path(f'../{relative_current_run_logs}'), target_is_directory=True)
 
-    # Set the log file path
-    to_file(open(test_log, "a+"))
 
     test_log_file = open(test_log, "a+")
     to_file(test_log_file)

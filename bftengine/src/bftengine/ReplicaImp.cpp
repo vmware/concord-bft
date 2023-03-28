@@ -4434,16 +4434,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (firstTime) {
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    sigManager_ = SigManager::init(config_.replicaId,
-                                   config_.replicaPrivateKey,
-                                   config_.publicKeysOfReplicas,
-                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                   ReplicaConfig::instance().getPublicKeysOfClients(),
-                                   concord::crypto::KeyFormat::PemFormat,
-                                   {{repsInfo->getIdOfOperator(),
-                                     ReplicaConfig::instance().getOperatorPublicKey(),
-                                     concord::crypto::KeyFormat::PemFormat}},
-                                   *repsInfo);
+    sigManager_ = SigManager::owningInstance();
     viewsManager = new ViewsManager(repsInfo);
   } else {
     repsInfo = replicasInfo;

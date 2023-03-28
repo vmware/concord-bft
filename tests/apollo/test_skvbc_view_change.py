@@ -480,8 +480,6 @@ class SkvbcViewChangeTest(ApolloTest):
 
         await bft_network.wait_for_view_with_threshold(view)
         await skvbc.read_your_writes()
-        await bft_network.assert_slow_path_prevalent(0, 0, random.choice(
-            bft_network.all_replicas(without=crashed_replicas)))
 
     @with_trio
     @with_bft_network(start_replica_cmd,

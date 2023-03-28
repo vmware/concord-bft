@@ -47,25 +47,14 @@ namespace impl {
 namespace {
 
 ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
-  ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   auto &config = ld.repConfig;
-  ld.sigManager = SigManager::init(config.replicaId,
-                                   config.replicaPrivateKey,
-                                   config.publicKeysOfReplicas,
-                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                   ReplicaConfig::instance().getPublicKeysOfClients(),
-                                   concord::crypto::KeyFormat::PemFormat,
-                                   {{ld.repsInfo->getIdOfOperator(),
-                                     ReplicaConfig::instance().getOperatorPublicKey(),
-                                     concord::crypto::KeyFormat::PemFormat}},
-                                   *ld.repsInfo);
+  ld.repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+  ld.sigManager = SigManager::owningInstance();
 
-  std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,
-                                                                           ld.repConfig.thresholdSystemSubType_,
-                                                                           ld.repConfig.numReplicas,
-                                                                           ld.repConfig.numReplicas);
-  cryptoSys->loadKeys(ld.repConfig.thresholdPublicKey_, ld.repConfig.thresholdVerificationKeys_);
-  cryptoSys->loadPrivateKey(ld.repConfig.replicaId, ld.repConfig.thresholdPrivateKey_);
+  std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(
+      config.thresholdSystemType_, config.thresholdSystemSubType_, config.numReplicas, config.numReplicas);
+  cryptoSys->loadKeys(config.thresholdPublicKey_, config.thresholdVerificationKeys_);
+  cryptoSys->loadPrivateKey(config.replicaId, config.thresholdPrivateKey_);
   bftEngine::CryptoManager::init(std::move(cryptoSys));
 
   return Succ;

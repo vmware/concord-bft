@@ -247,7 +247,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
     return decorator
 
 MAX_MSG_SIZE = 64*1024 # 64k
-REQ_TIMEOUT_MILLI = 5000 * 2
+REQ_TIMEOUT_MILLI = 5000
 RETRY_TIMEOUT_MILLI = 250
 METRICS_TIMEOUT_SEC = 5
 
@@ -416,7 +416,7 @@ class BftTestNetwork:
         return bft_network
 
     @classmethod
-    def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None, builddir=None):
+    def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None):
         certdir = None
         builddir = tempfile.mkdtemp(prefix='builddir')
         if not client_factory:

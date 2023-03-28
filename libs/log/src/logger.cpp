@@ -30,6 +30,7 @@ logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");
 logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.bft.threshsign");
 logging::Logger BLS_LOG = logging::getLogger("concord.bft.threshsign.bls");
 logging::Logger EDDSA_MULTISIG_LOG = logging::getLogger("threshsign.eddsa");
+logging::Logger PRUNING_LOG = logging::getLogger("concord.pruning");
 logging::Logger OPENSSL_LOG = logging::getLogger("concord.bft.openssl");
 logging::Logger EDDSA_SIG_LOG = logging::getLogger("singlesig.eddsa");
 logging::Logger KEY_EX_LOG = logging::getLogger("concord.bft.key-exchange");

@@ -306,11 +306,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     if (auto it = config_params_.find(param); it != config_params_.end()) return concord::util::to<T>(it->second);
     return defaultValue;
   }
-  inline std::set<std::pair<const std::string, std::set<uint16_t>>>* getPublicKeysOfClients() {
+  inline const std::set<std::pair<const std::string, std::set<uint16_t>>>* getPublicKeysOfClients() const {
     return (clientTransactionSigningEnabled || !clientsKeysPrefix.empty()) ? &publicKeysOfClients : nullptr;
   }
 
-  std::string getOperatorPublicKey() {
+  std::string getOperatorPublicKey() const {
     std::ifstream op_key_file(pathToOperatorPublicKey_);
     if (!op_key_file.fail()) {
       std::stringstream buffer;

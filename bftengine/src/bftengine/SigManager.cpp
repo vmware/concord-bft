@@ -47,6 +47,11 @@ SigManager* SigManager::instance() {
   return s_sm.get();
 }
 
+std::shared_ptr<SigManager> SigManager::owningInstance() {
+  ConcordAssertNE(s_sm.get(), nullptr);
+  return s_sm;
+}
+
 void SigManager::reset(std::shared_ptr<SigManager> other) { s_sm = other; }
 
 std::shared_ptr<SigManager> SigManager::init(
@@ -457,6 +462,7 @@ SeqNum SigManager::getReplicaLastExecutedSeq() const {
   ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
   return replicaLastExecutedSeq_;
 }
+const ReplicasInfo& SigManager::getReplicasInfo() const { return replicasInfo_; }
 
 }  // namespace impl
 }  // namespace bftEngine
