@@ -160,7 +160,7 @@ class IStorage {
    * @param key key to be stored
    * @param value value to be stored
    */
-  virtual void setAppData(std::string& key, std::string& value) = 0;
+  virtual void setAppData(const std::string& key, const std::string& value) = 0;
 
   /**
    * @brief Retrieves a value from storage of client application
@@ -168,6 +168,6 @@ class IStorage {
    * @param key key to be retrieved
    * @return std::string value from storage corresponding to the key
    */
-  virtual std::string getAppData(std::string& key) = 0;
+  virtual std::string getAppData(const std::string& key) = 0;
 };
 }  // namespace utt::client

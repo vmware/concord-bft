@@ -100,6 +100,12 @@ PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
     } else if (request->has_get_state_request()) {
       std::cout << "Processing state request" << std::endl;
       return handleGetStateRequest(context, request, response);
+    } else if (request->has_set_app_data_request()) {
+      std::cout << "Processing set application data request" << std::endl;
+      return handleSetAppDataRequest(context, request, response);
+    } else if (request->has_get_app_data_request()) {
+      std::cout << "Processing get application data request" << std::endl;
+      return handleGetAppDataRequest(context, request, response);
     } else {
       std::cout << "unknown request: " << request->DebugString() << std::endl;
       status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
@@ -389,4 +395,30 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   }
   return grpc::Status::OK;
 }
+
+::grpc::Status PrivacyWalletServiceImpl::handleSetAppDataRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  auto& set_app_data_req = request->set_app_data_request();
+  storage_->setAppData(set_app_data_req.key(), set_app_data_req.value());
+  if (response) {
+    auto set_app_data_resp = response->mutable_set_app_data_response();
+    set_app_data_resp->set_succ(true);
+  }
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleGetAppDataRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  auto& get_app_data_req = request->get_app_data_request();
+  auto get_app_data_resp = response->mutable_get_app_data_response();
+  if (response) {
+    get_app_data_resp->set_value(storage_->getAppData(get_app_data_req.key()));
+  }
+  return grpc::Status::OK;
+}
+
 }  // namespace utt::walletservice

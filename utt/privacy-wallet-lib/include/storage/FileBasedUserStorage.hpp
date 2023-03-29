@@ -34,7 +34,7 @@ class FileBasedUserStorage : public IStorage {
   void commit() override;
   void setUserId(const std::string& user_id) override;
   void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) override;
-  void setAppData(std::string&, std::string&) override;
+  void setAppData(const std::string&, const std::string&) override;
 
   libutt::api::types::CurvePoint getClientSideSecret() override;
   libutt::api::types::CurvePoint getSystemSideSecret() override;
@@ -43,7 +43,7 @@ class FileBasedUserStorage : public IStorage {
   std::pair<std::string, std::string> getKeyPair() override;
   std::string getUserId() override;
   libutt::api::PublicConfig getUttPublicConfig() override;
-  std::string getAppData(std::string&) override;
+  std::string getAppData(const std::string&) override;
 
  protected:
   std::string state_path_;

@@ -284,7 +284,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
   void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) override {
     config_ = libutt::api::serialize(utt_public_config);
   }
-  void setAppData(std::string&, std::string&) override{};
+  void setAppData(const std::string&, const std::string&) override{};
 
   libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
   libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
@@ -302,7 +302,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::PublicConfig getUttPublicConfig() override {
     return libutt::api::deserialize<libutt::api::PublicConfig>(config_);
   }
-  std::string getAppData(std::string& key) override { return appData_[key]; }
+  std::string getAppData(const std::string& key) override { return appData_[key]; }
   void startTransaction() override {}
   void commit() override {}
 
