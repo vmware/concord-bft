@@ -20,6 +20,7 @@
 #include <grpcpp/grpcpp.h>
 #include "wallet-api.grpc.pb.h"  // Generated from privacy-wallet-service/proto/api
 #include "Wallet.hpp"
+#include <storage/IStorage.hpp>
 #include <utt-client-api/ClientApi.hpp>
 
 namespace utt::walletservice {
@@ -80,6 +81,7 @@ class PrivacyWalletServiceImpl final : public vmware::concord::privacy::wallet::
       const ::vmware::concord::privacy::wallet::api::v1::ClaimCoinsRequest& req);
   std::unique_ptr<Wallet> wallet_;
   static const std::string wallet_db_path;
+  std::shared_ptr<utt::client::IStorage> storage_;
 };
 
 class PrivacyWalletService {

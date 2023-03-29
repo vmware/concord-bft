@@ -149,8 +149,8 @@ PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
   auto public_key = req.public_key();
   auto userId = req.user_id();
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
-  wallet_ = std::make_unique<Wallet>(
-      userId, req.private_key(), public_key, PrivacyWalletServiceImpl::wallet_db_path, publicConfig);
+  storage_ = std::make_shared<utt::client::FileBasedUserStorage>(PrivacyWalletServiceImpl::wallet_db_path);
+  wallet_ = std::make_unique<Wallet>(userId, req.private_key(), public_key, storage_, publicConfig);
   auto resp = response->mutable_privacy_wallet_config_response();
   resp->set_succ(true);
   return grpc::Status::OK;

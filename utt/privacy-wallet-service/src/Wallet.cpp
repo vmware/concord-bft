@@ -22,11 +22,10 @@ using namespace utt::client::utils::crypto;
 Wallet::Wallet(std::string userId,
                const std::string& private_key,
                const std::string& public_key,
-               const std::string& storage_path,
+               const std::shared_ptr<utt::client::IStorage> storage,
                const utt::PublicConfig& config)
     : userId_{std::move(userId)}, private_key_{private_key} {
-  auto storage_ = std::make_shared<utt::client::FileBasedUserStorage>(storage_path);
-  user_ = utt::client::createUser(userId_, config, private_key, public_key, storage_);
+  user_ = utt::client::createUser(userId_, config, private_key, public_key, storage);
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }
