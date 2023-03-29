@@ -33,10 +33,10 @@
 #include "categorization/updates.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
-#include "performance_handler.hpp"
+#include "diagnostics/performance_handler.hpp"
 #include "rocksdb/native_client.h"
-#include "diagnostics.hpp"
-#include "diagnostics_server.hpp"
+#include "diagnostics/diagnostics.hpp"
+#include "diagnostics/diagnostics_server.hpp"
 #include "input.h"
 #include "pre_execution.h"
 

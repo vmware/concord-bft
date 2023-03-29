@@ -24,7 +24,7 @@
 #include "msg_receiver.h"
 #include "exception.h"
 #include "metrics.h"
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 #include "seq_num_generator.h"
 #include "crypto/signer.hpp"
 

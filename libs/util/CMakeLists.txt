@@ -23,7 +23,6 @@ if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
 endif()
 
 target_include_directories(util PUBLIC include
-  ${libdiagnostics_SOURCE_DIR}/include
   ${Boost_INCLUDE_DIR}
 )
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)

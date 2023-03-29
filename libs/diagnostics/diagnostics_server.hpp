@@ -30,7 +30,7 @@
 #include "log/logger.hpp"
 #include "util/errnoString.hpp"
 #include "util/kvstream.h"
-#include "protocol.hpp"
+#include "diagnostics/protocol.hpp"
 
 using concordUtils::errnoString;
 

@@ -14,8 +14,8 @@
 #include "MessageBase.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
-#include "diagnostics.hpp"
-#include "performance_handler.hpp"
+#include "diagnostics/diagnostics.hpp"
+#include "diagnostics/performance_handler.hpp"
 
 namespace bftEngine::impl {
 

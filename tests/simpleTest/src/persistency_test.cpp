@@ -22,7 +22,7 @@
 #include "log/logger.hpp"
 #include "simple_test_client.hpp"
 #include "simple_test_replica.hpp"
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace test::persistency {
 class PersistencyTest : public testing::Test {

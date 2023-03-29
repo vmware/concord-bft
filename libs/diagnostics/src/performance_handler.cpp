@@ -13,7 +13,7 @@
 
 #include <iomanip>
 
-#include "performance_handler.hpp"
+#include "diagnostics/performance_handler.hpp"
 
 static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.perf");
 

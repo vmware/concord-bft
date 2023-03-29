@@ -10,7 +10,7 @@
 // file.
 
 #include "ReplicaStatusHandlers.hpp"
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 #include "util/json_output.hpp"
 
 #include <string>

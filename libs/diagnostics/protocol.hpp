@@ -21,7 +21,7 @@
 #include <array>
 #include <variant>
 
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace concord::diagnostics {
 

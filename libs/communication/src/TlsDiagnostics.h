@@ -17,7 +17,7 @@
 #include <sstream>
 
 #include "util/kvstream.h"
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace bft::communication {
 

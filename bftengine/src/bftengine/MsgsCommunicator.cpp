@@ -12,7 +12,7 @@
 #include "MsgsCommunicator.hpp"
 #include "util/assertUtils.hpp"
 #include "communication/CommDefs.hpp"
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace bftEngine::impl {
 

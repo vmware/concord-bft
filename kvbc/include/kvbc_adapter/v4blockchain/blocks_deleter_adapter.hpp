@@ -18,8 +18,8 @@
 #include "db_interfaces.h"
 #include "v4blockchain/v4_blockchain.h"
 #include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
-#include "performance_handler.hpp"
-#include "diagnostics.hpp"
+#include "diagnostics/performance_handler.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace concord::kvbc::adapter::v4blockchain {
 

@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "diagnostics.hpp"
+#include "diagnostics/diagnostics.hpp"
 
 namespace preprocessor {
 class PreProcessorRecorder {

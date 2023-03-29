@@ -17,8 +17,8 @@
 #include "client/clientservice/event_service.hpp"
 #include "client/concordclient/concord_client.hpp"
 #include "util/throughput.hpp"
-#include "diagnostics.hpp"
-#include "performance_handler.hpp"
+#include "diagnostics/diagnostics.hpp"
+#include "diagnostics/performance_handler.hpp"
 
 using grpc::Status;
 using grpc::ServerContext;
