@@ -129,6 +129,8 @@ message PrivacyWalletRequest {
         GenerateBurnTx generate_burn_tx_request = 7;
         GenerateTransferTx generate_transfer_tx_request = 8;
         GetStateRequest get_state_request = 9;
+        SetAppDataRequest set_app_data_request = 11;
+        GetAppDataRequest get_app_data_request = 12;
 
     }
     // Required timeout which defines the maximum amount of time the caller is
@@ -148,5 +150,7 @@ message PrivacyWalletResponse {
         ClaimCoinsReponse claim_coins_response = 6;
         GenerateTxResponse generate_tx_response = 7;
         GetStateResponse get_state_response = 8;
+        SetAppDataResponse set_app_data_response = 9;
+        GetAppDataResponse get_app_data_response = 10;
     }
 }
