@@ -20,7 +20,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "state_snapshot_interface.hpp"
 #include "categorization/kv_blockchain.h"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 
 namespace concord::kvbc::adapter::common::statesnapshot {
 class KVBCStateSnapshot : public concord::kvbc::IKVBCStateSnapshot {

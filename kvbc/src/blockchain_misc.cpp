@@ -11,7 +11,7 @@
 // file.
 
 #include "blockchain_misc.hpp"
-#include "storage/merkle_tree_key_manipulator.h"
+#include "storage/merkle_tree_key_manipulator.hpp"
 #include "categorization/blocks.h"
 
 namespace concord::kvbc {

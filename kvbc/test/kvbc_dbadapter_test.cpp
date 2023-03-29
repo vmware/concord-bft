@@ -11,8 +11,8 @@
 #include "direct_kv_block.h"
 
 #ifdef USE_ROCKSDB
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
+#include "storage/rocksdb/client.hpp"
+#include "storage/rocksdb/key_comparator.hpp"
 #endif
 
 using namespace std;

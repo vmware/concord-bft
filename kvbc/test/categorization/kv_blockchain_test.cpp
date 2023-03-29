@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 #include <random>
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "util/endianness.hpp"
 
 using concord::storage::rocksdb::NativeClient;

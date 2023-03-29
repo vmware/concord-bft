@@ -18,7 +18,7 @@
 #include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/keys.h"
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 
 namespace concord::kvbc::v2MerkleTree::detail {
 

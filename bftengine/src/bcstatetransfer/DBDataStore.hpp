@@ -20,7 +20,7 @@
 #include "log/logger.hpp"
 #include "util/string.hpp"
 #include "InMemoryDataStore.hpp"
-#include "storage/key_manipulator_interface.h"
+#include "storage/key_manipulator_interface.hpp"
 
 namespace bftEngine {
 namespace bcst {

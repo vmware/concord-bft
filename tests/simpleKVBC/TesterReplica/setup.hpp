@@ -28,7 +28,7 @@
 #include "secrets/secrets_manager_impl.h"
 
 #ifdef USE_S3_OBJECT_STORE
-#include "s3/client.hpp"
+#include "storage/s3/client.hpp"
 #endif
 
 namespace concord::kvbc {

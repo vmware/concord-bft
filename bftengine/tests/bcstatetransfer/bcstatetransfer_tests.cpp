@@ -33,8 +33,8 @@
 #include "test_replica.hpp"
 #include "DBDataStore.hpp"
 #include "direct_kv_db_adapter.h"
-#include "memorydb/client.h"
-#include "storage/direct_kv_key_manipulator.h"
+#include "storage/memorydb/client.hpp"
+#include "storage/direct_kv_key_manipulator.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
 #include "Messages.hpp"
@@ -45,8 +45,8 @@
 #include "messages/StateTransferMsg.hpp"
 
 #ifdef USE_ROCKSDB
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
+#include "storage/rocksdb/client.hpp"
+#include "storage/rocksdb/key_comparator.hpp"
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 #endif

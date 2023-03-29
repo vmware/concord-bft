@@ -17,7 +17,7 @@
 
 #include "SetupReplica.hpp"
 #include "common.hpp"
-#include "memorydb/client.h"
+#include "storage/memorydb/client.hpp"
 #include "secrets/secrets_manager_plain.h"
 #include "secrets/secrets_manager_enc.h"
 #include "direct_kv_storage_factory.h"

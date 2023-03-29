@@ -23,7 +23,7 @@
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter_interface.h"
 #include "db_interfaces.h"
-#include "memorydb/client.h"
+#include "storage/memorydb/client.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"

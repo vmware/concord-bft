@@ -14,7 +14,7 @@
 #pragma once
 
 #include "categorization/updates.h"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "v4blockchain/detail/st_chain.h"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/blockchain.h"

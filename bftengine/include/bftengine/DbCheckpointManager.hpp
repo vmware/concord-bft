@@ -31,7 +31,7 @@
 #include "DbCheckpointMetadata.hpp"
 #include "util/Metrics.hpp"
 #include "InternalBFTClient.hpp"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
 namespace _fs = fs;

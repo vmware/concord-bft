@@ -17,7 +17,7 @@
 #include "util/sliver.hpp"
 #include "communication/ICommunication.hpp"
 #include "util/Metrics.hpp"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 #include "db_interfaces.h"
 #include "bftengine/Replica.hpp"
 #include "kv_types.hpp"

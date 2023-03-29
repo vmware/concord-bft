@@ -22,7 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "kvbc_adapter/common/state_snapshot_adapter.hpp"
 
 using concord::storage::rocksdb::NativeClient;

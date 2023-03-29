@@ -21,7 +21,7 @@
 #include "util/assertUtils.hpp"
 
 #include "kv_types.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "blockchain_misc.hpp"
 #include "ReplicaConfig.hpp"
 #include "db_interfaces.h"
@@ -30,7 +30,7 @@
 #include "replica_adapter_auxilliary_types.hpp"
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 
 namespace concord::kvbc::adapter {
 class ReplicaBlockchain : public IBlocksDeleter,

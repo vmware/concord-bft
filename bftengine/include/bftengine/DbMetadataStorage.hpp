@@ -19,8 +19,8 @@
 
 #include "log/logger.hpp"
 #include "bftengine/MetadataStorage.hpp"
-#include "storage/db_interface.h"
-#include "storage/key_manipulator_interface.h"
+#include "storage/db_interface.hpp"
+#include "storage/key_manipulator_interface.hpp"
 #include "util/sliver.hpp"
 
 namespace concord {

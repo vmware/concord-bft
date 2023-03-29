@@ -21,7 +21,7 @@
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 #include "sparse_merkle/keys.h"
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 #include "util/string.hpp"
 
 #include <algorithm>

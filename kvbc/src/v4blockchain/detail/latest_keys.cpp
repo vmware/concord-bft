@@ -16,7 +16,7 @@
 #include "v4blockchain/detail/column_families.h"
 #include "log/logger.hpp"
 #include "v4blockchain/detail/blockchain.h"
-#include "rocksdb/details.h"
+#include "storage/rocksdb/details.hpp"
 
 using namespace concord::kvbc;
 namespace concord::kvbc::v4blockchain::detail {

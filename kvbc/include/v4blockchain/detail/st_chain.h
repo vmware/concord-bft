@@ -14,7 +14,7 @@
 #pragma once
 
 #include <memory>
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "kv_types.hpp"
 #include "v4blockchain/detail/blocks.h"
 #include "v4blockchain/detail/blockchain.h"

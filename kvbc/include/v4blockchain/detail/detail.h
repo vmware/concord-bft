@@ -14,7 +14,7 @@
 #pragma once
 #include <chrono>
 #include "kvbc_key_types.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "blockchain_misc.hpp"
 
 namespace concord::kvbc::v4blockchain::detail {

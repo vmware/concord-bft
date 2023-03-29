@@ -17,7 +17,7 @@
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
-#include "rocksdb/details.h"
+#include "storage/rocksdb/details.hpp"
 
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>

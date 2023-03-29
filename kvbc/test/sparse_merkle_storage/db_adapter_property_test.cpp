@@ -11,7 +11,7 @@
 #include "merkle_tree_db_adapter.h"
 #include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 
 #include <array>
 #include <cstddef>

@@ -19,7 +19,7 @@
 #include "log/logger.hpp"
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
-#include "s3/client.hpp"
+#include "storage/s3/client.hpp"
 #include "bftengine/PersistentStorage.hpp"
 #include "storage_factory_interface.h"
 #include "categorization/blocks.h"
