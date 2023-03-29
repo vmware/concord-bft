@@ -569,6 +569,7 @@ void MultiSizeBufferPool::SubPool::pushChunk(char* chunk) {
 }
 
 std::pair<char*, MultiSizeBufferPool::SubPool::AllocationStatus> MultiSizeBufferPool::SubPool::allocateChunk() {
+  std::lock_guard<std::mutex> lock(waitForAvailChunkMutex_);
   char* chunk = nullptr;
   const auto& numAllocatedChunks{stats_.current_.numAllocatedChunks_};
 
