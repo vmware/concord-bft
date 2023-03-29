@@ -8,6 +8,7 @@
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Restart%20recovery%20suite/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Restart+recovery+suite")
 
 <!-- ![Concored-bft Logo](TBD) -->
 
@@ -36,7 +37,8 @@ Start with example usage [here](https://github.com/vmware/concord-bft/tree/maste
 
 See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.
 
-## Community
+## Commun
+ity
 
 [Concord-BFT Slack](https://concordbft.slack.com/).
 
