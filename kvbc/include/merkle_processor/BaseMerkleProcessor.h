@@ -24,52 +24,10 @@ using Hasher = concord::kvbc::categorization::Hasher;
 
 class BaseMerkleProcessor : public IMerkleProcessor {
  public:
-  bool needProcessing(char type) const {
-    if (type == kKvbKeyEthBalance || type == kKvbKeyEthCode || type == kKvbKeyEthStorage || type == kKvbKeyEthNonce) {
-      return true;
-    }
-    return false;
-  }
+  bool needProcessing(char type) const;
+  address getAddress(const std::string& key) const;
 
-  address getAddress(const std::string& key) const {
-    ConcordAssert(key.size() > IMerkleProcessor::address_size);  // Include 1 byte indicating key type
-    return address(&key[1], IMerkleProcessor::address_size);
-  }
-
-  virtual void ProcessUpdates(const categorization::Updates& updates) override {
-    BeginVersionUpdateBatch();
-    for (const auto& k : updates.categoryUpdates().kv) {
-      if (const categorization::BlockMerkleInput* pval = std::get_if<categorization::BlockMerkleInput>(&k.second)) {
-        for (const auto& v : pval->kv) {
-          if (needProcessing(v.first[0])) {
-            auto hasher = Hasher{};
-            const auto value_hash = hasher.digest(v.second.data(), v.second.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::BlockMerkleInput");
-            UpdateAccountTree(getAddress(v.first), v.first, value_hash);
-          }
-        }
-      } else if (const categorization::VersionedInput* pval = std::get_if<categorization::VersionedInput>(&k.second)) {
-        for (const auto& v : pval->kv) {
-          if (needProcessing(v.first[0])) {
-            auto hasher = Hasher{};
-            const auto value_hash = hasher.digest(v.second.data.data(), v.second.data.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::VersionedInput");
-            UpdateAccountTree(getAddress(v.first), v.first, value_hash);
-          }
-        }
-      } else if (const categorization::ImmutableInput* pval = std::get_if<categorization::ImmutableInput>(&k.second)) {
-        for (const auto& v : pval->kv) {
-          if (needProcessing(v.first[0])) {
-            auto hasher = Hasher{};
-            const auto value_hash = hasher.digest(v.second.data.data(), v.second.data.size());
-            LOG_INFO(V4_BLOCK_LOG, "MerkleProcessor: categorization::ImmutableInput");
-            UpdateAccountTree(getAddress(v.first), v.first, value_hash);
-          }
-        }
-      }
-    }
-    CommitVersionUpdateBatch();
-  }
+  virtual void ProcessUpdates(const categorization::Updates& updates) override;
 };
 
 }  // namespace sparse_merkle
