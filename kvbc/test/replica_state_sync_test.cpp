@@ -19,9 +19,9 @@
 #include "metadata_block_id.h"
 #include "PersistentStorageImp.hpp"
 #include "replica_state_sync_imp.hpp"
-#include "rocksdb/native_client.h"
-#include "storage/merkle_tree_key_manipulator.h"
-#include "storage/test/storage_test_common.h"
+#include "storage/rocksdb/native_client.hpp"
+#include "storage/merkle_tree_key_manipulator.hpp"
+#include "storage/test/storage_test_common.hpp"
 
 #include <cstdint>
 #include <memory>

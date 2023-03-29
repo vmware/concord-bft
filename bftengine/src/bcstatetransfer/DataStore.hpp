@@ -19,7 +19,7 @@
 
 #include "log/logger.hpp"
 #include "util/assertUtils.hpp"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 #include "crypto/digest.hpp"
 
 using std::set;

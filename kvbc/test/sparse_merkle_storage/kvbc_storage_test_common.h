@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"

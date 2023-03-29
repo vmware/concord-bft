@@ -20,7 +20,8 @@ target_link_libraries(kvbc_filter_test
         kvbc
         concord-kvbc-proto
         corebft
-        logging)
+        logging
+        concordbft_storage_test_headers)
 
 add_executable(order_test order_test.cpp )
 add_test(order_test order_test)
@@ -186,6 +187,7 @@ if (BUILD_ROCKSDB_STORAGE)
         corebft
         kvbc
         stdc++fs
+        concordbft_storage_test_headers
     )
 
     add_executable(block_merkle_category_unit_test categorization/block_merkle_category_unit_test.cpp )
@@ -196,6 +198,7 @@ if (BUILD_ROCKSDB_STORAGE)
         util
         kvbc
         stdc++fs
+        concordbft_storage_test_headers
     )
 
     add_executable(versioned_kv_category_unit_test categorization/versioned_kv_category_unit_test.cpp )
@@ -219,6 +222,7 @@ if (BUILD_ROCKSDB_STORAGE)
         corebft
         kvbc
         stdc++fs
+        concordbft_storage_test_headers
     )
 
     add_executable(v4_blocks_unit_test
@@ -243,6 +247,7 @@ if (BUILD_ROCKSDB_STORAGE)
         corebft
         kvbc
         stdc++fs
+        concordbft_storage_test_headers
     )
 
     add_executable(v4_categories_unit_test
@@ -292,6 +297,7 @@ if (BUILD_ROCKSDB_STORAGE)
         corebft
         kvbc
         stdc++fs
+        concordbft_storage_test_headers
     )
 
     add_executable(common_state_snapshot_adapter_test
@@ -304,6 +310,7 @@ if (BUILD_ROCKSDB_STORAGE)
             corebft
             kvbc
             stdc++fs
+            concordbft_storage_test_headers
     )
 
     
@@ -313,7 +320,8 @@ if (BUILD_ROCKSDB_STORAGE)
             GTest::GTest
             corebft
             kvbc
-            stdc++fs)
+            stdc++fs
+            concordbft_storage_test_headers)
 
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
     add_test(replica_state_sync_test_v4 replica_state_sync_test v4)

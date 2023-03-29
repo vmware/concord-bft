@@ -30,7 +30,7 @@
 #include "event_group_msgs.cmf.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord_kvbc.pb.h"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "tools/db_editor/include/kv_blockchain_db_editor.hpp"
 #include "tools/migrations/v4migration_tool/include/blockchain_adapter.hpp"
 #include "tools/migrations/v4migration_tool/include/migration_bookeeper.hpp"

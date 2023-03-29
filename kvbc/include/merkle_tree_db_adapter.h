@@ -19,7 +19,7 @@
 #include "merkle_tree_block.h"
 #include "util/sliver.hpp"
 #include "sparse_merkle/tree.h"
-#include "storage/db_interface.h"
+#include "storage/db_interface.hpp"
 #include "util/Statistics.hpp"
 #include "PerformanceManager.hpp"
 

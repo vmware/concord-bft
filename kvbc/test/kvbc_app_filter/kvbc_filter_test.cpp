@@ -24,14 +24,14 @@
 
 #include "log/logger.hpp"
 #include "kv_types.hpp"
-#include "memorydb/client.h"
-#include "memorydb/key_comparator.h"
+#include "storage/memorydb/client.hpp"
+#include "storage/memorydb/key_comparator.hpp"
 #include "crypto/openssl/crypto.hpp"
 #include "util/status.hpp"
 #include "concord_kvbc.pb.h"
 
 #include "kvbc_app_filter/kvbc_app_filter.h"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 
 using com::vmware::concord::kvbc::ValueWithTrids;
 

@@ -22,8 +22,8 @@
 #include "merkle_tree_db_adapter.h"
 #include "PersistentStorageImp.hpp"
 #include "util/sliver.hpp"
-#include "storage/db_types.h"
-#include "storage/merkle_tree_key_manipulator.h"
+#include "storage/db_types.hpp"
+#include "storage/merkle_tree_key_manipulator.hpp"
 #include "categorization/updates.h"
 
 namespace {

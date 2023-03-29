@@ -16,8 +16,8 @@
 #include "util/json_output.hpp"
 
 #include "merkle_tree_block.h"
-#include "storage/db_types.h"
-#include "rocksdb/client.h"
+#include "storage/db_types.hpp"
+#include "storage/rocksdb/client.hpp"
 #include "util/filesystem.hpp"
 
 namespace concord::kvbc::tools::db_editor {

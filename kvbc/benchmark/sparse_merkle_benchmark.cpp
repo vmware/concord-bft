@@ -17,7 +17,7 @@
 
 #include "util/endianness.hpp"
 #include "util/Handoff.hpp"
-#include "memorydb/client.h"
+#include "storage/memorydb/client.hpp"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"

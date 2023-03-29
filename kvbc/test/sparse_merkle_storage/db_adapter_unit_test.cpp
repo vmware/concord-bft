@@ -9,10 +9,10 @@
 #include "merkle_tree_block.h"
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
-#include "memorydb/client.h"
-#include "rocksdb/client.h"
+#include "storage/memorydb/client.hpp"
+#include "storage/rocksdb/client.hpp"
 #include "sparse_merkle/base_types.h"
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 
 #include <array>
 #include <cstddef>
@@ -690,7 +690,7 @@ TEST_P(db_adapter_custom_blockchain, get_key_by_ver_1_key_empty_blocks) {
 
 // Test the getKeyByReadVersion() method with multiple keys, including ones that are ordered before and after the keys
 // in the system.
-// Note: Leaf keys are ordered first on the key hash and then on the version. See db_types.h and
+// Note: Leaf keys are ordered first on the key hash and then on the version. See db_types.hpp and
 // merkle_tree_serialization.h for more information.
 TEST_P(db_adapter_custom_blockchain, get_key_by_ver_multiple_keys) {
   const auto key = defaultSliver;

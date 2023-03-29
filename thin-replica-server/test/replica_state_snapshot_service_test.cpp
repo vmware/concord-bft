@@ -17,7 +17,7 @@
 #include "categorization/db_categories.h"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "kvbc_key_types.hpp"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
 
 #include <grpcpp/channel.h>

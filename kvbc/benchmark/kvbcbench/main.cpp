@@ -34,7 +34,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "performance_handler.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "diagnostics.hpp"
 #include "diagnostics_server.hpp"
 #include "input.h"

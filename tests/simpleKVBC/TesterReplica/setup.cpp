@@ -26,7 +26,7 @@
 #include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
 #include "commonKVBTests.hpp"
-#include "memorydb/client.h"
+#include "storage/memorydb/client.hpp"
 #include "util/string.hpp"
 #include "util/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
@@ -46,7 +46,7 @@
 #include "blockchain_misc.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
-#include "s3/config_parser.hpp"
+#include "storage/s3/config_parser.hpp"
 #endif
 
 namespace concord::kvbc {

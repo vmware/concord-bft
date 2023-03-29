@@ -19,7 +19,7 @@
 #include "categorization/db_categories.h"
 #include "categorization/kv_blockchain.h"
 #include "util/hex_tools.hpp"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 
 #include "util/filesystem.hpp"
 

@@ -19,7 +19,7 @@
 #include "util/endianness.hpp"
 #include "pruning_handler.hpp"
 
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 
 #include <cassert>
 #include <cstdint>

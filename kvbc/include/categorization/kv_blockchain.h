@@ -15,7 +15,7 @@
 
 #include "updates.h"
 #include "blockchain_misc.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "blocks.h"
 #include "blockchain.h"
 #include "immutable_kv_category.h"

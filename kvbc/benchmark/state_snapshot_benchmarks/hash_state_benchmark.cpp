@@ -17,7 +17,7 @@
 #include "categorization/details.h"
 #include "util/hex_tools.hpp"
 #include "kv_types.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "util/thread_pool.hpp"
 
 #include "multi_get_batch.hpp"

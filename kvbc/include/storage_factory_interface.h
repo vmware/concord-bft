@@ -13,8 +13,8 @@
 #pragma once
 
 #include "db_adapter_interface.h"
-#include "storage/db_interface.h"
-#include "storage/key_manipulator_interface.h"
+#include "storage/db_interface.hpp"
+#include "storage/key_manipulator_interface.hpp"
 
 #include <memory>
 

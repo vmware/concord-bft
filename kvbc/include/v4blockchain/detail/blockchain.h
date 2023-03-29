@@ -19,7 +19,7 @@
 #include <atomic>
 #include <limits>
 #include <mutex>
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include <memory>
 #include "kv_types.hpp"
 #include "v4blockchain/detail/blocks.h"
