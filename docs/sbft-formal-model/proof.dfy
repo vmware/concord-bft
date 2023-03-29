@@ -674,7 +674,6 @@ module Proof {
         var h_c := c.hosts[commitMsg.sender].replicaConstants;
         var h_v' := v'.hosts[commitMsg.sender].replicaVariables;
         if(commitMsg !in v.network.sentMsgs) {
-          // CountPrepareMessagesInWorkingWindow(c, v, commitMsg.sender, h_step.seqID);
           CountPrepareMessages2(c, v, commitMsg.sender, h_c, h_v, h_step.seqID);
         }
       }
@@ -1590,21 +1589,6 @@ module Proof {
     reveal_RecordedViewChangeMsgsCameFromNetwork();
   }
 
-  // This is part of a contradiction proof
-  lemma DoubleAgentDidNotCommit(c: Constants,
-                                v:Variables,
-                                doubleAgent:HostId,
-                                seqID:Messages.SequenceID,
-                                priorView:nat,
-                                priorOperationWrapper:Messages.OperationWrapper,
-                                vcMsg:Message)
-    requires Inv(c, v)
-    requires c.clusterConfig.IsHonestReplica(doubleAgent)
-    ensures !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent)
-  {
-    assume false;
-  }
-
   lemma HonestRecvPrePrepareStepPreservesUnCommitableAgreesWithRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
@@ -1870,7 +1854,6 @@ module Proof {
             assert certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper;
           } else {
             reveal_EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares();
-            assume EveryCommitMsgIsSupportedByAQuorumOfRecordedPrepares(c, v);
             assert false; // Couldn't have sent a Commit
           }
         } else {
@@ -1901,7 +1884,6 @@ module Proof {
         assert certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper;
       }
 
-      //assume false;
     } else {
       assert oldCertificate.validFull(c.clusterConfig, seqID);
       assert oldCertificate.votes <= certificate.votes;
@@ -2002,34 +1984,6 @@ module Proof {
                      Replica.IsRecordedViewChangeMsgForView(h_c, h_v.viewChangeMsgsRecvd, h_v.view, vcMsg);
       }
     }
-
-    //assume false;
-    // reveal_RecordedNewViewMsgsAreValid();
-    // reveal_RecordedPreparesHaveValidSenderID();
-    // reveal_RecordedPrePreparesRecvdCameFromNetwork();
-    // reveal_RecordedPreparesRecvdCameFromNetwork();
-    // reveal_RecordedPrePreparesMatchHostView();
-    // reveal_RecordedPreparesMatchHostView();
-    // reveal_EveryCommitMsgIsSupportedByAQuorumOfSentPrepares();
-    // reveal_RecordedPreparesClientOpsMatchPrePrepare();
-    // reveal_RecordedCommitsClientOpsMatchPrePrepare();
-    // reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
-    // reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
-    // reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
-    // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
-    // reveal_HonestReplicasLockOnPrepareForGivenView();
-    // reveal_HonestReplicasLockOnCommitForGivenView();
-    // reveal_CommitMsgsFromHonestSendersAgree();
-    // reveal_RecordedCheckpointsRecvdCameFromNetwork();
-    // reveal_UnCommitableAgreesWithPrepare();
-    // reveal_UnCommitableAgreesWithRecordedPrePrepare();
-    // reveal_HonestReplicasLeaveViewsBehind();
-    // reveal_RecordedNewViewMsgsContainSentVCMsgs();
-    // reveal_RecordedViewChangeMsgsCameFromNetwork();
-    // reveal_SentViewChangesMsgsComportWithSentCommits();
-    // reveal_EveryCommitMsgIsRememberedByItsSender();
-    // reveal_RecordedViewChangeMsgsAreValid();
-    // reveal_TemporarilyDisableCheckpointing();
   }
 
   lemma HonestPreservesRecordedViewChangeMsgsAreValid(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
