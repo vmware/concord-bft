@@ -16,8 +16,8 @@
 #include "IncomingMsgsStorage.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "util/Timers.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 
 #include <queue>
 #include <atomic>

@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-// This file contains a tcp server listening on localhost that handles the messages in protocol.h.
+// This file contains a tcp server listening on localhost that handles the messages in protocol.hpp.
 
 #pragma once
 
@@ -30,7 +30,7 @@
 #include "log/logger.hpp"
 #include "util/errnoString.hpp"
 #include "util/kvstream.h"
-#include "protocol.h"
+#include "protocol.hpp"
 
 using concordUtils::errnoString;
 

@@ -18,7 +18,7 @@
 #include "InternalReplicaApi.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "util/Timers.hpp"
-#include "performance_handler.h"
+#include "performance_handler.hpp"
 
 namespace bftEngine::batchingLogic {
 

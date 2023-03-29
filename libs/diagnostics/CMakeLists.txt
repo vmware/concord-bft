@@ -11,6 +11,17 @@ set_property(TARGET diagnostics PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(diagnostics PUBLIC include ${HDR_HISTOGRAM_INCLUDE_DIR})
 target_link_libraries(diagnostics ${HDR_HISTOGRAM_LIBRARY})
 
+target_sources(diagnostics PUBLIC FILE_SET diagnostics_pub_hdrs
+                                       TYPE HEADERS
+                                       FILES 
+                                       diagnostics_server.hpp
+                                       diagnostics.hpp
+                                       protocol.hpp
+                                       status_handlers.hpp
+                                       performance_handler.hpp)
+
+install(TARGETS diagnostics FILE_SET diagnostics_pub_hdrs DESTINATION diagnostics)
+
 if (BUILD_TESTING)
     add_subdirectory(test)
 endif()

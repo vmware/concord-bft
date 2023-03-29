@@ -24,7 +24,7 @@
 #include "client/reconfiguration/cre_interfaces.hpp"
 #include "util/assertUtils.hpp"
 #include "util/Metrics.hpp"
-#include "diagnostics_server.h"
+#include "diagnostics_server.hpp"
 #include <csignal>
 
 #ifdef USE_ROCKSDB

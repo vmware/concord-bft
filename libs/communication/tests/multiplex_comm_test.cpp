@@ -13,7 +13,7 @@
 
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
-#include "diagnostics.h"
+#include "diagnostics.hpp"
 #include <gtest/gtest.h>
 
 using namespace bft::communication;

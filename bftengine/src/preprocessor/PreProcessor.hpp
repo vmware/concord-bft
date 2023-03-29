@@ -24,7 +24,7 @@
 #include "util/Timers.hpp"
 #include "InternalReplicaApi.hpp"
 #include "PreProcessorRecorder.hpp"
-#include "diagnostics.h"
+#include "diagnostics.hpp"
 #include "PerformanceManager.hpp"
 #include "util/RollingAvgAndVar.hpp"
 #include "SharedTypes.hpp"
