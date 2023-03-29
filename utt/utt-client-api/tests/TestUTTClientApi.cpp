@@ -16,6 +16,7 @@
 #include <xassert/XAssert.h>
 
 #include <memory>
+#include <map>
 
 // libutt
 #include <utt/RegAuth.h>
@@ -283,6 +284,8 @@ class InMemoryUserStorage : public utt::client::IStorage {
   void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) override {
     config_ = libutt::api::serialize(utt_public_config);
   }
+  void setAppData(std::string&, std::string&) override{};
+
   libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
   libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
   libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
@@ -299,6 +302,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::PublicConfig getUttPublicConfig() override {
     return libutt::api::deserialize<libutt::api::PublicConfig>(config_);
   }
+  std::string getAppData(std::string& key) override { return appData_[key]; }
   void startTransaction() override {}
   void commit() override {}
 
@@ -310,6 +314,7 @@ class InMemoryUserStorage : public utt::client::IStorage {
   std::pair<std::string, std::string> keyPair_;
   std::string user_id_;
   utt::PublicConfig config_;
+  std::map<std::string, std::string> appData_;
 };
 
 const std::vector<std::string> user_ids({"user-1", "user-2", "user-3"});
