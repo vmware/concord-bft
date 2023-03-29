@@ -20,8 +20,11 @@
 using namespace utt::client::utils::crypto;
 using namespace ::vmware::concord::privacy::wallet::api::v1;
 namespace utt::walletservice {
-PrivacyWalletService::PrivacyWalletService() : privacy_wallet_service_(std::make_unique<PrivacyWalletServiceImpl>()) {
+const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
+
+PrivacyWalletService::PrivacyWalletService() {
   utt::client::Initialize();
+  privacy_wallet_service_ = std::make_unique<PrivacyWalletServiceImpl>();
 }
 
 PrivacyWalletService::~PrivacyWalletService() { std::cout << " Destroying privacy wallet service...\n"; }
@@ -48,9 +51,18 @@ void PrivacyWalletService::Shutdown() {
     std::cout << "server shutdown complete.." << std::endl;
   }
 }
+PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
+  try {
+    wallet_ = Wallet::recoverFromStorage(PrivacyWalletServiceImpl::wallet_db_path);
+  } catch (...) {
+    std::cout << "storage is corrupted, unable to restore the wallet service from the given storage" << std::endl;
+    std::exit(0);
+  }
 
-const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
-
+  if (wallet_) {
+    std::cout << "wallet service recovered from storage" << std::endl;
+  }
+}
 ::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletService(::grpc::ServerContext* context,
                                                               const PrivacyWalletRequest* request,
                                                               PrivacyWalletResponse* response) {

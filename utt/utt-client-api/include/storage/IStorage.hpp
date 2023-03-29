@@ -14,6 +14,7 @@
 #pragma once
 #include <vector>
 #include "coin.hpp"
+#include "config.hpp"
 
 namespace utt::client {
 class IStorage {
@@ -73,6 +74,20 @@ class IStorage {
   virtual void setCoin(const libutt::api::Coin& coin) = 0;
 
   /**
+   * @brief Set user id
+   *
+   * @param user_id
+   */
+  virtual void setUserId(const std::string& user_id) = 0;
+
+  /**
+   * @brief Set the Utt Public Config object
+   *
+   * @param utt_public_config
+   */
+  virtual void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) = 0;
+
+  /**
    * @brief Remove a utt coin from the storage
    *
    * @param coin a utt coin object
@@ -114,6 +129,19 @@ class IStorage {
    */
   virtual std::pair<std::string, std::string> getKeyPair() = 0;
 
+  /**
+   * @brief Get the User Id
+   *
+   * @return std::string
+   */
+  virtual std::string getUserId() = 0;
+
+  /**
+   * @brief Get the Utt Public Configuration
+   *
+   * @return libutt::api::PublicConfig
+   */
+  virtual libutt::api::PublicConfig getUttPublicConfig() = 0;
   /**
    * @brief Starts a new atomic transaction
    *
