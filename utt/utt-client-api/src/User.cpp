@@ -257,11 +257,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   if (private_key.empty()) throw std::runtime_error("User private key cannot be empty!");
   if (public_key.empty()) throw std::runtime_error("User public key cannot be empty!");
 
-  IStorage::tx_guard g(*storage);
-  storage->setUserId(userId);
-  storage->setKeyPair({private_key, public_key});
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
-  storage->setUttPublicConfig(uttConfig);
   auto user = std::make_unique<User>();
   user->pImpl_->pk_ = public_key;
   user->pImpl_->params_ = uttConfig.getParams();
@@ -272,12 +268,18 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
 
   std::map<std::string, std::string> selfTxCredentials{{userId, public_key}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
+  if (storage->isNewStorage()) {
+    IStorage::tx_guard g(*storage);
+    storage->setUserId(userId);
+    storage->setKeyPair({private_key, public_key});
+    storage->setUttPublicConfig(uttConfig);
+  }
   return user;
 }
 
 std::unique_ptr<User> User::recoverFromStorage(std::shared_ptr<IStorage> storage) {
   // First lets create a User object.
-  if (storage->isNewStorage()) throw std::runtime_error("cannot recover user from non initialized state");
+  if (storage->isNewStorage()) throw std::runtime_error("cannot recover user from non initialized storage");
   // As we have atomic transaction on createInitial, we know that if the storage is initiated, all the initial
   // information is there
   std::string user_id = storage->getUserId();

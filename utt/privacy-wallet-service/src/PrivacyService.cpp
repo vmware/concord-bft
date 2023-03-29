@@ -52,7 +52,13 @@ void PrivacyWalletService::Shutdown() {
   }
 }
 PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
-  wallet_ = Wallet::recoverFromStorage(PrivacyWalletServiceImpl::wallet_db_path);
+  try {
+    wallet_ = Wallet::recoverFromStorage(PrivacyWalletServiceImpl::wallet_db_path);
+  } catch (...) {
+    std::cout << "storage is corrupted, unable to restore the wallet service from the given storage" << std::endl;
+    std::exit(0);
+  }
+
   if (wallet_) {
     std::cout << "wallet service recovered from storage" << std::endl;
   }
