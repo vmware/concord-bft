@@ -263,7 +263,7 @@ module Proof {
              && commitMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
 
-  predicate {:opaque} EveryPrepareClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
+  predicate {:opaque} EveryPrepareMatchesRecordedPrePrepare(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall prepareMsg | 
                       && prepareMsg in v.network.sentMsgs
@@ -272,11 +272,12 @@ module Proof {
                       && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
                       && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
                       && prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
-                      && prepareMsg.payload.view == replicaVariables.view
           :: && var recordedPrePrepare := 
                 v.hosts[prepareMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID];
+             && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
              && recordedPrePrepare.Some?
-             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
+             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper
+             && prepareMsg.payload.view == replicaVariables.view)
   }
 
   predicate {:opaque} RecordedPreparesMatchHostView(c:Constants, v:Variables) {
@@ -357,7 +358,7 @@ module Proof {
     && RecordedCommitsClientOpsMatchPrePrepare(c, v)
     && EverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v)
     && EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c, v)
-    && EveryPrepareClientOpMatchesRecordedPrePrepare(c, v)
+    && EveryPrepareMatchesRecordedPrePrepare(c, v)
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
@@ -801,13 +802,13 @@ module Proof {
     assert Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, seqID) == filtered;
   }
 
-  lemma HonestPreservesEveryPrepareClientOpMatchesRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+  lemma HonestPreservesEveryPrepareMatchesRecordedPrePrepare(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
-    ensures EveryPrepareClientOpMatchesRecordedPrePrepare(c, v')
+    ensures EveryPrepareMatchesRecordedPrePrepare(c, v')
 
   {
-    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    reveal_EveryPrepareMatchesRecordedPrePrepare();
     reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
     reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
     h_v.workingWindow.reveal_Shift();
@@ -846,7 +847,7 @@ module Proof {
     ensures HonestReplicasLockOnPrepareForGivenView(c, v')
   {
     reveal_HonestReplicasLockOnPrepareForGivenView();
-    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    reveal_EveryPrepareMatchesRecordedPrePrepare();
   }
 
   lemma HonestPreservesHonestReplicasLockOnCommitForGivenView(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
@@ -1034,7 +1035,7 @@ module Proof {
     // reveal_RecordedCommitsClientOpsMatchPrePrepare();
     // reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
     // reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
-    // reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    // reveal_EveryPrepareMatchesRecordedPrePrepare();
     // reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
     // reveal_HonestReplicasLockOnPrepareForGivenView();
     // reveal_HonestReplicasLockOnCommitForGivenView();
@@ -1695,7 +1696,7 @@ module Proof {
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
     reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
     reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
-    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    reveal_EveryPrepareMatchesRecordedPrePrepare();
     reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
     reveal_HonestReplicasLockOnPrepareForGivenView();
     reveal_HonestReplicasLockOnCommitForGivenView();
@@ -1712,7 +1713,69 @@ module Proof {
     ensures ViewChangeMsgsFromHonestInNetworkAreValid(c, v')
   {
     reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
-    assume false;
+    forall viewChangeMsg |
+                && viewChangeMsg in v'.network.sentMsgs
+                && viewChangeMsg.payload.ViewChangeMsg?
+                && var replicaIdx := viewChangeMsg.sender;
+                && IsHonestReplica(c, replicaIdx)
+                   ensures && var replicaIdx := viewChangeMsg.sender;
+                           && viewChangeMsg.payload.checked(c.clusterConfig, v'.network.sentMsgs) {
+      var h_c := c.hosts[step.id].replicaConstants;
+      var replicaIdx := viewChangeMsg.sender;
+      if viewChangeMsg !in v.network.sentMsgs {
+        assert h_step.LeaveViewStep? by {
+          reveal_RecordedViewChangeMsgsCameFromNetwork();
+        }
+        reveal_EveryPrepareMatchesRecordedPrePrepare();
+        reveal_TemporarilyDisableCheckpointing();
+        var certificates := viewChangeMsg.payload.certificates;
+        forall seqID | seqID in certificates
+                           ensures && certificates[seqID].valid(c.clusterConfig, seqID)
+                                   && certificates[seqID].votesRespectView(viewChangeMsg.payload.newView)
+                                   && certificates[seqID].votes <= v.network.sentMsgs {
+          var certificate := certificates[seqID];
+          var workingWindowPreparesRecvd := Replica.ExtractPreparesFromWorkingWindow(h_c, h_v, seqID);
+          var viewChangeMsgPreparesRecvd := Replica.ExtractPreparesFromLatestViewChangeMsg(h_c, h_v, seqID);
+          if |workingWindowPreparesRecvd| >= h_c.clusterConfig.AgreementQuorum()
+          {
+            reveal_RecordedPreparesRecvdCameFromNetwork();
+            assert certificates == Replica.ExtractCertificates(h_c, h_v);
+            assert certificate == Replica.ExtractCertificateForSeqID(h_c, h_v, seqID);
+            if !certificate.empty() {
+              var key :| && key in h_v.workingWindow.preparesRcvd[seqID]
+                         && h_v.workingWindow.preparesRcvd[seqID][key].payload == certificate.prototype();
+              
+              assert certificate.validFull(c.clusterConfig, seqID);
+            }
+            assert certificate.valid(c.clusterConfig, seqID);
+            assert certificate.votesRespectView(viewChangeMsg.payload.newView);
+          }
+          else if |viewChangeMsgPreparesRecvd| >= c.clusterConfig.AgreementQuorum() {
+            assume false;
+            assert certificate.valid(c.clusterConfig, seqID);
+            assert certificate.votesRespectView(viewChangeMsg.payload.newView);
+            assert certificate.votes <= v.network.sentMsgs;
+          }
+          else {
+            assert certificate.valid(c.clusterConfig, seqID);
+            assert certificate.votesRespectView(viewChangeMsg.payload.newView);
+            assert certificate.votes <= v.network.sentMsgs;
+          }
+        }
+        assert Replica.ExtractValidStableCheckpointProof(h_c, h_v).msgs == {} by {
+          // We need 2 Invariants:
+          // 1. All Checkpoint messages we record are in the netork.
+          // 2. Checkpint messages from honest senders precede its last stable variable.
+          // Since Checkpointing is disabled the honest senders have last stable == 0, 
+          // therefore we cannot get a quorum of honest senders.
+          assume false;
+        }
+        assert h_v.workingWindow.lastStableCheckpoint == 0;
+        assert viewChangeMsg.payload.checked(c.clusterConfig, v'.network.sentMsgs);
+      } else {
+        assert viewChangeMsg.payload.checked(c.clusterConfig, v'.network.sentMsgs);
+      }
+    }
   }
 
   lemma HonestPreservesEveryCommitMsgIsRememberedByItsSenderForCommitStep(
@@ -2040,7 +2103,7 @@ module Proof {
       HonestPreservesRecordedCommitsClientOpsMatchPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesEverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v, v', step, h_v, h_step);
       HonestPreservesEverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c, v, v', step, h_v, h_step);
-      HonestPreservesEveryPrepareClientOpMatchesRecordedPrePrepare(c, v, v', step, h_v, h_step);
+      HonestPreservesEveryPrepareMatchesRecordedPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesEveryCommitClientOpMatchesRecordedPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesHonestReplicasLockOnPrepareForGivenView(c, v, v', step, h_v, h_step);
       HonestPreservesHonestReplicasLockOnCommitForGivenView(c, v, v', step, h_v, h_step);
@@ -2097,8 +2160,8 @@ module Proof {
     assert EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c, v') by {
       reveal_EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView();
     }
-    assert EveryPrepareClientOpMatchesRecordedPrePrepare(c, v') by {
-      reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+    assert EveryPrepareMatchesRecordedPrePrepare(c, v') by {
+      reveal_EveryPrepareMatchesRecordedPrePrepare();
     }
     assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v') by {
       reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
@@ -2167,7 +2230,7 @@ module Proof {
     assert Inv(c, v) by {
       reveal_RecordedNewViewMsgsAreValid();
       reveal_RecordedCommitsClientOpsMatchPrePrepare();
-      reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
+      reveal_EveryPrepareMatchesRecordedPrePrepare();
       reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
       reveal_HonestReplicasLockOnCommitForGivenView();
       reveal_CommitMsgsFromHonestSendersAgree();

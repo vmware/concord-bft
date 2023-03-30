@@ -514,7 +514,7 @@ module Replica {
                                     ViewChangeMsg(
                                       newView,
                                       v.workingWindow.lastStableCheckpoint,
-                                      CheckpointsQuorum(ExtractStableCheckpointProof(c, v)),
+                                      ExtractValidStableCheckpointProof(c, v),
                                       ExtractCertificates(c, v)));
     // TODO: this should follow from the invariant and from the way we collect prepares.
     // && (forall seqID :: seqID in vcMsg.payload.certificates ==> 
@@ -523,6 +523,15 @@ module Replica {
               .(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {vcMsg}))
               .(workingWindow := v.workingWindow.EmptyWorkingWindow(c))
     && msgOps.send.value == vcMsg
+  }
+
+  function ExtractValidStableCheckpointProof(c:Constants, v:Variables) : CheckpointsQuorum
+    requires v.WF(c)
+  {
+    var proof := ExtractStableCheckpointProof(c, v);
+    if |proof| >= c.clusterConfig.AgreementQuorum()
+    then CheckpointsQuorum(proof)
+    else CheckpointsQuorum({})
   }
 
   function ExtractStableCheckpointProof(c:Constants, v:Variables) : set<Network.Message<Message>>
