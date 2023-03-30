@@ -97,6 +97,14 @@ module Proof {
              && |Replica.ExtractPreparesFromWorkingWindow(committer_c, committer_v, commitMsg.payload.seqID)| >= c.clusterConfig.AgreementQuorum())
   }
 
+  predicate CertificateComportsWithCommit(c:Constants, certificate:Messages.PreparedCertificate, commitMsg:Message) {
+    && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
+    && !certificate.empty()
+    && certificate.prototype().view >= commitMsg.payload.view
+    && (certificate.prototype().view == commitMsg.payload.view 
+        ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+  }
+
   predicate {:opaque} EveryCommitMsgIsRememberedByItsSender(c:Constants, v:Variables) { //TODO: this does not cover Checkpointing
     && v.WF(c)
     && (forall commitMsg | && commitMsg in v.network.sentMsgs 
@@ -108,11 +116,23 @@ module Proof {
           :: && var h_c := c.hosts[commitMsg.sender].replicaConstants;
              && var h_v := v.hosts[commitMsg.sender].replicaVariables;
              && var certificate := Replica.ExtractCertificateForSeqID(h_c, h_v, commitMsg.payload.seqID);
-             && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
-             && !certificate.empty()
-             && certificate.prototype().view >= commitMsg.payload.view
-             && (certificate.prototype().view == commitMsg.payload.view 
-                 ==> certificate.prototype().operationWrapper == commitMsg.payload.operationWrapper)
+             && CertificateComportsWithCommit(c, certificate, commitMsg)
+             )
+  }
+
+  predicate {:opaque} EveryCommitMsgIsRememberedByVCMsgs(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall commitMsg, viewChangeMsg | 
+                           && commitMsg in v.network.sentMsgs
+                           && viewChangeMsg in v.network.sentMsgs
+                           && commitMsg.payload.Commit?
+                           && viewChangeMsg.payload.ViewChangeMsg?
+                           && viewChangeMsg.sender == commitMsg.sender
+                           && IsHonestReplica(c, commitMsg.sender)
+                           && commitMsg.payload.seqID > viewChangeMsg.payload.lastStableCheckpoint
+                           && commitMsg.payload.view < viewChangeMsg.payload.newView
+          :: && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
+             && CertificateComportsWithCommit(c, certificate, commitMsg)
              )
   }
 
@@ -1636,15 +1656,27 @@ module Proof {
           assert vcMsg in v.network.sentMsgs by {
             reveal_RecordedNewViewMsgsContainSentVCMsgs();
           }
-          assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
-            // Need to finish this proof
+          var certView := vcMsg.payload.certificates[seqID].prototype().view;
+          if certView <= priorView {
+            assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+              // viewchangemessages from honest sender comport with uncommitable in view
+              //reveal_SentViewChangesMsgsComportWithUncommitableInView();
+              //assume false;
+              //reveal_CommitMsgsFromHonestSendersAgree();
+              reveal_EveryCommitMsgIsRememberedByVCMsgs();
+              assume EveryCommitMsgIsRememberedByVCMsgs(c, v);
+            }
+          } else { // certView > priorView
+            /*
+              Grab the cert
+              One of the prepares in the cert has to be from an honest node
+              This prepare has to be in the network
+              Apply UnCommitableAgreesWithPrepare
+              Hint: We don't need a double agent in this case. We only need an honest certificate sender.
+            */
             assume false;
-            // viewchangemessages from honest sender comport with uncommitable in view
-            reveal_SentViewChangesMsgsComportWithUncommitableInView();
-            assume SentViewChangesMsgsComportWithUncommitableInView(c, v);
-            assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
-            // Left off here.
           }
+
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
             reveal_HonestReplicasLeaveViewsBehind();
             assert v.hosts[doubleAgent].replicaVariables.view >= vcMsg.payload.newView;
