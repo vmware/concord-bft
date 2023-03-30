@@ -26,7 +26,7 @@ class EmptyProofProcessor : public IProofProcessor {
 
   virtual void ProcessUpdates(const categorization::Updates& updates) override {}
 
-  virtual std::string GetProof(const std::string& key) override { return {}; }
+  virtual std::vector<concord::Byte> GetProof(const std::string& key) override { return {}; }
   virtual void WaitForScheduledTasks() override {}
 };
 

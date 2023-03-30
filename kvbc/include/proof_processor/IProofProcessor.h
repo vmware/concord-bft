@@ -17,6 +17,7 @@
 #include <vector>
 #include "categorization/updates.h"
 #include "util/sliver.hpp"
+#include "util/types.hpp"
 
 namespace concord {
 namespace kvbc {
@@ -31,7 +32,7 @@ class IProofProcessor {
   // Process all the updates that will be persisted.
   virtual void ProcessUpdates(const categorization::Updates& updates) = 0;
   // Get a serialized object serving as proof for correctness.
-  virtual std::string GetProof(const std::string& key) = 0;
+  virtual std::vector<concord::Byte> GetProof(const std::string& key) = 0;
   // In case of async processing we use this call to sync and wait for all async tasks to complete.
   virtual void WaitForScheduledTasks() = 0;
 };

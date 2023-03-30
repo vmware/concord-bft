@@ -41,7 +41,7 @@ std::vector<std::string> SyncMerkleProcessor::GetAccountStorageKeyMerklePath(con
   return {};
 }
 
-std::string SyncMerkleProcessor::GetProof(const std::string& key) { return {}; }
+std::vector<concord::Byte> SyncMerkleProcessor::GetProof(const std::string& key) { return {}; }
 
 bool SyncMerkleProcessor::VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) {
   return true;

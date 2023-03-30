@@ -42,7 +42,7 @@ class IMerkleProcessor : public IProofProcessor {
 
   virtual std::vector<std::string> GetAccountMerkleRootPath(const address& addr) = 0;
   virtual std::vector<std::string> GetAccountStorageKeyMerklePath(const address& addr, const std::string& key) = 0;
-  virtual std::string GetProof(const std::string& key) override = 0;  // from IProofProcessor
+  virtual std::vector<concord::Byte> GetProof(const std::string& key) override = 0;  // from IProofProcessor
   virtual bool VerifyMerkleTreePath(std::string root_hash, std::string key, std::vector<std::string> path) = 0;
   virtual void WaitForScheduledTasks() override = 0;  // from IProofProcessor
 };
