@@ -35,7 +35,8 @@ Start with example usage [here](https://github.com/vmware/concord-bft/tree/maste
 
 ## Documentation
 
-See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.
+See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.</br>
+A formal specification of the SBFT protocol including automated invariant proofs can be found [here](https://github.com/vmware/concord-bft/tree/master/docs/sbft-formal-model).
 
 ## Community
 
