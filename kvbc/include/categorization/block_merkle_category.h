@@ -202,7 +202,7 @@ class BlockMerkleCategory {
     Reader(const storage::rocksdb::NativeClient& db) : db_{db} {}
 
     // Return the latest root node in the system.
-    sparse_merkle::BatchedInternalNode get_latest_root() const override;
+    sparse_merkle::BatchedInternalNode get_latest_root(std::string custom_prefix = "") const override;
 
     // Retrieve a BatchedInternalNode given an InternalNodeKey.
     //

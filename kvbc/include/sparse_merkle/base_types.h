@@ -53,6 +53,57 @@ class Version {
   Type value_ = 0;
 };
 
+// A type safe custom prefix wrapper
+class CustomPrefix {
+ public:
+  using Type = std::string;
+  using SIZE_PREFIX_TYPE = std::uint8_t;
+  static constexpr auto SIZE_IN_BYTES = 20 * sizeof(std::uint8_t);
+  static constexpr auto SIZE_PREFIX_BYTES = sizeof(std::uint8_t);
+  static constexpr auto TOTAL_SIZE = SIZE_PREFIX_BYTES + SIZE_IN_BYTES;
+
+ public:
+  CustomPrefix() = default;
+  CustomPrefix(size_t size) {
+    ConcordAssert(size <= SIZE_IN_BYTES);
+    prefix_.assign('\0', size);
+  }
+  CustomPrefix(const Type& val) : prefix_(val) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
+  CustomPrefix(Type&& val) : prefix_(std::move(val)) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
+
+  void set(std::uint8_t pos, char c) {
+    ConcordAssert(pos < prefix_.size());
+    prefix_[pos] = c;
+  }
+  char get(std::uint8_t pos) const {
+    ConcordAssert(pos < prefix_.size());
+    return prefix_[pos];
+  }
+  bool operator==(const CustomPrefix& other) const { return prefix_ == other.prefix_; }
+  bool operator!=(const CustomPrefix& other) const { return prefix_ != other.prefix_; }
+  bool operator<(const CustomPrefix& other) const { return prefix_ < other.prefix_; }
+
+  const Type& value() const { return prefix_; }
+  size_t size() const { return prefix_.size(); }
+
+ protected:
+  Type prefix_;
+};
+
+class PaddedCustomPrefix : public CustomPrefix {
+ public:
+  template <class T>
+  PaddedCustomPrefix(T&& arg) : CustomPrefix(std::forward<T>(arg)) {}
+  char get(std::uint8_t pos) const {
+    ConcordAssert(pos < SIZE_IN_BYTES);
+    if (pos < prefix_.size()) {
+      return prefix_[pos];
+    } else {
+      return '\0';
+    }
+  }
+};
+
 // A nibble is 4 bits, stored in the lower bits of a byte.
 class Nibble {
  public:
@@ -243,7 +294,7 @@ class NibblePath {
   NibblePath() : num_nibbles_(0) {}
   NibblePath(size_t num_nibbles, const std::vector<uint8_t>& path) : num_nibbles_(num_nibbles), path_(path) {
     ConcordAssert(num_nibbles < Hash::MAX_NIBBLES);
-    ConcordAssert(path.size() == (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2));
+    ConcordAssert(path.size() == pathLengthInBytes(num_nibbles));
   }
 
   bool operator==(const NibblePath& other) const { return num_nibbles_ == other.num_nibbles_ && path_ == other.path_; }
@@ -261,6 +312,11 @@ class NibblePath {
       return true;
     }
     return false;
+  }
+
+  // Return the count of elements (bytes) in path_
+  static size_t pathLengthInBytes(size_t num_nibbles) {
+    return (num_nibbles % 2 ? (num_nibbles + 1) / 2 : num_nibbles / 2);
   }
 
   // Return the length of the path_ in nibbles

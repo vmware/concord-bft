@@ -113,7 +113,7 @@ bool hasProvableStaleIndexKeysSince(const std::shared_ptr<IDBClient> &db, const 
 
 bool hasInternalKeysForVersion(const std::shared_ptr<IDBClient> &db, const Version &version) {
   auto iter = db->getIteratorGuard();
-  const auto key = iter->seekAtLeast(DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(version))).first;
+  const auto key = iter->seekAtLeast(DBKeyManipulator::genInternalDbKey(InternalNodeKey::root("", version))).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key &&
       DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Internal &&
       DBKeyManipulator::extractVersionFromInternalKey(key) == version) {
