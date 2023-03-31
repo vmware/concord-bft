@@ -274,7 +274,7 @@ TEST(tree_tests, insert_single_leaf_node) {
   // Only a single node was created. It's key is made up of an empty nibble
   // path, since there are no collisions requring going deeper into the tree.
   auto& root = batch.internal_nodes.at(0);
-  ASSERT_EQ(InternalNodeKey(1, NibblePath()), root.first);
+  ASSERT_EQ(InternalNodeKey("", 1, NibblePath()), root.first);
 
   // There should be a root and a single leaf
   ASSERT_EQ(2, root.second.numChildren());

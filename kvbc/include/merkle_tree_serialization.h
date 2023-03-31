@@ -88,6 +88,24 @@ inline void serializeImp(const sparse_merkle::NibblePath &path, std::string &out
   out.append(std::cbegin(path.data()), std::cend(path.data()));
 }
 
+inline void serializeImp(const sparse_merkle::CustomPrefix &custom_prefix, std::string &out) {
+  ConcordAssert(custom_prefix.size() < std::numeric_limits<uint8_t>::max());
+  static const auto SIZE_PREFIX_BYTES = sparse_merkle::CustomPrefix::SIZE_PREFIX_BYTES;
+  using SIZE_PREFIX_TYPE = sparse_merkle::CustomPrefix::SIZE_PREFIX_TYPE;
+  out.append(SIZE_PREFIX_BYTES, static_cast<SIZE_PREFIX_TYPE>(custom_prefix.size()));
+  out.append(std::cbegin(custom_prefix.value()), std::cend(custom_prefix.value()));
+}
+
+inline void serializeImp(const sparse_merkle::PaddedCustomPrefix &custom_prefix, std::string &out) {
+  ConcordAssert(custom_prefix.size() < std::numeric_limits<uint8_t>::max());
+  static const auto SIZE_PREFIX_BYTES = sparse_merkle::PaddedCustomPrefix::SIZE_PREFIX_BYTES;
+  using SIZE_PREFIX_TYPE = sparse_merkle::PaddedCustomPrefix::SIZE_PREFIX_TYPE;
+  out.append(SIZE_PREFIX_BYTES, static_cast<SIZE_PREFIX_TYPE>(custom_prefix.size()));
+  for (auto i = 0u; i < sparse_merkle::PaddedCustomPrefix::SIZE_IN_BYTES; i++) {
+    out.append(1, static_cast<uint8_t>(custom_prefix.get(i)));
+  }
+}
+
 inline std::string serializeImp(const sparse_merkle::NibblePath &path) {
   auto out = std::string{};
   serializeImp(path, out);
@@ -105,6 +123,7 @@ inline std::string serializeImp(const sparse_merkle::Hash &hash) {
 }
 
 inline void serializeImp(const sparse_merkle::InternalNodeKey &key, std::string &out) {
+  serializeImp(key.customPrefix(), out);
   serializeImp(key.version().value(), out);
   serializeImp(key.path(), out);
 }
@@ -118,6 +137,7 @@ inline std::string serializeImp(const sparse_merkle::InternalNodeKey &key) {
 inline void serializeImp(const sparse_merkle::LeafKey &key, std::string &out) {
   serializeImp(key.hash(), out);
   serializeImp(key.version().value(), out);
+  serializeImp(key.customPrefix(), out);
 }
 
 inline std::string serializeImp(const sparse_merkle::LeafKey &key) {
@@ -310,28 +330,65 @@ inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const co
 
 template <>
 inline sparse_merkle::NibblePath deserialize<sparse_merkle::NibblePath>(const concordUtils::Sliver &buf) {
-  ConcordAssert(buf.length() >= sizeof(std::uint8_t));
+  static const int nibblePathSizePrefixInBytes = sizeof(std::uint8_t);
+  ConcordAssert(buf.length() >= nibblePathSizePrefixInBytes);
   // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-  const auto nibbleCount = static_cast<std::size_t>(buf[0]);
-  const auto path = deserialize<std::vector<std::uint8_t>>(
-      concordUtils::Sliver{buf, sizeof(std::uint8_t), buf.length() - sizeof(std::uint8_t)});
+  size_t nibbleCount = static_cast<std::uint8_t>(buf[0]);
+  size_t pathBytesCount = sparse_merkle::NibblePath::pathLengthInBytes(nibbleCount);
+  std::vector<std::uint8_t> path;
+  if (pathBytesCount > 0) {
+    path =
+        deserialize<std::vector<std::uint8_t>>(concordUtils::Sliver{buf, nibblePathSizePrefixInBytes, pathBytesCount});
+  }
   return sparse_merkle::NibblePath{nibbleCount, path};
+}
+
+template <>
+inline sparse_merkle::CustomPrefix deserialize<sparse_merkle::CustomPrefix>(const concordUtils::Sliver &buf) {
+  static const auto SIZE_PREFIX_BYTES = sparse_merkle::CustomPrefix::SIZE_PREFIX_BYTES;
+  using SIZE_PREFIX_TYPE = sparse_merkle::CustomPrefix::SIZE_PREFIX_TYPE;
+  ConcordAssert(buf.length() >= SIZE_PREFIX_BYTES);
+  // NOLINTNEXTLINE(bugprone-signed-char-misuse)
+  const auto prefixSize = static_cast<SIZE_PREFIX_TYPE>(buf[0]);
+  ConcordAssert(buf.length() > prefixSize);
+  sparse_merkle::CustomPrefix prefix(prefixSize);
+  for (auto i = SIZE_PREFIX_BYTES; i <= prefixSize; ++i) {
+    prefix.set(i - SIZE_PREFIX_BYTES, buf[i]);
+  }
+  return prefix;
+}
+
+template <>
+inline sparse_merkle::PaddedCustomPrefix deserialize<sparse_merkle::PaddedCustomPrefix>(
+    const concordUtils::Sliver &buf) {
+  return sparse_merkle::PaddedCustomPrefix(deserialize<sparse_merkle::CustomPrefix>(buf));
 }
 
 template <>
 inline sparse_merkle::LeafKey deserialize<sparse_merkle::LeafKey>(const concordUtils::Sliver &buf) {
   ConcordAssert(buf.length() >= sparse_merkle::LeafKey::SIZE_IN_BYTES);
-  return sparse_merkle::LeafKey{deserialize<sparse_merkle::Hash>(buf),
-                                deserialize<sparse_merkle::Version>(concordUtils::Sliver{
-                                    buf, sparse_merkle::Hash::SIZE_IN_BYTES, sparse_merkle::Version::SIZE_IN_BYTES})};
+  return sparse_merkle::LeafKey{
+      deserialize<sparse_merkle::Hash>(buf),
+      deserialize<sparse_merkle::Version>(
+          concordUtils::Sliver{buf, sparse_merkle::Hash::SIZE_IN_BYTES, sparse_merkle::Version::SIZE_IN_BYTES}),
+      deserialize<sparse_merkle::PaddedCustomPrefix>(concordUtils::Sliver{
+          buf,
+          sparse_merkle::Hash::SIZE_IN_BYTES + sparse_merkle::Version::SIZE_IN_BYTES,
+          buf.length() - sparse_merkle::Hash::SIZE_IN_BYTES - sparse_merkle::Version::SIZE_IN_BYTES})};
 }
 
 template <>
 inline sparse_merkle::InternalNodeKey deserialize<sparse_merkle::InternalNodeKey>(const concordUtils::Sliver &buf) {
-  return sparse_merkle::InternalNodeKey{
-      deserialize<sparse_merkle::Version>(buf),
-      deserialize<sparse_merkle::NibblePath>(concordUtils::Sliver{
-          buf, sparse_merkle::Version::SIZE_IN_BYTES, buf.length() - sparse_merkle::Version::SIZE_IN_BYTES})};
+  static const auto SIZE_PREFIX_BYTES = sparse_merkle::CustomPrefix::SIZE_PREFIX_BYTES;  // 1 byte for the address size
+  auto prefix = deserialize<sparse_merkle::CustomPrefix>(buf);
+  auto version = deserialize<sparse_merkle::Version>(
+      concordUtils::Sliver{buf, SIZE_PREFIX_BYTES + prefix.size(), buf.length() - SIZE_PREFIX_BYTES - prefix.size()});
+  auto nibblePath = deserialize<sparse_merkle::NibblePath>(
+      concordUtils::Sliver{buf,
+                           SIZE_PREFIX_BYTES + prefix.size() + sparse_merkle::Version::SIZE_IN_BYTES,
+                           buf.length() - SIZE_PREFIX_BYTES - prefix.size() - sparse_merkle::Version::SIZE_IN_BYTES});
+
+  return sparse_merkle::InternalNodeKey{std::move(prefix), std::move(version), std::move(nibblePath)};
 }
 
 template <>

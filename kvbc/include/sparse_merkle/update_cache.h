@@ -34,8 +34,8 @@ namespace detail {
 // A new instance of this structure is created during every update call.
 class UpdateCache {
  public:
-  UpdateCache(const BatchedInternalNode& root, const std::shared_ptr<IDBReader>& db_reader)
-      : version_(root.version() + 1), db_reader_(db_reader), original_root_(root) {}
+  UpdateCache(const BatchedInternalNode& root, const std::shared_ptr<IDBReader>& db_reader, std::string custom_prefix)
+      : version_(root.version() + 1), db_reader_(db_reader), original_root_(root), custom_prefix_(custom_prefix) {}
 
   const StaleNodeIndexes& stale() const { return stale_; }
   const auto& internalNodes() const { return internal_nodes_; }
@@ -55,8 +55,8 @@ class UpdateCache {
 
   void putStale(const std::optional<LeafKey>& key);
   void putStale(const InternalNodeKey& key);
-  void put(const NibblePath& path, const BatchedInternalNode& node);
-  void remove(const NibblePath& path);
+  void put(const InternalNodeKey& key, const BatchedInternalNode& node);
+  void remove(const InternalNodeKey& key);
 
  private:
   // The version of the tree after this update is complete.
@@ -73,7 +73,8 @@ class UpdateCache {
   //
   // These nodes are mutable and are all being updated to a single version.
   // Therefore we key them by their NibblePath alone, without a version.
-  std::map<NibblePath, BatchedInternalNode> internal_nodes_;
+  std::map<InternalNodeKey, BatchedInternalNode> internal_nodes_;
+  std::string custom_prefix_;
 };
 
 }  // namespace detail
