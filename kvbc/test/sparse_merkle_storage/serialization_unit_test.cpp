@@ -155,9 +155,10 @@ TEST(key_manipulator, extract_key_from_non_provable_stale_key) {
 TEST(key_manipulator, data_key_leaf) {
   const auto leafKey = LeafKey{defaultHash, defaultVersion};
   const auto key = DBKeyManipulator::genDataDbKey(leafKey);
+  std::string emptyCustomPrefix(concord::kvbc::sparse_merkle::PaddedCustomPrefix::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(leafKey.version().value()));
-  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8);
+                                 serializeIntegral(leafKey.version().value()) + emptyCustomPrefix);
+  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 
@@ -166,9 +167,10 @@ TEST(key_manipulator, data_key_leaf) {
 TEST(key_manipulator, data_key_sliver) {
   const auto version = 42ul;
   const auto key = DBKeyManipulator::genDataDbKey(defaultSliver, version);
+  std::string emptyCustomPrefix(concord::kvbc::sparse_merkle::PaddedCustomPrefix::TOTAL_SIZE, '\0');
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Leaf) + defaultHashStrBuf +
-                                 serializeIntegral(version));
-  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8);
+                                 serializeIntegral(version) + emptyCustomPrefix);
+  ASSERT_EQ(key.length(), 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 
@@ -182,13 +184,14 @@ TEST(key_manipulator, internal_key_even) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  const auto internalKey = InternalNodeKey{"", defaultVersion, path};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
+                                 serializeIntegral(std::uint8_t{0x0}) +
                                  serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{4}) +
                                  serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x34}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1);
   ASSERT_TRUE(key == expected);
 }
 
@@ -201,13 +204,17 @@ TEST(key_manipulator, internal_key_odd) {
   path.append(0x02);
   // second byte of the nibble path is 0x30 (by appending 0x03)
   path.append(0x03);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  std::string custom_prefix = "test";
+  const auto internalKey = InternalNodeKey{custom_prefix, defaultVersion, path};
   const auto key = DBKeyManipulator::genInternalDbKey(internalKey);
   // Expect that two bytes of nibbles have been written.
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Internal) +
+                                 serializeIntegral(std::uint8_t{0x4}) + serializeIntegral(custom_prefix[0]) +
+                                 serializeIntegral(custom_prefix[1]) + serializeIntegral(custom_prefix[2]) +
+                                 serializeIntegral(custom_prefix[3]) +
                                  serializeIntegral(internalKey.version().value()) + serializeIntegral(std::uint8_t{3}) +
                                  serializeIntegral(std::uint8_t{0x12}) + serializeIntegral(std::uint8_t{0x30}));
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 2 + 1 + custom_prefix.size());
   ASSERT_TRUE(key == expected);
 }
 
@@ -292,12 +299,13 @@ TEST(key_manipulator, stale_db_key_internal) {
   // second byte of the nibble path is 0x34 (by appending 0x03 and 0x04)
   path.append(0x03);
   path.append(0x04);
-  const auto internalKey = InternalNodeKey{defaultVersion, path};
+  std::string custom_prefix = "abcdefg123";
+  const auto internalKey = InternalNodeKey{custom_prefix, defaultVersion, path};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genInternalDbKey(internalKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2 + 1 + custom_prefix.size());
   ASSERT_TRUE(key == expected);
 }
 
@@ -310,7 +318,7 @@ TEST(key_manipulator, stale_db_key_leaf) {
   const auto expected =
       toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
                serializeIntegral(defaultBlockId) + DBKeyManipulator::genDataDbKey(leafKey).toString());
-  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 32 + 8);
+  ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 32 + 8 + 21);
   ASSERT_TRUE(key == expected);
 }
 

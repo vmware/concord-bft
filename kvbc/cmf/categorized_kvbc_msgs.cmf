@@ -199,6 +199,7 @@ Msg NibblePath 5001 {
 
 Msg BatchedInternalNodeKey 5002 {
     # The version of this key is the *tree* version, not block version
+    string custom_prefix
     uint64 version
     NibblePath path
 }
