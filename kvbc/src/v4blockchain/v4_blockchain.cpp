@@ -107,6 +107,7 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
 BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
                                 v4blockchain::detail::Block &block,
                                 storage::rocksdb::NativeWriteBatch &write_batch) {
+  getVerifiabilityManagementLayer().getProcessor()->ProcessUpdates(updates);
   BlockId block_id{};
   { block_id = block_chain_.addBlock(block, write_batch); }
   { latest_keys_.addBlockKeys(updates, block_id, write_batch); }
