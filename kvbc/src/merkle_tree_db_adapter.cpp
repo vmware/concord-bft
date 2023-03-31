@@ -446,7 +446,7 @@ std::pair<sparse_merkle::UpdateBatch, sparse_merkle::detail::UpdateCache> DBAdap
   return smTree_.update_with_cache(updates, KeysVector{std::cbegin(deletes), std::cend(deletes)});
 }
 
-BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
+BatchedInternalNode DBAdapter::Reader::get_latest_root(std::string custom_prefix) const {
   const auto lastBlock = adapter_.getLastReachableBlockId();
   if (lastBlock == 0) {
     return BatchedInternalNode{};
@@ -462,7 +462,7 @@ BatchedInternalNode DBAdapter::Reader::get_latest_root() const {
     return BatchedInternalNode{};
   }
 
-  return get_internal(InternalNodeKey::root(stateRootVersion));
+  return get_internal(InternalNodeKey::root(custom_prefix, stateRootVersion));
 }
 
 BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) const {
@@ -708,7 +708,7 @@ KeysVector DBAdapter::internalProvableKeysForVersion(const Version &version) con
   // Rely on the fact that root internal keys always precede non-root ones - due to lexicographical ordering and root
   // internal keys having empty nibble paths. See InternalNodeKey serialization code.
   return keysForVersion(db_,
-                        DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(version)),
+                        DBKeyManipulator::genInternalDbKey(InternalNodeKey::root("", version)),
                         version,
                         EKeySubtype::Internal,
                         [](const Key &key) { return DBKeyManipulator::extractVersionFromInternalKey(key); });

@@ -387,8 +387,8 @@ class BatchedInternalNode {
                                      Version version,
                                      Nibble child_key,
                                      size_t prefix_bits_in_common,
-                                     LeafChild child1,
-                                     LeafChild child2);
+                                     const LeafChild& child1,
+                                     const LeafChild& child2);
 
   // Remove the LeafChild at the given index. Updates of children should be set
   // to new_version.
