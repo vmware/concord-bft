@@ -4146,6 +4146,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         ConcordAssert(seqNumInfo.addSelfMsg(p, true));
       }
 
+
       if (seqNumData.isPrepareFullMsgSet()) {
         try {
           ConcordAssert(seqNumInfo.addMsg(seqNumData.getPrepareFullMsg(), true));
