@@ -97,6 +97,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
     int addAllKeysAsPublic = 0;
+    int singleSignatureScheme = 1;
     int stateTransferMsgDelayMs = 0;
     std::unordered_set<ReplicaId> byzantineReplicaIds{};
 
@@ -142,6 +143,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         // direct options - assign directly ro a non-null flag
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
         {"add-all-keys-as-public", no_argument, &addAllKeysAsPublic, 1},
+        {"no-single-signature-scheme", no_argument, &singleSignatureScheme, 0},
         {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
@@ -355,6 +357,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       }
     }
 
+    replicaConfig.singleSignatureScheme = singleSignatureScheme;
     if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
 
     // If -p and -t are set, enable clientTransactionSigningEnabled. If only one of them is set, throw an error

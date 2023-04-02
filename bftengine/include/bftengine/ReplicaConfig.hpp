@@ -170,6 +170,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   // Keys Management
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
+  CONFIG_PARAM(singleSignatureScheme,
+               bool,
+               true,
+               "whether to use a single signature scheme to identify the replica in the network."
+               "When set to false, a replica may use a signature scheme which differs from its "
+               "main signature scheme to sign consensus protocol messages.");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
   // Configuration Management
   // Keys Management
@@ -614,7 +620,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.useUnifiedCertificates,
               rc.kvBlockchainVersion,
               replicaMsgSignAlgo,
-              operatorMsgSignAlgo);
+              operatorMsgSignAlgo,
+              rc.singleSignatureScheme);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
