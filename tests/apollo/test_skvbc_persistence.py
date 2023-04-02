@@ -345,7 +345,7 @@ class SkvbcPersistenceTest(ApolloTest):
 
         client, known_key, known_val = \
             await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
-                                                           checkpoints_num=random.randint(10, 13))
+                                                 checkpoints_num=10)
 
         # exclude the primary and the stale node
         non_primary_replicas = bft_network.all_replicas(without={0, stale_node})

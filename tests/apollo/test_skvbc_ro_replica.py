@@ -234,6 +234,7 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         ro_replica_id = bft_network.config.n
+        log.log_message(message_type=f"RO replica id: {ro_replica_id}")
         bft_network.start_replica(ro_replica_id)
 
         await skvbc.fill_and_wait_for_checkpoint(
@@ -257,6 +258,34 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         )
 
         await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1,
+                      selected_configs=lambda n, f, c: n == 7,
+                      #bft_configs=[BFTConfig(n=4, f=1, c=0)],
+                      rotate_keys=True, publish_master_keys=False)
+    async def test_ro_replica_state_fetch_after_exchanges(self, bft_network):
+        """
+        Start all replicas without starting any RORs
+        Execute initial key exchanges
+        Generate 4 checkpoints
+        Start ROR
+        Verify ROR fetches state
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            num_of_checkpoints_to_add=4,
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
+        )
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        await self._wait_for_st(bft_network, ro_replica_id, 150 * 3)
+
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
@@ -318,7 +347,10 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
         # initial_nodes=bft_network.all_replicas(),
         # num_of_checkpoints_to_add=1)
-        with trio.fail_after(seconds=70):
+        timeout_seconds = 70
+        with log.start_action(action_type="wait_for_st", ro_replica=ro_replica_id, seqnum_threshold=seqnum_threshold,
+                              timeout_seconds=timeout_seconds), \
+                trio.fail_after(seconds=timeout_seconds):
             # the ro replica should be able to survive these failures
             while True:
                 with trio.move_on_after(seconds=.5):

@@ -96,6 +96,7 @@ class SkvbcBlockAccumulationTest(ApolloTest):
             req_timeout_milli=SHORT_REQ_TIMEOUT_MILLI,
             retry_timeout_milli=1000
         )
+        log.log_message(message_type=f"Using client {client.client_id}")
         result = await self.send_single_batch_write_with_kv(
             skvbc, client, 3, long_exec=False)
 

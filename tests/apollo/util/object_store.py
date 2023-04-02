@@ -58,8 +58,10 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
            "-i", str(replica_id),
            "-s", statusTimerMilli,
            "-V", blockchain_version,
-           "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
+           "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
            ]
+    if replica_id < config.n:
+        ret += ["--key-exchange-on-start", "--publish-master-key-on-startup"]
     if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
         ret.extend(ro_params)
 

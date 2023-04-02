@@ -242,7 +242,7 @@ class SimpleKVBCProtocol:
                 False, ExitPolicy.TIME)
             await self.network_wait_for_checkpoint(
                 initial_nodes,
-                expected_checkpoint_num=None,
+                expected_checkpoint_num=lambda _: True,
                 verify_checkpoint_persistency=persistency_enabled,
                 assert_state_transfer_not_started=True)
 
@@ -267,7 +267,7 @@ class SimpleKVBCProtocol:
             assert_state_transfer_not_started=True,
             without_clients=None,
             timeout=30,
-            expected_starting_checkpoint=None):
+            expected_starting_checkpoint_func=lambda _: True):
         """
         A helper function used by tests to fill a window with data and then
         checkpoint it.
@@ -277,19 +277,19 @@ class SimpleKVBCProtocol:
 
         TODO: Make filling concurrent to speed up tests
         """
-        with log.start_action(action_type="fill_and_wait_for_checkpoint"):
+        checkpoint_before = await self.bft_network.wait_for_checkpoint(
+            replica_id=random.choice(initial_nodes),
+            expected_checkpoint_num=expected_starting_checkpoint_func)
+        request_count = 1 + (num_of_checkpoints_to_add * CHECKPOINT_SEQUENCES)
+        with log.start_action(action_type="fill_and_wait_for_checkpoint", checkpoint_before=checkpoint_before,
+                              request_count=request_count):
             client = self.bft_network.random_client(without_clients)
-            if expected_starting_checkpoint is not None:
-                expected_checkpoint_num = lambda cp: cp == expected_starting_checkpoint
-            else:
-                expected_checkpoint_num = None
-            checkpoint_before = await self.bft_network.wait_for_checkpoint(
-                replica_id=random.choice(initial_nodes), expected_checkpoint_num=expected_checkpoint_num)
             # Write enough data to checkpoint and create a need for state transfer
-            for i in range(1 + num_of_checkpoints_to_add * CHECKPOINT_SEQUENCES):
+            for i in range(request_count):
                 key = self.random_key()
                 val = self.random_value()
-                reply = await self.send_write_kv_set(client, [(key, val)])
+                reply = await self.send_write_kv_set(client, [(key, val)],
+                                                     description=f'checkpoint fill request {i} / {request_count - 1}')
                 assert reply.success
 
             await self.bft_network.wait_for_replicas_to_collect_stable_checkpoint(
@@ -297,9 +297,10 @@ class SimpleKVBCProtocol:
 
             await self.network_wait_for_checkpoint(
                 initial_nodes,
-                expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + num_of_checkpoints_to_add,
+                expected_checkpoint_num=lambda ecn: ecn >= checkpoint_before + num_of_checkpoints_to_add,
                 verify_checkpoint_persistency=verify_checkpoint_persistency,
                 assert_state_transfer_not_started=assert_state_transfer_not_started, timeout=timeout)
+
 
     async def network_wait_for_checkpoint(
             self, initial_nodes,
@@ -344,17 +345,20 @@ class SimpleKVBCProtocol:
             reply = await client.write(self.write_req([], [(key, val)], 0))
             reply = self.parse_reply(reply)
             assert reply.success
-            assert last_block + 1 == reply.last_block_id
+            last_block_after_write = reply.last_block_id
+            assert last_block_after_write > last_block, f'last_block_after_write: {last_block_after_write},' \
+                                                        f'last_block: {last_block}'
 
             # Retrieve the last block and ensure that it matches what's expected
             read_reply = await client.read(self.get_last_block_req())
             newest_block = self.parse_reply(read_reply)
-            assert last_block + 1 == newest_block
+            assert newest_block >= last_block_after_write, f'newest_block: {newest_block}, ' \
+                                                           f'last_block_after_write: {last_block_after_write}'
 
             # Get the previous put value, and ensure it's correct
             read_req = self.read_req([key], newest_block)
             kvpairs = self.parse_reply(await client.read(read_req))
-            assert {key: val} == kvpairs
+            assert {key: val} == kvpairs, '{}, {}'.format({key: val}, kvpairs)
 
     def _create_keys(self):
         """
@@ -371,7 +375,7 @@ class SimpleKVBCProtocol:
             if num_clients == 0:
                 return []
             cur = bytearray("A", 'utf-8')
-            keys = [b"A...................."]
+            keys = [b"A" + (b"." * (self.LENGTH_FOR_RANDOM_KVS - 1))]
             for i in range(1, 2 * num_clients):
                 end = cur[-1]
                 if chr(end) == 'Z':  # extend the key
@@ -398,7 +402,7 @@ class SimpleKVBCProtocol:
                   (self.keys[1], self.random_value())]
 
             reply = await self.send_write_kv_set(kv=kv)
-            assert last_block + 1 == reply.last_block_id
+            assert last_block + 1 <= reply.last_block_id, f"last_block + 1: {last_block + 1} != reply.last_block_id: {reply.last_block_id}"
 
             last_block = reply.last_block_id
 
@@ -407,7 +411,7 @@ class SimpleKVBCProtocol:
             action.log(message_type=f'[READ-YOUR-WRITES] Checking if the {kv} entry is readable...')
             data = await client.read(self.get_block_data_req(last_block))
             kv2 = self.parse_reply(data)
-            assert kv2 == dict(kv)
+            assert kv2 == dict(kv), f"kv2: {kv2} != kv: {dict(kv)}"
             action.log(message_type=f'[READ-YOUR-WRITES] OK.')
 
     async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True,
@@ -483,8 +487,9 @@ class SimpleKVBCProtocol:
                 self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
             try:
                 serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
-                action.log(message_type=f"received reply", client=client.client_id, seq=client.req_seq_num.val())
                 reply = self.parse_reply(serialized_reply)
+                if not reply.success:
+                    action.log(message_type=f"client request failed", client=client.client_id, seq=seq_num)
                 if reply_assert is True:
                     assert reply.success
                 if self.tracker is not None:
@@ -697,14 +702,14 @@ class SimpleKVBCProtocol:
                     self.tracker.status.record_client_timeout(client_id)
                 return
 
-    async def send_n_kvs_sequentially(self, kv_count: int, client: 'BftClient' = None):
+    async def send_n_kvs_sequentially(self, kv_count: int, client: 'BftClient' = None, description=''):
         """
         Reaches a consensus over kv_count blocks, Waits for execution reply message after each block
         so that multiple client requests are not batched
         """
         client = client or self.bft_network.random_client()
         for i in range(kv_count):
-            await self.send_write_kv_set(client=client, kv=[(b'A' * i, b'')], description=f'{i}')
+            await self.send_write_kv_set(client=client, description=f'{description} ({i} / {kv_count})')
 
     def readset(self, min_size, max_size):
         return self.random_keys(random.randint(min_size, max_size))

@@ -17,6 +17,10 @@ import time
 import ssl
 import os
 import random
+import itertools
+import threading
+from abc import ABC
+
 
 # For RSA algorigthm.
 from Crypto.PublicKey import RSA
@@ -35,7 +39,32 @@ from abc import ABC, abstractmethod
 # 'replicaMsgSigningAlgo' value also.
 replica_msg_signing_algo = "eddsa" # or "rsa"
 
-class ReqSeqNum:
+
+class MonotonicSeqGenerator(ABC):
+    """
+    Generator for requests ids of client requests.
+    Request ids are expected to be monotonically increasing with respect to the client which sends them.
+    """
+    @abstractmethod
+    def next(self) -> int:
+        """
+        Generates a new request id
+        :return: A new request id
+        """
+        pass
+
+
+class FastWriteCounter(MonotonicSeqGenerator):
+    def __init__(self, val=0):
+        self._counter = itertools.count(start=val)
+        self._lock = threading.Lock()
+
+    def next(self):
+        with self._lock:
+            return next(self._counter)
+
+
+class TimeBasedReqSeqNum(MonotonicSeqGenerator):
     def __init__(self):
         self.time_since_epoch_milli = int(time.time() * 1000)
         self.count = 0
@@ -47,6 +76,7 @@ class ReqSeqNum:
         Calculate the next req_seq_num.
         Return the calculated value as an int sized for 64 bits
         """
+
         milli = int(time.time() * 1000)
         if milli > self.time_since_epoch_milli:
             self.time_since_epoch_milli = milli
@@ -57,14 +87,15 @@ class ReqSeqNum:
                 self.count = 0
             else:
                 self.count += 1
-        return self.val()
+        return self._val()
 
-    def val(self):
+    def _val(self):
         """ Return an int sized for 64 bits """
         assert (self.count <= self.max_count)
         r = self.time_since_epoch_milli << self.max_count_len
         r = r | self.count
         return r
+
 
 class MofNQuorum:
     def __init__(self, replicas, required):
@@ -86,11 +117,17 @@ class MofNQuorum:
     def All(cls, config, replicas):
         return MofNQuorum(replicas, len(replicas))
 
+    def __str__(self):
+        return f"n: {self.replicas}, m: {self.required}"
+
+
 class BftClient(ABC):
-    def __init__(self, config, replicas, ro_replicas=[]):
+    COUNTER = FastWriteCounter(val=int(1e6))
+
+    def __init__(self, config, replicas, ro_replicas=[], time_based_sequences=False):
         self.config = config
         self.replicas = replicas
-        self.req_seq_num = ReqSeqNum()
+        self.req_seq_num = TimeBasedReqSeqNum() if time_based_sequences else BftClient.COUNTER
         self.client_id = config.id
         self.primary = None
         self.replies = None
@@ -229,7 +266,7 @@ class BftClient(ABC):
         if not self.comm_prepared:
             await self._comm_prepare()
 
-        cid = str(self.req_seq_num.next())
+        batch_cid = str(self.req_seq_num.next())
         batch_size = len(msg_batch)
 
         if batch_seq_nums is None:
@@ -256,10 +293,10 @@ class BftClient(ABC):
                     msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
             msg_data = b''.join([msg_data, bft_msgs.pack_request(
-                self.client_id, msg_seq_num, False, self.config.req_timeout_milli, msg_cid, msg, 0, True,
+                self.client_id, msg_seq_num, False, self.config.req_timeout_milli, batch_cid, msg, 0, True,
                 reconfiguration=False, span_context=b'', signature=signature, batch_index=n)])
 
-        data = bft_msgs.pack_batch_request(self.client_id, batch_size, msg_data, cid)
+        data = bft_msgs.pack_batch_request(self.client_id, batch_size, msg_data, batch_cid)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
@@ -271,7 +308,7 @@ class BftClient(ABC):
                 return await self._send_receive_loop(data, False, m_of_n_quorum,
                     batch_size * self.config.retry_timeout_milli / 1000, no_retries=no_retries)
         except trio.TooSlowError:
-            raise trio.TooSlowError(f"client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
+            raise trio.TooSlowError(f"client_id {self.client_id}, for batch msg {batch_cid} {batch_seq_nums}")
         finally:
             pass
 
@@ -445,6 +482,7 @@ class UdpClient(BftClient):
     def __exit__(self, *args):
         """ Context manager method for 'with' statements"""
         self.sock.close()
+
 
 class TcpTlsClient(BftClient):
     """

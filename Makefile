@@ -46,7 +46,7 @@ else
 endif
 
 CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE?='-O3 -g'
-CONCORD_BFT_CMAKE_USE_LOG4CPP?=TRUE
+CONCORD_BFT_CMAKE_USE_LOG4CPP?=ON
 CONCORD_BFT_CMAKE_BUILD_UTT?=TRUE
 CONCORD_BFT_CMAKE_BUILD_ROCKSDB_STORAGE?=TRUE
 CONCORD_BFT_CMAKE_USE_S3_OBJECT_STORE?=TRUE
@@ -168,6 +168,10 @@ CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=\
 	--network host
 endif
 
+CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS="--output-on-failure"
+FAILED_CASES_FILE=/concord-bft/build/apollogs/latest/failed_cases.txt
+PRINT_FAILED_APOLLO_CASES=([ -s ${FAILED_CASES_FILE} ] && echo Failed apollo cases: && cat -n ${FAILED_CASES_FILE} && exit 1)
+
 ifneq (${APOLLO_LOG_STDOUT},)
 	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=--env APOLLO_LOG_STDOUT=TRUE
 	CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS+=-V
@@ -177,11 +181,11 @@ ifneq (${SKIP_FORMAT},)
 	CONCORD_BFT_FORMAT_CMD=
 endif
 
-CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE=\
-${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE}
-CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_DEBUG=\
-${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:${CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG}
-CONCORD_BFT_DOCKER_IMAGE_FULL_PATH?=${CONCORD_BFT_DOCKER_IMAGE_FULL_PATH_RELEASE}
+ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+BUILD_DIR := ${ROOT_DIR}/build
+__TIMESTAMP := $(shell date +%y-%m-%d_%H-%M-%S)
+$(shell mkdir -p ${BUILD_DIR})
+$(shell echo ${__TIMESTAMP} > ${BUILD_DIR}/timestamp)
 
 BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
 					  --memory-swap -1 \
@@ -335,7 +339,7 @@ test: ## Run all tests
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} || ${PRINT_FAILED_APOLLO_CASES}"
 
 .PHONY: simple-test
 simple-test: ## Run Simple Test
@@ -349,7 +353,7 @@ test-range: ## Run all tests in the range [START,END], inclusive: `make test-ran
 			${CONCORD_BFT_CONTAINER_SHELL} -c \
 			"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 			cd ${CONCORD_BFT_BUILD_DIR} && \
-			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END}"
+			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END} || ${PRINT_FAILED_APOLLO_CASES}"
 
 # ctest allows repeating tests, but not with the exact needed behavior below.
 .PHONY: test-single-suite
@@ -361,7 +365,7 @@ test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test 
 		echo "=== Starting iteration $${i}/${NUM_REPEATS__}"; \
 		docker run ${BASIC_RUN_PARAMS} ${CONCORD_BFT_CONTAINER_SHELL} -c \
 			"mkdir -p ${CONCORD_BFT_CORE_DIR} && cd ${CONCORD_BFT_BUILD_DIR} && \
-			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"; \
+			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT}" || ${PRINT_FAILED_APOLLO_CASES}; \
 			RESULT=$$?; \
 		if [[ $${RESULT} -ne 0 ]];then \
 			(( num_failures=num_failures+1 )); \

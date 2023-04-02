@@ -182,7 +182,7 @@ class SkvbcTest(ApolloTest):
         reply = await client.write(skvbc.write_req([], kv, 0))
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
-        self.assertEqual(last_block + 1, reply.last_block_id)
+        self.assertLessEqual(last_block + 1, reply.last_block_id)
 
         last_block = reply.last_block_id
 
@@ -198,7 +198,7 @@ class SkvbcTest(ApolloTest):
         reply = await client.write(skvbc.write_req([], kv3, 0))
         reply = skvbc.parse_reply(reply)
         self.assertTrue(reply.success)
-        self.assertEqual(last_block + 1, reply.last_block_id)
+        self.assertLessEqual(last_block + 1, reply.last_block_id)
 
         # Get the kvpairs in the previously written block
         data = await client.read(skvbc.get_block_data_req(last_block))

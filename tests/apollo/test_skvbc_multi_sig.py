@@ -178,7 +178,6 @@ class SkvbcMultiSig(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_reload_slow_path_after_key_exchange(self, bft_network):
-
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
