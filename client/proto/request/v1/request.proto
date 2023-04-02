@@ -65,6 +65,18 @@ message Request {
   // `correlation_id` to a sequence number which can be used to track the request
   // in log messages in the blockchain network.
   optional string correlation_id = 5;
+
+  // Optional flag to mark the request as primary-only.
+  // A primary-only request is a read-only request intended to be served by 
+  // primary validator node only and
+  // this request is ignored by other non-primary validator nodes.
+  // Concord Client acknowledges replies from primary node only.
+  optional bool primary_only = 7;
+}
+
+message Signature {
+  int32 id = 1;
+  bytes signature = 2;
 }
 
 message Response {
@@ -72,7 +84,8 @@ message Response {
   oneof application_response {
     bytes raw_response = 1;
     google.protobuf.Any typed_response = 6;
-  } 
+  }
+  repeated Signature signatures = 7;
 }
 
 //Error messages corresponding to the error returned by request service. 

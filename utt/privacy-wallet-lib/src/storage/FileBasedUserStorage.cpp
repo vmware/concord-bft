@@ -117,6 +117,20 @@ void FileBasedUserStorage::setCoin(const libutt::api::Coin& c) {
   state_["coins"][bytesToHex(c.getNullifier())] = bytesToHex(libutt::api::serialize(c));
 }
 
+void FileBasedUserStorage::setUserId(const std::string& user_id) {
+  if (state_.contains("user_id") && getUserId() != user_id) {
+    throw std::runtime_error("user id is already set");
+  }
+  state_["user_id"] = user_id;
+}
+
+void FileBasedUserStorage::setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) {
+  if (state_.contains("utt_public_config") && getUttPublicConfig() != utt_public_config) {
+    throw std::runtime_error("utt public configuration is already set");
+  }
+  state_["utt_public_config"] = bytesToHex(libutt::api::serialize(utt_public_config));
+}
+
 void FileBasedUserStorage::removeCoin(const libutt::api::Coin& c) {
   state_["coins"].erase(bytesToHex(c.getNullifier()));
 }
@@ -160,4 +174,15 @@ std::pair<std::string, std::string> FileBasedUserStorage::getKeyPair() {
   auto pk = hexStringToBytes(state_["key_pair"]["pk"]);
   return {std::string(sk.begin(), sk.end()), std::string(pk.begin(), pk.end())};
 }
+
+std::string FileBasedUserStorage::getUserId() {
+  if (!state_.contains("user_id")) return std::string();
+  return state_["user_id"];
+}
+
+libutt::api::PublicConfig FileBasedUserStorage::getUttPublicConfig() {
+  if (!state_.contains("utt_public_config")) return libutt::api::PublicConfig();
+  return libutt::api::deserialize<libutt::api::PublicConfig>(hexStringToBytes(state_["utt_public_config"]));
+}
+
 }  // namespace utt::client

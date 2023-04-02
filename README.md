@@ -2,13 +2,14 @@
 
 # Concord-BFT: A Distributed Trust Framework
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28gcc%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
-[![codecoverage](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)<br/>
+[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)<br/>
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28gcc%29")<br/>
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")<br/>
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")<br/>
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")<br/>
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Restart%20recovery%20suite/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Restart+recovery+suite")<br/>
+
 
 <!-- ![Concored-bft Logo](TBD) -->
 
@@ -35,7 +36,8 @@ Start with example usage [here](https://github.com/vmware/concord-bft/tree/maste
 
 ## Documentation
 
-See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.
+See the github [wiki](https://github.com/vmware/concord-bft/wiki) for detailed explanation.</br>
+A formal specification of the SBFT protocol including automated invariant proofs can be found [here](https://github.com/vmware/concord-bft/tree/master/docs/sbft-formal-model).
 
 ## Community
 

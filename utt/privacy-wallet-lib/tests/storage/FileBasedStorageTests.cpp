@@ -40,7 +40,7 @@ class test_utt_storage : public libutt::api::testing::test_utt_instance {
   void restartStorage() { storage_ = std::make_unique<utt::client::FileBasedUserStorage>(storage_path); }
 
   std::string storage_path = "./test_storage";
-  std::unique_ptr<utt::client::IStorage> storage_;
+  std::unique_ptr<utt::client::FileBasedUserStorage> storage_;
 };
 TEST_F(test_utt_storage, test_isNewStorage) {
   ASSERT_TRUE(storage_->isNewStorage());
@@ -52,6 +52,60 @@ TEST_F(test_utt_storage, test_isNewStorage_negative) {
   ASSERT_TRUE(storage_->isNewStorage());
   storage_->setKeyPair({"private_key", "public_key"});
   ASSERT_TRUE(storage_->isNewStorage());
+}
+
+TEST_F(test_utt_storage, test_set_user_id) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  {
+    IStorage::tx_guard g(*storage_);
+    storage_->setUserId("user_1");
+  }
+  restartStorage();
+  ASSERT_FALSE(storage_->isNewStorage());
+  ASSERT_EQ(storage_->getUserId(), "user_1");
+}
+
+TEST_F(test_utt_storage, test_get_empty_user_id) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  ASSERT_EQ(storage_->getUserId(), "");
+}
+
+TEST_F(test_utt_storage, test_assert_on_resetting_client_id) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  {
+    IStorage::tx_guard g(*storage_);
+    storage_->setUserId("user_1");
+  }
+  restartStorage();
+  ASSERT_NO_THROW(storage_->setUserId("user_1"));
+  ASSERT_ANY_THROW(storage_->setUserId("user_2"));
+}
+
+TEST_F(test_utt_storage, test_set_utt_public_config) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  {
+    IStorage::tx_guard g(*storage_);
+    storage_->setUttPublicConfig(config->getPublicConfig());
+  }
+  restartStorage();
+  ASSERT_FALSE(storage_->isNewStorage());
+  ASSERT_EQ(storage_->getUttPublicConfig(), config->getPublicConfig());
+}
+
+TEST_F(test_utt_storage, test_get_empty_utt_public_config) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  ASSERT_EQ(storage_->getUttPublicConfig(), libutt::api::PublicConfig());
+}
+
+TEST_F(test_utt_storage, test_assert_on_utt_public_config) {
+  ASSERT_TRUE(storage_->isNewStorage());
+  {
+    IStorage::tx_guard g(*storage_);
+    storage_->setUttPublicConfig(config->getPublicConfig());
+  }
+  restartStorage();
+  ASSERT_NO_THROW(storage_->setUttPublicConfig(config->getPublicConfig()));
+  ASSERT_ANY_THROW(storage_->setUttPublicConfig(libutt::api::PublicConfig()));
 }
 
 TEST_F(test_utt_storage, test_setKeyPair) {

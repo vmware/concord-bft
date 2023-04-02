@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include "communication/ICommunication.hpp"
-#include "communication/StatusInfo.h"
+#include "communication/StatusInfo.hpp"
 #include "util/assertUtils.hpp"
 
 #ifdef USE_COMM_TLS_TCP

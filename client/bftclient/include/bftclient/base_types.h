@@ -36,12 +36,13 @@ struct ClientId {
   bool operator<(const ClientId& other) const { return val < other.val; }
 };
 
-enum Flags : uint8_t {
+enum Flags : uint64_t {
   EMPTY_FLAGS_REQ = 0x0,
   READ_ONLY_REQ = 0x1,
   PRE_PROCESS_REQ = 0x2,
   KEY_EXCHANGE_REQ = 0x8,
-  RECONFIG_FLAG = 0x20
+  RECONFIG_FLAG = 0x20,
+  PRIMARY_ONLY_REQ = 0x401
 };
 
 struct ReplicaSpecificInfo {

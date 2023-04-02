@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "diagnostics.h"
+#include "diagnostics.hpp"
 #include "sparse_merkle/base_types.h"
 
 namespace concord::kvbc::sparse_merkle::detail {

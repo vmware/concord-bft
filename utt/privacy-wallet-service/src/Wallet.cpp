@@ -30,6 +30,18 @@ Wallet::Wallet(std::string userId,
   if (!user_) throw std::runtime_error("Failed to create user!");
   registered_ = user_->hasRegistrationCommitment();
 }
+
+std::unique_ptr<Wallet> Wallet::recoverFromStorage(const std::string& storage_path) {
+  auto storage_ = std::make_shared<utt::client::FileBasedUserStorage>(storage_path);
+  if (storage_->isNewStorage()) return nullptr;
+  std::unique_ptr<Wallet> wallet = std::unique_ptr<Wallet>(new Wallet());
+  wallet->userId_ = storage_->getUserId();
+  wallet->private_key_ = storage_->getKeyPair().first;
+  wallet->user_ = utt::client::loadUserFromStorage(storage_);
+  wallet->registered_ = wallet->user_->hasRegistrationCommitment();
+  return wallet;
+}
+
 std::optional<Wallet::RegistrationInput> Wallet::generateRegistrationInput() {
   if (registered_) return std::nullopt;
   Wallet::RegistrationInput ret;

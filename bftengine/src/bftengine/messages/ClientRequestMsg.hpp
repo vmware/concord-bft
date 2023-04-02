@@ -14,8 +14,8 @@
 #include "MessageBase.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 
 namespace bftEngine::impl {
 
@@ -54,6 +54,8 @@ class ClientRequestMsg : public MessageBase {
   uint16_t clientProxyId() const { return msgBody()->idOfClientProxy; }
 
   bool isReadOnly() const;
+
+  bool isPrimaryOnly() const;
 
   uint64_t flags() const { return msgBody()->flags; }
 

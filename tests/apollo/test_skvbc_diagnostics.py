@@ -21,7 +21,7 @@ from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
 from typing import TYPE_CHECKING, Sequence
 
-diagnostics_dir = Path(__file__).absolute().parent.parent.parent / "diagnostics"
+diagnostics_dir = Path(__file__).absolute().parent.parent.parent / "libs" / "diagnostics"
 imported_concord_ctl_module_name = 'concord_ctl'
 
 # The following code allows importing a module file which has dashes in its name

@@ -20,8 +20,11 @@
 using namespace utt::client::utils::crypto;
 using namespace ::vmware::concord::privacy::wallet::api::v1;
 namespace utt::walletservice {
-PrivacyWalletService::PrivacyWalletService() : privacy_wallet_service_(std::make_unique<PrivacyWalletServiceImpl>()) {
+const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
+
+PrivacyWalletService::PrivacyWalletService() {
   utt::client::Initialize();
+  privacy_wallet_service_ = std::make_unique<PrivacyWalletServiceImpl>();
 }
 
 PrivacyWalletService::~PrivacyWalletService() { std::cout << " Destroying privacy wallet service...\n"; }
@@ -48,33 +51,54 @@ void PrivacyWalletService::Shutdown() {
     std::cout << "server shutdown complete.." << std::endl;
   }
 }
+PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
+  try {
+    wallet_ = Wallet::recoverFromStorage(PrivacyWalletServiceImpl::wallet_db_path);
+  } catch (...) {
+    std::cout << "storage is corrupted, unable to restore the wallet service from the given storage" << std::endl;
+    std::exit(0);
+  }
 
-const std::string PrivacyWalletServiceImpl::wallet_db_path = "wallet-db";
-
+  if (wallet_) {
+    std::cout << "wallet service recovered from storage" << std::endl;
+  }
+}
 ::grpc::Status PrivacyWalletServiceImpl::PrivacyWalletService(::grpc::ServerContext* context,
                                                               const PrivacyWalletRequest* request,
                                                               PrivacyWalletResponse* response) {
   auto status = grpc::Status::OK;
   try {
-    // TODO: cleanup after service is hardened...
-    std::cout << "Processing privacy app config request " << request->ShortDebugString() << std::endl;
     if (request->has_privacy_app_config()) {
+      std::cout << "Processing privacy app config request" << request->ShortDebugString() << std::endl;
       return handleApplicationConfigRequest(context, request, response);
     } else if (request->has_privacy_wallet_config_request()) {
+      // dont log sensitive key information, okay to log public key though..
+      auto walletCfgRequest = request->privacy_wallet_config_request();
+      std::cout << "Processing wallet config request for UserID: " << walletCfgRequest.user_id() << std::endl;
+      std::cout << "User public key: " << walletCfgRequest.public_key() << std::endl;
+      std::cout << "Configuration length: " << walletCfgRequest.public_application_config().length() << std::endl;
       return handleWalletConfigRequest(context, request, response);
     } else if (request->has_user_registration_request()) {
+      std::cout << "Processing user registration request" << request->ShortDebugString() << std::endl;
       return handleUserRegistrationRequest(context, request, response);
     } else if (request->has_user_registration_update_request()) {
+      std::cout << "Processing user registration update request" << request->ShortDebugString() << std::endl;
       return handleUserRegistrationUpdateRequest(context, request, response);
     } else if (request->has_claim_coins_request()) {
+      std::cout << "Processing claim request: " << TxType_Name(request->claim_coins_request().type()) << std::endl;
       return handleUserClaimCoinsRequest(context, request, response);
     } else if (request->has_generate_mint_tx_request()) {
+      std::cout << "Processing mint request" << request->ShortDebugString() << std::endl;
       return handleUserMintRequest(context, request, response);
     } else if (request->has_generate_burn_tx_request()) {
+      std::cout << "Processing burn request" << request->ShortDebugString() << std::endl;
       return handleUserBurnRequest(context, request, response);
     } else if (request->has_generate_transfer_tx_request()) {
+      // on real deployment it might be good idea not to expose receiver information or masquerade it..
+      std::cout << "Processing transfer request" << request->ShortDebugString() << std::endl;
       return handleUserTransferRequest(context, request, response);
     } else if (request->has_get_state_request()) {
+      std::cout << "Processing state request" << std::endl;
       return handleGetStateRequest(context, request, response);
     } else {
       std::cout << "unknown request: " << request->DebugString() << std::endl;

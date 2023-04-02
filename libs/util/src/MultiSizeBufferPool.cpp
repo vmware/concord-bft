@@ -545,12 +545,6 @@ MultiSizeBufferPool::SubPool::AllocationResult MultiSizeBufferPool::SubPool::get
 
 void MultiSizeBufferPool::SubPool::returnChunk(char* chunk) {
   DEBUG_PRINT(logger_, "returnChunk enter" << KVLOG(KVLOG_PREFIX));
-  if ((stats_.current_.numUsedChunks_ == 0) || (stats_.current_.numUnusedChunks_ == config_.numMaxBuffers)) {
-    std::stringstream ss;
-    ss << KVLOG(KVLOG_PREFIX, config_.numMaxBuffers, (void*)chunk) << stats_;
-    throwException<std::runtime_error>(logger_, "No more chunks are marked as unused:", ss.str());
-  }
-
   bool shouldPurge = (purgeFlag_ && (stats_.current_.numAllocatedChunks_ > purgeLimit_));
   auto opType = shouldPurge ? Statistics::operationType::DELETE : Statistics::operationType::PUSH;
   stats_.onChunkBecomeUnused(chunkSize_, opType);
@@ -575,6 +569,7 @@ void MultiSizeBufferPool::SubPool::pushChunk(char* chunk) {
 }
 
 std::pair<char*, MultiSizeBufferPool::SubPool::AllocationStatus> MultiSizeBufferPool::SubPool::allocateChunk() {
+  std::lock_guard<std::mutex> lock(waitForAvailChunkMutex_);
   char* chunk = nullptr;
   const auto& numAllocatedChunks{stats_.current_.numAllocatedChunks_};
 
@@ -587,7 +582,7 @@ std::pair<char*, MultiSizeBufferPool::SubPool::AllocationStatus> MultiSizeBuffer
     return std::make_pair(nullptr, AllocationStatus::EXCEED_MAX_BUFFERS);
   }
   if ((poolConfig_.maxAllocatedBytes != 0) &&
-      ((poolStats_.current_.numAllocatedBytes_ + chunkSize_) > poolConfig_.maxAllocatedBytes)) {
+      ((poolStats_.current_.numAllocatedBytes_ + chunkSize_) > static_cast<int64_t>(poolConfig_.maxAllocatedBytes))) {
     LOG_WARN(logger_, "allocateChunk exit" << KVLOG(KVLOG_PREFIX));
     return std::make_pair(nullptr, AllocationStatus::EXCEED_POOL_MAX_BYTES);
   }
@@ -688,7 +683,7 @@ void MultiSizeBufferPool::Statistics::onInit(uint32_t numMaxBuffers, uint32_t ch
 
 void MultiSizeBufferPool::Statistics::setLimits(uint64_t maxAllocatedBytes) {
   if (maxAllocatedBytes == 0) return;
-  if (maxAllocatedBytes < current_.numNonAllocatedBytes_) {
+  if (static_cast<int64_t>(maxAllocatedBytes) < current_.numNonAllocatedBytes_) {
     current_.numNonAllocatedBytes_ = maxAllocatedBytes;
   }
 }

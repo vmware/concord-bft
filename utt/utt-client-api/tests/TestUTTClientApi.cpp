@@ -278,7 +278,10 @@ class InMemoryUserStorage : public utt::client::IStorage {
       throw std::runtime_error("trying to remove an non existed coin to storage");
     coins_.erase(coin.getNullifier());
   };
-
+  void setUserId(const std::string& user_id) override { user_id_ = user_id; }
+  void setUttPublicConfig(const libutt::api::PublicConfig& utt_public_config) override {
+    config_ = libutt::api::serialize(utt_public_config);
+  }
   libutt::api::types::CurvePoint getClientSideSecret() override { return s1_; }
   libutt::api::types::CurvePoint getSystemSideSecret() override { return s2_; }
   libutt::api::types::Signature getRcmSignature() override { return rcm_sig_; }
@@ -288,6 +291,10 @@ class InMemoryUserStorage : public utt::client::IStorage {
     return coins;
   }
   std::pair<std::string, std::string> getKeyPair() override { return keyPair_; }
+  std::string getUserId() override { return user_id_; }
+  libutt::api::PublicConfig getUttPublicConfig() override {
+    return libutt::api::deserialize<libutt::api::PublicConfig>(config_);
+  }
   void startTransaction() override {}
   void commit() override {}
 
@@ -297,6 +304,8 @@ class InMemoryUserStorage : public utt::client::IStorage {
   libutt::api::types::Signature rcm_sig_;
   std::unordered_map<std::string, libutt::api::Coin> coins_;
   std::pair<std::string, std::string> keyPair_;
+  std::string user_id_;
+  utt::PublicConfig config_;
 };
 
 const std::vector<std::string> user_ids({"user-1", "user-2", "user-3"});

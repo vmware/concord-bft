@@ -37,8 +37,8 @@ class PublicConfig {
   PublicConfig(PublicConfig&& o);
   PublicConfig& operator=(PublicConfig&& o);
 
-  bool operator==(const PublicConfig& o);
-  bool operator!=(const PublicConfig& o);
+  bool operator==(const PublicConfig& o) const;
+  bool operator!=(const PublicConfig& o) const;
 
   std::string getCommitVerificationKey() const;
   std::string getRegistrationVerificationKey() const;

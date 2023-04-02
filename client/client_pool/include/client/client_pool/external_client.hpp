@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 #include "client_pool_config.hpp"
-#include "communication/StatusInfo.h"
+#include "communication/StatusInfo.hpp"
 #include "external_client_exception.hpp"
 
 namespace concord {

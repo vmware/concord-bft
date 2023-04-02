@@ -26,7 +26,7 @@
 #include "TlsConnectionManager.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"
-#include "ReplicaConfig.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 namespace bft::communication::tls {
 

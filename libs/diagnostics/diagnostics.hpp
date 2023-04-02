@@ -17,8 +17,8 @@
 #include <mutex>
 #include <stdexcept>
 
-#include "performance_handler.h"
-#include "status_handlers.h"
+#include "performance_handler.hpp"
+#include "status_handlers.hpp"
 
 namespace concord::diagnostics {
 

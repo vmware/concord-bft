@@ -49,7 +49,7 @@ endfunction()
 
 # Find CMFC
 find_program(CMF_COMPILER cmfc.py
-  HINTS "../messages/compiler/"
+  HINTS ${CMAKE_SOURCE_DIR}/messages/compiler/
 )
 if(NOT CMF_COMPILER)
   message(FATAL_ERROR "Couldn't find CMF compiler")

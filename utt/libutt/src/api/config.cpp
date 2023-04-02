@@ -34,12 +34,12 @@ PublicConfig::~PublicConfig() = default;
 PublicConfig::PublicConfig(PublicConfig&& o) = default;
 PublicConfig& PublicConfig::operator=(PublicConfig&& o) = default;
 
-bool PublicConfig::operator==(const PublicConfig& o) {
+bool PublicConfig::operator==(const PublicConfig& o) const {
   return pImpl_->params_ == o.pImpl_->params_ && pImpl_->commitVerificationKey_ == o.pImpl_->commitVerificationKey_ &&
          pImpl_->registrationVerificationKey_ == o.pImpl_->registrationVerificationKey_;
 }
 
-bool PublicConfig::operator!=(const PublicConfig& o) { return !operator==(o); }
+bool PublicConfig::operator!=(const PublicConfig& o) const { return !operator==(o); }
 
 std::string PublicConfig::getCommitVerificationKey() const {
   return libutt::serialize<libutt::RandSigPK>(pImpl_->commitVerificationKey_);

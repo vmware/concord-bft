@@ -15,8 +15,8 @@
 #include "util/Metrics.hpp"
 #include "util/assertUtils.hpp"
 #include "throughput.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 
 #include <boost/lockfree/queue.hpp>
 #include <yaml-cpp/yaml.h>
@@ -253,39 +253,39 @@ class MultiSizeBufferPool {
       // Subpool level:
       // numAllocatedBytes_ + numNonAllocatedBytes_ = SubpoolConfig::numMaxBuffers * (SubpoolConfig::bufferSize +
       // chunkMetadataSize())
-      std::atomic_uint64_t numAllocatedBytes_{};
-      std::atomic_uint64_t numNonAllocatedBytes_{};
+      std::atomic_int64_t numAllocatedBytes_{};
+      std::atomic_int64_t numNonAllocatedBytes_{};
 
       // numAllocatedBytes_ = numUnusedBytes_ + numUsedBytes_
-      std::atomic_uint64_t numUsedBytes_{};
-      std::atomic_uint64_t numUnusedBytes_{};
+      std::atomic_int64_t numUsedBytes_{};
+      std::atomic_int64_t numUnusedBytes_{};
 
       // numAllocatedChunks_ + numNonAllocatedChunks_ = SubpoolConfig::numMaxBuffers
-      std::atomic_uint64_t numAllocatedChunks_{};
-      std::atomic_uint64_t numNonAllocatedChunks_{};
+      std::atomic_int64_t numAllocatedChunks_{};
+      std::atomic_int64_t numNonAllocatedChunks_{};
 
       // numAllocatedChunks_ = numUsedChunks_ + numUnusedChunks_
-      std::atomic_uint64_t numUsedChunks_{};
-      std::atomic_uint64_t numUnusedChunks_{};
+      std::atomic_int64_t numUsedChunks_{};
+      std::atomic_int64_t numUnusedChunks_{};
     } current_;
 
     // Overall statistics are accumulating
     struct OverallStatistics {
-      std::atomic_uint64_t numAllocatedBytes_{};
-      std::atomic_uint64_t numDeletedBytes_{};
-      std::atomic_uint64_t numUsedBytes_{};
+      std::atomic_int64_t numAllocatedBytes_{};
+      std::atomic_int64_t numDeletedBytes_{};
+      std::atomic_int64_t numUsedBytes_{};
 
-      std::atomic_uint64_t numAllocatedChunks_{};
-      std::atomic_uint64_t numDeletedChunks_{};
-      std::atomic_uint64_t numUsedChunks_{};
+      std::atomic_int64_t numAllocatedChunks_{};
+      std::atomic_int64_t numDeletedChunks_{};
+      std::atomic_int64_t numUsedChunks_{};
 
       // Amount of times where a chunk did not fit into the needed buffer size and returned to pool without use
-      std::atomic_uint64_t numBufferUsageFailed_{};
+      std::atomic_int64_t numBufferUsageFailed_{};
       // Amount of times where a chunk fit into the needed buffer size and returned to pool without use
-      std::atomic_uint64_t numBufferUsageSuccess_{};
+      std::atomic_int64_t numBufferUsageSuccess_{};
 
-      std::atomic_uint64_t maxNumAllocatedBytes_{};
-      std::atomic_uint64_t maxNumAllocatedChunks_{};
+      std::atomic_int64_t maxNumAllocatedBytes_{};
+      std::atomic_int64_t maxNumAllocatedChunks_{};
     } overall_;
 
     // relevant only if reportOnChangesOnly_ is true. Used to mark if the content need to be reported, only if there was
@@ -337,7 +337,7 @@ class MultiSizeBufferPool {
 
     std::atomic_bool stopFlag_;
     std::atomic_bool purgeFlag_;
-    std::atomic_uint64_t purgeLimit_;
+    std::atomic_int64_t purgeLimit_;
     const logging::Logger& logger_;
     std::string name_;
     const uint32_t chunkSize_;

@@ -25,8 +25,8 @@
 #include "categorization/types.h"
 #include "util/thread_pool.hpp"
 #include "util/Metrics.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
+#include "diagnostics.hpp"
+#include "performance_handler.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
 

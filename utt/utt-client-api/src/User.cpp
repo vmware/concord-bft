@@ -257,13 +257,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   if (private_key.empty()) throw std::runtime_error("User private key cannot be empty!");
   if (public_key.empty()) throw std::runtime_error("User public key cannot be empty!");
 
-  bool isNewStorage = storage->isNewStorage();
-  if (isNewStorage) {
-    IStorage::tx_guard g(*storage);
-    storage->setKeyPair({private_key, public_key});
-  }
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
-
   auto user = std::make_unique<User>();
   user->pImpl_->pk_ = public_key;
   user->pImpl_->params_ = uttConfig.getParams();
@@ -274,50 +268,62 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
 
   std::map<std::string, std::string> selfTxCredentials{{userId, public_key}};
   user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
-  if (!isNewStorage) {
-    logdbg << "loading user data from storage" << endl;
-    user->recoverFromStorage(*(user->pImpl_->storage_));
+  if (storage->isNewStorage()) {
+    IStorage::tx_guard g(*storage);
+    storage->setUserId(userId);
+    storage->setKeyPair({private_key, public_key});
+    storage->setUttPublicConfig(uttConfig);
   }
   return user;
 }
 
-void User::recoverFromStorage(IStorage& storage) {
+std::unique_ptr<User> User::recoverFromStorage(std::shared_ptr<IStorage> storage) {
+  // First lets create a User object.
+  if (storage->isNewStorage()) throw std::runtime_error("cannot recover user from non initialized storage");
+  // As we have atomic transaction on createInitial, we know that if the storage is initiated, all the initial
+  // information is there
+  std::string user_id = storage->getUserId();
+  auto key_pair = storage->getKeyPair();
+  auto utt_public_config = libutt::api::serialize<libutt::api::PublicConfig>(storage->getUttPublicConfig());
+  std::unique_ptr<User> user = createInitial(user_id, utt_public_config, key_pair.first, key_pair.second, storage);
+
   /**
    * To recover the client we need to perform the following:
    * 1. recover registration data (if there is any)
    * 2. recover all existing coins
    */
-
-  auto s1 = storage.getClientSideSecret();
+  auto s1 = storage->getClientSideSecret();
   if (s1.empty()) {
-    logdbg_user << "This client has not started registration phase, no additional data to recover" << endl;
-    return;
+    logdbg << "The client has not started registration phase, no additional data to recover" << endl;
+    return user;
   }
-  pImpl_->s1_ = s1;
-  pImpl_->client_->setS1(s1);
+  user->pImpl_->s1_ = s1;
+  user->pImpl_->client_->setS1(s1);
   // We don't care about recovering rcm1. Its the system responsibility to prevent double registration
-  auto s2 = storage.getSystemSideSecret();
+  auto s2 = storage->getSystemSideSecret();
   if (s2.empty()) {
-    logdbg_user << "This client has not passed yet the registration phase, no additional data to recover" << endl;
-    return;
+    logdbg << "The client has not passed yet the registration phase, no additional data to recover" << endl;
+    return user;
   }
-  auto rcm_sig = storage.getRcmSignature();
+  auto rcm_sig = storage->getRcmSignature();
   if (rcm_sig.empty()) throw std::runtime_error("s2 exist but rcm signature is empty");
-  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rcm_sig);
-  pImpl_->is_registered_ = true;
-  auto coins = storage.getCoins();
+  user->pImpl_->client_->setRCMSig(user->pImpl_->params_, s2, rcm_sig);
+  user->pImpl_->is_registered_ = true;
+  auto coins = storage->getCoins();
   for (const auto& c : coins) {
-    if (!pImpl_->client_->validate(c)) throw std::runtime_error("client has failed to validate its own stored coins");
+    if (!user->pImpl_->client_->validate(c))
+      throw std::runtime_error("client has failed to validate its own stored coins");
     if (c.getType() == libutt::api::Coin::Normal) {
-      pImpl_->coins_.emplace(c.getNullifier(), c);
+      user->pImpl_->coins_.emplace(c.getNullifier(), c);
     } else if (c.getType() == libutt::api::Coin::Budget) {
-      if (pImpl_->budgetNullifiers_.size() >= 1) {
+      if (user->pImpl_->budgetNullifiers_.size() >= 1) {
         throw std::runtime_error("Currently multiple budget coins are not supported");
       }
-      pImpl_->budgetCoin_.emplace(c);
-      pImpl_->budgetNullifiers_.insert(c.getNullifier());
+      user->pImpl_->budgetCoin_.emplace(c);
+      user->pImpl_->budgetNullifiers_.insert(c.getNullifier());
     }
   }
+  return user;
 }
 
 User::User() : pImpl_{new Impl{}} {}
