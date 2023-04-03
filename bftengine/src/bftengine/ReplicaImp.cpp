@@ -1536,7 +1536,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       ppm = nullptr;
       return;
     } else {
-      auto p = std::make_shared<PrePrepareMsg>(*ppm);
+      std::shared_ptr<PrePrepareMsg> p(*ppm);
       return startConsensusProcess(p, true);
     }
   }
