@@ -1357,7 +1357,7 @@ module Proof {
   {
     reveal_EveryCommitMsgIsSupportedByAQuorumOfSentPrepares();
     var prepares := sentPreparesForSeqID(c, v, commitMsg.payload.view, commitMsg.payload.seqID, commitMsg.payload.operationWrapper);
-    prepare := GetMsgFromHonestSender(c, v, prepares);
+    prepare := GetMsgFromHonestSender(c, prepares);
   }
 
   function FaultyReplicas(c: Constants) : (faulty:set<HostId>) 
@@ -1408,9 +1408,9 @@ module Proof {
     honest := result;
   }
 
-  lemma GetMsgFromHonestSender(c:Constants, v:Variables, quorum:set<Message>)
+  lemma GetMsgFromHonestSender(c:Constants, quorum:set<Message>)
     returns (message:Message)
-    requires Inv(c, v)
+    requires c.WF()
     requires |Messages.sendersOf(quorum)| >= c.clusterConfig.AgreementQuorum()
     requires Messages.sendersOf(quorum) <= getAllReplicas(c)
     ensures c.clusterConfig.IsHonestReplica(message.sender)
@@ -1488,7 +1488,7 @@ module Proof {
     reveal_UnCommitableAgreesWithPrepare();
     if operationWrapper1 != operationWrapper2 {
       UniqueSendersCardinality(commits2);
-      var commit := GetMsgFromHonestSender(c, v, commits2);
+      var commit := GetMsgFromHonestSender(c, commits2);
       var prepare := GetPrepareFromHonestSenderForCommit(c, v, commit); // This term instantiates UnCommitableAgreesWithPrepare
       UniqueSendersCardinality(commits1);
       Library.SubsetCardinality(Messages.sendersOf(commits1), ReplicasThatCanCommitInView(c, v, seqID, view1, operationWrapper1));
@@ -1656,33 +1656,43 @@ module Proof {
           assert vcMsg in v.network.sentMsgs by {
             reveal_RecordedNewViewMsgsContainSentVCMsgs();
           }
-          var certView := vcMsg.payload.certificates[seqID].prototype().view;
-          if certView <= priorView {
-            assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
-              // viewchangemessages from honest sender comport with uncommitable in view
-              //reveal_SentViewChangesMsgsComportWithUncommitableInView();
-              //assume false;
-              //reveal_CommitMsgsFromHonestSendersAgree();
-              reveal_EveryCommitMsgIsRememberedByVCMsgs();
-              assume EveryCommitMsgIsRememberedByVCMsgs(c, v);
-            }
-          } else { // certView > priorView
-            /*
-              Grab the cert
-              One of the prepares in the cert has to be from an honest node
-              This prepare has to be in the network
-              Apply UnCommitableAgreesWithPrepare
-              Hint: We don't need a double agent in this case. We only need an honest certificate sender.
-            */
-            assume false;
-          }
 
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
-            reveal_HonestReplicasLeaveViewsBehind();
-            assert v.hosts[doubleAgent].replicaVariables.view >= vcMsg.payload.newView;
+             reveal_HonestReplicasLeaveViewsBehind();
+             assert v.hosts[doubleAgent].replicaVariables.view >= vcMsg.payload.newView;
           }
-          assert doubleAgent !in viewChangers;
-          assert false;
+
+          if (seqID !in vcMsg.payload.certificates) {
+            // We are looking for an Inv that says every ViewChange msg after a Commit mentions the Committed SeqID.
+          } else {
+            var certView := vcMsg.payload.certificates[seqID].prototype().view;
+            if certView <= priorView {
+              assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+                // viewchangemessages from honest sender comport with uncommitable in view
+                //reveal_SentViewChangesMsgsComportWithUncommitableInView();
+                //assume false;
+                //reveal_CommitMsgsFromHonestSendersAgree();
+                reveal_EveryCommitMsgIsRememberedByVCMsgs();
+                assume EveryCommitMsgIsRememberedByVCMsgs(c, v);
+              }
+              assert doubleAgent !in troubleMakers;
+              assert false;
+            } else { // certView > priorView // Use the mutual induction hypothesis to get UncommitableInView directly.
+              /*
+                Grab the cert
+                One of the prepares in the cert has to be from an honest node
+                This prepare has to be in the network
+                Apply UnCommitableAgreesWithPrepare
+                Hint: We don't need a double agent in this case. We only need an honest certificate sender.
+              */
+              var cert := vcMsg.payload.certificates[seqID];
+              var prepareFromHonest := GetMsgFromHonestSender(c, cert.votes);
+              assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper) by {
+                reveal_UnCommitableAgreesWithPrepare();
+              }
+              assert false;
+            }
+          }
         }
         var prePrepareMsg := v'.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
         assert prePrepareMsg.payload.seqID == seqID;
