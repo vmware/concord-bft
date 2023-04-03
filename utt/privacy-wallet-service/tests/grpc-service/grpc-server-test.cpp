@@ -491,7 +491,7 @@ TEST_F(test_privacy_wallet_grpc_service, test_server_state_restore) {
   (void)_;
 }
 
-TEST_F(test_privacy_wallet_grpc_service, test_set_application_data) {
+TEST_F(test_privacy_wallet_grpc_service, test_set_and_get_application_data) {
   const std::string DATA_KEY = {"sampledatakeyplaceholder"};
   const std::string DATA_VALUE = {"sampledatavalueplaceholder"};
 
@@ -513,6 +513,33 @@ TEST_F(test_privacy_wallet_grpc_service, test_set_application_data) {
   grpc::Status status2 = stub_->PrivacyWalletService(&context2, get_request, &get_response);
   auto& app_data = get_response.get_app_data_response();
   ASSERT_TRUE(status2.ok());
+  ASSERT_TRUE(get_response.has_get_app_data_response());
+  ASSERT_EQ(app_data.value(), DATA_VALUE);
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_server_state_restore) {
+  configureWallet(0);
+  restartServer();
+
+  auto [status2, _] = configureWallet(0);
+  ASSERT_EQ(status2.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+  ASSERT_EQ(status2.error_message(), "wallet is already configured");
+  (void)_;
+}
+
+TEST_F(test_privacy_wallet_grpc_service, test_get_not_set_application_data) {
+  const std::string DATA_KEY = {"sampledatakeyplaceholder"};
+  const std::string DATA_VALUE = {""};
+
+  configureWallet(0);
+  PrivacyWalletRequest get_request;
+  auto get_app_data_req = get_request.mutable_get_app_data_request();
+  get_app_data_req->set_key(DATA_KEY);
+  auto context = grpc::ClientContext{};
+  auto get_response = PrivacyWalletResponse{};
+  grpc::Status status = stub_->PrivacyWalletService(&context, get_request, &get_response);
+  auto& app_data = get_response.get_app_data_response();
+  ASSERT_TRUE(status.ok());
   ASSERT_TRUE(get_response.has_get_app_data_response());
   ASSERT_EQ(app_data.value(), DATA_VALUE);
 }

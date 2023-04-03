@@ -413,9 +413,9 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     ::grpc::ServerContext*,
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
-  auto& get_app_data_req = request->get_app_data_request();
-  auto get_app_data_resp = response->mutable_get_app_data_response();
   if (response) {
+    auto& get_app_data_req = request->get_app_data_request();
+    auto get_app_data_resp = response->mutable_get_app_data_response();
     get_app_data_resp->set_value(storage_->getAppData(get_app_data_req.key()));
   }
   return grpc::Status::OK;

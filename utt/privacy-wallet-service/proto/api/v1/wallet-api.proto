@@ -115,7 +115,7 @@ message GetAppDataRequest {
 }
 
 message GetAppDataResponse {
-    string value= 1;
+    string value = 1;
 }
 
 message PrivacyWalletRequest {
