@@ -182,7 +182,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(
     std::shared_ptr<concord::storage::IDBClient> dbClient,
     std::shared_ptr<bftEngine::impl::PersistentStorage> p,
     std::shared_ptr<concordMetrics::Aggregator> aggregator,
-    const std::function<BlockId()>& getLastBlockIdCb,
+    const std::function<BlockId(SeqNum)>& getCpBlockIdCb,
     const PrepareCheckpointCallback& prepareCheckpointCb,
     const std::function<void(bool, concord::kvbc::BlockId)>& checkpointInProcessCb) {
   dbClient_ = dbClient;
@@ -192,7 +192,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(
   maxNumOfCheckpoints_ =
       std::min(ReplicaConfig::instance().maxNumberOfDbCheckpoints, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
   metrics_.SetAggregator(aggregator);
-  if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
+  if (getCpBlockIdCb) getCpBlockIdCb_ = getCpBlockIdCb;
   if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
@@ -255,7 +255,7 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
   if (blockId.has_value()) {
     lastBlockid = blockId.value();
   } else {
-    lastBlockid = getLastBlockIdCb_();
+    lastBlockid = getCpBlockIdCb_(seqNum);
   }
   if (lastBlockid == 0) {
     LOG_WARN(getLogger(), "createDb checkpoint failed. Refusing to create a checkpoint for an empty blockchain.");
@@ -399,8 +399,8 @@ void DbCheckpointManager::setCheckpointInProcess(bool flag, concord::kvbc::Block
   if (checkpointInProcessCb_) checkpointInProcessCb_(flag, blockId);
 }
 
-BlockId DbCheckpointManager::getLastReachableBlock() const {
-  if (getLastBlockIdCb_) return getLastBlockIdCb_();
+BlockId DbCheckpointManager::getCpBlockId(SeqNum sn) const {
+  if (getCpBlockIdCb_) return getCpBlockIdCb_(sn);
   return 0;
 }
 std::string DbCheckpointManager::getDiskUsageInfo() {

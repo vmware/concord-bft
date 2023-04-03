@@ -144,7 +144,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
       if (!createDbChkPtMsg.noop) {
         const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
-        std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
+        std::optional blockId(DbCheckpointManager::instance().getCpBlockId(createDbChkPtMsg.seqNum));
         if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
           DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
         } else {
@@ -159,11 +159,12 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
               DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, blockId);
           });
         }
+        LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum, *blockId));
       }
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
-      LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
+
       continue;
     }
 

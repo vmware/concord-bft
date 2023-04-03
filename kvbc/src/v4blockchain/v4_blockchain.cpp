@@ -708,16 +708,15 @@ void KeyValueBlockchain::checkpointInProcess(bool flag, kvbc::BlockId block_id_a
   // shouldn't have any contention or overhead
   const std::lock_guard<std::mutex> lock(map_mutex);
   if (flag) {
-    auto last_reachable_id = block_chain_.getLastReachable();
-    ConcordAssertEQ(last_reachable_id, block_id_at_chkpnt);
     auto new_snap_shot = RecoverySnapshot{&native_client_->rawDB()};
-    chkpnt_snap_shots_[last_reachable_id] = new_snap_shot.get();
+    chkpnt_snap_shots_[block_id_at_chkpnt] = new_snap_shot.get();
     LOG_INFO(V4_BLOCK_LOG,
              "Taking snapshot at checkpoint start with block id "
-                 << last_reachable_id << " snapshot sn " << chkpnt_snap_shots_[last_reachable_id]->GetSequenceNumber());
+                 << block_id_at_chkpnt << " snapshot sn "
+                 << chkpnt_snap_shots_[block_id_at_chkpnt]->GetSequenceNumber());
     native_client_->put(v4blockchain::detail::MISC_CF,
                         RecoverySnapshot::getStorableKey(block_id_at_chkpnt),
-                        new_snap_shot.getStorableSeqNumAndPreventRelease(last_reachable_id));
+                        new_snap_shot.getStorableSeqNumAndPreventRelease(block_id_at_chkpnt));
   } else {
     if (chkpnt_snap_shots_.count(block_id_at_chkpnt) > 0) {
       auto sn = chkpnt_snap_shots_[block_id_at_chkpnt]->GetSequenceNumber();

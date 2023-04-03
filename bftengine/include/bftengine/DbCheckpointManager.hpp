@@ -99,7 +99,7 @@ class DbCheckpointManager {
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                     const std::function<BlockId()>& getLastBlockIdCb,
+                                     const std::function<BlockId(SeqNum)>& getCpBlockIdCb,
                                      const PrepareCheckpointCallback& prepareCheckpointCb,
                                      const std::function<void(bool, concord::kvbc::BlockId)>& checkpointInProcessCb);
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
@@ -123,7 +123,7 @@ class DbCheckpointManager {
     if (monitorThread_.joinable()) monitorThread_.join();
   }
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
-  BlockId getLastReachableBlock() const;
+  BlockId getCpBlockId(SeqNum sn) const;
   SeqNum getLastStableSeqNum() const;
   void setCheckpointInProcess(bool, concord::kvbc::BlockId) const;
   void setOnStableSeqNumCb_(std::function<void(SeqNum)> cb) { onStableSeqNumCb_ = cb; }
@@ -168,7 +168,7 @@ class DbCheckpointManager {
   void removeCheckpoint(const DbCheckpointId& checkPointId);
   void removeAllCheckpoints() const;
   void cleanUp();
-  std::function<BlockId()> getLastBlockIdCb_;
+  std::function<BlockId(SeqNum)> getCpBlockIdCb_;
   PrepareCheckpointCallback prepareCheckpointCb_;
   std::function<void(bool, concord::kvbc::BlockId)> checkpointInProcessCb_;
   // get total size recursively

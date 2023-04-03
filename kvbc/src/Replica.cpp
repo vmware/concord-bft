@@ -313,6 +313,11 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
         rreq, key, blockid, wedgePoint, epochNum);
   }
 }
+BlockId Replica::getBlockIdOfSeqNum(uint64_t seq_num) const {
+  const auto bid = m_kvBlockchain->getBlockIdOfSeqNum(seq_num);
+  ConcordAssert(bid.has_value());
+  return *bid;
+}
 
 void Replica::createReplicaAndSyncState() {
   ConcordAssertNE(m_kvBlockchain, nullptr);
@@ -353,8 +358,9 @@ void Replica::createReplicaAndSyncState() {
       m_dbSet.dataDBClient,
       m_replicaPtr->persistentStorage(),
       aggregator_,
-      [this]() -> uint64_t { return getLastBlockId(); },
-      [value_converter = m_stateSnapshotValueConverter](BlockId block_id_at_checkpoint, const std::string &path) {
+      [this](SeqNum sn) -> uint64_t { return getBlockIdOfSeqNum(sn); },
+      [value_converter = m_stateSnapshotValueConverter](
+          BlockId block_id_at_checkpoint, const std::string &path) {
         const auto read_only = false;
         // prepare the blockchain for the trim, needs to happen before we open the blockchain
         concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery(path, block_id_at_checkpoint);

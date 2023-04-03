@@ -109,7 +109,19 @@ class ReplicaBlockchain : public IBlocksDeleter,
   std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const override final {
     return reader_->getBlockUpdates(block_id);
   }
-
+  // find the first block which has the given sequence number in its metadata
+  std::optional<BlockId> getBlockIdOfSeqNum(uint64_t seq_num) const {
+    for (auto bid = getLastBlockId(); bid >= getGenesisBlockId(); bid--) {
+      const auto val =
+          get(concord::kvbc::categorization::kConcordInternalCategoryId, IBlockMetadata::kBlockMetadataKeyStr, bid);
+      ConcordAssert(val.has_value());
+      auto data = std::get<categorization::VersionedValue>(*val).data;
+      ConcordAssertEQ(data.size(), sizeof(uint64_t));
+      uint64_t sequenceNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+      if (sequenceNum == seq_num) return bid;
+    }
+    return std::nullopt;
+  }
   // Get the current genesis block ID in the system.
   BlockId getGenesisBlockId() const override final { return reader_->getGenesisBlockId(); }
 

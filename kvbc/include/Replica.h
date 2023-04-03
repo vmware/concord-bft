@@ -147,6 +147,7 @@ class Replica : public IReplica,
                              const uint32_t blockSize,
                              bool lastBlock = false);
 
+  BlockId getBlockIdOfSeqNum(uint64_t seq_num) const;
   Replica(bft::communication::ICommunication *comm,
           const bftEngine::ReplicaConfig &config,
           std::unique_ptr<IStorageFactory> storageFactory,
