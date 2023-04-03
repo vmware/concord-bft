@@ -102,8 +102,8 @@ message GetStateResponse {
 }
 
 message SetAppDataRequest {
-    string key = 1;
-    string value = 2;
+    repeated string keys = 1;
+    repeated string values = 2;
 }
 
 message SetAppDataResponse {
@@ -111,11 +111,11 @@ message SetAppDataResponse {
 }
 
 message GetAppDataRequest {
-    string key = 1;
+    repeated string keys = 1;
 }
 
 message GetAppDataResponse {
-    string value = 1;
+    repeated string values = 1;
 }
 
 message PrivacyWalletRequest {

@@ -401,7 +401,9 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
     const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
     ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
   auto& set_app_data_req = request->set_app_data_request();
-  storage_->setAppData(set_app_data_req.key(), set_app_data_req.value());
+  for (int i = 0; i < set_app_data_req.keys().size(); i++) {
+    storage_->setAppData(set_app_data_req.keys(i), set_app_data_req.values(i));
+  }
   if (response) {
     auto set_app_data_resp = response->mutable_set_app_data_response();
     set_app_data_resp->set_succ(true);
@@ -416,7 +418,9 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   if (response) {
     auto& get_app_data_req = request->get_app_data_request();
     auto get_app_data_resp = response->mutable_get_app_data_response();
-    get_app_data_resp->set_value(storage_->getAppData(get_app_data_req.key()));
+    for (int i = 0; i < get_app_data_req.keys().size(); i++) {
+      get_app_data_resp->add_values(storage_->getAppData(get_app_data_req.keys(i)));
+    }
   }
   return grpc::Status::OK;
 }
