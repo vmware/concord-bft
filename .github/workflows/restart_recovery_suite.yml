@@ -12,6 +12,9 @@ jobs:
     name: Build
     timeout-minutes: 420
     runs-on: ubuntu-22.04
+    container:
+      image: concordbft/concord-bft:0.60
+      options: --cap-add=NET_ADMIN
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
     strategy:
