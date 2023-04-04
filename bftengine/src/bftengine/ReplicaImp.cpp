@@ -1520,8 +1520,8 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return onCarrierMessage(*vldMsg);
   }
 
-  // Handle a PrePrepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
+    std::shared_ptr<PrePrepareMsg> p(*ppm);
     // This condition will always be true but keeping this to ensure that we never decrement this variable when it is
     // at its lower bound.
     // Why we do not use ConcordAssert here?
@@ -1532,13 +1532,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     }
     if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
       LOG_INFO(GL, "Received PrePrepareMsg while pruning or state transfer, so ignoring the message");
-      delete *ppm;
-      ppm = nullptr;
-      return;
     } else {
-      std::shared_ptr<PrePrepareMsg> p(*ppm);
-      return startConsensusProcess(p, true);
+      startConsensusProcess(p, true);
     }
+    return;
   }
 
   // Handle a PrePrepare carrier
