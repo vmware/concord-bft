@@ -37,6 +37,9 @@ jobs:
             cd build
             cmake \
               -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
+              -DBUILD_COMM_UDP=ON \
+              -DBUILD_COMM_TCP_TLS=OFF \
+              -DBUILD_COMM_TCP_PLAIN=OFF \
               -DCMAKE_BUILD_TYPE=RELEASE \
               -DBUILD_COMM_TCP_TLS=FALSE \
               -DBUILD_TESTING=ON \
