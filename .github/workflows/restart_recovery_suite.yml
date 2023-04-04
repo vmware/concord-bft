@@ -1,6 +1,5 @@
 name: Restart recovery suite
-on:
-  [ push, pull_request ]
+on: [ push, pull_request ]
   schedule:
     - cron: '0 1 * * *'
 
@@ -34,7 +33,6 @@ jobs:
             mkdir build
             cd build
             cmake \
-              ${{ matrix.compiler}} \
               -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
               -DCMAKE_BUILD_TYPE=RELEASE \
               -DBUILD_COMM_TCP_TLS=FALSE \
