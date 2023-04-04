@@ -47,20 +47,16 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
     ro_params = [ "--s3-config-file",
                   path_to_s3_config
                   ]
-    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
-        blockchain_version = "4"
-    else :
-        blockchain_version = "1"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     ret = [path,
            "-k", KEY_FILE_PREFIX,
            "-i", str(replica_id),
            "-s", statusTimerMilli,
-           "-V", blockchain_version,
+           "-V", os.getenv('BLOCKCHAIN_VERSION', default="1"),
            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
            ]
-    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
+    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas:
         ret.extend(ro_params)
 
     return ret
@@ -69,7 +65,7 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
 class ObjectStore:
 
     def __init__(self):
-        log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
+        log.log_message(message_type="Running in S3 mode.")
 
         # We need a temp dir for data and binaries - this is self.dest_dir
         # self.dest_dir will contain data dir for minio buckets and the minio binary
@@ -90,19 +86,12 @@ class ObjectStore:
         server_env["MINIO_SECRET_KEY"] = "concordbft"
         server_env["CI"] = "on"
 
-        minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
-        if minio_server_fname is None:
-            shutil.rmtree(self.work_dir)
-            raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
-
-        self.minio_server_proc = subprocess.Popen([minio_server_fname, "server", self.minio_server_data_dir],
+        self.minio_server_proc = subprocess.Popen(["minio", "server", self.minio_server_data_dir],
                                                  env = server_env,
                                                  close_fds=True)
 
 
     def __del__(self):
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
         # First stop the server gracefully
         self.minio_server_proc.kill()
         self.minio_server_proc.wait()

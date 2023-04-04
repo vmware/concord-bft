@@ -384,14 +384,12 @@ PreProcessor::PreProcessorMemoryPoolMode PreProcessor::initMemoryPoolMode() {
     throw std::invalid_argument(__PRETTY_FUNCTION__ + oss.str());
   };
 
-  return (preProcessorMemoryPoolMode == 0)
-             ? PreProcessorMemoryPoolMode::NO_POOL
-             : (preProcessorMemoryPoolMode == 1)
-                   ? PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL
-                   : (preProcessorMemoryPoolMode == 2)
-                         ? PreProcessorMemoryPoolMode::RAW_MEMORY_POOL
-                         : PreProcessorMemoryPoolMode::NO_POOL; /* should never happen and checked again later on ctor
-                                                                 */
+  return (preProcessorMemoryPoolMode == 0)   ? PreProcessorMemoryPoolMode::NO_POOL
+         : (preProcessorMemoryPoolMode == 1) ? PreProcessorMemoryPoolMode::MULTI_SIZE_BUFFER_POOL
+         : (preProcessorMemoryPoolMode == 2)
+             ? PreProcessorMemoryPoolMode::RAW_MEMORY_POOL
+             : PreProcessorMemoryPoolMode::NO_POOL; /* should never happen and checked again later on ctor
+                                                     */
 }
 
 PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,

@@ -48,7 +48,7 @@ bool AppStateAdapter::getPrevDigestFromBlock(uint64_t blockId,
     LOG_WARN(logger_, "parent digest not found," << KVLOG(blockId));
     return false;
   }
-  static_assert(parent_digest->size() == DIGEST_SIZE);
+  ConcordAssert(parent_digest->size() == DIGEST_SIZE);
   static_assert(sizeof(bftEngine::bcst::StateTransferDigest) == DIGEST_SIZE);
   std::memcpy(outPrevBlockDigest, parent_digest->data(), DIGEST_SIZE);
   return true;

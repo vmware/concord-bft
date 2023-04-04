@@ -21,7 +21,7 @@
 #include <opentracing/span.h>
 #include <condition_variable>
 #include <thread>
-
+#include <optional>
 #include "log/logger.hpp"
 #include "grpc_connection.hpp"
 #include "util/thread_pool.hpp"

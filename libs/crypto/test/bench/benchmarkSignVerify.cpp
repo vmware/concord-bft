@@ -111,7 +111,7 @@ void edDSAVerifierBenchmark(picobench::state& s) {
   size_t lenRetData = signer_->sign(randomData[offset], sig.data());
   ConcordAssertEQ(lenRetData, expectedSignerSigLen);
 
-  std::string sigAsString("\x00", sig.size());
+  std::string sigAsString(sig.size(), '\x00');
   std::memcpy(sigAsString.data(), sig.data(), sig.size());
   uint64_t signaturesVerified = 0;
   {

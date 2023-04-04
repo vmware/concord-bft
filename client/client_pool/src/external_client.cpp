@@ -235,10 +235,10 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
 }
 
 BaseCommConfig* ConcordClient::CreateCommConfig() const {
-  const auto commType =
-      pool_config_.comm_to_use == "tls"
-          ? TlsTcp
-          : pool_config_.comm_to_use == "tcp" ? PlainTcp : pool_config_.comm_to_use == "udp" ? PlainUdp : SimpleAuthTcp;
+  const auto commType = pool_config_.comm_to_use == "tls"   ? TlsTcp
+                        : pool_config_.comm_to_use == "tcp" ? PlainTcp
+                        : pool_config_.comm_to_use == "udp" ? PlainUdp
+                                                            : SimpleAuthTcp;
 #if defined(USE_COMM_PLAIN_TCP) || defined(USE_COMM_TLS_TCP)
   const auto& client_conf = pool_config_.participant_nodes.at(0).externalClients.at(client_id_);
   const auto listenPort = client_conf.client_port;
@@ -252,7 +252,8 @@ BaseCommConfig* ConcordClient::CreateCommConfig() const {
                               static_cast<uint32_t>(bufferLength),
                               pool_config_.replicas,
                               static_cast<int32_t>(pool_config_.num_replicas - 1),
-                              selfId};
+                              selfId,
+                              nullptr};
 #endif
     ConcordAssert(false && "FOR PLAIN TCP COMM SHOULD HAVE BEEN COMPILED WITH \"USE_COMM_PLAIN_TCP\"");
   } else if (commType == TlsTcp) {

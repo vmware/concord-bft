@@ -1,9 +1,9 @@
 find_package(Protobuf REQUIRED)
-find_package(GRPC REQUIRED)
+find_package(gRPC REQUIRED)
 
 include_directories(${GRPC_INCLUDE_DIR})
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_BINARY_DIR}
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
   api/v1/wallet-api.proto
 )
 grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${CMAKE_CURRENT_BINARY_DIR}

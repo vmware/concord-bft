@@ -549,6 +549,7 @@ TEST_F(utt_complete_system, test_parallel_transactions) {
   for (auto& t : sig_jobs) t.join();
   std::vector<std::vector<types::Signature>> txs_sigs;
   for (const auto& [ids, tx] : txs) {
+    (void)tx;
     std::vector<types::Signature> sigs;
     for (auto sid : ids) {
       auto sig = waitAndGetFullSig(sid, 0);

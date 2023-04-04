@@ -35,6 +35,7 @@
 #include <vector>
 #include <utility>
 #include "log/logger.hpp"
+#include "crypto/digest.hpp"
 
 namespace {
 
@@ -253,7 +254,7 @@ void serializeInternalKeyPlusOp(benchmark::State &state) {
 
 void calculateSha2(benchmark::State &state) {
   const auto value = randomBuffer(state.range(0));
-  auto hasher = SHA2_256{};
+  auto hasher = concord::crypto::SHA2_256{};
 
   for (auto _ : state) {
     const auto hash = hasher.digest(value.data(), value.size());

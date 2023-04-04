@@ -1,0 +1,54 @@
+name: Build and Test
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    container:
+      image: concordbft/concord-bft:0.60
+      options: --cap-add=NET_ADMIN
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++]
+        ci_build_type: [Debug, Release]
+        comm_type: 
+          - "-DBUILD_COMM_UDP=ON -DBUILD_COMM_TCP_TLS=OFF -DBUILD_COMM_TCP_PLAIN=OFF"
+          - "-DBUILD_COMM_UDP=OFF -DBUILD_COMM_TCP_TLS=ON -DBUILD_COMM_TCP_PLAIN=OFF"
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v3
+        - name: Build
+          run: |
+            mkdir build
+            cd build
+            cmake \
+              ${{ matrix.comm_type }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
+              -DCMAKE_BUILD_TYPE=${{ matrix.ci_build_type }} \
+              -DBUILD_TESTING=ON \
+               ..
+               make -j$(nproc)
+        - name: Test
+          run: |
+            cd build
+            # many tests require administrative priviliges for running iptables or nc
+            sudo ctest --output-on-failure
+        - name: Prepare artifacts
+          if: ${{ failure() }}
+          run: |
+            mkdir -p artifact
+            sudo chown -R ${USER}:${GROUP} ${PWD}/build
+            tar -czvf artifact/logs.tar.gz ./build/tests/apollo/logs
+        - name: Upload artifacts
+          if: ${{ failure() }}
+          uses: actions/upload-artifact@v3
+          with:
+            name: artifacts-${{ matrix.ci_build_type }}-${{ matrix.comm_type }}-${{ github.sha }}
+            path: artifact/
+            retention-days: 1

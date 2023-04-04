@@ -278,6 +278,6 @@ class Replica : public IReplica,
   };
   // All these recorders need to be shared
   Recorders histograms_;
-};  // namespace concord::kvbc
+};
 
 }  // namespace concord::kvbc

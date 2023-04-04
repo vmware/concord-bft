@@ -18,6 +18,7 @@
 #include "ReservedPagesMock.hpp"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
+#include <thread>
 
 using concord::crypto::Factory;
 using bftEngine::impl::ClientsManager;

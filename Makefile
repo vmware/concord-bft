@@ -1,8 +1,12 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 
+# Base Toolchain image
+CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN?=concord-bft
+CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN_VERSION?=toolchain-0.01
+CONCORD_BFT_DOCKERFILE_TOOLCHAIN?=DockerfileToolchain
 # Release (production) image
 CONCORD_BFT_DOCKER_IMAGE_RELEASE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE?=0.51
+CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE?=0.60
 CONCORD_BFT_DOCKERFILE_RELEASE?=Dockerfile
 
 # Debug (development) image
@@ -24,10 +28,10 @@ CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/thi
 CONCORD_BFT_KVBC_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/proto
 CONCORD_BFT_UTT_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/utt
 CONCORD_BFT_CONTAINER_SHELL?=/bin/bash
-CONCORD_BFT_CONTAINER_CC?=clang
-CONCORD_BFT_CONTAINER_CXX?=clang++
+CONCORD_BFT_CONTAINER_CC?=gcc
+CONCORD_BFT_CONTAINER_CXX?=g++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
-CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
+CONCORD_BFT_CMAKE_BUILD_TESTING?=ON
 CONCORD_BFT_CLANG_TIDY_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
 CONCORD_BFT_CPPCHECK_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/scripts/run-cppcheck.sh
 CONCORD_BFT_RUN_SIMPLE_TEST?=./build/tests/simpleTest/scripts/testReplicasAndClient.sh
@@ -35,59 +39,42 @@ CONCORD_BFT_RUN_SIMPLE_TEST?=./build/tests/simpleTest/scripts/testReplicasAndCli
 # UDP | TLS | TCP
 CONCORD_BFT_CMAKE_TRANSPORT?=TLS
 ifeq (${CONCORD_BFT_CMAKE_TRANSPORT},TLS)
-   TLS_ENABLED__:=TRUE
-   TCP_ENABLED__:=FALSE
+   TLS_ENABLED__:=ON
+   TCP_ENABLED__:=OFF
 else ifeq (${CONCORD_BFT_CMAKE_TRANSPORT},TCP)
-   TLS_ENABLED__:=FALSE
-   TCP_ENABLED__:=TRUE
+   TLS_ENABLED__:=OFF
+   TCP_ENABLED__:=ON
 else
-   TLS_ENABLED__:=FALSE
-   TCP_ENABLED__:=FALSE
+   TLS_ENABLED__:=OFF
+   TCP_ENABLED__:=OFF
 endif
 
-CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE?='-O3 -g'
-CONCORD_BFT_CMAKE_USE_LOG4CPP?=TRUE
-CONCORD_BFT_CMAKE_BUILD_UTT?=TRUE
-CONCORD_BFT_CMAKE_BUILD_ROCKSDB_STORAGE?=TRUE
-CONCORD_BFT_CMAKE_USE_S3_OBJECT_STORE?=TRUE
-CONCORD_BFT_CMAKE_USE_OPENTRACING?=TRUE
-CONCORD_BFT_CMAKE_USE_PROMETHEUS?=TRUE
-CONCORD_BFT_CMAKE_USE_JAEGER?=TRUE
-CONCORD_BFT_CMAKE_USE_JSON?=TRUE
-CONCORD_BFT_CMAKE_USE_HTTPLIB?=TRUE
-CONCORD_BFT_CMAKE_EXPORT_COMPILE_COMMANDS?=TRUE
-CONCORD_BFT_CMAKE_OMIT_TEST_OUTPUT?=FALSE
-CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS?=TRUE
-CONCORD_BFT_CMAKE_RUN_APOLLO_TESTS?=TRUE
-CONCORD_BFT_CMAKE_TRANSACTION_SIGNING_ENABLED?=TRUE
-CONCORD_BFT_CMAKE_BUILD_SLOWDOWN?=FALSE
-# Only useful with CONCORD_BFT_CMAKE_BUILD_TYPE:=Release
-CONCORD_BFT_CMAKE_BUILD_KVBC_BENCH?=TRUE
-# Only usefull with CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE=-O0 -g
-CONCORD_BFT_CMAKE_ASAN?=FALSE
-CONCORD_BFT_CMAKE_TSAN?=FALSE
-CONCORD_BFT_CMAKE_UBSAN?=FALSE
-CONCORD_BFT_CMAKE_HEAPTRACK?=FALSE
-CONCORD_BFT_CMAKE_CODECOVERAGE?=FALSE
-CONCORD_BFT_CMAKE_CCACHE?=TRUE
-CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE?=FALSE
-ENABLE_RESTART_RECOVERY_TESTS?=FALSE
-CONCORD_ENABLE_ALL_METRICS?=FALSE
+CONCORD_BFT_CMAKE_BUILD_UTT?=ON
+CONCORD_BFT_CMAKE_OMIT_TEST_OUTPUT?=OFF
+CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS?=ON
+CONCORD_BFT_CMAKE_RUN_APOLLO_TESTS?=ON
+CONCORD_BFT_CMAKE_ASAN?=OFF
+CONCORD_BFT_CMAKE_TSAN?=OFF
+CONCORD_BFT_CMAKE_UBSAN?=OFF
+CONCORD_BFT_CMAKE_HEAPTRACK?=OFF
+CONCORD_BFT_CMAKE_CODECOVERAGE?=OFF
+CONCORD_BFT_CMAKE_CCACHE?=ON
+ENABLE_RESTART_RECOVERY_TESTS?=OFF
 
 # Our CMake logic won't allow more one of these flags to be raised, so having this if/else logic makes sense
-ifeq (${CONCORD_BFT_CMAKE_ASAN},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-else ifeq (${CONCORD_BFT_CMAKE_TSAN},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-else ifeq (${CONCORD_BFT_CMAKE_UBSAN},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-else ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-else ifeq (${CONCORD_BFT_CMAKE_HEAPTRACK},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
-	ifneq (${RUN_WITH_DEBUG_IMAGE},TRUE)
-    $(info CONCORD_BFT_CMAKE_HEAPTRACK=TRUE: setting RUN_WITH_DEBUG_IMAGE=TRUE to support heaptrack run)
-    RUN_WITH_DEBUG_IMAGE=TRUE
+ifeq (${CONCORD_BFT_CMAKE_ASAN},ON)
+	CONCORD_BFT_CMAKE_BUILD_TYPE=Debug
+else ifeq (${CONCORD_BFT_CMAKE_TSAN},ON)
+	CONCORD_BFT_CMAKE_BUILD_TYPE=Debug
+else ifeq (${CONCORD_BFT_CMAKE_UBSAN},ON)
+	CONCORD_BFT_CMAKE_BUILD_TYPE=Debug
+else ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},ON)
+	CONCORD_BFT_CMAKE_BUILD_TYPE=Debug
+else ifeq (${CONCORD_BFT_CMAKE_HEAPTRACK},ON)
+	CONCORD_BFT_CMAKE_BUILD_TYPE=Debug
+	ifneq (${RUN_WITH_DEBUG_IMAGE},ON)
+    $(info CONCORD_BFT_CMAKE_HEAPTRACK=ON: setting RUN_WITH_DEBUG_IMAGE=ON to support heaptrack run)
+    RUN_WITH_DEBUG_IMAGE=ON
 	endif
 endif
 
@@ -116,36 +103,22 @@ CONCORD_BFT_CMAKE_FLAGS?= \
 			-DBUILD_TESTING=${CONCORD_BFT_CMAKE_BUILD_TESTING} \
 			-DBUILD_COMM_TCP_PLAIN=${TCP_ENABLED__} \
 			-DBUILD_COMM_TCP_TLS=${TLS_ENABLED__} \
-			-DCMAKE_CXX_FLAGS_RELEASE=${CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE} \
-			-DUSE_LOG4CPP=${CONCORD_BFT_CMAKE_USE_LOG4CPP} \
 			-DBUILD_UTT=${CONCORD_BFT_CMAKE_BUILD_UTT} \
-			-DBUILD_ROCKSDB_STORAGE=${CONCORD_BFT_CMAKE_BUILD_ROCKSDB_STORAGE} \
-			-DUSE_S3_OBJECT_STORE=${CONCORD_BFT_CMAKE_USE_S3_OBJECT_STORE} \
-			-DUSE_OPENTRACING=${CONCORD_BFT_CMAKE_USE_OPENTRACING} \
-			-DUSE_PROMETHEUS=${CONCORD_BFT_CMAKE_USE_PROMETHEUS} \
-			-DUSE_JAEGER=${CONCORD_BFT_CMAKE_USE_JAEGER} \
-			-DUSE_JSON=${CONCORD_BFT_CMAKE_USE_JSON} \
-			-DUSE_HTTPLIB=${CONCORD_BFT_CMAKE_USE_HTTPLIB} \
-			-DCMAKE_EXPORT_COMPILE_COMMANDS=${CONCORD_BFT_CMAKE_EXPORT_COMPILE_COMMANDS} \
 			-DOMIT_TEST_OUTPUT=${CONCORD_BFT_CMAKE_OMIT_TEST_OUTPUT} \
 			-DKEEP_APOLLO_LOGS=${CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS} \
 			-DRUN_APOLLO_TESTS=${CONCORD_BFT_CMAKE_RUN_APOLLO_TESTS} \
-			-DBUILD_SLOWDOWN=${CONCORD_BFT_CMAKE_BUILD_SLOWDOWN} \
-			-DUSE_FAKE_CLOCK_IN_TIME_SERVICE=${CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE} \
 			-DLEAKCHECK=${CONCORD_BFT_CMAKE_ASAN} \
 			-DTHREADCHECK=${CONCORD_BFT_CMAKE_TSAN} \
 			-DHEAPTRACK=${CONCORD_BFT_CMAKE_HEAPTRACK} \
 			-DUNDEFINED_BEHAVIOR_CHECK=${CONCORD_BFT_CMAKE_UBSAN} \
 			-DCODECOVERAGE=${CONCORD_BFT_CMAKE_CODECOVERAGE} \
-			-DTXN_SIGNING_ENABLED=${CONCORD_BFT_CMAKE_TRANSACTION_SIGNING_ENABLED} \
-			-DENABLE_RESTART_RECOVERY_TESTS=${ENABLE_RESTART_RECOVERY_TESTS} \
-			-DCONCORD_ENABLE_ALL_METRICS=$(CONCORD_ENABLE_ALL_METRICS)
+			-DENABLE_RESTART_RECOVERY_TESTS=${ENABLE_RESTART_RECOVERY_TESTS}
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
 APOLLO_CTEST_RUN_PARAMS?=
 CONCORD_BFT_FORMAT_CMD=make format-check &&
 
-ifeq (${CONCORD_BFT_CMAKE_CCACHE},TRUE)
+ifeq (${CONCORD_BFT_CMAKE_CCACHE},ON)
 	CCACHE_HOST_CACHE_DIR=${HOME}/.ccache/
 	CCACHE_CONTAINER_CACHE_DIR=/mnt/ccache/
 	CONCORD_BFT_CMAKE_FLAGS+=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache
@@ -372,7 +345,10 @@ test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test 
 	exit $${num_failures}
 
 .PHONY: test-single-apollo-case
-test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
+## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. 
+## Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. 
+## Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
+test-single-apollo-case: 
 	@if [ -z ${TEST_FILE_NAME} ]; then echo "Error: please set the TEST_FILE_NAME environment variable!"; exit 1; fi
 	@if [ -z ${TEST_CASE_NAME} ]; then echo "Error: please set the TEST_CASE_NAME environment variable!"; exit 1; fi
 	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
@@ -426,7 +402,7 @@ clean: create-ccache-folder ## Clean Concord-BFT build directory (set CLEAN_BIN=
 
 .PHONY: create-ccache-folder
 create-ccache-folder: ## Create ccache host folder
-	@if [ ${CONCORD_BFT_CMAKE_CCACHE} = "TRUE" ]; then mkdir -p ${CCACHE_HOST_CACHE_DIR}; fi
+	@if [ ${CONCORD_BFT_CMAKE_CCACHE} = "ON" ]; then mkdir -p ${CCACHE_HOST_CACHE_DIR}; fi
 
 .PHONY: codecoverage
 codecoverage: ## Generate Code Coverage report for Apollo tests
@@ -435,7 +411,17 @@ codecoverage: ## Generate Code Coverage report for Apollo tests
                 "./scripts/run-codecoverage.sh"
 	@echo "Completed make codecoverage"
 
-BUILD_IMAGE_MODE=ALL
+# base docker image with toolchain only
+build-toolchain-docker-image:
+	docker build --rm --no-cache=true \
+	-t ${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN}:toolchain-latest \
+	-f ./${CONCORD_BFT_DOCKERFILE_TOOLCHAIN} \
+	--build-arg GIT_BRANCH="$(shell git name-rev --name-only HEAD | sed "s/~.*//")" \
+	--build-arg GIT_COMMIT="$(shell git rev-parse HEAD)" \
+	--build-arg BUILD_CREATOR="$(shell git config user.email)" \
+	.
+
+BUILD_IMAGE_MODE?=ALL
 build-docker-images: SHELL:=/bin/bash
 .PHONY: build-docker-images
 build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest, then build a debug image based on the just-built release image, and tag it as ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest. By default, both images are built. To build only a release image set BUILD_IMAGE_MODE=RELEASE. to build only debug image set BUILD_IMAGE_MODE=DEBUG. When a debug image is built, it relys on an existing concord-bft:latest image. To have an output image being used (as default) by Makefile: tag it with docker, and then modify CONCORD_BFT_DOCKER_IMAGE_RELEASE + CONCORD_BFT_DOCKER_IMAGE_VERSION_RELEASE in Makefile for a release image, and CONCORD_BFT_DOCKER_IMAGE_DEBUG + CONCORD_BFT_DOCKER_IMAGE_VERSION_DEBUG for a debug image.
@@ -443,9 +429,17 @@ build-docker-images: ## First, build a release image and tag it as ${CONCORD_BFT
 		echo "Error: BUILD_IMAGE_MODE must be one of the values: ALL,DEBUG,RELEASE!"; \
 		exit 1; \
 	fi
-	@if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
-		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
-			-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} . ; \
+	if [ '${BUILD_IMAGE_MODE}' = 'RELEASE' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
+		docker build \
+		--rm --no-cache=true \
+		-t ${CONCORD_BFT_DOCKER_IMAGE_RELEASE}:latest \
+		-f ./${CONCORD_BFT_DOCKERFILE_RELEASE} \
+		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_REPO=${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN} \
+		--build-arg CONCORD_BFT_TOOLCHAIN_IMAGE_TAG=${CONCORD_BFT_DOCKER_IMAGE_TOOLCHAIN_VERSION} \
+		--build-arg GIT_BRANCH="$(shell git name-rev --name-only HEAD | sed "s/~.*//")" \
+		--build-arg GIT_COMMIT="$(shell git rev-parse HEAD)" \
+		--build-arg BUILD_CREATOR="$(shell git config user.email)" \
+		. ; \
 	fi
 	@if [ '${BUILD_IMAGE_MODE}' = 'DEBUG' ] || [ '${BUILD_IMAGE_MODE}' = 'ALL' ]; then \
 		docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE_DEBUG}:latest \

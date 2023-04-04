@@ -145,9 +145,6 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
   data_stream_ = stream.get();
   if (data_stream_) return Result::kSuccess;
 
-  auto grpc_status = data_stream_->Finish();
-  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
-  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
   data_context_.reset();
   return Result::kFailure;
 }
@@ -359,9 +356,6 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
   hash_stream_ = stream.get();
   if (hash_stream_) return Result::kSuccess;
 
-  auto grpc_status = hash_stream_->Finish();
-  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
-  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
   hash_context_.reset();
   return Result::kFailure;
 }

@@ -81,7 +81,7 @@ inline std::vector<T> readCollection(std::istream& input, const std::string& nam
       throw std::runtime_error("invalid syntax for list " + name + std::string(": ") + line);
     }
   }
-  return std::move(result);
+  return result;
 }
 
 }  // namespace concord::util::yaml

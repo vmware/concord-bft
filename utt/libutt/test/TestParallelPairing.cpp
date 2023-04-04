@@ -29,9 +29,10 @@ int main(int argc, char *argv[]) {
   std::vector<G1> a(numIters);
   std::vector<G2> b(numIters);
 
-#ifdef USE_MULTITHREADING
-#pragma omp parallel for
-#endif
+  // TODO [TK] unrecognized pragma
+  //#ifdef USE_MULTITHREADING
+  //#pragma omp parallel for
+  //#endif
   for (size_t i = 0; i < numIters; i++) {
     a[i] = G1::random_element();
     b[i] = G2::random_element();
@@ -39,9 +40,10 @@ int main(int argc, char *argv[]) {
 
   loginfo << "Picked " << numIters << " random group elements in G1 and G2" << endl;
 
-#ifdef USE_MULTITHREADING
-#pragma omp parallel for
-#endif
+  // TODO [TK] unrecognized pragma
+  //#ifdef USE_MULTITHREADING
+  //#pragma omp parallel for
+  //#endif
   for (size_t i = 0; i < numIters; i++) {
     // TODO: this seems to crash for some reason.
     // ReducedPairing(a[i], b[i]);

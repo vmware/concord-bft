@@ -45,7 +45,10 @@ class Block {
     }
   };
 
-  static Block* createFromData(uint32_t dataSize, const char* data, uint64_t blockId, StateTransferDigest& digestPrev) {
+  static Block* createFromData(uint32_t dataSize,
+                               const char* data,
+                               uint64_t blockId,
+                               const StateTransferDigest& digestPrev) {
     auto totalBlockSize = calcTotalBlockSize(dataSize);
     ConcordAssertLE(totalBlockSize, kMaxBlockSize_);
     char* buff = new char[totalBlockSize];
@@ -73,8 +76,11 @@ class Block {
   static uint32_t calcDataSize(uint32_t totalSize) { return totalSize - sizeof(Block) + 1; }
   static uint32_t kMaxBlockSize_;
 
-  void initBlock(
-      const char* data, uint32_t dataSize, uint32_t totalBlockSize, uint64_t blockId, StateTransferDigest& digestPrev) {
+  void initBlock(const char* data,
+                 uint32_t dataSize,
+                 uint32_t totalBlockSize,
+                 uint64_t blockId,
+                 const StateTransferDigest& digestPrev) {
     this->actualDataSize = dataSize;
     this->totalBlockSize = totalBlockSize;
     this->blockId = blockId;

@@ -344,7 +344,7 @@ INSTANTIATE_TEST_CASE_P(
     RVTTestserializeDeserializeTreeFixture,
     ::testing::Values(std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20)),
                       std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20)),
-                      std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20))), );
+                      std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20))));
 
 class RVTTestTreeLevelsByFormulaFixture : public RVTTest,
                                           public testing::WithParamInterface<std::pair<uint32_t, uint32_t>> {};
@@ -375,7 +375,7 @@ TEST_P(RVTTestTreeLevelsByFormulaFixture, validateTreeLevelsByFormula) {
 INSTANTIATE_TEST_CASE_P(validateTreeLevelsByFormula,
                         RVTTestTreeLevelsByFormulaFixture,
                         ::testing::Values(std::make_pair(DataGenerator::randomNum(128, 256),
-                                                         DataGenerator::randomNum(4, 20))), );
+                                                         DataGenerator::randomNum(4, 20))));
 
 // TODO Need to be improved to have random RVT_K and validation logic
 TEST_F(RVTTest, validate_RvbIds_GroupIds_DirectParentVal_APIs) {
@@ -460,7 +460,7 @@ TEST_P(RVTTestconstructTreeStartingSomewhereMiddleFixture, constructTreeStarting
 INSTANTIATE_TEST_CASE_P(constructTreeStartingSomewhereMiddle,
                         RVTTestconstructTreeStartingSomewhereMiddleFixture,
                         ::testing::Values(std::make_pair(DataGenerator::randomNum(3, 10),
-                                                         DataGenerator::randomNum(4, 20))), );
+                                                         DataGenerator::randomNum(4, 20))));
 
 class RVTTestaddRemoveNodesRandomlyInTreeFixture : public RVTTest,
                                                    public testing::WithParamInterface<std::pair<uint32_t, uint32_t>> {};
@@ -489,7 +489,7 @@ INSTANTIATE_TEST_CASE_P(
     RVTTestaddRemoveNodesRandomlyInTreeFixture,
     ::testing::Values(std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20)),
                       std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20)),
-                      std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20))), );
+                      std::make_pair(DataGenerator::randomNum(3, 10), DataGenerator::randomNum(4, 20))));
 
 class RVTTestFixture
     : public RVTTest,
@@ -538,7 +538,7 @@ INSTANTIATE_TEST_CASE_P(RVTTest,
                         RVTTestFixture,
                         ::testing::Combine(::testing::ValuesIn(RVT_Ks),
                                            ::testing::ValuesIn(value_sizes),
-                                           ::testing::ValuesIn(scenarios)), );
+                                           ::testing::ValuesIn(scenarios)));
 
 }  // namespace bftEngine::bcst::impl::test
 

@@ -14,6 +14,7 @@ target_link_libraries(bcstatetransfer_tests GTest::Main)
 #TODO [TK] this test uses kvbc and should be moved from bftengine
 target_link_libraries(bcstatetransfer_tests corebft kvbc )
 target_compile_options(bcstatetransfer_tests PUBLIC "-Wno-sign-compare")
+configure_file(logging.properties ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
 
 add_executable(source_selector_test source_selector_test.cpp)
 add_test(source_selector_test source_selector_test)

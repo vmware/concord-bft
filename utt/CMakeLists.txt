@@ -171,10 +171,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         " -fmax-errors=3")
     string(APPEND CMAKE_CXX_FLAGS_DEBUG 
         " -fstack-protector-all")
-    # NOTE: define _GLIBCXX_DEBUG if you want bounds checking for std::vector::operator[] (but it seems to cause a segfault at the end of execution)
-    # only works for libstdc++ from the GNU compiler, I think
-    string(APPEND CMAKE_CXX_FLAGS_DEBUG 
-        " -D_GLIBCXX_DEBUG")
 
 # TODO: using Intel C++
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")

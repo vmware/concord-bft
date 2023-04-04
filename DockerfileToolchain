@@ -6,21 +6,20 @@
 #   tools/libraries please uninstall them after the script run - we want to keep image' size minimal.
 #   For example wget and pip-tools.
 
-ARG CONCORD_BFT_TOOLCHAIN_IMAGE_REPO="concordbft/concord-bft"
-ARG CONCORD_BFT_TOOLCHAIN_IMAGE_TAG="toolchain-0.01"
-FROM ${CONCORD_BFT_TOOLCHAIN_IMAGE_REPO}:${CONCORD_BFT_TOOLCHAIN_IMAGE_TAG}
+FROM ubuntu:22.04
 
 ARG GIT_COMMIT
 ARG GIT_BRANCH
 ARG BUILD_CREATOR
 
-LABEL build_image.branch=$GIT_BRANCH
-LABEL build_image.commit=$GIT_COMMIT
-LABEL build_image.build-creator=$BUILD_CREATOR
-LABEL build_image.description="Build environment for concord-bft"
+LABEL toolchain.branch=$GIT_BRANCH
+LABEL toolchain.commit=$GIT_COMMIT
+LABEL toolchain.build-creator=$BUILD_CREATOR
+LABEL toolchain.description="Toolchain image for concord-bft"
+LABEL toolchain.base="ubuntu:22.04"
 
 ENV HOME /root
-COPY ./install_deps_release.sh /install_deps_release.sh
+COPY ./install_toolchain.sh /install_toolchain.sh
 
 SHELL ["/bin/bash", "-c"]
 
@@ -31,10 +30,8 @@ path-exclude /usr/share/groff/* \n\
 path-exclude /usr/share/info/* \n\
 path-exclude /usr/share/lintian/* \n\
 path-exclude /usr/share/linda/*' > /etc/dpkg/dpkg.cfg.d/01_nodoc && \
-        /bin/bash -c "/install_deps_release.sh" && \
+        /bin/bash -c "/install_toolchain.sh" && \
         apt-get clean && \
         apt-get autoclean && \
         rm -rf /var/lib/apt/lists/*
 
-# For eliot-tree's rendering
-ENV LC_ALL=C.UTF-8

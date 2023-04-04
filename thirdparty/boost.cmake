@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 # Boost library
 
-set(BOOST_INCLUDE_LIBRARIES thread program_options lockfree bimap asio algorithm predef)
+#install everything
+#set(BOOST_INCLUDE_LIBRARIES thread program_options lockfree bimap asio algorithm predef)
 set(BOOST_ENABLE_CMAKE ON)
 
 set(FETCHCONTENT_QUIET FALSE)

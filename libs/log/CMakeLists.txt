@@ -12,7 +12,7 @@ if(USE_LOG4CPP)
     string(APPEND CMAKE_CXX_FLAGS " -Wno-unused-function -Wno-unused-const-variable")
     FetchContent_Declare(log4cplus
                          GIT_REPOSITORY    https://github.com/log4cplus/log4cplus.git
-                         GIT_TAG           REL_2_0_6
+                         GIT_TAG           REL_2_0_8
                          GIT_PROGRESS      TRUE
                         )
     FetchContent_MakeAvailable(log4cplus)

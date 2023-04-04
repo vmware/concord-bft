@@ -205,7 +205,7 @@ template <bool Strict,
           typename V,
           typename... KVPAIRS,
           typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
-void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs);
+void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&...kvpairs);
 
 template <bool Strict,
           typename K,
@@ -225,7 +225,7 @@ template <bool Strict,
           typename V,
           typename... KVPAIRS,
           typename std::enable_if<concord::is_streamable<std::ostream, V>::value>::type * = nullptr>
-void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&... kvpairs) {
+void KvLog(std::stringstream &ss, K &&key, V &&val, KVPAIRS &&...kvpairs) {
   ss << std::forward<K>(key) << ": ";
   if constexpr (std::is_same_v<V, bool &> || std::is_same_v<V, const bool &>) {
     ss << (val ? "True" : "False");
@@ -250,14 +250,14 @@ template <bool Strict,
           typename V,
           typename... KVPAIRS,
           typename std::enable_if<!concord::is_streamable<std::ostream, V>::value>::type *>
-void KvLog(std::stringstream &ss, K &&key, V &&, KVPAIRS &&... kvpairs) {
+void KvLog(std::stringstream &ss, K &&key, V &&, KVPAIRS &&...kvpairs) {
   static_assert(!Strict, "Cannot log types that do not implement ostream::operator<<");
   ss << std::forward<K>(key) << ": _, ";
   KvLog<Strict>(ss, std::forward<KVPAIRS>(kvpairs)...);
 }
 
 template <bool Strict, typename... KVPAIRS>
-std::string KvLog(KVPAIRS &&... kvpairs) {
+std::string KvLog(KVPAIRS &&...kvpairs) {
   std::stringstream ss;
   ss << " ";
   KvLog<Strict>(ss, std::forward<KVPAIRS>(kvpairs)...);

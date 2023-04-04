@@ -440,6 +440,12 @@ std::map<uint64_t, uint64_t> DbCheckpointManager::getDbSize() {
   }
   return dbSizeMap;
 }
+template <typename TP>
+std::time_t to_time_t(TP tp) {
+  using namespace std::chrono;
+  auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now() + system_clock::now());
+  return system_clock::to_time_t(sctp);
+}
 void DbCheckpointManager::builMetadataFromFileSystem() {
   // update metadata for dbcheckpoints from file system
   const auto& checkpointDir = dbClient_->getCheckpointPath();
@@ -458,8 +464,9 @@ void DbCheckpointManager::builMetadataFromFileSystem() {
         if (_fs::is_directory(entry)) {
           const CheckpointId& checkPointId = std::stoi(filenameStr);
           const auto blockId = checkPointId;
-          _fs::file_time_type ftime = _fs::last_write_time(entry.path());
-          std::time_t cftime = decltype(ftime)::clock::to_time_t(ftime);
+          auto ftime = _fs::last_write_time(entry.path());
+          std::time_t cftime = to_time_t(ftime);
+
           const std::chrono::seconds creationTime = std::chrono::seconds(cftime);
           {
             std::scoped_lock lock(lockLastDbCheckpointDesc_);

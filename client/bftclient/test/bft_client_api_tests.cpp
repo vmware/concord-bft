@@ -18,8 +18,7 @@
 #include <iostream>
 #include <ctime>
 
-#include "gtest/gtest.h"
-
+#include <gtest/gtest.h>
 #include "log/logger.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftclient/bft_client.h"
@@ -48,8 +47,7 @@ constexpr char PUB_KEY_NAME[] = "pubkey.pem";
 constexpr char ENC_PRIV_KEY_NAME[] = "privkey.enc";
 constexpr char ENC_SYMM_KEY[] = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
 constexpr char ENC_IV[] = "38106509f6528ff859c366747aa04f21";
-constexpr char KEYS_GEN_SCRIPT_PATH[] =
-    "/concord-bft//scripts/linux/create_concord_clients_transaction_signing_keys.sh";
+constexpr char KEYS_GEN_SCRIPT_PATH[] = "../../../../scripts/linux/create_concord_clients_transaction_signing_keys.sh";
 
 class ClientApiTestFixture : public ::testing::Test {
  public:
@@ -212,12 +210,12 @@ TEST_P(ClientApiTestParametrizedFixture, print_received_messages_and_timeout) {
 // The comma at the end is due to a bug in gtest 3.09 - https://github.com/google/googletest/issues/2271 - see last
 // comment
 typedef tuple<bool, bool, string> ClientApiTestParametrizedFixtureInput;
-INSTANTIATE_TEST_CASE_P(ClientApiTest,
-                        ClientApiTestParametrizedFixture,
-                        ::testing::Values(ClientApiTestParametrizedFixtureInput(true, true, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(false, false, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(true, false, "happy_flow"),
-                                          ClientApiTestParametrizedFixtureInput(true, false, "corrupt_in_dest")), );
+INSTANTIATE_TEST_SUITE_P(ClientApiTest,
+                         ClientApiTestParametrizedFixture,
+                         ::testing::Values(ClientApiTestParametrizedFixtureInput(true, true, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(false, false, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(true, false, "happy_flow"),
+                                           ClientApiTestParametrizedFixtureInput(true, false, "corrupt_in_dest")));
 
 Msg replyFromRequest(const MsgFromClient& request) {
   const auto* req_header = reinterpret_cast<const ClientRequestMsgHeader*>(request.data.data());

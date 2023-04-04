@@ -5041,7 +5041,7 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
     ConcordAssert(singleRequest.empty());
     singleRequest.push_back(req);
     {
-      const concordUtils::SpanContext &span_context{""};
+      const concordUtils::SpanContext span_context{""};
       auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
       span.setTag("rid", config_.getreplicaId());
       span.setTag("cid", req.cid);
@@ -5111,7 +5111,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       //      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
-      const concordUtils::SpanContext &span_context{""};
+      const concordUtils::SpanContext span_context{""};
       auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
       span.setTag("rid", config_.getreplicaId());
       span.setTag("cid", ppMsg->getCid());
@@ -5134,7 +5134,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       singleRequest.push_back(req);
       {
         //        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
-        const concordUtils::SpanContext &span_context{""};
+        const concordUtils::SpanContext span_context{""};
         auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
         span.setTag("rid", config_.getreplicaId());
         span.setTag("cid", ppMsg->getCid());

@@ -279,7 +279,7 @@ inline std::string serializeImp(const DatabaseLeafValue &val) {
 inline std::string serialize() { return std::string{}; }
 
 template <typename T1, typename... T>
-std::string serialize(const T1 &v1, const T &... v) {
+std::string serialize(const T1 &v1, const T &...v) {
   return serializeImp(v1) + serialize(v...);
 }
 

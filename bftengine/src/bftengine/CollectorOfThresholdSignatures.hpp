@@ -270,13 +270,13 @@ class CollectorOfThresholdSignatures {
                                                                    context);
 
       uint16_t numOfPartSigsInJob = 0;
-      for (std::pair<uint16_t, RepInfo>&& info : replicasInfo) {
-        if (info.second.state != SigState::Invalid) {
-          auto msg = info.second.partialSigMsg;
+      for (auto& [repid, repinfo] : replicasInfo) {
+        if (repinfo.state != SigState::Invalid) {
+          auto msg = repinfo.partialSigMsg;
           auto sig = msg->signatureBody();
           auto len = msg->signatureLen();
           const auto& span_context = msg->template spanContext<PART>();
-          bkJob->add(info.first, sig, len, span_context);
+          bkJob->add(repid, sig, len, span_context);
           numOfPartSigsInJob++;
         }
 

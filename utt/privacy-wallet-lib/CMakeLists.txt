@@ -13,4 +13,6 @@ target_include_directories(privacy_wallet_lib PUBLIC
 
 target_link_libraries(privacy_wallet_lib PUBLIC utt_api OpenSSL::Crypto)
 
-add_subdirectory(tests)
+if (BUILD_TESTING)
+	#add_subdirectory(tests) #TODO[TK] - reenable after ubuntu-22
+endif ()

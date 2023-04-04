@@ -1,8 +1,6 @@
 find_package(Protobuf REQUIRED)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_BINARY_DIR}
-  concord_kvbc.proto
-)
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS concord_kvbc.proto)
 message(STATUS "Concord KVBC protobuf generated - see " ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(concord-kvbc-proto STATIC ${PROTO_SRCS})

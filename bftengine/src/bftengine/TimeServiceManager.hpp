@@ -123,5 +123,5 @@ class TimeServiceManager {
   mutable concordMetrics::CounterHandle hard_limit_reached_counter_;
   mutable concordMetrics::CounterHandle new_time_is_less_or_equal_to_previous_;
   mutable concordMetrics::CounterHandle ill_formed_preprepare_;
-};  // namespace bftEngine::impl
+};
 }  // namespace bftEngine::impl
