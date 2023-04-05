@@ -59,7 +59,7 @@ jobs:
           run: |
             cd build
             # many tests require administrative priviliges for running iptables or nc
-            sudo ctest --timeout=24000 --output-on-failure -R skvbc_multi_sig
+            sudo ctest --timeout 24000 --test-timeout 24000 --output-on-failure -R skvbc_restart_recovery_tests
         - name: Prepare artifacts
           if: ${{ failure() }}
           run: |
