@@ -61,12 +61,11 @@ jobs:
             # many tests require administrative priviliges for running iptables or nc
             sudo ctest --timeout=24000 --output-on-failure -R skvbc_multi_sig
         - name: Prepare artifacts
-          if: failure()
+          if: ${{ failure() }}
           run: |
+            mkdir -p artifact
             sudo chown -R ${USER}:${GROUP} ${PWD}/build
-            tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs
-            du -h ${{ github.workspace }}/artifact
-            sudo df -h
+            tar -czvf artifact/logs.tar.gz ./build/tests/apollo/logs
         - name: Upload artifacts
           uses: actions/upload-artifact@v2
           if: failure()
