@@ -143,8 +143,9 @@ ReplicaFactory::IReplicaPtr ReplicaFactory::createReplica(
         replicaConfig.numReplicas,
         replicaConfig.fVal,
         replicaConfig.cVal,
-        replicaConfig.numReplicas + replicaConfig.numRoReplicas + replicaConfig.numOfClientProxies +
-            replicaConfig.numOfExternalClients + replicaConfig.numOfClientServices + replicaConfig.numReplicas,
+        replicaConfig.numReplicas + replicaConfig.numRoReplicas + replicaConfig.numFnReplicas +
+            replicaConfig.numOfClientProxies + replicaConfig.numOfExternalClients + replicaConfig.numOfClientServices +
+            replicaConfig.numReplicas,
         replicaConfig.clientBatchingMaxMsgsNbr));
     unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors = static_cast<PersistentStorageImp *>(persistentStoragePtr.get())
@@ -266,6 +267,26 @@ ReplicaFactory::IReplicaPtr ReplicaFactory::createRoReplica(const ReplicaConfig 
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
   replicaInternal->setReplica(std::make_unique<ReadOnlyReplica>(
       replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers, metadataStorage));
+  return replicaInternal;
+}
+
+ReplicaFactory::IReplicaPtr ReplicaFactory::createFullNodeReplica(const ReplicaConfig &replicaConfig,
+                                                                  std::shared_ptr<IRequestsHandler> requestsHandler,
+                                                                  IStateTransfer *stateTransfer,
+                                                                  bft::communication::ICommunication *communication,
+                                                                  MetadataStorage *metadataStorage) {
+  LOG_INFO(logger_, "ReplicaFactory::createFullNodeReplica START");
+  auto replicaInternal = std::make_unique<ReplicaInternal>();
+  auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
+  auto incomingMsgsStorageImpPtr =
+      std::make_unique<IncomingMsgsStorageImp>(msgHandlers, timersResolution, replicaConfig.replicaId);
+  auto &timers = incomingMsgsStorageImpPtr->timers();
+  std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage{std::move(incomingMsgsStorageImpPtr)};
+  auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
+  auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
+  replicaInternal->setReplica(std::make_unique<FullNodeReplica>(
+      replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers, metadataStorage));
+  LOG_INFO(logger_, "ReplicaFactory::createFullNodeReplica END");
   return replicaInternal;
 }
 

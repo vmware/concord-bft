@@ -84,8 +84,10 @@ Config targetConfig() {
       0,                  // cVal
       7,                  // numReplicas
       0,                  // numRoReplicas
+      0,                  // numFnReplicas
       false,              // pedanticChecks
       false,              // isReadOnly
+      false,              // isFullNode
       1024,               // maxChunkSize
       24,                 // maxNumberOfChunksInBatch
       1024,               // maxBlockSize

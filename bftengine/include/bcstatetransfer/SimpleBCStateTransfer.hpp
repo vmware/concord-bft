@@ -150,8 +150,10 @@ struct Config {
   uint16_t cVal = 0;
   uint16_t numReplicas = 0;  // number of consensus replicas
   uint16_t numRoReplicas = 0;
+  uint16_t numFnReplicas = 0;
   bool pedanticChecks = false;
   bool isReadOnly = false;
+  bool isFullNode = false;
 
   // sizes
   uint32_t maxChunkSize = 0;
@@ -219,6 +221,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.enableSourceBlocksPreFetch,
               c.enableSourceSelectorPrimaryAwareness,
               c.enableStoreRvbDataDuringCheckpointing);
+  os << ",";
+  os << KVLOG(c.numFnReplicas, c.isFullNode);
   return os;
 }
 // creates an instance of the state transfer module.

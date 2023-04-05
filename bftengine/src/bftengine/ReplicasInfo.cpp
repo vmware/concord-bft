@@ -57,13 +57,14 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
     : _myId{config.replicaId},
       _numberOfReplicas{config.numReplicas},
       _numberOfRoReplicas{config.numRoReplicas},
+      _numberOfFnReplicas{config.numFnReplicas},
       _numOfClientProxies{config.numOfClientProxies},
       _numberOfExternalClients{config.numOfExternalClients},
       _numberOfClientServices{config.numOfClientServices},
       _numberOfInternalClients{config.numReplicas},
-      _maxValidPrincipalId{static_cast<uint16_t>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                                                 config.numOfExternalClients + _numberOfInternalClients +
-                                                 _numberOfClientServices - 1)},
+      _maxValidPrincipalId{static_cast<uint16_t>(config.numReplicas + config.numRoReplicas + config.numFnReplicas +
+                                                 config.numOfClientProxies + config.numOfExternalClients +
+                                                 _numberOfInternalClients + _numberOfClientServices - 1)},
       _fVal{config.fVal},
       _cVal{config.cVal},
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
@@ -87,7 +88,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _idsOfPeerROReplicas{[&config]() {
         std::set<ReplicaId> ret;
         uint16_t start = config.numReplicas;
-        uint16_t end = start + config.numRoReplicas;
+        uint16_t end = start + config.numRoReplicas + config.numFnReplicas;
         for (uint16_t i{start}; i < end; ++i)
           if (i != config.replicaId) {
             ret.insert(i);
@@ -98,7 +99,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
 
       _idsOfClientProxies{[&config]() {
         std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas;
+        auto start = config.numReplicas + config.numRoReplicas + config.numFnReplicas;
         auto end = start + config.numOfClientProxies;
         for (auto i = start; i < end; ++i) {
           ret.insert(i);
@@ -109,7 +110,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
 
       _idsOfExternalClients{[&config]() {
         std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
+        auto start = config.numReplicas + config.numRoReplicas + config.numFnReplicas + config.numOfClientProxies;
         auto end = start + config.numOfExternalClients;
         for (auto i = start; i < (end - ((uint16_t)config.operatorEnabled_)); ++i) {
           ret.insert(i);
@@ -124,7 +125,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
 
       _idsOfClientServices{[&config]() {
         std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+        auto start = config.numReplicas + config.numRoReplicas + config.numFnReplicas + config.numOfClientProxies +
                      config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
         auto end = start + config.numOfClientServices;
         for (auto i = start; i < end; ++i) {
@@ -137,7 +138,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
 
       _idsOfInternalClients{[&config]() {
         std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+        auto start = config.numReplicas + config.numRoReplicas + config.numFnReplicas + config.numOfClientProxies +
                      config.numOfExternalClients + config.numOfClientServices;
         auto end = start + config.numReplicas;
         for (auto i = start; i < end; ++i) {
@@ -147,8 +148,9 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         return ret;
       }()} {
   _operator_id = config.operatorEnabled_
-                     ? static_cast<PrincipalId>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                                                config.numOfExternalClients + config.numOfClientServices - 1)
+                     ? static_cast<PrincipalId>(config.numReplicas + config.numRoReplicas + config.numFnReplicas +
+                                                config.numOfClientProxies + config.numOfExternalClients +
+                                                config.numOfClientServices - 1)
                      : 0;
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }

@@ -465,7 +465,8 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
-  uint16_t first_client_id = ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas;
+  uint16_t first_client_id = ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas +
+                             ReplicaConfig::instance().numFnReplicas;
   if (sender_id > first_client_id) {
     for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
          i++) {
@@ -699,7 +700,10 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   auto execute_key_prefix =
       std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                   static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
-  for (uint64_t i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas; i++) {
+
+  for (auto i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas +
+                           ReplicaConfig::instance().numFnReplicas;
+       i++) {
     concord::messages::ClientsAddRemoveExecuteCommand cmd;
     cmd.config_descriptor = command.config_descriptor;
     if (token.find(i) == token.end()) continue;

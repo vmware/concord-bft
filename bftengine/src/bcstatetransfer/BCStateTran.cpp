@@ -308,7 +308,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   // Validate input parameters and some of the configuration
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
-  ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
+  ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly || config.isFullNode);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
   ConcordAssertEQ(RejectFetchingMsg::reasonMessages.size(), RejectFetchingMsg::Reason::LAST - 1);
   if (config_.sourceSessionExpiryDurationMs > 0) {
@@ -1159,7 +1159,7 @@ void BCStateTran::handleStateTransferMessageImpl(char *msg,
     time_in_incoming_events_queue_rec_.end();
     histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
   }
-  bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
+  bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas + config_.numFnReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
   if (msgSizeTooSmall || sentFromSelf || invalidSender) {
@@ -3971,13 +3971,13 @@ void BCStateTran::computeDigestOfPage(
   if (checkpointNumber > 0) {
     digestGenerator.update(page, pageSize);
   }
-  digestGenerator.writeDigest(outDigest.getForUpdate());
+  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
 void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor *pagesDesc, Digest &outDigest) {
   DigestGenerator digestGenerator;
   digestGenerator.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
-  digestGenerator.writeDigest(outDigest.getForUpdate());
+  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
 void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
@@ -3996,7 +3996,7 @@ void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
                                        const char *block,
                                        const uint32_t blockSize,
                                        Digest *outDigest) {
-  computeDigestOfBlockImpl(blockNum, block, blockSize, outDigest->getForUpdate());
+  computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest));
 }
 
 BlockDigest BCStateTran::computeDigestOfBlock(const uint64_t blockNum, const char *block, const uint32_t blockSize) {

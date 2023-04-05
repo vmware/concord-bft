@@ -217,7 +217,9 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
   ConcordAssert(maxNumOfReqsPerClient_ > 0);
   reservedPagesPerRequest_ = reservedPagesPerRequest(sizeOfReservedPage(), maxReplySize_);
   reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage(), maxReplySize_, maxNumOfReqsPerClient_);
-  for (NodeIdType i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas; i++) {
+  for (NodeIdType i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas +
+                                 ReplicaConfig::instance().numFnReplicas;
+       i++) {
     clientIds_.insert(i);
   }
   clientIds_.insert(proxyClients_.begin(), proxyClients_.end());

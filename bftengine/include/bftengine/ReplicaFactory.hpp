@@ -15,6 +15,7 @@
 #include "Replica.hpp"
 #include "ReplicaImp.hpp"
 #include "ReadOnlyReplica.hpp"
+#include "FullNodeReplica.hpp"
 #include "ReplicaLoader.hpp"
 
 namespace preprocessor {
@@ -47,6 +48,12 @@ class ReplicaFactory {
                                      IStateTransfer *,
                                      bft::communication::ICommunication *,
                                      MetadataStorage *);
+
+  static IReplicaPtr createFullNodeReplica(const ReplicaConfig &,
+                                           std::shared_ptr<IRequestsHandler>,
+                                           IStateTransfer *,
+                                           bft::communication::ICommunication *,
+                                           MetadataStorage *);
 
   static void setAggregator(const std::shared_ptr<concordMetrics::Aggregator> &aggregator);
   static logging::Logger logger_;

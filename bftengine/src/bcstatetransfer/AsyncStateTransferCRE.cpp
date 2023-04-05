@@ -148,7 +148,9 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   for (uint16_t i = 0; i < repConfig.numReplicas; i++) {
     bftClientConf.all_replicas.emplace(bft::client::ReplicaId{i});
   }
-  for (uint16_t i = repConfig.numReplicas; i < repConfig.numReplicas + repConfig.numRoReplicas; i++) {
+  for (uint16_t i = repConfig.numReplicas;
+       i < repConfig.numReplicas + repConfig.numRoReplicas + repConfig.numFnReplicas;
+       i++) {
     bftClientConf.ro_replicas.emplace(bft::client::ReplicaId{i});
   }
   bftClientConf.replicas_master_key_folder_path = std::nullopt;
