@@ -119,25 +119,26 @@ message GetAppDataResponse {
 }
 
 message PrivacyWalletRequest {
-    oneof req {
-        PrivacyAppConfigRequest privacy_app_config = 1;
-        PrivacyWalletConfigRequest privacy_wallet_config_request = 2;
-        UserRegistrationRequest user_registration_request = 3;
-        UserRegistrationUpdateRequest user_registration_update_request = 4;
-        ClaimCoinsRequest claim_coins_request = 5;
-        GenerateMintTx generate_mint_tx_request = 6;
-        GenerateBurnTx generate_burn_tx_request = 7;
-        GenerateTransferTx generate_transfer_tx_request = 8;
-        GetStateRequest get_state_request = 9;
-        SetAppDataRequest set_app_data_request = 11;
-        GetAppDataRequest get_app_data_request = 12;
-
-    }
     // Required timeout which defines the maximum amount of time the caller is
      // willing to wait for the request to be processed by a quorum of replicas.
     // Returns DEADLINE_EXCEEDED if the request times out.
     // Returns INVALID_ARGUMENT if the timeout is zero.
-    google.protobuf.Duration timeout = 10;    
+    google.protobuf.Duration timeout = 1;
+
+    oneof req {
+        PrivacyAppConfigRequest privacy_app_config = 2;
+        PrivacyWalletConfigRequest privacy_wallet_config_request = 3;
+        UserRegistrationRequest user_registration_request = 4;
+        UserRegistrationUpdateRequest user_registration_update_request = 5;
+        ClaimCoinsRequest claim_coins_request = 6;
+        GenerateMintTx generate_mint_tx_request = 7;
+        GenerateBurnTx generate_burn_tx_request = 8;
+        GenerateTransferTx generate_transfer_tx_request = 9;
+        GetStateRequest get_state_request = 10;
+        SetAppDataRequest set_app_data_request = 11;
+        GetAppDataRequest get_app_data_request = 12;
+
+    }
 }
 
 message PrivacyWalletResponse {
