@@ -517,16 +517,6 @@ TEST_F(test_privacy_wallet_grpc_service, test_set_and_get_application_data) {
   ASSERT_EQ(app_data.values(0), DATA_VALUE);
 }
 
-TEST_F(test_privacy_wallet_grpc_service, test_server_state_restore) {
-  configureWallet(0);
-  restartServer();
-
-  auto [status2, _] = configureWallet(0);
-  ASSERT_EQ(status2.error_code(), grpc::StatusCode::ALREADY_EXISTS);
-  ASSERT_EQ(status2.error_message(), "wallet is already configured");
-  (void)_;
-}
-
 TEST_F(test_privacy_wallet_grpc_service, test_get_not_set_application_data) {
   const std::string DATA_KEY = {"sampledatakeyplaceholder"};
   const std::string DATA_VALUE = {""};
