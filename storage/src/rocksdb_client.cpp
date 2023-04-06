@@ -847,6 +847,70 @@ bool ClientIterator::isEnd() { return !m_iter->Valid(); }
  */
 Status ClientIterator::getStatus() { return m_status; }
 
+// update and print to log rocksdb RAM usage
+// updates the rocksDB mem usage metrics
+void RocksDbStorageMetrics::updateDBMemUsageMetrics() {
+  // get column families block caches pointers.
+  // important note:
+  // 1. Different column families may use the same block cache or a different one.
+  // In order to correctly report the mem usage we need to consider only unique instances of ::rocksdb::Cache .
+  // 2. The caches config may change in runtime. we need to check which instances of ::rocksdb::Cache are active.
+  // Due to both reasons above, we define a std::unordered_set here, and send it to GetApproximateMemoryUsageByType
+  //  API.
+
+  std::unordered_set<const ::rocksdb::Cache *> block_caches_raw{};
+
+  for (const auto &[cf_name, cf_handle] : owning_client_.cf_handles_) {
+    UNUSED(cf_name);
+    ::rocksdb::ColumnFamilyDescriptor cf_desc;
+    cf_handle->GetDescriptor(&cf_desc);
+    auto *cf_table_options =
+        reinterpret_cast<::rocksdb::BlockBasedTableOptions *>(cf_desc.options.table_factory->GetOptions());
+
+    block_caches_raw.emplace(cf_table_options->block_cache.get());
+  }
+
+  // GetApproximateMemoryUsageByType writes output into usage_by_type
+  std::map<::rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
+  std::vector<::rocksdb::DB *> dbs{owning_client_.dbInstance_.get()};
+
+  if (block_caches_raw.size() == 0) {
+    // if there are no caches defined:
+    // 1. GetApproximateMemoryUsageByType will fail on segmentation fault (true to rocksdb ver 6.8.1)
+    // 2. It's not a real deployment where we always use caches (it's probably a unit test)
+    // Hence, do nothing and return
+    return;
+  }
+  ::rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(dbs, block_caches_raw, &usage_by_type);
+
+  uint64_t total_usage{0};
+  uint64_t num_bytes;
+
+  // go over the results written into usage_by_type, write to each matching concord metric and add to total_usage
+  // sum.
+  for (auto &[rocks_db_usage_type_name, concord_metric_handle] : rocksdb_to_concord_metrics_map_) {
+    if (usage_by_type.count(rocks_db_usage_type_name)) {
+      num_bytes = usage_by_type[rocks_db_usage_type_name];
+      concord_metric_handle.Get().Set(num_bytes);
+      total_usage += num_bytes;
+    } else {
+      LOG_WARN(
+          owning_client_.logger(),
+          std::to_string(rocks_db_usage_type_name)
+              << " doesn't exist in ::rocksdb::MemoryUtil::UsageType, API may have changed! setting metric to zero");
+    }
+  }
+  rocksdb_total_ram_usage_.Get().Set(total_usage);
+
+  LOG_INFO(owning_client_.logger(),
+           "RocksDB Memory usage report. Total: "
+               << rocksdb_total_ram_usage_.Get().Get() << " Bytes, "
+               << "Mem tables: " << all_mem_tables_ram_usage_.Get().Get() << " Bytes, "
+               << "Unflushed Mem tables: " << all_unflushed_mem_tables_ram_usage_.Get().Get() << " Bytes, "
+               << "Table readers (indexes and filters): " << indexes_and_filters_ram_usage_.Get().Get() << " Bytes, "
+               << "Block caches: " << block_caches_ram_usage_.Get().Get() << " Bytes");
+}
+
 }  // namespace rocksdb
 }  // namespace storage
 }  // namespace concord
