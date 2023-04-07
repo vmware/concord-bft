@@ -203,6 +203,78 @@ class test_privacy_wallet_grpc_service : public libutt::api::testing::test_utt_i
       ASSERT_TRUE(status.ok());
     }
   }
+
+  void singleTransferTest() {
+    configureWallet(0);
+    runFullRegistrationCycle();
+    createBudgetCoin();
+    mintRegularCoin(1000);
+
+    PrivacyWalletRequest request;
+    auto transfer_req = request.mutable_generate_transfer_tx_request();
+    transfer_req->set_amount(100);
+    transfer_req->set_recipient_pid("user-2");
+    transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
+    auto context = grpc::ClientContext{};
+    auto response = PrivacyWalletResponse{};
+    grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
+    ASSERT_TRUE(status.ok());
+    ASSERT_TRUE(response.has_generate_tx_response());
+    auto& tx_data = response.generate_tx_response();
+    ASSERT_TRUE(tx_data.final());
+    ASSERT_EQ(tx_data.num_of_output_coins(), 3);
+    auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
+
+    auto context2 = grpc::ClientContext{};
+    PrivacyWalletRequest request2;
+    auto response2 = PrivacyWalletResponse{};
+    auto claim_coins_req = request2.mutable_claim_coins_request();
+    claim_coins_req->set_tx(tx_data.tx());
+    for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
+    claim_coins_req->set_type(TxType::TRANSFER);
+    auto status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
+    ASSERT_TRUE(status2.ok());
+  }
+
+  void mergeTransferCyclesTest() {
+    configureWallet(0);
+    runFullRegistrationCycle();
+    createBudgetCoin();
+    mintRegularCoin(1);
+    mintRegularCoin(1);
+    mintRegularCoin(1);
+    mintRegularCoin(1);
+    uint64_t cycles = 0;
+    bool is_final = false;
+    while (!is_final) {
+      cycles++;
+      PrivacyWalletRequest request;
+      auto transfer_req = request.mutable_generate_transfer_tx_request();
+      transfer_req->set_amount(4);
+      transfer_req->set_recipient_pid("user-2");
+      transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
+      auto context = grpc::ClientContext{};
+      auto response = PrivacyWalletResponse{};
+      grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
+      ASSERT_TRUE(status.ok());
+      ASSERT_TRUE(response.has_generate_tx_response());
+      auto& tx_data = response.generate_tx_response();
+      is_final = tx_data.final();
+      auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
+      ASSERT_EQ(tx_data.num_of_output_coins(), is_final ? 2 : 1);
+      auto context2 = grpc::ClientContext{};
+      PrivacyWalletRequest request2;
+      auto response2 = PrivacyWalletResponse{};
+      auto claim_coins_req = request2.mutable_claim_coins_request();
+      claim_coins_req->set_tx(tx_data.tx());
+      for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
+      claim_coins_req->set_type(TxType::TRANSFER);
+      auto status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
+      ASSERT_TRUE(status2.ok());
+    }
+    ASSERT_EQ(cycles, 3);
+  }
+
   void restartServer() {
     server_->Shutdown();
     (void)server_.release();
@@ -410,85 +482,52 @@ TEST_F(test_privacy_wallet_grpc_service, test_break_and_burn_cycles) {
   ASSERT_EQ(cycles, 2);
 }
 
-TEST_F(test_privacy_wallet_grpc_service, test_transfer_single_cycle) {
-  configureWallet(0);
-  runFullRegistrationCycle();
-  createBudgetCoin();
-  mintRegularCoin(1000);
+TEST_F(test_privacy_wallet_grpc_service, test_transfer_single_cycle) { singleTransferTest(); }
+
+TEST_F(test_privacy_wallet_grpc_service, test_merge_and_transfer_cycles) { mergeTransferCyclesTest(); }
+
+TEST_F(test_privacy_wallet_grpc_service, test_server_restore_single_transfer) {
+  singleTransferTest();
+
+  restartServer();
+
+  auto [rstatus, _] = configureWallet(0);
+  ASSERT_EQ(rstatus.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+  ASSERT_EQ(rstatus.error_message(), "wallet is already configured");
 
   PrivacyWalletRequest request;
-  auto transfer_req = request.mutable_generate_transfer_tx_request();
-  transfer_req->set_amount(100);
-  transfer_req->set_recipient_pid("user-2");
-  transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
+  request.mutable_get_state_request();
   auto context = grpc::ClientContext{};
   auto response = PrivacyWalletResponse{};
   grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
   ASSERT_TRUE(status.ok());
-  ASSERT_TRUE(response.has_generate_tx_response());
-  auto& tx_data = response.generate_tx_response();
-  ASSERT_TRUE(tx_data.final());
-  ASSERT_EQ(tx_data.num_of_output_coins(), 3);
-  auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
-
-  auto context2 = grpc::ClientContext{};
-  PrivacyWalletRequest request2;
-  auto response2 = PrivacyWalletResponse{};
-  auto claim_coins_req = request2.mutable_claim_coins_request();
-  claim_coins_req->set_tx(tx_data.tx());
-  for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
-  claim_coins_req->set_type(TxType::TRANSFER);
-  auto status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
-  ASSERT_TRUE(status2.ok());
+  ASSERT_TRUE(response.has_get_state_response());
+  auto& resp = response.get_state_response();
+  std::cout << "Budget: " << resp.budget() << std::endl;
+  // single transfer removed 100 budget.
+  ASSERT_EQ(resp.budget(), 900);
 }
 
-TEST_F(test_privacy_wallet_grpc_service, test_merge_and_transfer_cycles) {
-  configureWallet(0);
-  runFullRegistrationCycle();
-  createBudgetCoin();
-  mintRegularCoin(1);
-  mintRegularCoin(1);
-  mintRegularCoin(1);
-  mintRegularCoin(1);
-  uint64_t cycles = 0;
-  bool is_final = false;
-  while (!is_final) {
-    cycles++;
-    PrivacyWalletRequest request;
-    auto transfer_req = request.mutable_generate_transfer_tx_request();
-    transfer_req->set_amount(4);
-    transfer_req->set_recipient_pid("user-2");
-    transfer_req->set_recipient_public_key({pkeys[1].begin(), pkeys[1].end()});
-    auto context = grpc::ClientContext{};
-    auto response = PrivacyWalletResponse{};
-    grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
-    ASSERT_TRUE(status.ok());
-    ASSERT_TRUE(response.has_generate_tx_response());
-    auto& tx_data = response.generate_tx_response();
-    is_final = tx_data.final();
-    auto sigs = signTx<libutt::api::operations::Transaction>({tx_data.tx().begin(), tx_data.tx().end()});
-    ASSERT_EQ(tx_data.num_of_output_coins(), is_final ? 2 : 1);
-    auto context2 = grpc::ClientContext{};
-    PrivacyWalletRequest request2;
-    auto response2 = PrivacyWalletResponse{};
-    auto claim_coins_req = request2.mutable_claim_coins_request();
-    claim_coins_req->set_tx(tx_data.tx());
-    for (const auto& sig : sigs) claim_coins_req->add_sigs({sig.begin(), sig.end()});
-    claim_coins_req->set_type(TxType::TRANSFER);
-    auto status2 = stub_->PrivacyWalletService(&context2, request2, &response2);
-    ASSERT_TRUE(status2.ok());
-  }
-  ASSERT_EQ(cycles, 3);
-}
+TEST_F(test_privacy_wallet_grpc_service, test_server_restore_multiple_transfer) {
+  mergeTransferCyclesTest();
 
-TEST_F(test_privacy_wallet_grpc_service, test_server_state_restore) {
-  configureWallet(0);
   restartServer();
 
-  auto [status2, _] = configureWallet(0);
-  ASSERT_EQ(status2.error_code(), grpc::StatusCode::ALREADY_EXISTS);
-  ASSERT_EQ(status2.error_message(), "wallet is already configured");
-  (void)_;
+  auto [rstatus, _] = configureWallet(0);
+  ASSERT_EQ(rstatus.error_code(), grpc::StatusCode::ALREADY_EXISTS);
+  ASSERT_EQ(rstatus.error_message(), "wallet is already configured");
+
+  PrivacyWalletRequest request;
+  request.mutable_get_state_request();
+  auto context = grpc::ClientContext{};
+  auto response = PrivacyWalletResponse{};
+  grpc::Status status = stub_->PrivacyWalletService(&context, request, &response);
+  ASSERT_TRUE(status.ok());
+  ASSERT_TRUE(response.has_get_state_response());
+  auto& resp = response.get_state_response();
+  std::cout << "Budget: " << resp.budget() << std::endl;
+  // account for 4 transfers
+  ASSERT_EQ(resp.budget(), 996);
 }
 
 TEST_F(test_privacy_wallet_grpc_service, test_set_and_get_application_data) {
