@@ -100,6 +100,12 @@ PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
     } else if (request->has_get_state_request()) {
       std::cout << "Processing state request" << std::endl;
       return handleGetStateRequest(context, request, response);
+    } else if (request->has_set_app_data_request()) {
+      std::cout << "Processing set application data request" << std::endl;
+      return handleSetAppDataRequest(context, request, response);
+    } else if (request->has_get_app_data_request()) {
+      std::cout << "Processing get application data request" << std::endl;
+      return handleGetAppDataRequest(context, request, response);
     } else {
       std::cout << "unknown request: " << request->DebugString() << std::endl;
       status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
@@ -149,8 +155,8 @@ PrivacyWalletServiceImpl::PrivacyWalletServiceImpl() {
   auto public_key = req.public_key();
   auto userId = req.user_id();
   utt::PublicConfig publicConfig(req.public_application_config().begin(), req.public_application_config().end());
-  wallet_ = std::make_unique<Wallet>(
-      userId, req.private_key(), public_key, PrivacyWalletServiceImpl::wallet_db_path, publicConfig);
+  storage_ = std::make_shared<utt::client::FileBasedUserStorage>(PrivacyWalletServiceImpl::wallet_db_path);
+  wallet_ = std::make_unique<Wallet>(userId, req.private_key(), public_key, storage_, publicConfig);
   auto resp = response->mutable_privacy_wallet_config_response();
   resp->set_succ(true);
   return grpc::Status::OK;
@@ -389,4 +395,34 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
   }
   return grpc::Status::OK;
 }
+
+::grpc::Status PrivacyWalletServiceImpl::handleSetAppDataRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  auto& set_app_data_req = request->set_app_data_request();
+  for (int i = 0; i < set_app_data_req.keys().size(); i++) {
+    storage_->setAppData(set_app_data_req.keys(i), set_app_data_req.values(i));
+  }
+  if (response) {
+    auto set_app_data_resp = response->mutable_set_app_data_response();
+    set_app_data_resp->set_succ(true);
+  }
+  return grpc::Status::OK;
+}
+
+::grpc::Status PrivacyWalletServiceImpl::handleGetAppDataRequest(
+    ::grpc::ServerContext*,
+    const ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletRequest* request,
+    ::vmware::concord::privacy::wallet::api::v1::PrivacyWalletResponse* response) {
+  if (response) {
+    auto& get_app_data_req = request->get_app_data_request();
+    auto get_app_data_resp = response->mutable_get_app_data_response();
+    for (int i = 0; i < get_app_data_req.keys().size(); i++) {
+      get_app_data_resp->add_values(storage_->getAppData(get_app_data_req.keys(i)));
+    }
+  }
+  return grpc::Status::OK;
+}
+
 }  // namespace utt::walletservice

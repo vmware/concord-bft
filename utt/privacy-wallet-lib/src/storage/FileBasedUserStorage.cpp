@@ -91,6 +91,10 @@ void FileBasedUserStorage::commit() {
   fs::remove(pending_path_);
 }
 
+void FileBasedUserStorage::setAppData(const std::string& key, const std::string& value) {
+  state_["app_data"][key] = value;
+}
+
 bool FileBasedUserStorage::isNewStorage() { return !state_.contains("initialized"); }
 
 void FileBasedUserStorage::setKeyPair(const std::pair<std::string, std::string>& keyPair) {
@@ -185,4 +189,9 @@ libutt::api::PublicConfig FileBasedUserStorage::getUttPublicConfig() {
   return libutt::api::deserialize<libutt::api::PublicConfig>(hexStringToBytes(state_["utt_public_config"]));
 }
 
+std::string FileBasedUserStorage::getAppData(const std::string& key) {
+  if (!state_.contains("app_data")) return {};
+  if (!state_["app_data"].contains(key)) return {};
+  return state_["app_data"][key];
+}
 }  // namespace utt::client

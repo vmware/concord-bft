@@ -31,7 +31,7 @@ class Wallet {
   Wallet(std::string userId,
          const std::string& private_key,
          const std::string& public_key,
-         const std::string& storage_path,
+         const std::shared_ptr<utt::client::IStorage> storage,
          const utt::PublicConfig& config);
 
   std::optional<RegistrationInput> generateRegistrationInput();
