@@ -15,6 +15,8 @@
 
 #include "gtest/gtest.h"
 #include "sparse_merkle/tree.h"
+#include "sparse_merkle/proof_path_processor.h"
+
 #include "test_db.h"
 
 #include <iostream>
@@ -23,6 +25,7 @@ using namespace std;
 using namespace concordUtils;
 using namespace concord::kvbc;
 using namespace concord::kvbc::sparse_merkle;
+using namespace proof_path_processor;
 
 void db_put(const shared_ptr<TestDB>& db, const UpdateBatch& batch) {
   for (const auto& [key, val] : batch.internal_nodes) {
@@ -1154,6 +1157,46 @@ TEST(tree_tests, add_and_remove_of_same_existing_key_in_single_update_add_wins) 
   ASSERT_TRUE(internalKeyExists("", 1, batch.stale.internal_keys));
   ASSERT_EQ(1, batch.stale.leaf_keys.size());
   ASSERT_TRUE(leafKeyExists("key1", 1, batch.stale.leaf_keys));
+}
+
+std::string random_string(size_t length) {
+  auto randchar = []() -> char {
+    const char charset[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    const size_t max_index = (sizeof(charset) - 1);
+    return charset[rand() % max_index];
+  };
+  std::string str(length, 0);
+  std::generate_n(str.begin(), length, randchar);
+  return str;
+}
+
+TEST(tree_tests, fill_tree_then_extract_proof_paths_and_verify_them) {
+  srand(1);
+  std::shared_ptr<TestDB> db(new TestDB);
+  Tree tree(db, "MY_ETH_ADDR");
+
+  std::map<std::string, std::string> all;
+
+  for (int i = 1; i <= 1500; i++) {
+    SetOfKeyValuePairs updates;
+    for (int j = 1; j <= 10; j++) {
+      auto key = random_string(256);
+      auto val = random_string(256);
+      all[key] = val;
+      updates.insert({Sliver(std::move(key)), Sliver(std::move(val))});
+    }
+    auto batch = tree.update(updates);
+    db_put(db, batch);
+  }
+
+  auto rootHash = tree.get_root_hash();
+  for (const auto& v : all) {
+    Sliver key{Sliver(std::string(v.first))};
+    ASSERT_TRUE(verifyProofPath(key, Sliver(std::string(v.second)), getProofPath(key, db, "MY_ETH_ADDR"), rootHash));
+  }
 }
 
 int main(int argc, char** argv) {

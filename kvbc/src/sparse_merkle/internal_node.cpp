@@ -386,12 +386,12 @@ size_t BatchedInternalNode::numLevel0Children() const {
   return std::count_if(children_.begin() + start_offset, children_.end(), [](const auto& c) { return c.has_value(); });
 }
 
-size_t BatchedInternalNode::nibbleToIndex(Nibble nibble) const {
+size_t BatchedInternalNode::nibbleToIndex(Nibble nibble) {
   constexpr size_t level_0_start = MAX_CHILDREN / 2;
   return level_0_start + nibble.data();
 }
 
-size_t BatchedInternalNode::height(size_t index) const {
+size_t BatchedInternalNode::height(size_t index) {
   if (index == 0) return 4;
   if (index < 3) return 3;
   if (index < 7) return 2;
