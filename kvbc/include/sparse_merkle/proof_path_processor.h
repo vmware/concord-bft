@@ -24,8 +24,13 @@ namespace kvbc {
 namespace sparse_merkle {
 namespace proof_path_processor {
 
-bool verifyProofPath(concordUtils::Sliver key, concordUtils::Sliver value, std::vector<Hash> proofPath, Hash rootHash);
-std::vector<Hash> getProofPath(concordUtils::Sliver key, std::shared_ptr<IDBReader> db, std::string custom_prefix = "");
+bool verifyProofPath(concordUtils::Sliver key,
+                     concordUtils::Sliver value,
+                     const std::vector<Hash>& proofPath,
+                     const Hash& rootHash);
+std::vector<Hash> getProofPath(concordUtils::Sliver key,
+                               std::shared_ptr<IDBReader> db,
+                               const std::string& custom_prefix = "");
 
 }  // namespace proof_path_processor
 }  // namespace sparse_merkle

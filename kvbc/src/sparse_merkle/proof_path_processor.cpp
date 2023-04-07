@@ -21,7 +21,7 @@ namespace proof_path_processor {
 
 using Sliver = concordUtils::Sliver;
 
-bool verifyProofPath(Sliver key, Sliver value, std::vector<Hash> proofPath, Hash rootHash) {
+bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPath, const Hash& rootHash) {
   Hasher hasher{};
   auto keyHash = hasher.hash(key.data(), key.length());
   auto valueHash = hasher.hash(value.data(), value.length());
@@ -65,7 +65,7 @@ bool verifyProofPath(Sliver key, Sliver value, std::vector<Hash> proofPath, Hash
   return next == rootHash;
 }
 
-std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, std::string custom_prefix) {
+std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const std::string& custom_prefix) {
   std::vector<Hash> retVal;
   Hasher hasher;
   Hash valueHash{};
