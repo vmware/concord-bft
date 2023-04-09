@@ -62,10 +62,12 @@ class SkvbcCommitPathTest(ApolloTest):
 
     async def wait_for_stable_state(self, skvbc: 'SimpleKVBCProtocol', timeout_secs: int,
                                     sleep_time: float = 1, client: 'BftClient' = None):
+        log.log_message(f'Waiting for client request success')
         with trio.fail_after(timeout_secs):
             while True:
                 try:
                     await skvbc.send_n_kvs_sequentially(1, client)
+                    log.log_message(f'Stable state reached')
                     break
                 except:
                     await trio.sleep(sleep_time)
@@ -90,6 +92,9 @@ class SkvbcCommitPathTest(ApolloTest):
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
                                                   run_ops=lambda: skvbc.send_n_kvs_sequentially(op_count),
                                                   threshold=op_count)
+
+
+
 
     @unittest.skip(
         "This is a transition covered in test_commit_path_transitions and is kept as a manual testing option.")
@@ -213,7 +218,7 @@ class SkvbcCommitPathTest(ApolloTest):
             threshold=5)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=ROTATE_KEYS)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 7, rotate_keys=ROTATE_KEYS)
     @verify_linearizability()
     async def test_fast_path_after_view_change(self, bft_network, tracker):
         """
@@ -233,6 +238,7 @@ class SkvbcCommitPathTest(ApolloTest):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         num_ops = 5
+        crashed_replica_id = 0
 
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
@@ -240,16 +246,14 @@ class SkvbcCommitPathTest(ApolloTest):
             threshold=num_ops)
 
         # Stop the primary
-        bft_network.stop_replica(0)
+        bft_network.stop_replica(crashed_replica_id)
 
         # Send a write request to trigger a view change
         with trio.move_on_after(seconds=3):
-            await skvbc.send_write_kv_set()
+            await skvbc.send_write_kv_set(description='Triggering view change')
 
         randRep = random.choice(
-            bft_network.all_replicas(without={0}))
-
-        log.log_message(f'wait_for_view - Random replica {randRep}')
+            bft_network.all_replicas(without={crashed_replica_id}))
 
         await bft_network.wait_for_view(
             replica_id=randRep,
@@ -258,7 +262,8 @@ class SkvbcCommitPathTest(ApolloTest):
         )
 
         # Restore the crashed primary
-        bft_network.start_replica(0)
+        log.log_message(f'Restoring crashed replica {crashed_replica_id}')
+        bft_network.start_replica(crashed_replica_id)
 
         await self.wait_for_stable_state(skvbc, timeout_secs=10)
 

@@ -54,16 +54,21 @@ class SkvbcBackupRestoreTest(ApolloTest):
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_checkpoint_propagation_after_restarting_replicas(self, bft_network):
         """
-        Here we trigger a checkpoint, restart all replicas in a random order with 5s delay in-between,
-        both while stopping and starting. We verify checkpoint persisted upon restart and then trigger
+        Here we trigger a checkpoint, restart all replicas.
+        We verify checkpoint persisted upon restart and then trigger
         another checkpoint. We make sure checkpoint is propagated to all the replicas.
         1) Given a BFT network, we make sure all nodes are up
         2) Send sufficient number of client requests to trigger checkpoint protocol
-        3) Stop all replicas in a random order (with 5s delay in between)
-        4) Start all replicas in a random order (with 5s delay in between)
+        3) Stop all replicas in a random order
+        4) Start all replicas in a random order
         5) Make sure the initial view is stable
         6) Send sufficient number of client requests to trigger another checkpoint
         7) Make sure checkpoint propagates to all the replicas
+
+        Note: UDP configuration waits for 5 seconds until it assumes network communication is established, as opposed to
+        TLS which waits for 60 seconds.
+        Replicas can thus trigger view changes when they are started with a delay and when
+        they publish their main keys on startup, since the exchange will not be executed without a quorum.
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -82,16 +87,15 @@ class SkvbcBackupRestoreTest(ApolloTest):
             verify_checkpoint_persistency=False
         )
 
-        # stop n replicas in a random order with a delay of 5s in between
-        stopped_replicas = await self._stop_random_replicas_with_delay(bft_network, delay=5)
-
-        # start stopped replicas in a random order with a delay of 5s in between
-        await self._start_random_replicas_with_delay(bft_network, stopped_replicas, current_primary, delay=5)
-
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
+        stopped_replicas = bft_network.all_replicas()
         # verify checkpoint persistence
+        log.log_message(message_type=f"Wait for replicas to reach checkpoint", checkpoint=checkpoint_before+1,
+                        replicas=stopped_replicas)
         await bft_network.wait_for_replicas_to_checkpoint(
             stopped_replicas,
-            expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
+            expected_checkpoint_num=lambda ecn: ecn >= checkpoint_before + 1)
 
         # verify current view is stable
         for replica in bft_network.all_replicas():
@@ -303,12 +307,12 @@ class SkvbcBackupRestoreTest(ApolloTest):
         return list(all_replicas)
 
     @staticmethod
-    async def _start_random_replicas_with_delay(bft_network, stopped_replicas,  initial_primary,
+    async def _start_random_replicas_with_delay(bft_network, stopped_replicas, initial_primary=None,
                                                 f_replicas_stopped_early=None, delay=10):
         random.shuffle(stopped_replicas)
         if f_replicas_stopped_early:
             stopped_replicas.extend(f_replicas_stopped_early)
-        if initial_primary not in stopped_replicas:
+        if initial_primary and initial_primary not in stopped_replicas:
             stopped_replicas.append(initial_primary)
         for replica in stopped_replicas:
             log.log_message(message_type=f"starting replica: {replica}")
@@ -360,7 +364,7 @@ class SkvbcBackupRestoreTest(ApolloTest):
         """
         with trio.fail_after(seconds=fail_after_time):
             while True:
-                nb_replicas_in_view = await bft_network._count_replicas_in_view(view)
+                nb_replicas_in_view = await bft_network.count_replicas_in_view(view)
 
                 # wait for n-f = 2f+2c+1 replicas to be in the expected view
                 if nb_replicas_in_view >= 2 * bft_network.config.f + 2 * bft_network.config.c + 1:
