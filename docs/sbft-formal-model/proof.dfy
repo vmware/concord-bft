@@ -1617,7 +1617,7 @@ module Proof {
     ensures UnCommitableAgreesWithRecordedPrePrepare(c, v')
   {
     reveal_UnCommitableAgreesWithRecordedPrePrepare();
-    reveal_RecordedNewViewMsgsAreValid();
+    //reveal_RecordedNewViewMsgsAreValid(); Selectively reveal in assert by-s (causes triggering explosion)
     forall replicaIdx, seqID, priorView:nat, priorOperationWrapper:Messages.OperationWrapper | 
       && IsHonestReplica(c, replicaIdx)
       && var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
@@ -1665,7 +1665,7 @@ module Proof {
           if (seqID !in vcMsg.payload.certificates) {
             // We are looking for an Inv that says every ViewChange msg after a Commit mentions the Committed SeqID.
           } else {
-            var certView := vcMsg.payload.certificates[seqID].prototype().view;
+            var certView := vcMsg.payload.certificates[seqID].prototype().view; // We need to differentiate the first hop of the VC!!!
             if certView <= priorView {
               assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
                 // viewchangemessages from honest sender comport with uncommitable in view
