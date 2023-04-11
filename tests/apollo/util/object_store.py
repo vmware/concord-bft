@@ -53,9 +53,11 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
            "-k", KEY_FILE_PREFIX,
            "-i", str(replica_id),
            "-s", statusTimerMilli,
-           "-V", os.getenv('BLOCKCHAIN_VERSION', default="1"),
+           "-V", os.getenv('BLOCK_CHAIN_VERSION', default="1"),
            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
            ]
+    if replica_id < config.n:
+        ret += ["--key-exchange-on-start", "--publish-master-key-on-startup"]
     if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas:
         ret.extend(ro_params)
 

@@ -61,13 +61,15 @@ class StaleReadError(Error):
         self.block_with_conflicting_writeset = block_with_conflicting_writeset
         self.block_being_checked = block_being_checked
 
-    def __repr__(self):
+    def __str__(self):
         return (f'{self.__class__.__name__}:\n'
            f'  readset_block_id={self.readset_block_id}\n'
            f'  block_with_conflicting_writeset='
            f'{self.block_with_conflicting_writeset}\n'
            f'  block_being_checked={self.block_being_checked}\n')
 
+    def __repr__(self):
+        return str(self)
 
 class NoConflictError(Error):
     """

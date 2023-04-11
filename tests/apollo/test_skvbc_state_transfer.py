@@ -254,7 +254,7 @@ class SkvbcStateTransferTest(ApolloTest):
 
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer_rvt_validity_after_pruning(self, bft_network):
         """
         The goal of this test is to validate that all replicas have their Range validation trees (RVTs) synchronized
@@ -273,12 +273,11 @@ class SkvbcStateTransferTest(ApolloTest):
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        stale_node = random.choice(
-                    bft_network.all_replicas(without={0}))
+        stale_node = 3
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
-            checkpoints_num=5, # key-exchange changes the last executed seqnum
+            checkpoints_num=3, # key-exchange changes the last executed seqnum
             persistency_enabled=False
         )
 
@@ -338,13 +337,13 @@ class SkvbcStateTransferTest(ApolloTest):
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
 
         for i in range(6):
-            print(f'Iteration {i}')
+            log.log_message(message_type=f'Iteration {i}')
             await skvbc.fill_and_wait_for_checkpoint(
                 bft_network.all_replicas(),
                 num_of_checkpoints_to_add=2,
                 verify_checkpoint_persistency=False,
                 assert_state_transfer_not_started=False,
-                expected_starting_checkpoint=i * 2)
+                expected_starting_checkpoint_func=lambda cp: cp == i * 2)
 
             if i > 0 and i % 2 == 0:
                 await op.latest_pruneable_block()
@@ -354,16 +353,17 @@ class SkvbcStateTransferTest(ApolloTest):
                 for r in rsi_rep.values():
                     lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                     latest_pruneable_blocks += [lpab.response]
-                print('Pruning...')
+
+                log.log_message(message_type='Pruning...')
                 await op.prune(latest_pruneable_blocks)
 
                 await self.wait_for_pruning_to_complete(client, op, bft_network)
         
             restart = random.choice([0, 1])
             if restart == 1:
-                print('Selecting a random replica to be restarted (the primary is excluded)...')
+                log.log_message(message_type='Selecting a random replica to be restarted (the primary is excluded)...')
                 replica_to_restart = random.choice(bft_network.all_replicas(without={0}))
-                print(f'Replica {replica_to_restart} will be restarted.')
+                log.log_message(message_type=f'Replica {replica_to_restart} will be restarted.')
                 bft_network.stop_replica(replica_to_restart, True)
                 bft_network.start_replica(replica_to_restart)
                 # Restarted replica should get enough time to load metric holding last-stored-checkpoint

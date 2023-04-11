@@ -135,7 +135,7 @@ class SkvbcBatchPreExecutionTest(ApolloTest):
         await skvbc.send_write_kv_set_batch(client, 2, BATCH_SIZE, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
-        self.assertEqual(last_block, BATCH_SIZE)
+        self.assertGreaterEqual(last_block, BATCH_SIZE)
 
         await bft_network.assert_successful_pre_executions_count(0, BATCH_SIZE)
 
@@ -212,7 +212,7 @@ class SkvbcBatchPreExecutionTest(ApolloTest):
             while last_block < expected_last_block:
                 last_block = await tracker.get_last_block_id(client)
                 await trio.sleep(seconds=1)
-        self.assertEqual(last_block, expected_last_block)
+        self.assertGreaterEqual(last_block, expected_last_block)
         bft_network.stop_replica(initial_primary)
 
         try:

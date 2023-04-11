@@ -9,7 +9,7 @@
 # notices and license terms. Your use of these subcomponents is subject to the
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
-
+from collections import OrderedDict
 import time
 from enum import Enum
 from util import skvbc as kvbc, eliot_logging as log
@@ -191,14 +191,18 @@ class CausalState:
         # KV pairs contain the value up keys up until last_consecutive_block
         self.kvpairs = kvpairs
 
-    def __repr__(self):
+    def __str__(self):
+        pairs_as_string = {x.decode("utf-8"): y.decode("utf-8") for x,y in self.kvpairs.items()}
         return (f'{self.__class__.__name__}:\n'
-           f'    req_index={self.req_index}\n'
-           f'    last_known_block={self.last_known_block}\n'
-           f'    last_consecutive_block={self.last_consecutive_block}\n'
-           f'    '
-           f'missing_intermediate_blocks={self.missing_intermediate_blocks}\n'
-           f'    causal state kvpairs={self.kvpairs}\n')
+                f'    req_index={self.req_index}\n'
+                f'    last_known_block={self.last_known_block}\n'
+                f'    last_consecutive_block={self.last_consecutive_block}\n'
+                f'    missing_intermediate_blocks={self.missing_intermediate_blocks}\n'
+                f'    causal state kvpairs={pairs_as_string}\n')
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class ConcurrentValue:
     """Track the state for a request / reply in self.concurrent"""
@@ -414,14 +418,17 @@ class SkvbcTracker:
 
         # The value of all keys at last_consecutive_block
         self.kvpairs = initial_kvpairs
+
         self.last_consecutive_block = 0
 
         # The block last received in a write
         self.last_known_block = 0
 
-        # Blocks that get filled in by the call to fill_missing_blocks
-        # These blocks were created by write requests that never got replies.
-        self.filled_blocks = {}
+        # Blocks which were created by write requests that never got a reply.
+        # Retrieved from replicas by issuing an explicit client request after a test case ends.
+        self.retrieved_missing_blocks = OrderedDict()
+
+        self.ignored_block_ids = []
 
         self.skvbc = skvbc
 
@@ -453,8 +460,9 @@ class SkvbcTracker:
         cs = CausalState(index,
                          self.last_known_block,
                          self.last_consecutive_block,
-                         self._count_non_consecutive_blocks(),
+                         self._non_consecutive_block_ids(),
                          self.kvpairs.copy())
+
         self.outstanding[(req.client_id, req.seq_num)] = cs
 
     def handle_write_reply(self, client_id, seq_num, reply):
@@ -502,7 +510,7 @@ class SkvbcTracker:
         self.history.append(rpy)
         self._record_read_reply(req_index, rpy)
 
-    def get_missing_blocks(self, last_block_id):
+    def get_missing_block_ids(self, last_block_id):
         """
         Retrieve the set of missing blocks.
 
@@ -520,7 +528,6 @@ class SkvbcTracker:
         for i in range(self.last_known_block + 1, last_block_id + 1):
             missing_blocks.add(i)
 
-        log.log_message(message_type=f'{len(missing_blocks)} missing blocks found.')
         return missing_blocks
 
     def fill_missing_blocks(self, missing_blocks):
@@ -539,14 +546,22 @@ class SkvbcTracker:
             self.blocks[block_id] = Block(kvpairs)
             if block_id > self.last_known_block:
                 self.last_known_block = block_id
-        self.filled_blocks = missing_blocks
-        log.log_message(message_type=f'{len(missing_blocks)} missing blocks filled.')
+            self.retrieved_missing_blocks[block_id] = kvpairs
 
     def verify(self):
         self._match_filled_blocks()
         self._verify_successful_writes()
         self._linearize_reads()
         self._linearize_write_failures()
+
+    @property
+    def _ignore_block_val(self):
+        """
+        A value indicating that a block was not created by a client request
+        and thus should be ignored when matching client requests to blocks
+        This value matches internalCommandsHandler::s_ignoreBlockStr
+        """
+        return b'ignoreBlock'
 
     def _match_filled_blocks(self):
         """
@@ -560,8 +575,13 @@ class SkvbcTracker:
         # Req/block_id pairs
         matched_blocks = []
         write_requests = self._get_all_outstanding_write_requests()
+        log.log_message(message_type=f'outstanding', outstanding=repr(write_requests))
+        log.log_message(message_type=f'retrieved_missing_blocks', retrieved_missing_blocks=repr(self.retrieved_missing_blocks))
+        for block_id, block_kvpairs in self.retrieved_missing_blocks.items():
+            if len(block_kvpairs) == 1 and self._ignore_block_val in block_kvpairs:
+                continue
 
-        for block_id, block_kvpairs in self.filled_blocks.items():
+            log.log_message(message_type=f'filled_blocks ID', ID=block_id)
             unmatched = []
             success = False
             for _ in range(0, len(write_requests)):
@@ -573,10 +593,12 @@ class SkvbcTracker:
                 else:
                     unmatched.append(req)
             if not success:
-                raise PhantomBlockError(block_id,
-                                        block_kvpairs,
-                                        matched_blocks,
-                                        unmatched)
+                a = PhantomBlockError(block_id,
+                                      block_kvpairs,
+                                      matched_blocks,
+                                      unmatched)
+                log.log_message(message_type=f'Phantom Block', phantom=repr(a))
+                raise a
             write_requests.extend(unmatched)
 
     def _get_all_outstanding_write_requests(self):
@@ -587,8 +609,26 @@ class SkvbcTracker:
                 writes.append(req)
         return writes
 
+    def block_range(self, start, end):
+        """
+        Generates blocks in the interval [start, end+ignored_blocks_in(start, start_count))
+        Skips ignored block ids
+        """
+        current_idx = start
+        while True:
+            while current_idx in self.ignored_block_ids:
+                current_idx += 1
+                end += 1
+
+            if current_idx >= end or current_idx > self.last_known_block:
+                return
+
+            yield current_idx
+            current_idx += 1
+
+
     def _verify_successful_writes(self):
-        for i in range(1, self.last_known_block+1):
+        for i in filter(lambda block_id: block_id not in self.ignored_block_ids, range(1, self.last_known_block+1)):
             req_index = self.blocks[i].req_index
             if req_index != None:
                 # A reply was received for this request that created the block
@@ -622,14 +662,14 @@ class SkvbcTracker:
             # after the readset until the last possible concurrently generated
             # block.
             success = False
-            for i in range(failed_req.read_block_id + 1,
+            for i in self.block_range(failed_req.read_block_id + 1,
                            causal_state.last_known_block + blocks_to_check + 1):
                 writeset = set(self.blocks[i].kvpairs.keys())
                 if len(failed_req.readset.intersection(writeset)) != 0:
-                       # We found a block that conflicts. We must
-                       # assume that failed_req was failed correctly.
-                       success = True
-                       break
+                    # We found a block that conflicts. We must
+                    # assume that failed_req was failed correctly.
+                    success = True
+                    break
 
             if not success:
                 # We didn't find any conflicting blocks.
@@ -652,14 +692,14 @@ class SkvbcTracker:
             # We must check that the read linearizes after
             # causal_state.last_known_block, since it must have started after
             # that. Build up the kv state until last_known_block.
-            for block_id in range(cs.last_consecutive_block + 1,
-                                  cs.last_known_block + 1):
+            for block_id in filter(lambda bid: bid not in self.ignored_block_ids,
+                                   range(cs.last_consecutive_block + 1, cs.last_known_block + 1)):
                 kv.update(self.blocks[block_id].kvpairs)
 
             blocks_to_check = self._num_blocks_to_linearize_over(req_index, cs)
             success = False
-            for i in range(cs.last_known_block,
-                           cs.last_known_block + blocks_to_check + 1):
+            for i in self.block_range(cs.last_known_block, cs.last_known_block + blocks_to_check + 1):
+
                 if i != cs.last_known_block:
                     kv.update(self.blocks[i].kvpairs)
                 if self._read_is_valid(kv, completed_read.kvpairs):
@@ -679,7 +719,7 @@ class SkvbcTracker:
         """
         cs = causal_state
         max_concurrent = self._max_possible_concurrent_writes(req_index)
-        concurrent_remaining = max_concurrent - cs.missing_intermediate_blocks
+        concurrent_remaining = max_concurrent - len(cs.missing_intermediate_blocks - set(self.ignored_block_ids))
         total_remaining = self.last_known_block - cs.last_known_block
         return min(concurrent_remaining, total_remaining)
 
@@ -742,10 +782,12 @@ class SkvbcTracker:
         algorithm, and we raise a StaleReadError.
         """
         for i in range(req.read_block_id + 1, written_block_id):
-            if i not in self.blocks:
-                # Ensure we have learned about this block.
-                # Move on if we have not.
+
+            # Ensure we have learned about this block.
+            # Move on if we have not.
+            if i in self.ignored_block_ids or i not in self.blocks:
                 continue
+
             block = self.blocks[i]
 
             # If the writeset of the request that created intermediate blocks
@@ -783,16 +825,12 @@ class SkvbcTracker:
         for i in self.concurrent[req_index].keys():
             self.concurrent[i][req_index].result = Result.READ_REPLY
 
-    def _count_non_consecutive_blocks(self):
+    def _non_consecutive_block_ids(self):
         """
         Count the number of missing blocks between self.last_consecutive_block
         to self.last_known_block.
         """
-        count = 0
-        for i in range(self.last_consecutive_block + 1, self.last_known_block):
-            if i not in self.blocks:
-                count += 1
-        return count
+        return set(filter(lambda i: i not in self.blocks, range(self.last_consecutive_block + 1, self.last_known_block)))
 
     def _get_matching_request(self, rpy):
         """
@@ -809,11 +847,23 @@ class SkvbcTracker:
            # past failed responses.
            client = self.skvbc.bft_network.new_reserved_client()
            last_block_id = await self.get_last_block_id(client)
-           print(f'Last Block ID = {last_block_id}')
-           missing_block_ids = self.get_missing_blocks(last_block_id)
-           print(f'Missing Block IDs = {missing_block_ids}')
+           log.log_message(message_type=f'Last Block ID = {last_block_id}')
+           missing_block_ids = self.get_missing_block_ids(last_block_id)
            blocks = await self.get_blocks(client, missing_block_ids)
-           self.fill_missing_blocks(blocks)
+
+           for block_id, block_kvpairs in blocks.items():
+               if len(block_kvpairs) == 1 and self._ignore_block_val in block_kvpairs:
+                   self.ignored_block_ids.append(block_id)
+                   continue
+
+               self.retrieved_missing_blocks[block_id] = block_kvpairs
+
+           log.log_message(message_type=f'Missing Block IDs status',
+                           missing_block_count=len(self.retrieved_missing_blocks),
+                           missing_block_ids=list(self.retrieved_missing_blocks.keys()),
+                           ignored_block_count=len(self.ignored_block_ids),
+                           ignored_block_ids=self.ignored_block_ids)
+           self.fill_missing_blocks(self.retrieved_missing_blocks)
            self.verify()
        except Exception as e:
            print(f'retries = {client.retries}')
@@ -827,10 +877,9 @@ class SkvbcTracker:
            print("FAILURE...")
            raise (e)
 
-    async def get_blocks(self, client, block_ids):
+    async def get_blocks(self, client, block_ids, retries=12):
         blocks = {}
         for block_id in block_ids:
-            retries = 12 # 60 seconds
             for i in range(0, retries):
                 try:
                     msg = kvbc.SimpleKVBCProtocol.get_block_data_req(block_id)
@@ -839,7 +888,7 @@ class SkvbcTracker:
                 except trio.TooSlowError:
                     if i == retries - 1:
                         raise
-            log.log_message(message_type=f'Retrieved block {block_id}')
+
         return blocks
 
     async def get_last_block_id(self, client):
