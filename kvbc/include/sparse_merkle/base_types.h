@@ -66,7 +66,7 @@ class CustomPrefix {
   CustomPrefix() = default;
   CustomPrefix(size_t size) {
     ConcordAssert(size <= SIZE_IN_BYTES);
-    prefix_.assign('\0', size);
+    prefix_.assign(size, '\0');
   }
   CustomPrefix(const Type& val) : prefix_(val) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
   CustomPrefix(Type&& val) : prefix_(std::move(val)) { ConcordAssert(val.size() <= SIZE_IN_BYTES); }
