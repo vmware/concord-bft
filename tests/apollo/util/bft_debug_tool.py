@@ -73,8 +73,6 @@ class BftDebugTool:
 
         output_folder_name = name.lower() + "_logs"
         test_suite_name = os.environ.get('TEST_NAME')
-        if os.environ.get('BLOCKCHAIN_VERSION', default="1") == "4" :
-            test_suite_name += "_v4"
         self.output_log_path = os.path.join(builddir, output_folder_name, test_suite_name, current_test)
         if name in self.sanitizer_names:
             self.output_log_prefix = name.lower() + ".log"

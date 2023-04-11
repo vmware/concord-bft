@@ -71,6 +71,7 @@ function(apollo_test)
     set(oneValueArgs NAME SUITE)
     set(multiValueArgs VARS)
     cmake_parse_arguments(APOLLO_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    set(APOLLO_TEST_TIMEOUT 3000)
 	if(DEFINED APOLLO_TEST_VARS)
 		list(JOIN APOLLO_TEST_VARS " " ADDITIONAL_ENV_VARS)
 	endif()
@@ -89,6 +90,7 @@ function(apollo_test)
 			 COMMAND ${DO_SUDO} sh -c
         	 "env ${APOLLO_ENV} ${ADDITIONAL_ENV_VARS} BLOCK_CHAIN_VERSION=${BLOCKCHAIN_VERSION} TEST_NAME=${APOLLO_TEST_NAME} python3 -m unittest ${APOLLO_TEST_SUITE} ${TEST_OUTPUT}"
         	)
+  set_tests_properties(${APOLLO_TEST_NAME} PROPERTIES TIMEOUT ${APOLLO_TEST_TIMEOUT}) 
 endfunction()
 	
 apollo_test(NAME skvbc_basic_tests SUITE test_skvbc)

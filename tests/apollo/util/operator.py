@@ -37,66 +37,78 @@ import util.eliot_logging as log
 operator_msg_signing_algo = "eddsa" # or "ecdsa"
 
 class Operator:
-    def __init__(self, config, client, priv_key_dir):
+    def __init__(self, config, client, priv_key_dir, id=1000):
         self.config = config
         self.client = client
+        self.id = id
+        self._private_key_file_path = priv_key_dir + "/operator_priv.pem"
+        self._public_key_file_path = priv_key_dir + "/operator_pub.pem"
+        public_key_hex = None
 
         if ("ecdsa" == operator_msg_signing_algo):
             # Read ECDSA signing key.
-            with open(priv_key_dir + "/operator_priv.pem") as f:
+            with open(self._private_key_file_path) as f:
                 self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
         elif ("eddsa" == operator_msg_signing_algo):
             # Read EdDSA signing key.
-            txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
-            if txn_signing_key_path:
-                with open(txn_signing_key_path, 'rb') as f:
-                    self.private_key = serialization.load_pem_private_key(f.read(), password=None)
+            with open(self._private_key_file_path, 'rb') as f:
+                self.private_key = serialization.load_pem_private_key(f.read(), password=None)
+
+            public_key_bytes = self.private_key.public_key().public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+            with open(self._public_key_file_path, 'rb') as f:
+                assert public_key_bytes == \
+                       serialization.load_pem_public_key(f.read()).public_bytes(
+                           encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+            public_key_hex = public_key_bytes.hex().upper()
+
+        log.log_message(message_type="operator created", id=self.id, signature_algorithm=operator_msg_signing_algo,
+                        private_key_path=self._private_key_file_path,
+                        public_key_path=self._public_key_file_path,
+                        public_key_hex=public_key_hex)
 
     def _sign_reconf_msg(self, msg):
         if ("ecdsa" == operator_msg_signing_algo):
             # Return ECDSA signature.
             return self.private_key.sign_deterministic(msg.serialize())
         elif ("eddsa" == operator_msg_signing_algo):
-            signature = b''
-            if self.private_key:
-                signature = self.private_key.sign(bytes(msg.serialize()))
-            return signature
+            return self.private_key.sign(bytes(msg.serialize()))
 
-    def  _construct_basic_reconfiguration_request(self, command):
+    def _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.additional_data = bytes(0)
-        reconf_msg.sender = 1000
+        reconf_msg.sender = self.id
         reconf_msg.signature = bytes(0)
         reconf_msg.command = command
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        assert len(reconf_msg.signature) > 0
         return reconf_msg
 
     def _construct_reconfiguration_wedge_command(self):
         wedge_cmd = cmf_msgs.WedgeCommand()
-        wedge_cmd.sender = 1000
+        wedge_cmd.sender = self.id
         wedge_cmd.noop = False
         return self._construct_basic_reconfiguration_request(wedge_cmd)
 
     def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
-        lpab_cmd.sender = 1000
+        lpab_cmd.sender = self.id
         return self._construct_basic_reconfiguration_request(lpab_cmd)
 
     def _construct_reconfiguration_wedge_status(self, fullWedge=True):
         wedge_status_cmd = cmf_msgs.WedgeStatusRequest()
-        wedge_status_cmd.sender = 1000
+        wedge_status_cmd.sender = self.id
         wedge_status_cmd.fullWedge = fullWedge
         return self._construct_basic_reconfiguration_request(wedge_status_cmd)
 
     def _construct_reconfiguration_unwedge_status(self, bft):
         unwedge_status_cmd = cmf_msgs.UnwedgeStatusRequest()
-        unwedge_status_cmd.sender = 1000
+        unwedge_status_cmd.sender = self.id
         unwedge_status_cmd.bft_support = bft
         return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
 
     def _construct_reconfiguration_unwedge_command(self, unwedges, bft, restart):
         unwedge_cmd = cmf_msgs.UnwedgeCommand()
-        unwedge_cmd.sender = 1000
+        unwedge_cmd.sender = self.id
         unwedge_cmd.bft_support = bft
         unwedge_cmd.restart = restart
         unwedge_cmd.unwedges = unwedges
@@ -104,7 +116,7 @@ class Operator:
 
     def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks, tick_period_seconds=1, batch_blocks_num=600):
         prune_cmd = cmf_msgs.PruneRequest()
-        prune_cmd.sender = 1000
+        prune_cmd.sender = self.id
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
         prune_cmd.tick_period_seconds = tick_period_seconds
         prune_cmd.batch_blocks_num = batch_blocks_num
@@ -113,12 +125,12 @@ class Operator:
 
     def _construct_reconfiguration_prune_status_request(self):
         prune_status_cmd = cmf_msgs.PruneStatusRequest()
-        prune_status_cmd.sender = 1000
+        prune_status_cmd.sender = self.id
         return self._construct_basic_reconfiguration_request(prune_status_cmd)
 
     def _construct_reconfiguration_keMsg_command(self, target_replicas = [], tls=False):
         ke_command = cmf_msgs.KeyExchangeCommand()
-        ke_command.sender_id = 1000
+        ke_command.sender_id = self.id
         ke_command.target_replicas = target_replicas
         ke_command.tls = tls
         return self._construct_basic_reconfiguration_request(ke_command)
@@ -144,12 +156,12 @@ class Operator:
 
     def _construct_reconfiguration_addRemoveStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
-        addRemoveStatus_command.sender_id = 1000
+        addRemoveStatus_command.sender_id = self.id
         return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
     def _construct_reconfiguration_addRemoveWithWedgeStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveWithWedgeStatus()
-        addRemoveStatus_command.sender_id = 1000
+        addRemoveStatus_command.sender_id = self.id
         return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
     def _construct_reconfiguration_clientKe_command(self, target_clients = [], tls = False):
@@ -167,12 +179,12 @@ class Operator:
 
     def _construct_reconfiguration_clientsAddRemoveStatus_command(self):
         cars_command = cmf_msgs.ClientsAddRemoveStatusCommand()
-        cars_command.sender_id = 1000
+        cars_command.sender_id = self.id
         return self._construct_basic_reconfiguration_request(cars_command)
 
     def _construct_reconfiguration_clientsKeyExchangeStatus_command(self, tls=False):
         ckes_command = cmf_msgs.ClientKeyExchangeStatus()
-        ckes_command.sender_id = 1000
+        ckes_command.sender_id = self.id
         ckes_command.tls = tls
         return self._construct_basic_reconfiguration_request(ckes_command)
 
@@ -184,23 +196,23 @@ class Operator:
         return self._construct_basic_reconfiguration_request(restart_command)
     def _construct_reconfiguration_clientsRestart_command(self, data=""):
         client_restart_command = cmf_msgs.ClientsRestartCommand()
-        client_restart_command.sender_id = 1000
+        client_restart_command.sender_id = self.id
         client_restart_command.data = data
         return self._construct_basic_reconfiguration_request(client_restart_command)
 
     def _construct_clients_clientRestart_status_command(self):
         client_restart_status = cmf_msgs.ClientsRestartStatus()
-        client_restart_status.sender_id = 1000
+        client_restart_status.sender_id = self.id
         return self._construct_basic_reconfiguration_request(client_restart_status)
 
     def _construct_reconfiguration_get_dbcheckpoint_info_request(self):
         cpinfo_command = cmf_msgs.GetDbCheckpointInfoRequest()
-        cpinfo_command.sender_id = 1000
+        cpinfo_command.sender_id = self.id
         return self._construct_basic_reconfiguration_request(cpinfo_command)
 
     def _construct_reconfiguration_create_dbcheckpoint_command(self):
         cp_command = cmf_msgs.CreateDbCheckpointCommand()
-        cp_command.sender_id = 1000
+        cp_command.sender_id = self.id
         return self._construct_basic_reconfiguration_request(cp_command)
 
     def _construct_reconfiguration_signed_public_state_hash_req(self, snapshot_id):
@@ -224,7 +236,7 @@ class Operator:
 
     def _construct_db_size_req(self):
         req = cmf_msgs.DbSizeReadRequest()
-        req.sender_id = 1000
+        req.sender_id = self.id
         return self._construct_basic_reconfiguration_request(req)
 
     def get_rsi_replies(self):
@@ -239,8 +251,9 @@ class Operator:
     async def wedge_status(self, quorum=None, fullWedge=True):
         if quorum is None:
             quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
-        msg = self._construct_reconfiguration_wedge_status(fullWedge)
-        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+        with log.start_action(action_type="wedge_status", quorum=str(quorum), fullWedge=fullWedge):
+            msg = self._construct_reconfiguration_wedge_status(fullWedge)
+            return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
     async def unwedge(self, bft=False, restart=False, quorum=None):
         if bft is True:
@@ -263,25 +276,32 @@ class Operator:
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
     async def latest_pruneable_block(self):
-        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_command()
-        return await self.client.read(reconf_msg.serialize(),
-                          m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
-                                                                  [r for r in range(self.client.get_total_num_replicas())]), reconfiguration=True, include_ro=True)
+        with log.start_action(action_type="latest_pruneable_block"):
+            reconf_msg = self._construct_reconfiguration_latest_prunebale_block_command()
+            return await self.client.read(reconf_msg.serialize(),
+                              m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
+                                                                      [r for r in range(self.client.get_total_num_replicas())]), reconfiguration=True, include_ro=True)
 
     async def prune(self, latest_pruneable_blocks):
-        reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        with log.start_action(action_type="prune",
+                              latest_pruneable_blocks=[{"replica": x.replica, "block_id": x.block_id,
+                                                        "bft_sequence_number": x.bft_sequence_number}
+                                                       for x in latest_pruneable_blocks]):
+            reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def prune_status(self):
-        reconf_msg = self._construct_reconfiguration_prune_status_request()
-        # Status is not supported by read only replicas, thus, we poll only the committers
-        return await self.client.read(reconf_msg.serialize(),
-                          m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
-                              self.config.n)]), reconfiguration=True)
+        with log.start_action(action_type="prune_status"):
+            reconf_msg = self._construct_reconfiguration_prune_status_request()
+            # Status is not supported by read only replicas, thus, we poll only the committers
+            return await self.client.read(reconf_msg.serialize(),
+                              m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
+                                  self.config.n)]), reconfiguration=True)
 
     async def key_exchange(self, target_replicas, tls=False):
-        reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas, tls)
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        with log.start_action(action_type="key_exchange", target_replicas=target_replicas, is_tls_exchange=tls):
+            reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas, tls)
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
     async def client_key_exchange_command(self, target_clients, tls=False):
         reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients, tls)
@@ -317,14 +337,15 @@ class Operator:
     async def add_remove(self, new_config):
         reconf_msg = self._construct_reconfiguration_addRemove_command(new_config)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
-    
-    async def add_remove_with_wedge(self, new_config, bft=True, restart=True):
-        token = []
-        for r in range(self.config.n):
-            token.append((r, 'Token' + str(r)))   
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, token, bft, restart)
 
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+    async def add_remove_with_wedge(self, new_config, bft=True, restart=True):
+        with log.start_action(action_type="add_remove_with_wedge", bft=bft, restart=restart, new_config=new_config):
+            token = []
+            for r in range(self.config.n):
+                token.append((r, 'Token' + str(r)))
+            reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, token, bft, restart)
+
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def restart(self, data, bft=True, restart=True):
         with log.start_action(action_type="restart", bft=bft, restart=restart):

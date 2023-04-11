@@ -18,6 +18,7 @@ from collections import namedtuple
 from functools import partial
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyclient")) 
 import bft_config
+from util import eliot_logging as log
 
 class NetworkPartitioningAdversary(ABC):
     """Represents an adversary capable of inflicting network partitioning"""
@@ -42,6 +43,7 @@ class NetworkPartitioningAdversary(ABC):
     def __exit__(self, *args):
         """context manager method for 'with' statements"""
         self._remove_bft_network_rule_chain()
+        log.log_message(message_type=f"network interference stopped")
 
     @abstractmethod
     def interfere(self):
@@ -232,6 +234,7 @@ class ReplicaSubsetIsolatingAdversary(NetworkPartitioningAdversary):
         super(ReplicaSubsetIsolatingAdversary, self).__init__(bft_network)
 
     def interfere(self):
+        log.log_message(message_type=f"Disabling replicas communication", replicas=self.replicas_to_isolate)
         other_replicas = set(self.bft_network.all_replicas()) - set(self.replicas_to_isolate)
         for ir in self.replicas_to_isolate:
             for r in other_replicas:

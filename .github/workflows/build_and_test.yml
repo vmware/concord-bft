@@ -27,6 +27,7 @@ jobs:
           run: |
             mkdir build
             cd build
+            echo $(date +%y-%m-%d_%H-%M-%S) > timestamp
             cmake \
               ${{ matrix.comm_type }} \
               -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
@@ -39,6 +40,11 @@ jobs:
             cd build
             # many tests require administrative priviliges for running iptables or nc
             sudo ctest --output-on-failure
+        - name: Print failed cases
+          if: ${{ failure() }}
+          run: |
+            FAILED_CASES_FILE=${PWD}/build/apollogs/latest/failed_cases.txt
+            test -f ${FAILED_CASES_FILE} && echo Failed apollo cases: && cat -n ${FAILED_CASES_FILE}
         - name: Prepare artifacts
           if: ${{ failure() }}
           run: |

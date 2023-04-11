@@ -12,8 +12,10 @@
 
 # Add the pyclient directory to $PYTHONPATH
 import hashlib
+import pathlib
 from logging import setLogRecordFactory
 import sys
+import signal
 import psutil
 import os
 import os.path
@@ -28,23 +30,31 @@ from functools import partial
 import inspect
 import time
 from pathlib import Path
-from typing import Coroutine, Sequence, Callable
+from re import sub
+from typing import Coroutine, Sequence, Callable, Optional, Tuple, Dict, TextIO
+import re
 import trio
+import json
 
-from util.test_base import repeat_test
+from util.test_base import repeat_test, ApolloTest
+from util.consts import CHECKPOINT_SEQUENCES
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyclient")) 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyclient"))
 
 import util.bft_debug_tool
 import bft_config
 import bft_client
 import bft_metrics_client
+import inspect
 from enum import Enum
 from util import bft_metrics, eliot_logging as log
-from util.eliot_logging import log_call, logdir_timestamp
+from util.eliot_logging import log_call, logdir_timestamp, log_message, add_destinations, remove_destination, \
+    format_eliot_message
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError, CreError
 from bft_config import BFTConfig
+from threading import Thread, Event
+from time import sleep
 
 DB_FILE_PREFIX = "simpleKVBTests_DB_"
 DB_SNAPSHOT_PREFIX = DB_FILE_PREFIX + "snapshot_"
@@ -94,6 +104,7 @@ BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS'
 # Reserved clients (RESERVED_CLIENTS_QUOTA) are not part of NUM_CLIENTS
 RESERVED_CLIENTS_QUOTA = 2
 NUM_PARTICIPANTS = 5
+
 
 def interesting_configs(config_filter=None) -> Sequence[BFTConfig]:
     config_filter = config_filter or (lambda n, f, c: c == 0)
@@ -145,6 +156,7 @@ def with_constant_load(async_fn):
             bft_network = kwargs.pop("bft_network")
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             client = bft_network.new_reserved_client()
+            log.log_message(message_type=f"Constant load client id: {client.client_id}")
 
             async def background_sender(arg1, arg2, *, task_status=trio.TASK_STATUS_IGNORED):
                 with trio.CancelScope() as scope:
@@ -182,7 +194,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
             if "bft_network" in kwargs:
                 bft_network = kwargs.pop("bft_network")
                 bft_network.is_existing = True
-                with log.start_task(action_type=async_fn.__name__):
+                with log.start_task(action_type="Running test with network", test_name=async_fn.__name__):
                     await async_fn(*args, **kwargs, bft_network=bft_network)
             else:
                 configs = bft_configs if bft_configs is not None else interesting_configs(selected_configs)
@@ -200,13 +212,18 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         start_replica_cmd=start_replica_cmd,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
-                    with test_instance.subTest(config=f'{bft_config}'):
+                    subtest_id = None
+                    with test_instance.subTest(config=f'{bft_config}',
+                                               storage=f"v{os.environ.get('BLOCK_CHAIN_VERSION', default='1')}"):
+                        subtest_id = test_instance._subtest.id()
+                        ApolloTest.FAILED_CASES[subtest_id] = 'Case aborted by an external signal'
                         async with trio.open_nursery() as background_nursery:
-                            @repeat_test(num_repeats, break_on_first_failure, break_on_first_success)
+                            @repeat_test(num_repeats, break_on_first_failure, break_on_first_success, test_name)
                             async def test_with_bft_network():
-                                with BftTestNetwork.new(config, background_nursery, with_cre=with_cre, use_unified_certs=use_unified_certs) as bft_network:
-                                    bft_network.current_test = test_name
-                                    seed = args[0].test_seed
+                                with BftTestNetwork.new(
+                                        config, background_nursery, with_cre=with_cre,
+                                        use_unified_certs=use_unified_certs, case_name=test_name) as bft_network:
+                                    seed = test_instance.test_seed
                                     with log.start_task(action_type=f"{async_fn.__name__}",
                                                         bft_config=f'{bft_config}_clients={config.num_clients}',
                                                         seed=seed, repeats=num_repeats,
@@ -223,6 +240,9 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         bft_network.test_start_time = time.time()
                                         await async_fn(*args, **kwargs, bft_network=bft_network)
                             await test_with_bft_network()
+                    ApolloTest.FAILED_CASES.pop(subtest_id)
+                    test_instance.register_errors()
+
         return wrapper
     return decorator
 
@@ -240,8 +260,14 @@ KV_LEN = 21
 class BftTestNetwork:
     """Encapsulates a BFT network instance for testing purposes"""
 
+    def write_message(self, message):
+        self._eliot_log_file.write(f"{json.dumps(message)}\n")
+
     def __enter__(self):
         """context manager method for 'with' statements"""
+        if not self._eliot_log_file:
+            self._eliot_log_file = (self.current_test_case_path / 'eliot.log').open('a+')
+        add_destinations(self.write_message)
         return self
 
     def __exit__(self, etype, value, tb):
@@ -277,9 +303,14 @@ class BftTestNetwork:
                 self.perf_proc.wait()
 
             self.check_error_logs()
+            remove_destination(self.write_message)
+            if self._eliot_log_file:
+                self._eliot_log_file.close()
+                self._eliot_log_file = None
 
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
-                 procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
+                 procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[],
+                 case_name=""):
         self.is_existing = is_existing
         # An existing deployment might pass some of the folders paths as empty so we skip the next assertion.
         if not is_existing:
@@ -292,6 +323,7 @@ class BftTestNetwork:
         self.builddir = builddir
         self.toolsdir = toolsdir
         self.procs = procs
+        self.subproc_monitors: Dict[int, Tuple[Thread, Event, TextIO]] = dict()
         self.replicas = replicas
         # Make sure that client order is deterministic so that
         # seeded random client choices are deterministic
@@ -303,12 +335,10 @@ class BftTestNetwork:
         if client_factory:
             self.client_factory = client_factory
         else:
-            log.log_message(message_type=f"Client class is {BFT_CLIENT_TYPE}")
             self.client_factory = partial(self._create_new_client, BFT_CLIENT_TYPE)
         self.open_fds = {}
-        self.current_test = ""
+        self.current_test = case_name
         self.background_nursery = background_nursery
-        self.current_test_case_path = None
         self.test_start_time = None
         self.perf_proc = None
         self.ro_replicas = ro_replicas
@@ -318,17 +348,27 @@ class BftTestNetwork:
         self.cre_proc = None
         self.cre_fds = None
         self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_clients + RESERVED_CLIENTS_QUOTA
-        self._replica_log_dir_timestamp = logdir_timestamp()
+        self._logs_dir = Path(self.builddir) / "tests" / "apollo" / "logs" / logdir_timestamp()
+        self._eliot_log_file = None
+        self._suite_name = os.environ.get('TEST_NAME', None)
+        if not self._suite_name:
+            now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
+            self._suite_name = f"{now}_{self.current_test}"
+
+        self.current_test_case_path = self._logs_dir / self._suite_name / self.current_test
+        self.current_test_case_path.mkdir(parents=True, exist_ok=True)
+
         # Setup transaction signing parameters
         self.setup_txn_signing()
         self._generate_operator_keys()
 
     @classmethod
-    def new(cls, config, background_nursery, client_factory=None, with_cre=False, use_unified_certs=False):
+    def new(cls, config, background_nursery, client_factory=None, with_cre=False, use_unified_certs=False,
+            case_name=None):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
-        testdir = tempfile.mkdtemp()
-        certdir = tempfile.mkdtemp()
+        testdir = tempfile.mkdtemp(prefix='testdir_')
+        certdir = tempfile.mkdtemp(prefix='certdir_')
         cls.assert_dirs_exist([testdir, certdir, builddir, toolsdir])
         bft_network = cls(
             is_existing=False,
@@ -350,7 +390,8 @@ class BftTestNetwork:
             ro_replicas=[bft_config.Replica(i, "127.0.0.1",
                                             bft_config.bft_msg_port_from_node_id(i),
                                             bft_config.metrics_port_from_node_id(i))
-                         for i in range(config.n, config.n + config.num_ro_replicas)]
+                         for i in range(config.n, config.n + config.num_ro_replicas)],
+            case_name=case_name
         )
         bft_network.with_cre = with_cre
         bft_network.use_unified_certs = use_unified_certs
@@ -377,6 +418,7 @@ class BftTestNetwork:
     @classmethod
     def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None):
         certdir = None
+        builddir = tempfile.mkdtemp(prefix='builddir')
         if not client_factory:
             certdir = tempfile.mkdtemp()
             assert background_nursery is not None, "You must transfer a background nursery which lasts for all test duration!"
@@ -386,7 +428,7 @@ class BftTestNetwork:
             config=config,
             testdir=None,
             certdir=certdir,
-            builddir=None,
+            builddir=builddir,
             toolsdir=None,
             procs={r.id: r for r in replicas},
             replicas=replicas,
@@ -410,19 +452,12 @@ class BftTestNetwork:
             stderr_file = None
 
             if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
-                test_name = os.environ.get('TEST_NAME')
-
-                if not test_name:
-                    now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
-                    test_name = f"{now}_{self.current_test}"
-
-                self.current_test_case_path = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
-                test_log = f"{self.current_test_case_path}stdout_cre.log"
+                test_log = f"{self.current_test_case_path / 'stdout_cre.log' }"
 
                 Path(self.current_test_case_path).mkdir(parents=True, exist_ok=True)
 
-                stdout_file = open(test_log, 'w+')
-                stderr_file = open(test_log, 'w+')
+                stdout_file = open(test_log, 'a+')
+                stderr_file = open(test_log, 'a+')
 
                 stdout_file.write("############################################\n")
                 stdout_file.flush()
@@ -444,7 +479,7 @@ class BftTestNetwork:
                            "-U", str(int(self.use_unified_certs))]
                 digest = self.binary_digest(cre_exe) if Path(cre_exe).exists() else 'Unknown'
                 with log.start_action(action_type="start_reconfiguration_client_process", binary=cre_exe,
-                                      binary_digest=digest):
+                                      binary_digest=digest, cmd=' '.join(cre_cmd)):
                     self.cre_proc = subprocess.Popen(
                         cre_cmd,
                         stdout=stdout_file,
@@ -462,50 +497,52 @@ class BftTestNetwork:
                 fd.close()
             p.wait()
 
-    def transfer_db_files(self, source, dests):
-        with log.start_action(action_type="transfer db files"):
-            source_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(source))
-            for r in dests:
+    def transfer_db_files(self, source_id: int, dest_ids: Sequence[int]):
+        with log.start_action(action_type="transfer db files", source_id=source_id, dests=dest_ids):
+            source_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(source_id))
+            for r in dest_ids:
                 dest_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(r))
                 res = subprocess.run(['cp', '-rf', source_db_dir, dest_db_dir])
                 log.log_message(message_type=f"copy db files from {source_db_dir} to {dest_db_dir}, result is {res.returncode}")
 
     async def change_configuration(self, config, generate_tls=False, use_unified_certs=False):
-        self.config = config
-        self.replicas = [bft_config.Replica(i, "127.0.0.1",
-                                            bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
-                         for i in range(0, config.n + config.num_ro_replicas)]
+        with log.start_action(action_type="change_configuration"):
+            self.config = config
+            self.replicas = [bft_config.Replica(i, "127.0.0.1",
+                                                bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
+                             for i in range(0, config.n + config.num_ro_replicas)]
 
-        self._generate_crypto_keys()
+            self._generate_crypto_keys()
 
-        if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
-            generate_cre = 0 if self.with_cre is False else 1
-            # Generate certificates for replicas, clients, and reserved clients
-            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
-
+            if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+                generate_cre = 0 if self.with_cre is False else 1
+                # Generate certificates for replicas, clients, and reserved clients
+                self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
-        # remove all existing clients
-        for client in self.clients.values():
-            client.__exit__()
-        for client in self.reserved_clients.values():
-            client.__exit__()
-        self.reserved_client_ids_in_use = []
-        self.metrics.__exit__()
-        self.clients = {}
+        with log.start_action(action_type="restart_clients", generate_tx_signing_keys=generate_tx_signing_keys,
+                              restart_replicas=restart_replicas):
+            # remove all existing clients
+            for client in self.clients.values():
+                client.__exit__()
+            for client in self.reserved_clients.values():
+                client.__exit__()
+            self.reserved_client_ids_in_use = []
+            self.metrics.__exit__()
+            self.clients = {}
 
-        if generate_tx_signing_keys:
-            # remove existing transaction signing keys and generate again
-            shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
-            self.setup_txn_signing()
-            if restart_replicas:
-                # Now, we must restart the replicas
-                self.stop_all_replicas()
-                self.start_all_replicas()
+            if generate_tx_signing_keys:
+                # remove existing transaction signing keys and generate again
+                shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
+                self.setup_txn_signing()
+                if restart_replicas:
+                    # Now, we must restart the replicas
+                    self.stop_all_replicas()
+                    self.start_all_replicas()
 
-        self._init_metrics()
-        self._create_clients()
-        self._create_reserved_clients()
+            self._init_metrics()
+            self._create_clients()
+            self._create_reserved_clients()
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
@@ -571,14 +608,17 @@ class BftTestNetwork:
 
     def copy_certs_from_server_to_clients(self, src):
         src_cert = self.certdir + "/" + str(src)
-        for c in range(self.num_total_replicas() , self.num_total_replicas() + self.config.num_clients + RESERVED_CLIENTS_QUOTA):
+        for c in range(self.num_total_replicas(), self.num_total_replicas() + self.config.num_clients + RESERVED_CLIENTS_QUOTA):
             comp_cert_dir = self.certdir + "/" + str(c)
             shutil.rmtree(comp_cert_dir, ignore_errors=True)
             shutil.copytree(src_cert, comp_cert_dir)
 
     def _create_clients(self):
         start_id = self.config.n + self.config.num_ro_replicas
-        for client_id in range(start_id, start_id + self.config.num_clients):
+        last_id = start_id + self.config.num_clients
+        log_message(message_type=f"Creating clients", first_client_id=start_id, last_client_id=last_id,
+                    communication=str(BFT_CLIENT_TYPE), config_template=self._bft_config('client_id'))
+        for client_id in range(start_id, last_id):
             self.clients[client_id] = self.client_factory(client_id)
 
     def _create_new_client(self, client_class, client_id):
@@ -593,7 +633,7 @@ class BftTestNetwork:
 
     def new_reserved_client(self):
         if len(self.reserved_client_ids_in_use) == RESERVED_CLIENTS_QUOTA:
-            raise  NotImplemented("You must increase RESERVED_CLIENTS_QUOTA, see comment above")
+            raise NotImplemented("You must increase RESERVED_CLIENTS_QUOTA, see comment above")
         start_id = self.num_total_replicas() + self.config.num_clients
         reserved_client_ids = [ id for id in range(start_id, start_id + RESERVED_CLIENTS_QUOTA) ]
         free_reserved_client_ids = set(reserved_client_ids) - set(self.reserved_client_ids_in_use)
@@ -636,7 +676,7 @@ class BftTestNetwork:
         self.principals_mapping = ""
         self.principals_to_participant_map = {}
         if self.txn_signing_enabled:
-            self.txn_signing_keys_base_path = tempfile.mkdtemp()
+            self.txn_signing_keys_base_path = tempfile.mkdtemp(prefix='txn_signing_keys')
             self.principals_mapping, self.principals_to_participant_map = self.create_principals_mapping()
             self.generate_txn_signing_keys(self.txn_signing_keys_base_path)
 
@@ -791,6 +831,32 @@ class BftTestNetwork:
         for r in replicas:
             self.stop_replica(r)
 
+    @staticmethod
+    def monitor_replica_subproc(subproc: subprocess.Popen, replica_id: int, stop_event: Event, stdout_file):
+        while True:
+            return_code = subproc.poll()
+
+            if return_code == 0:
+                break
+
+            if return_code is not None:
+                stop_event.set()
+                error_msg = f"ERROR - The subprocess of replica {replica_id} with pid {subproc.pid} has failed, " \
+                            f"return code = {return_code}"
+                log_message(message_type=f"{error_msg}, aborting test", replica_log=stdout_file.name)
+                stdout_file.write(f"####### FATAL ERROR: The process has crashed, subproc return value: {return_code}\n")
+                print(error_msg, file=sys.stderr)
+                os.kill(os.getpid(), signal.SIGINT)
+                break
+
+            if stop_event.is_set():
+                break
+
+            sleep(0.2)
+
+    def get_replicas(self, replica_ids):
+        return [replica for replica in self.replicas if replica.id in replica_ids]
+
     def start_replica(self, replica_id):
         """
         Start a replica if it isn't already started.
@@ -801,20 +867,13 @@ class BftTestNetwork:
         keep_logs = os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]
 
         if keep_logs:
-            test_name = os.environ.get('TEST_NAME')
-            if os.environ.get('BLOCKCHAIN_VERSION', default="1") == "4" :
-                test_name = test_name + "_v4"
-
-            if not test_name:
-                test_name = f"{self._replica_log_dir_timestamp}_{self.current_test}"
-
-            self.current_test_case_path = os.path.join(self.builddir, "tests", "apollo", "logs", test_name, self.current_test)
-            replica_test_log_path = os.path.join(self.current_test_case_path, f"stdout_{replica_id}.log")
+            suite_name = self._suite_name
+            replica_test_log_path = self.current_test_case_path / f"stdout_{replica_id}.log"
 
             Path(self.current_test_case_path).mkdir(parents=True, exist_ok=True)
 
-            stdout_file = open(replica_test_log_path, 'w+')
-            stderr_file = open(replica_test_log_path, 'w+')
+            stdout_file = open(replica_test_log_path, 'a+')
+            stderr_file = open(replica_test_log_path, 'a+')
 
             stdout_file.write("############################################\n")
             stdout_file.flush()
@@ -829,7 +888,7 @@ class BftTestNetwork:
         """
         if os.environ.get('CODECOVERAGE', "").lower() in ["true", "on"] and \
                 os.environ.get('GRACEFUL_SHUTDOWN',"").lower() in ["true", "on"]:
-            self.coverage_dir = f"{self.builddir}/tests/apollo/codecoverage/{test_name}/{self.current_test}/"
+            self.coverage_dir = f"{self.builddir}/tests/apollo/codecoverage/{suite_name}/{self.current_test}/"
             Path(self.coverage_dir).mkdir(parents=True, exist_ok=True)
             profraw_file_name = f"coverage_{replica_id}_%9m.profraw"
             profraw_file_path = os.path.join(
@@ -843,7 +902,8 @@ class BftTestNetwork:
         start_cmd, replica_binary_path = self.start_replica_cmd(replica_id)
         digest = self.binary_digest(replica_binary_path) if Path(replica_binary_path).exists() else 'Unknown'
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
-                              binary_path=replica_binary_path, binary_digest=digest, cmd=' '.join(start_cmd)):
+                              binary_path=replica_binary_path, binary_digest=digest, cmd=' '.join(start_cmd),
+                              with_monitor=keep_logs):
             my_env = os.environ.copy()
             my_env["RID"] = str(replica_id)
             if is_external:
@@ -861,8 +921,6 @@ class BftTestNetwork:
                     env=my_env
                 )
 
-                if keep_logs:
-                    self.verify_matching_replica_client_communication(replica_test_log_path)
             # If we run with some debug tool, let the module process the triggered proc process, and set the process info
             # according to the returned value. Some debug tools spawn multiple processes.
             if self.debug_tool and self.debug_tool.name:
@@ -870,7 +928,21 @@ class BftTestNetwork:
             else:
                 self.procs[replica_id] = proc
 
-        replica_for_perf = os.environ.get('PERF_REPLICA', "")
+                if keep_logs:
+                    for _, __, other_replica_stdout_file in self.subproc_monitors.values():
+                        if not other_replica_stdout_file.closed:
+                            other_replica_stdout_file.write(
+                                f"################### Apollo starting replica {replica_id}\n")
+                            other_replica_stdout_file.flush()
+                    stop_event = Event()
+                    thread = Thread(target=BftTestNetwork.monitor_replica_subproc,
+                                    args=(self.procs[replica_id], replica_id, stop_event, stdout_file))
+                    self.subproc_monitors[replica_id] = (thread, stop_event, stdout_file)
+                    thread.start()
+
+                    self.verify_matching_replica_client_communication(replica_test_log_path)
+
+        replica_for_perf = os.environ.get('PERF_REPLICA', None)
         if self.test_start_time and replica_for_perf and int(replica_for_perf) == replica_id:
             log.log_message(message_type=f"Profiling replica {replica_id} using perf")
             perf_samples = os.environ.get('PERF_SAMPLES', "1000")
@@ -975,6 +1047,17 @@ class BftTestNetwork:
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
+        if replica_id in self.subproc_monitors:
+            thread, stop_event, stdout_file = self.subproc_monitors[replica_id]
+            stop_event.set()
+            thread.join(timeout=2)
+            for other_id, other_tuple in self.subproc_monitors.items():
+                other_file = other_tuple[2]
+                if not other_file.closed:
+                    other_file.write(f"################### Apollo stopping replica {replica_id}\n")
+                    other_file.flush()
+
+
         with log.start_action(action_type="stop_replica", replica=replica_id):
             if replica_id not in self.procs.keys():
                 raise AlreadyStoppedError(replica_id)
@@ -1109,6 +1192,31 @@ class BftTestNetwork:
                     else:
                         return value
 
+    async def wait_for_view_with_threshold(self, view_number: int, threshold: Optional[int] = None,
+                                           timeout_seconds: float = 45, sleep_seconds: float = .25, error_msg=None):
+        """
+        Waits for at least threshold replicas to reach view view_number
+        :param view_number: The view number to reach
+        :param threshold: The minimal amount of replicas which are expected to reach view view_number,
+                          Defaults to 2f + 2c + 1
+        :param timeout_seconds: Maximal amount of seconds to wait
+        :param sleep_seconds: Time to sleep between samples, in seconds
+        :param error_msg: Error to display in case of timeout
+        :return: The number of replicas who reached view view_number at the time of the last sample
+        """
+        threshold = threshold if threshold else 2 * self.config.f + 2 * self.config.c + 1
+        replica_in_view_count = 0
+        try:
+            with trio.fail_after(timeout_seconds):
+                while replica_in_view_count < threshold:
+                    replica_in_view_count = await self.count_replicas_in_view(view_number)
+                    await trio.sleep(sleep_seconds)
+        except trio.TooSlowError as e:
+            msg = error_msg if error_msg else \
+                f"Only {replica_in_view_count} out of {threshold} replicas reached view number {view_number}"
+            raise trio.TooSlowError(msg) from e
+        return replica_in_view_count
+
     async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
         """
@@ -1130,7 +1238,9 @@ class BftTestNetwork:
                 matching_view = await self._wait_for_matching_agreed_view(replica_id, expected)
                 action.log(message_type=f'Matching view #{matching_view} has been agreed among replicas.')
 
-                nb_replicas_in_matching_view = await self._wait_for_active_view(matching_view)
+                nb_replicas_in_matching_view = \
+                    await self.wait_for_view_with_threshold(view_number=matching_view,
+                                                            threshold=2 * self.config.f + 2 * self.config.c + 1)
                 action.log(f'View #{matching_view} is active on '
                       f'{nb_replicas_in_matching_view} replicas '
                       f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
@@ -1159,34 +1269,19 @@ class BftTestNetwork:
             action.add_success_fields(last_agreed_view=last_agreed_view)
             return last_agreed_view
 
-    async def _wait_for_active_view(self, view):
-        """
-        Wait for a view to become active on enough (n-f) replicas
-        """
-        with log.start_action(action_type="_wait_for_active_view", view=view):
-            with trio.fail_after(seconds=45):
-                while True:
-                    nb_replicas_in_view = await self._count_replicas_in_view(view)
-
-                    # wait for n-f = 2f+2c+1 replicas to be in the expected view
-                    if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
-                        break
-                    await trio.sleep(0.1)
-            return nb_replicas_in_view
-
-    async def _count_replicas_in_view(self, view):
+    async def count_replicas_in_view(self, view):
         """
         Count the number of replicas that have activated a given view
         """
-        with log.start_action(action_type="_count_replicas_in_view", view=view):
+        with log.start_action(action_type="count_replicas_in_view", view=view):
             nb_replicas_in_view = 0
 
-            async def count_if_replica_in_view(r, expected_view):
+            async def _count_if_replica_in_view(r, expected_view):
                 """
                 A closure that allows concurrent counting of replicas
                 that have activated a given view.
                 """
-                with log.start_action(action_type="count_if_replica_in_view"):
+                with log.start_action(action_type="count_if_replica_in_view", replica=r):
                     nonlocal nb_replicas_in_view
 
                     key = ['replica', 'Gauges', 'currentActiveView']
@@ -1208,7 +1303,7 @@ class BftTestNetwork:
         async with trio.open_nursery() as nursery:
             for r in self.get_live_replicas():
                 nursery.start_soon(
-                    count_if_replica_in_view, r, view)
+                    _count_if_replica_in_view, r, view)
         return nb_replicas_in_view
 
     async def force_quorum_including_replica(self, replica_id):
@@ -1231,7 +1326,15 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="wait_for_fetching_state", replica=replica_id) as action:
             async def replica_to_be_in_fetching_state():
-                is_fetching = await self.is_fetching(replica_id)
+                has_metric = False
+                while not has_metric:
+                    try:
+                        is_fetching = await self.is_fetching(replica_id)
+                        has_metric = True
+                    except KeyError:
+                        # If a replica was down, the metric server might be up prior to the replica
+                        # registering its state transfer related metrics
+                        pass
                 source_replica_id = await self.source_replica(replica_id)
                 if is_fetching:
                     action.add_success_fields(source_replica_id=source_replica_id)
@@ -1252,21 +1355,23 @@ class BftTestNetwork:
             source_replica_id = await self.metrics.get(replica_id, *key)
             return source_replica_id
 
-    async def wait_for_state_transfer_to_start(self):
+    async def wait_for_state_transfer_to_start(self, replica_ids: Optional[Sequence[int]]=None):
         """
         Retry checking every .5 seconds until state transfer starts at least one
         node. Stop trying, and fail the test after 30 seconds.
         """
-        with log.start_action(action_type="wait_for_state_transfer_to_start"):
+        replicas = self.replicas if not replica_ids else filter(lambda rep: rep.id in replica_ids, self.replicas)
+        with log.start_action(action_type="wait_for_state_transfer_to_start", replica_ids=[rep.id for rep in replicas]):
             with trio.fail_after(30): # seconds
                 async with trio.open_nursery() as nursery:
-                    for replica in self.replicas:
+                    for replica in replicas:
                         nursery.start_soon(self._wait_to_receive_st_msgs,
                                            replica,
                                            nursery.cancel_scope)
 
     async def wait_for_replicas_to_collect_stable_checkpoint(self, replicas, checkpoint, timeout=30):
-        with log.start_action(action_type="wait_for_replicas_to_collect_stable_checkpoint", replicas=replicas) as action:
+        with log.start_action(action_type="wait_for_replicas_to_collect_stable_checkpoint", replicas=replicas,
+                              checkpoint=checkpoint) as action:
             with trio.fail_after(seconds=timeout):
                 last_stable_seqs = []
                 while True:
@@ -1275,7 +1380,7 @@ class BftTestNetwork:
                         last_stable_seqs.append(last_stable)
                         action.log(message_type="lastStableSeqNum", replica=replica_id, last_stable=last_stable)
                     assert checkpoint >= last_stable / 150, "Probably got wrong checkpoint as input"
-                    if sum(x == 150 * checkpoint for x in last_stable_seqs) == len(replicas):
+                    if sum(x >= 150 * checkpoint for x in last_stable_seqs) == len(replicas):
                         break
                     else:
                         last_stable_seqs.clear()
@@ -1299,7 +1404,7 @@ class BftTestNetwork:
                         pass # metrics not yet available, continue looping
                     await trio.sleep(0.1)
 
-    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False, seconds_until_timeout=45 if os.getenv('BUILD_COMM_TCP_TLS') == "OFF" else 30):
+    async def wait_for_state_transfer_to_stop(self, up_to_date_node: int, stale_node: int, stop_on_stable_seq_num=False, seconds_until_timeout=45 if os.getenv('BUILD_COMM_TCP_TLS') == "OFF" else 30):
         with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num, seconds_until_timeout=seconds_until_timeout):
             with trio.fail_after(seconds_until_timeout):
                 # Get the lastExecutedSeqNumber from a started node
@@ -1314,24 +1419,26 @@ class BftTestNetwork:
                         with trio.move_on_after(.5): # seconds
                             metrics = await self.metrics.get_all(stale_node)
                             try:
-                                n = self.metrics.get_local(metrics, *key)
+                                stale_node_metric = self.metrics.get_local(metrics, *key)
                             except KeyError:
                                 # ignore - the metric will eventually become available
                                 await trio.sleep(0.1)
                             else:
                                 # Debugging
-                                if n != last_n:
-                                    last_n = n
+                                if stale_node_metric != last_n:
+                                    last_n = stale_node_metric
                                     last_stored_checkpoint = self.metrics.get_local(metrics,
                                         'bc_state_transfer', 'Gauges', 'last_stored_checkpoint')
                                     on_transferring_complete = self.metrics.get_local(metrics,
                                         'bc_state_transfer', 'Counters', 'on_transferring_complete')
                                     action.log(message_type="Not complete yet",
-                                        seq_num=n, last_stored_checkpoint=last_stored_checkpoint, on_transferring_complete=on_transferring_complete)
+                                               seq_num=stale_node_metric, expected_seq_num=expected_seq_num,
+                                               last_stored_checkpoint=last_stored_checkpoint,
+                                               on_transferring_complete=on_transferring_complete)
 
-                                # Exit condition
-                                if n >= expected_seq_num:
-                                    action.add_success_fields(n=n, expected_seq_num=expected_seq_num)
+                                # Exit condition - make sure that same checkpoint as live replica is reached
+                                if (stale_node_metric // CHECKPOINT_SEQUENCES) == (expected_seq_num // CHECKPOINT_SEQUENCES):
+                                    action.add_success_fields(n=stale_node_metric, expected_seq_num=expected_seq_num)
                                     return
 
                                 await trio.sleep(0.5)
@@ -1420,33 +1527,31 @@ class BftTestNetwork:
 
         return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)
 
-    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None, timeout=30):
+    async def wait_for_replicas_to_checkpoint(self, replica_ids: Sequence[int],
+                                              expected_checkpoint_num: Callable[[int], bool] = lambda _: True,
+                                              timeout=30):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
         """
-        with log.start_action(action_type="wait_for_replicas_to_checkpoint", replica_ids=replica_ids, expected_checkpoint_num=expected_checkpoint_num):
+        with log.start_action(action_type="wait_for_replicas_to_checkpoint", replica_ids=replica_ids):
             with trio.fail_after(timeout): # seconds
                 async with trio.open_nursery() as nursery:
                     for replica_id in replica_ids:
                         nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)
 
-    async def wait_for_checkpoint(self, replica_id, expected_checkpoint_num=None):
+    async def wait_for_checkpoint(self, replica_id: int,
+                                  expected_checkpoint_num: Callable[[int], bool] = lambda _: True):
         """
         Wait for a single replica to reach the expected_checkpoint_num.
         If none is provided, return the last stored checkpoint.
         """
-        with log.start_action(action_type="wait_for_checkpoint", replica=replica_id, expected_checkpoint_num=expected_checkpoint_num) as action:
-            if expected_checkpoint_num is None:
-                expected_checkpoint_num = lambda _: True
-
+        with log.start_action(action_type="wait_for_checkpoint", replica=replica_id) as action:
             async def expected_checkpoint_to_be_reached():
                 key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
-
                 last_stored_checkpoint = await self.retrieve_metric(replica_id, *key)
-                action.log(message_type=f'[checkpoint] #{last_stored_checkpoint}, replica=#{replica_id}')
-
                 if last_stored_checkpoint is not None and expected_checkpoint_num(last_stored_checkpoint):
+                    action.log(message_type=f'[checkpoint] #{last_stored_checkpoint} reached by replica=#{replica_id}')
                     action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
                     return last_stored_checkpoint
 
@@ -1566,7 +1671,9 @@ class BftTestNetwork:
             nb_fast_paths_to_ignore=nb_fast_paths_to_ignore,
             nb_slow_paths_to_ignore=nb_slow_paths_to_ignore,
             replica_id=replica_id)
-        assert res == ConsensusPathPrevalentResult.OK, "Fast path is not prevalent"
+        assert res == ConsensusPathPrevalentResult.OK, \
+            f"Fast path is not prevalent in replica {replica_id}: \n" \
+            f"nb_fast_paths_to_ignore: {nb_fast_paths_to_ignore}, nb_slow_paths_to_ignore: {nb_slow_paths_to_ignore}\n"
 
     async def assert_slow_path_prevalent(self, nb_fast_paths_to_ignore=0, nb_slow_paths_to_ignore=0, replica_id=0):
         res = await self._consensus_path_prevalent(
@@ -1574,7 +1681,9 @@ class BftTestNetwork:
             nb_fast_paths_to_ignore=nb_fast_paths_to_ignore,
             nb_slow_paths_to_ignore=nb_slow_paths_to_ignore,
             replica_id=replica_id)
-        assert res == ConsensusPathPrevalentResult.OK, "Slow path is not prevalent"
+        assert res == ConsensusPathPrevalentResult.OK, \
+            f"Slow path is not prevalent in replica {replica_id}: \n" \
+            f"nb_fast_paths_to_ignore: {nb_fast_paths_to_ignore}, nb_slow_paths_to_ignore: {nb_slow_paths_to_ignore}\n"
 
     async def _consensus_path_prevalent(
             self, fast, nb_fast_paths_to_ignore=0, nb_slow_paths_to_ignore=0, replica_id=0):
@@ -1621,18 +1730,16 @@ class BftTestNetwork:
            returns None before interval expires. This only matters in that it
            uses more CPU.
         """
-        with log.start_action(action_type="wait_for"):
-            with trio.fail_after(timeout):
-                while True:
-                    with trio.move_on_after(interval):
-                        if inspect.iscoroutinefunction(task):
-                            result = await task()
-                            if result is not None:
-                                return result
-                            else:
-                                await trio.sleep(0.1)
-                        else:
-                            raise TypeError
+        assert inspect.iscoroutinefunction(task)
+        with trio.fail_after(timeout):
+            while True:
+                with trio.move_on_after(interval):
+                    result = await task()
+                    if result is not None:
+                        return result
+                    else:
+                        await trio.sleep(0.1)
+
 
     async def retrieve_metric(self, replica_id, component_name, type_, key):
         try:
@@ -1700,15 +1807,19 @@ class BftTestNetwork:
         return await self.wait_for(the_last_db_checkpoint_block_id, 5, .5)
 
     async def check_initial_master_key_publication(self, replicas):
-        with trio.fail_after(seconds=120):
+        prev_num_executions = 0
+        with log.start_action(action_type="check_initial_master_key_publication"), trio.fail_after(seconds=120):
             succ = False
             while succ is False:
                 succ = True
                 for r in replicas:
                     with trio.move_on_after(seconds=1):
                         try:
-                            num_of_executions = int(await self.get_metric(r, self, "Counters", "executions", "reconfiguration_dispatcher"))
-                            if num_of_executions < len(replicas):
+                            current_num_executions = int(await self.get_metric(r, self, "Counters", "executions", "reconfiguration_dispatcher"))
+                            if current_num_executions != prev_num_executions:
+                                log.log_message(message_type="Reconfig execution progress", current_num_executions=current_num_executions, prev_num_executions=prev_num_executions)
+                                prev_num_executions = current_num_executions
+                            if current_num_executions < len(replicas):
                                 succ = False
                                 break
                         except trio.TooSlowError:
@@ -1721,8 +1832,9 @@ class BftTestNetwork:
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
-        with log.start_action(action_type="check_initial_key_exchange"):
-            required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
+        required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
+
+        with log.start_action(action_type="check_initial_key_exchange", required_exchanges=required_exchanges):
             replicas_to_start = [r for r in range(self.config.n)] if replicas_to_start == [] else replicas_to_start
             self.start_replicas(replicas_to_start)
             num_of_exchanged_replicas = 0
@@ -1735,7 +1847,7 @@ class BftTestNetwork:
                                 sent_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
                                 self_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "self_key_exchange"])
                                 public_key_exchange_for_peer_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-                                if  sent_key_exchange_on_start_status == 'False' or \
+                                if sent_key_exchange_on_start_status == 'False' or \
                                     sent_key_exchange_counter < 1 or \
                                     self_key_exchange_counter < 1 or \
                                     public_key_exchange_for_peer_counter < required_exchanges :
@@ -1750,6 +1862,7 @@ class BftTestNetwork:
                                 assert self_key_exchange_counter >= 1
                                 assert public_key_exchange_for_peer_counter >= required_exchanges
                                 num_of_exchanged_replicas += 1
+                                log.log_message(message_type=f"Replica {replica_id} exchanged its key", num_of_exchanged_replicas=num_of_exchanged_replicas, required_exchanges=required_exchanges)
                                 break
                     if num_of_exchanged_replicas >= len(replicas_to_start):
                         break
@@ -1908,7 +2021,8 @@ class BftTestNetwork:
 
 
     async def wait_for_stable_checkpoint(self, replicas, stable_seqnum):
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=30), log.start_action(action_type="wait_for_stable_checkpoint",
+                                                           replicas=replicas, stable_seqnum=stable_seqnum):
             all_in_checkpoint = False
             while all_in_checkpoint is False:
                 all_in_checkpoint = True
@@ -1936,22 +2050,22 @@ class BftTestNetwork:
                     break
 
     def db_snapshot_exists(self, replica_id, snapshot_id=None):
-        with log.start_action(action_type="db_snapshot_exists()"):
-            snapshot_db_dir = os.path.join(
-                self.testdir, DB_SNAPSHOT_PREFIX + str(replica_id))
-            if snapshot_id is not None:
-                snapshot_db_dir = os.path.join(snapshot_db_dir, str(snapshot_id))
-            if not os.path.exists(snapshot_db_dir):
-                return False
+        snapshot_db_dir = os.path.join(
+            self.testdir, DB_SNAPSHOT_PREFIX + str(replica_id))
+        if snapshot_id is not None:
+            snapshot_db_dir = os.path.join(snapshot_db_dir, str(snapshot_id))
+        if not os.path.exists(snapshot_db_dir):
+            return False
 
-            # Make sure that checkpoint folder is not empty.
-            size = 0
-            for element in os.scandir(snapshot_db_dir):
-                size += os.path.getsize(element)
-            return (size > 0)
+        # Make sure that checkpoint folder is not empty.
+        size = 0
+        for element in os.scandir(snapshot_db_dir):
+            size += os.path.getsize(element)
+        return (size > 0)
 
     async def wait_for_db_snapshot(self, replica_id, snapshot_id=None):
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=30), log.start_action(action_type="wait_for_db_snapshot", replica_id=replica_id,
+                                                           snapshot_id=snapshot_id):
             while True:
                 if self.db_snapshot_exists(replica_id, snapshot_id) == True:
                     break
@@ -1985,5 +2099,5 @@ class BftTestNetwork:
 
     @staticmethod
     def assert_dirs_exist(dirs):
-        for dir in dirs:
+        for dir in map(os.path.abspath, dirs):
             assert os.path.isdir(dir), f"{dir} must exist!"

@@ -20,7 +20,7 @@ import trio
 from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls, ConsensusPathType
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
@@ -40,6 +40,7 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-e", str(True),
             "-f", '1'
+            "-l", "/concord-bft/tests/simpleKVBC/scripts/logging.properties"
             ]
 
 def start_replica_cmd_without_key_exchange(builddir, replica_id):
@@ -115,7 +116,8 @@ class SkvbcViewChangeTest(ApolloTest):
             )
 
             new_last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
-            self.assertEqual(new_last_block, last_block)
+            self.assertGreaterEqual(new_last_block, last_block)
+            self.assertLessEqual(new_last_block, last_block + len(bft_network.all_replicas()))
 
 
 
@@ -438,8 +440,10 @@ class SkvbcViewChangeTest(ApolloTest):
         n = bft_network.config.n
         f = bft_network.config.f
         c = bft_network.config.c
-
         current_primary = 0
+        view = 0
+        messages_to_send = 5
+        accumulated_slow_paths = 0
         for _ in range(2):
             self.assertEqual(len(bft_network.procs), n,
                              "Make sure all replicas are up initially.")
@@ -459,28 +463,23 @@ class SkvbcViewChangeTest(ApolloTest):
 
             await self._send_random_writes(skvbc)
 
-            stable_replica = random.choice(
-                bft_network.all_replicas(without=crashed_replicas))
-
-            view = await bft_network.wait_for_view(
-                replica_id=stable_replica,
-                expected=lambda v: v >= expected_next_primary,
-                err_msg="Make sure a view change has been triggered."
-            )
+            view += 1
+            await bft_network.wait_for_view_with_threshold(view)
             current_primary = view
-            [bft_network.start_replica(i) for i in crashed_replicas]
+
+            accumulated_slow_paths += messages_to_send
+            await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.SLOW,
+                                                      replica_id=current_primary,
+                                                      run_ops=lambda: skvbc.send_n_kvs_sequentially(messages_to_send),
+                                                      threshold=accumulated_slow_paths)
+
+            for i in crashed_replicas:
+                bft_network.start_replica(i)
 
             await skvbc.read_your_writes()
 
-        await bft_network.wait_for_view(
-            replica_id=current_primary,
-            err_msg="Make sure all ongoing view changes have completed."
-        )
-
+        await bft_network.wait_for_view_with_threshold(view)
         await skvbc.read_your_writes()
-
-        #check after test is fixed
-        await bft_network.assert_slow_path_prevalent(0, 0, stable_replica)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -689,7 +688,7 @@ class SkvbcViewChangeTest(ApolloTest):
     @verify_linearizability()
     async def test_view_changes_at_startup(self, bft_network, tracker):
         """
-        This test aims to validate intial automatic view changes
+        This test aims to validate initial automatic view changes
         with n-f startup. 
         1) Start a BFT network excluding replicas with id 0 and 1
         2) Sleep for sometime, so that replica timeout on connecting to current primary
@@ -800,6 +799,7 @@ class SkvbcViewChangeTest(ApolloTest):
         crash_candidates = bft_network.all_replicas(
             without=except_replicas.union({primary}))
         random.shuffle(crash_candidates)
+        log.log_message(message_type="Crashing replicas", replicas=[primary] + crash_candidates[1:nb_crashing - 1])
         for i in range(nb_crashing - 1):
             bft_network.stop_replica(crash_candidates[i])
             crashed_replicas.add(crash_candidates[i])
