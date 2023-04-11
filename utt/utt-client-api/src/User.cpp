@@ -316,11 +316,25 @@ std::unique_ptr<User> User::recoverFromStorage(std::shared_ptr<IStorage> storage
     if (c.getType() == libutt::api::Coin::Normal) {
       user->pImpl_->coins_.emplace(c.getNullifier(), c);
     } else if (c.getType() == libutt::api::Coin::Budget) {
+      // Currently the original budget coin and change budget coins would
+      // be stored in assets.
+      // Until budget coin pool is supported, use the budget with lowest value
+      // to stick to current single outstanding budget workflow model
       if (user->pImpl_->budgetNullifiers_.size() >= 1) {
-        throw std::runtime_error("Currently multiple budget coins are not supported");
+        if (c.getVal() < user->pImpl_->budgetCoin_.value().getVal()) {
+          user->pImpl_->budgetCoin_.emplace(c);
+          //@todo assuming nullifier list is not used except for book keeping
+          user->pImpl_->budgetNullifiers_.clear();
+          user->pImpl_->budgetNullifiers_.insert(c.getNullifier());
+          std::cout << "warn: mutiple budget coins found updating with least value.." << c.getVal() << std::endl;
+        } else {
+          std::cout << "warn: ignore budget coins value: " << c.getVal()
+                    << " use lower value: " << user->pImpl_->budgetCoin_.value().getVal() << std::endl;
+        }
+      } else {
+        user->pImpl_->budgetCoin_.emplace(c);
+        user->pImpl_->budgetNullifiers_.insert(c.getNullifier());
       }
-      user->pImpl_->budgetCoin_.emplace(c);
-      user->pImpl_->budgetNullifiers_.insert(c.getNullifier());
     }
   }
   return user;
