@@ -27,13 +27,15 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
   auto valueHash = hasher.hash(value.data(), value.length());
 
   enum class Direction : std::uint8_t { Left, Right };
+  const auto BatchedInternalNodeLevelsIterated = BatchedInternalNode::MAX_HEIGHT - 1;
 
   std::vector<Direction> pathOrdering;
   for (int nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
     auto current_nibble = keyHash.getNibble(nibble_index).data();
     auto node_index = BatchedInternalNode::nibbleToIndex(current_nibble);
     std::vector<Direction> subPath;
-    for (int i = 0; i < BatchedInternalNode::MAX_HEIGHT - 1; i++) {
+    subPath.reserve(BatchedInternalNodeLevelsIterated);
+    for (int i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (BatchedInternalNode::isLeftChild(node_index)) {
         subPath.push_back(Direction::Left);
       } else {
@@ -73,6 +75,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
   auto key_hash = hasher.hash(key.data(), key.length());
 
   enum class Nodetype : std::uint8_t { None, InternalChild, LeafChild };
+  const auto BatchedInternalNodeLevelsIterated = BatchedInternalNode::MAX_HEIGHT - 1;
 
   Nodetype nextNodetype = Nodetype::InternalChild;
   Version internalChildVersion{};
@@ -101,7 +104,8 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
     nextNodetype = Nodetype::None;
     bool firstInternalNodeFount = false;
     std::vector<Hash> hashesCollectedFromInternalNode;
-    for (int i = 0; i < BatchedInternalNode::MAX_HEIGHT - 1; i++) {
+    hashesCollectedFromInternalNode.reserve(BatchedInternalNodeLevelsIterated);
+    for (int i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (nextNodetype == Nodetype::None && child.has_value() && std::get_if<InternalChild>(&child.value())) {
         nextNodetype = Nodetype::InternalChild;
       } else if (nextNodetype == Nodetype::None && child.has_value() && std::get_if<LeafChild>(&child.value())) {
