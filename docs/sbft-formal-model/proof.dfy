@@ -98,6 +98,8 @@ module Proof {
   }
 
   predicate CertificateComportsWithCommit(c:Constants, certificate:Messages.PreparedCertificate, commitMsg:Message) {
+    && c.WF()
+    && commitMsg.payload.Commit?
     && certificate.valid(c.clusterConfig, commitMsg.payload.seqID)
     && !certificate.empty()
     && certificate.prototype().view >= commitMsg.payload.view
@@ -131,7 +133,8 @@ module Proof {
                            && IsHonestReplica(c, commitMsg.sender)
                            && commitMsg.payload.seqID > viewChangeMsg.payload.lastStableCheckpoint
                            && commitMsg.payload.view < viewChangeMsg.payload.newView
-          :: && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
+          :: && commitMsg.payload.seqID in viewChangeMsg.payload.certificates
+             && var certificate := viewChangeMsg.payload.certificates[commitMsg.payload.seqID];
              && CertificateComportsWithCommit(c, certificate, commitMsg)
              )
   }
@@ -292,12 +295,12 @@ module Proof {
                       && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
                       && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
                       && prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+                      && prepareMsg.payload.view == replicaVariables.view // There might be prepare messages for prior views that the sender no longer records.
           :: && var recordedPrePrepare := 
                 v.hosts[prepareMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID];
              && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
              && recordedPrePrepare.Some?
-             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper
-             && prepareMsg.payload.view == replicaVariables.view)
+             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
 
   predicate {:opaque} RecordedPreparesMatchHostView(c:Constants, v:Variables) {
@@ -815,7 +818,7 @@ module Proof {
     var filtered2 := set x | x in senders :: f(x);
     assert filtered == filtered2;
 
-    MappedSetCardinality(senders, f, filtered);
+    MappedSetCardinality(senders, f, filtered); // This is a Dafny triggering problem.
     assert |senders| == |filtered|;
     assert h_v.workingWindow.preparesRcvd[seqID].Keys == senders;
     assert |h_v.workingWindow.preparesRcvd[seqID]|  == |h_v.workingWindow.preparesRcvd[seqID].Keys|;
@@ -826,7 +829,6 @@ module Proof {
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
     ensures EveryPrepareMatchesRecordedPrePrepare(c, v')
-
   {
     reveal_EveryPrepareMatchesRecordedPrePrepare();
     reveal_EverySentIntraViewMsgIsInWorkingWindowOrBefore();
@@ -1663,6 +1665,7 @@ module Proof {
           }
 
           if (seqID !in vcMsg.payload.certificates) {
+            assume false; // Need help from Oded in this branch.
             // We are looking for an Inv that says every ViewChange msg after a Commit mentions the Committed SeqID.
           } else {
             var certView := vcMsg.payload.certificates[seqID].prototype().view; // We need to differentiate the first hop of the VC!!!
