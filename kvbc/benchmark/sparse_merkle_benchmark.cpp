@@ -94,7 +94,7 @@ BatchedInternalNode createBatchedInternalNode() {
 const auto batchedInternalNode = createBatchedInternalNode();
 
 const auto internalNodeKey =
-    InternalNodeKey{42, NibblePath{32, {1, 2, 3, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}};
+    InternalNodeKey{"", 42, NibblePath{32, {1, 2, 3, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}};
 
 std::vector<std::uint8_t> randomBuffer(std::size_t size) {
   auto rd = std::random_device{};
@@ -363,7 +363,7 @@ BENCHMARK_DEFINE_F(Blockchain, getInternalFromDb)(benchmark::State &state) {
   const auto lastIt = --internalNodes.cend();
   const auto [nibblePath, internalNode] = *lastIt;
   internalNodes.erase(lastIt);
-  const auto internalNodeKey = InternalNodeKey{cache.version(), nibblePath};
+  const auto internalNodeKey = InternalNodeKey{std::string(""), cache.version(), nibblePath.path()};
 
   // Secondly, persist it.
   adapter->getDb()->put(DBKeyManipulator::genInternalDbKey(internalNodeKey), serialize(internalNode));
