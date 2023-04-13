@@ -30,12 +30,12 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
   const auto BatchedInternalNodeLevelsIterated = BatchedInternalNode::MAX_HEIGHT - 1;
 
   std::vector<Direction> pathOrdering;
-  for (int nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
+  for (size_t nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
     auto current_nibble = keyHash.getNibble(nibble_index).data();
     auto node_index = BatchedInternalNode::nibbleToIndex(current_nibble);
     std::vector<Direction> subPath;
     subPath.reserve(BatchedInternalNodeLevelsIterated);
-    for (int i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
+    for (size_t i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (BatchedInternalNode::isLeftChild(node_index)) {
         subPath.push_back(Direction::Left);
       } else {
@@ -85,14 +85,14 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
   Version leafChildVersion{};
   Hash leafHash{};
 
-  for (int nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
+  for (size_t nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
     BatchedInternalNode node;
     if (nibble_index == 0) {
       node = db->get_latest_root(custom_prefix);
     } else {
       if (nextNodetype == Nodetype::InternalChild) {
         NibblePath np;
-        for (int i = 0; i < nibble_index; i++) {
+        for (size_t i = 0; i < nibble_index; i++) {
           np.append(key_hash.getNibble(i).data());
         }
         auto ik = InternalNodeKey{custom_prefix, internalChildVersion, np};
@@ -108,7 +108,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
     bool firstInternalNodeFount = false;
     std::vector<Hash> hashesCollectedFromInternalNode;
     hashesCollectedFromInternalNode.reserve(BatchedInternalNodeLevelsIterated);
-    for (int i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
+    for (size_t i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (nextNodetype == Nodetype::None && child.has_value() && std::get_if<InternalChild>(&child.value())) {
         nextNodetype = Nodetype::InternalChild;
       } else if (nextNodetype == Nodetype::None && child.has_value() && std::get_if<LeafChild>(&child.value())) {
@@ -125,7 +125,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
             internalChildVersion = v->version;
           }
           hashesCollectedFromInternalNode.push_back(node.getHash(node.calcPeerIndex(current_index)));
-        } else if (auto v = std::get_if<LeafChild>(&val)) {
+        } else if (std::get_if<LeafChild>(&val)) {
           hashesCollectedFromInternalNode.push_back(node.getHash(node.calcPeerIndex(current_index)));
         }
       }
