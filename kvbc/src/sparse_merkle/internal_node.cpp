@@ -23,8 +23,6 @@ namespace sparse_merkle {
 
 using namespace detail;
 
-const size_t BatchedInternalNode::MAX_HEIGHT = BatchedInternalNode::GetMaxHeight(MAX_CHILDREN);
-
 void BatchedInternalNode::updateHashes(size_t index, Version version) {
   TimeRecorder scoped_timer(*histograms.internal_node_update_hashes);
   ConcordAssert(index > 0);

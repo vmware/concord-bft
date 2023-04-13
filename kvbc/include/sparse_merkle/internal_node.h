@@ -97,6 +97,11 @@ std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
   return s;
 }
 
+static constexpr size_t BatchedInternalNodeGetMaxHeight(const size_t children) {
+  if (children == 0) return 0;
+  return 1 + BatchedInternalNodeGetMaxHeight(children / 2);
+}
+
 /*
 // A batched internal node. The node is a representation of a 4-level tree, such
 // that there are a total possibility of 16 leaves.
@@ -166,11 +171,7 @@ std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
-  static constexpr size_t GetMaxHeight(const size_t children) {
-    if (children == 0) return 0;
-    return 1 + GetMaxHeight(children / 2);
-  }
-  static const size_t MAX_HEIGHT;
+  static constexpr size_t MAX_HEIGHT = BatchedInternalNodeGetMaxHeight(MAX_CHILDREN);
   using Children = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
