@@ -14,7 +14,12 @@ if(USE_OPENSSL)
     target_sources(concord-crypto PRIVATE src/openssl/crypto.cpp
                                           src/openssl/certificates.cpp
                                           )
-    target_link_libraries(concord-crypto PUBLIC OpenSSL::Crypto z ${CMAKE_DL_LIBS} Threads::Threads)
+    if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+        find_library(OPEN_SSL_STATIC_LIBRARY NAMES "libcrypto.a" HINTS  ${OPENSSL_ROOT_DIR}/lib/)
+        target_link_libraries(concord-crypto PUBLIC ${OPEN_SSL_STATIC_LIBRARY} z ${CMAKE_DL_LIBS} Threads::Threads)
+    else()
+        target_link_libraries(concord-crypto PUBLIC OpenSSL::Crypto z ${CMAKE_DL_LIBS} Threads::Threads)
+    endif()
     target_compile_definitions(concord-crypto PUBLIC USE_OPENSSL)
 endif()
 
