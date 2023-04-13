@@ -49,6 +49,9 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
       }
     }
     pathOrdering.insert(pathOrdering.end(), subPath.rbegin(), subPath.rend());
+    if (pathOrdering.size() >= proofPath.size()) {
+      break;
+    }
   }
 
   ConcordAssert(pathOrdering.size() >= proofPath.size());

@@ -166,7 +166,11 @@ std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
-  static constexpr size_t MAX_HEIGHT = 5;
+  static constexpr size_t GetMaxHeight(const size_t children) {
+    if (children == 0) return 0;
+    return 1 + GetMaxHeight(children / 2);
+  }
+  static const size_t MAX_HEIGHT;
   using Children = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
