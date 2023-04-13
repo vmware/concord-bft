@@ -81,6 +81,13 @@ class InternalSigner : public concord::crypto::ISigner {
   std::string getPrivKey() const override { return ""; }
 };
 
+// Scaling command may break state transfer itself (if, for example, we scale from n1 to n2 < n1 replicas). For that we
+// need a client like mechanism which work asynchronously to the state itself. However, a committer replica, may end
+// state transfer and get the scale command in the state, before it was caught by CRE. In this case, the command is
+// handled by the reconfiguration state transfer callback (see concordbft/kvbc/include/st_reconfiguraion_sm.hpp). The
+// two mechanisms are synchronized via the configurations list. Note that we are unable to synchronize them based on
+// epoch number, because CRE is (at the moment) unaware to epochs. Epochs are shared via reserved pages which are
+// getting updated at the end of state transfer.
 class ScalingReplicaHandler : public IStateHandler {
  public:
   ScalingReplicaHandler() {}
@@ -100,7 +107,7 @@ class ScalingReplicaHandler : public IStateHandler {
         std::stringstream stream;
         stream << configurations_file.rdbuf();
         std::string configs = stream.str();
-        return (configs.empty()) || (configs.find(command.config_descriptor) != std::string::npos);
+        return (configs.empty()) || (configs.find(command.config_descriptor) == std::string::npos);
       }
     }
     return false;
