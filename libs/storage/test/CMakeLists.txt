@@ -15,7 +15,7 @@ if (BUILD_ROCKSDB_STORAGE)
 endif(BUILD_ROCKSDB_STORAGE)
 
 if(USE_S3_OBJECT_STORE)
-    add_executable(s3_client_test s3_test.cpp)
+    add_executable(s3_client_test src/s3_test.cpp)
     add_test(NAME s3_client_test COMMAND env CI=on ${CMAKE_CURRENT_BINARY_DIR}/s3_client_test)
     target_link_libraries(s3_client_test PUBLIC
         GTest::Main
