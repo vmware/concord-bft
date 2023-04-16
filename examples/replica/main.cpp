@@ -26,8 +26,8 @@
 #include "util/Metrics.hpp"
 
 #ifdef USE_ROCKSDB
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
+#include "storage/rocksdb/client.hpp"
+#include "storage/rocksdb/key_comparator.hpp"
 #endif
 
 #include <csignal>

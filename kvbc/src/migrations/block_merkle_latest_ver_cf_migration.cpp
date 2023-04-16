@@ -19,7 +19,7 @@
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "kv_types.hpp"
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 #include "util/string.hpp"
 
 #include <stdexcept>

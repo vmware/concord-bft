@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 #include "db_adapter_interface.h"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "PersistentStorage.hpp"

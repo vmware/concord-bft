@@ -25,12 +25,12 @@
 
 #include "util/assertUtils.hpp"
 #include "log/logger.hpp"
-#include "rocksdb/key_comparator.h"
-#include "rocksdb/client.h"
+#include "storage/rocksdb/key_comparator.hpp"
+#include "storage/rocksdb/client.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "direct_kv_block.h"
 #include "direct_kv_db_adapter.h"
-#include "storage/direct_kv_key_manipulator.h"
+#include "storage/direct_kv_key_manipulator.hpp"
 
 using namespace bftEngine;
 using namespace std;

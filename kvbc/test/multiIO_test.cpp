@@ -7,8 +7,8 @@
 
 #include "log/logger.hpp"
 #include "gtest/gtest.h"
-#include "rocksdb/key_comparator.h"
-#include "rocksdb/client.h"
+#include "storage/rocksdb/key_comparator.hpp"
+#include "storage/rocksdb/client.hpp"
 #include "kv_types.hpp"
 #include "direct_kv_db_adapter.h"
 

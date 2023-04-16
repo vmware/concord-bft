@@ -14,7 +14,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "v4blockchain/detail/blockchain.h"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include <random>
 

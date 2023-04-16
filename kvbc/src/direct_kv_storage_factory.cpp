@@ -13,15 +13,15 @@
 #include "direct_kv_storage_factory.h"
 
 #include "direct_kv_db_adapter.h"
-#include "memorydb/client.h"
-#include "memorydb/key_comparator.h"
-#include "storage/direct_kv_key_manipulator.h"
-#include "rocksdb/client.h"
-#include "rocksdb/key_comparator.h"
+#include "storage/memorydb/client.hpp"
+#include "storage/memorydb/key_comparator.hpp"
+#include "storage/direct_kv_key_manipulator.hpp"
+#include "storage/rocksdb/client.hpp"
+#include "storage/rocksdb/key_comparator.hpp"
 #include "ReplicaConfig.hpp"
 #ifdef USE_S3_OBJECT_STORE
-#include "s3/key_manipulator.h"
-#include "s3/client.hpp"
+#include "storage/s3/key_manipulator.hpp"
+#include "storage/s3/client.hpp"
 #endif
 
 #include <chrono>

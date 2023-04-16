@@ -28,7 +28,7 @@
 #include <boost/program_options/variables_map.hpp>
 
 #include "log/logger.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "categorization/updates.h"
 #include "blockchain_adapter.hpp"
 #include "util/thread_pool.hpp"

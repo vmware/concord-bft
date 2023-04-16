@@ -19,8 +19,8 @@
 #include "categorization/details.h"
 #include "categorization/versioned_kv_category.h"
 #include "kv_types.hpp"
-#include "rocksdb/native_client.h"
-#include "storage/test/storage_test_common.h"
+#include "storage/rocksdb/native_client.hpp"
+#include "storage/test/storage_test_common.hpp"
 
 #include <memory>
 #include <optional>

@@ -19,7 +19,7 @@
 #include <set>
 #include "commonKVBTests.hpp"
 #include "DbMetadataStorage.cpp"
-#include "storage/db_types.h"
+#include "storage/db_types.hpp"
 #include "block_metadata.hpp"
 
 using std::set;

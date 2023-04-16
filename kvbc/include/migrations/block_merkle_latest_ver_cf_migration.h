@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 
 #include <rocksdb/utilities/checkpoint.h>
 

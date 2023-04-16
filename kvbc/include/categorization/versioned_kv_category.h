@@ -14,7 +14,7 @@
 #pragma once
 
 #include "kv_types.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"

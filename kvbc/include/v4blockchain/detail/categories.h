@@ -15,7 +15,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include <optional>
 #include "categorization/base_types.h"
 

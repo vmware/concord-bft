@@ -22,8 +22,7 @@
 #include "merkle_tree_serialization.h"
 #include "util/sliver.hpp"
 #include "sparse_merkle/base_types.h"
-#include "storage/merkle_tree_key_manipulator.h"
-
+#include "storage/merkle_tree_key_manipulator.hpp"
 #include <stdint.h>
 
 #include <string>

@@ -23,7 +23,7 @@
 #include <functional>
 #include <limits>
 #include "util/thread_pool.hpp"
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 #include "util/endianness.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include "categorization/db_categories.h"

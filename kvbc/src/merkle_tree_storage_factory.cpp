@@ -13,10 +13,10 @@
 #include "merkle_tree_storage_factory.h"
 
 #include "merkle_tree_db_adapter.h"
-#include "memorydb/client.h"
-#include "storage/merkle_tree_key_manipulator.h"
-#include "rocksdb/client.h"
-#include "rocksdb/native_client.h"
+#include "storage/memorydb/client.hpp"
+#include "storage/merkle_tree_key_manipulator.hpp"
+#include "storage/rocksdb/client.hpp"
+#include "storage/rocksdb/native_client.hpp"
 #include "v4blockchain/detail/column_families.h"
 #include "v4blockchain/detail/latest_keys.h"
 

@@ -18,7 +18,7 @@
 #include "util/sliver.hpp"
 #include "metadata_block_id.h"
 #include "bftengine/DbMetadataStorage.hpp"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "categorization/blocks.h"
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"

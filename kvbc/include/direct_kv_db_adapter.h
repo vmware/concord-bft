@@ -7,8 +7,8 @@
 
 #include "db_adapter_interface.h"
 #include "kv_types.hpp"
-#include "storage/db_interface.h"
-#include "storage/direct_kv_key_manipulator.h"
+#include "storage/db_interface.hpp"
+#include "storage/direct_kv_key_manipulator.hpp"
 #include "PerformanceManager.hpp"
 
 #include <memory>

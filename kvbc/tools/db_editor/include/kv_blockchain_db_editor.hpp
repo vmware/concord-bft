@@ -25,7 +25,7 @@
 #include "db_interfaces.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "categorization/db_categories.h"
-#include "storage/merkle_tree_key_manipulator.h"
+#include "storage/merkle_tree_key_manipulator.hpp"
 #include "bcstatetransfer/DBDataStore.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/PersistentStorageImp.hpp"

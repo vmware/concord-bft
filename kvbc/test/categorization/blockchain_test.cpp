@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 #include <random>
-#include "storage/test/storage_test_common.h"
+#include "storage/test/storage_test_common.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc::categorization;

@@ -16,7 +16,7 @@
 #include "PerformanceManager.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
-#include "s3/client.hpp"
+#include "storage/s3/client.hpp"
 #endif
 
 #include <string>

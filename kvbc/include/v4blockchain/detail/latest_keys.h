@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include <memory>
 #include <unordered_map>
 #include "categorization/updates.h"
@@ -21,7 +21,7 @@
 #include <rocksdb/compaction_filter.h>
 #include "util/endianness.hpp"
 #include "util/hex_tools.hpp"
-#include "rocksdb/snapshot.h"
+#include <rocksdb/snapshot.h>
 
 namespace concord::kvbc::v4blockchain::detail {
 

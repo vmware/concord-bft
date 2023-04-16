@@ -21,7 +21,7 @@
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets/secrets_manager_plain.h"
-#include "rocksdb/native_client.h"
+#include "storage/rocksdb/native_client.hpp"
 #include "kvbc_adapter/idempotent_reader.h"
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
