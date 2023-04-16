@@ -23,6 +23,7 @@
 #include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
 #include <rocksdb/utilities/checkpoint.h>
+#include <rocksdb/utilities/memory_util.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
 
@@ -67,11 +68,15 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath), storage_metrics_(RocksDbStorageMetrics(*this)) {}
+
   Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
+      : m_dbPath(_dbPath), comparator_(std::move(comparator)), storage_metrics_(RocksDbStorageMetrics(*this)) {}
 
   ~Client() {
+    // stop updating metrics. if not - the update metrics method may try to access already destructed objs.
+    storage_metrics_.stopUpdatingMetrics();
+
     // Clear column family handles before the DB as handle destruction calls a DB instance member and we want that to
     // happen before we delete the DB pointer.
     cf_handles_.clear();
@@ -129,6 +134,90 @@ class Client : public concord::storage::IDBClient {
     // instead.
     ::rocksdb::Options db_options;
     void applyOptimizations();
+  };
+
+  /*
+   * This is a metric class for rocksdb storage type.
+   * As rocksDB already contains many informative metrics, we would like to reuse them and expose them using concord
+   * metrics framework. Alas, reading all rocksDB metrics on each operation may harm performance. Therefor, once in
+   * while, we read rocksdb metrics, update concord metrics as well as the aggregator. Notice, that in this case there
+   * is no need to collect the metrics after each operation but just collect once in a while rocksdb metrics and publish
+   * them.
+   *
+   * In order to enable flexibility (and rocksdb metrics configuration in the future), we dynamically create concord-bft
+   * metrics w.r.t rocksdb configuration list. Even so, as we collect the metrics once in a while (and not on each
+   * single operation) the overhead of that approach is negligible.
+   */
+  class RocksDbStorageMetrics : public StorageMetricsBase {
+    static constexpr size_t update_metrics_interval_millisec = 100;  // every 100msec
+    static constexpr size_t update_mem_usage_metrics_factor =
+        600;  // update_metrics_interval_millisec * 600 = every 1 minute
+
+   public:
+    RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers, const Client& owningClient);
+
+    /*
+     * For now, we have a hardcoded default metrics configuration list.
+     * In the future we may add a rocksdb configuration file to enable flexibility.
+     */
+    RocksDbStorageMetrics(const Client& owningClient)
+        : RocksDbStorageMetrics({::rocksdb::Tickers::NUMBER_KEYS_WRITTEN,
+                                 ::rocksdb::Tickers::NUMBER_KEYS_READ,
+                                 ::rocksdb::Tickers::BYTES_WRITTEN,
+                                 ::rocksdb::Tickers::BYTES_READ,
+                                 ::rocksdb::Tickers::COMPACT_READ_BYTES,
+                                 ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
+                                 ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
+                                 ::rocksdb::Tickers::STALL_MICROS,
+                                 ::rocksdb::Tickers::BLOCK_CACHE_MISS,
+                                 ::rocksdb::Tickers::BLOCK_CACHE_HIT,
+                                 ::rocksdb::Tickers::BLOOM_FILTER_PREFIX_USEFUL,
+                                 ::rocksdb::Tickers::BLOOM_FILTER_FULL_POSITIVE,
+                                 ::rocksdb::Tickers::BLOOM_FILTER_FULL_TRUE_POSITIVE},
+                                owningClient) {}
+
+    ~RocksDbStorageMetrics() {}
+
+    void setMetricsDataSources(std::shared_ptr<::rocksdb::SstFileManager> sourceSstFm,
+                               std::shared_ptr<::rocksdb::Statistics> sourceStatistics);
+
+    // update and print to log rocksdb RAM usage
+    void updateDBMemUsageMetrics();
+
+    // update the metrics every update_metrics_interval_millisec
+    void updateMetrics() override;
+
+    // stops updateMetrics() periodic call
+    void stopUpdatingMetrics() { update_metrics_.reset(); };
+
+   private:
+    // const ref to the Client enclosing this obj, in order to use RocksDB APIs it has
+    const Client& owning_client_;
+    // map of all tickers we monitor into our metrics
+    std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
+    // total disk size
+    concordMetrics::AtomicGaugeHandle total_db_disk_size_;
+    // RAM usage of all mem tables
+    concordMetrics::AtomicGaugeHandle all_mem_tables_ram_usage_;
+    // RAM usage of all unflushed mem tables
+    concordMetrics::AtomicGaugeHandle all_unflushed_mem_tables_ram_usage_;
+    // RAM usage of block caches - one metric for all CFs. CFs may share the same block cache or not.
+    concordMetrics::AtomicGaugeHandle block_caches_ram_usage_;
+    // RAM usage of indexing, bloom filters and other related data rocksdb keeps for better performance
+    concordMetrics::AtomicGaugeHandle indexes_and_filters_ram_usage_;
+    // total RAM usage - sum of all_mem_tables_ram_usage_, all_unflushed_mem_tables_ram_usage_, block_caches_ram_usage_
+    // and indexes_and_filters_ram_usage_
+    concordMetrics::AtomicGaugeHandle rocksdb_total_ram_usage_;
+
+    // maps rocksdb mem usage metrics to concord metrics
+    std::map<::rocksdb::MemoryUtil::UsageType, concordMetrics::AtomicGaugeHandle> rocksdb_to_concord_metrics_map_{
+        {::rocksdb::MemoryUtil::UsageType::kMemTableTotal, all_mem_tables_ram_usage_},
+        {::rocksdb::MemoryUtil::UsageType::kMemTableUnFlushed, all_unflushed_mem_tables_ram_usage_},
+        {::rocksdb::MemoryUtil::UsageType::kTableReadersTotal, indexes_and_filters_ram_usage_},
+        {::rocksdb::MemoryUtil::UsageType::kCacheTotal, block_caches_ram_usage_}};
+
+    std::shared_ptr<::rocksdb::SstFileManager> sstFm_;
+    std::shared_ptr<::rocksdb::Statistics> statistics_;
   };
 
   // Initialize a DB.
