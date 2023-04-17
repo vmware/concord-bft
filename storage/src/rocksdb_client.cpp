@@ -28,8 +28,10 @@
 #include <algorithm>
 #include <atomic>
 #include <utility>
+#include <unordered_set>
 
 #include "util/assertUtils.hpp"
+#include "util/kvstream.h"
 #include "log/logger.hpp"
 
 using concordUtils::Sliver;
@@ -644,6 +646,123 @@ void Client::removeAllCheckpoints() const {
   } catch (std::exception &e) {
     LOG_FATAL(logger(), "Failed remove rocksdb checkpoint: " << e.what());
   }
+}
+
+Client::RocksDbStorageMetrics::RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers> &tickers,
+                                                     const Client &owningClient)
+    : StorageMetricsBase({"storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()},
+                         update_metrics_interval_millisec),
+      owning_client_(owningClient),
+      total_db_disk_size_(metrics_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)),
+      all_mem_tables_ram_usage_(metrics_.RegisterAtomicGauge("storage_rocksdb_mem_tables_ram_usage", 0)),
+      all_unflushed_mem_tables_ram_usage_(
+          metrics_.RegisterAtomicGauge("storage_rocksdb_unflushed_mem_tables_ram_usage", 0)),
+      block_caches_ram_usage_(metrics_.RegisterAtomicGauge("storage_rocksdb_column_families_block_cache_ram_usage", 0)),
+      indexes_and_filters_ram_usage_(metrics_.RegisterAtomicGauge("storage_rocksdb_indexes_and_filter_ram_usage", 0)),
+      rocksdb_total_ram_usage_(metrics_.RegisterAtomicGauge("storage_rocksdb_total_ram_usage", 0)) {
+  for (const auto &pair : ::rocksdb::TickersNameMap) {
+    if (std::find(tickers.begin(), tickers.end(), pair.first) != tickers.end()) {
+      auto metric_suffix = pair.second;
+      std::replace(metric_suffix.begin(), metric_suffix.end(), '.', '_');
+      active_tickers_.emplace(pair.first, metrics_.RegisterAtomicGauge("storage_" + metric_suffix, 0));
+    }
+  }
+  metrics_.Register();
+}
+
+void Client::RocksDbStorageMetrics::setMetricsDataSources(std::shared_ptr<::rocksdb::SstFileManager> sourceSstFm,
+                                                          std::shared_ptr<::rocksdb::Statistics> sourceStatistics) {
+  sstFm_ = sourceSstFm;
+  statistics_ = sourceStatistics;
+
+  update_metrics_ =
+      std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, update_metrics_interval_millisec_);
+}
+
+// periodically running function to update metrics. this func and its sub-funcs aren't
+// thread safe. It's the Client responsibility to temporarily disable this periodic func
+// if configs change during runtime.
+void Client::RocksDbStorageMetrics::updateMetrics() {
+  static size_t entry_count{0};
+
+  // if isn't initialized yet or disabled - return
+  if (!sstFm_ || !statistics_) return;
+
+  // we don't update mem usage every call since it's pretty heavy on resources and isn't needed in a very high frequency
+  if (entry_count % update_mem_usage_metrics_factor == 0) {
+    // enter here only once every update_mem_usage_metrics_factor calls of updateMetrics()
+    updateDBMemUsageMetrics();
+  }
+  entry_count++;
+
+  // update all tickers
+  for (auto &pair : active_tickers_) {
+    pair.second.Get().Set(statistics_->getTickerCount(pair.first));
+  }
+  // upodate total size
+  total_db_disk_size_.Get().Set(sstFm_->GetTotalSize());
+
+  metrics_.UpdateAggregator();
+}
+
+// updates the rocksDB mem usage metrics
+void Client::RocksDbStorageMetrics::updateDBMemUsageMetrics() {
+  // get column families block caches pointers.
+  // important note:
+  // 1. Different column families may use the same block cache or a different one.
+  // In order to correctly report the mem usage we need to consider only unique instances of ::rocksdb::Cache .
+  // 2. The caches config may change in runtime. we need to check which instances of ::rocksdb::Cache are active.
+  // Due to both reasons above, we define a std::unordered_set here, and send it to GetApproximateMemoryUsageByType API.
+  std::unordered_set<const ::rocksdb::Cache *> block_caches_raw{};
+
+  for (const auto &[cf_name, cf_handle] : owning_client_.cf_handles_) {
+    UNUSED(cf_name);
+    ::rocksdb::ColumnFamilyDescriptor cf_desc;
+    cf_handle->GetDescriptor(&cf_desc);
+    auto *cf_table_options =
+        reinterpret_cast<::rocksdb::BlockBasedTableOptions *>(cf_desc.options.table_factory->GetOptions());
+
+    block_caches_raw.emplace(cf_table_options->block_cache.get());
+  }
+
+  // GetApproximateMemoryUsageByType writes output into usage_by_type
+  std::map<::rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
+  std::vector<::rocksdb::DB *> dbs{owning_client_.dbInstance_.get()};
+
+  if (block_caches_raw.size() == 0) {
+    // if there are no caches defined:
+    // 1. GetApproximateMemoryUsageByType will fail on segmentation fault (true to rocksdb ver 6.8.1)
+    // 2. It's not a real deployment where we always use caches (it's probably a unit test)
+    // Hence, do nothing and return
+    return;
+  }
+  ::rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(dbs, block_caches_raw, &usage_by_type);
+
+  uint64_t total_usage{0};
+  uint64_t num_bytes;
+
+  // go over the results written into usage_by_type, write to each matching concord metric and add to total_usage sum.
+  for (auto &[rocks_db_usage_type_name, concord_metric_handle] : rocksdb_to_concord_metrics_map_) {
+    if (usage_by_type.count(rocks_db_usage_type_name)) {
+      num_bytes = usage_by_type[rocks_db_usage_type_name];
+      concord_metric_handle.Get().Set(num_bytes);
+      total_usage += num_bytes;
+    } else {
+      LOG_WARN(
+          owning_client_.logger(),
+          std::to_string(rocks_db_usage_type_name)
+              << " doesn't exist in ::rocksdb::MemoryUtil::UsageType, API may have changed! setting metric to zero");
+    }
+  }
+  rocksdb_total_ram_usage_.Get().Set(total_usage);
+
+  LOG_INFO(owning_client_.logger(),
+           "RocksDB Memory usage report. Total: "
+               << rocksdb_total_ram_usage_.Get().Get() << " Bytes, "
+               << "Mem tables: " << all_mem_tables_ram_usage_.Get().Get() << " Bytes, "
+               << "Unflushed Mem tables: " << all_unflushed_mem_tables_ram_usage_.Get().Get() << " Bytes, "
+               << "Table readers (indexes and filters): " << indexes_and_filters_ram_usage_.Get().Get() << " Bytes, "
+               << "Block caches: " << block_caches_ram_usage_.Get().Get() << " Bytes");
 }
 
 /**
