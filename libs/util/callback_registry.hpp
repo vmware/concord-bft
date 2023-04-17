@@ -123,6 +123,7 @@ class CallbackRegistry {
 
   bool empty() const { return callbacks_.empty(); }
   std::size_t size() const { return callbacks_.size(); }
+  void clear() { callbacks_.clear(); }
 
  private:
   CallbackContainer callbacks_;

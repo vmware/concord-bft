@@ -3303,6 +3303,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
   requestsOfNonPrimary.clear();
+  DbCheckpointManager::instance().loadDbMetadataFromReservedPages();
   if (ps_) {
     ps_->beginWriteTran();
   }
@@ -3524,7 +3525,8 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     IControlHandler::instance()->onStableCheckpoint();
     ControlStateManager::instance().wedge();
   }
-  onSeqNumIsStableCallbacks_.invokeAll(newStableSeqNum);
+  onSeqNumIsStableOneTimeCallbacks_.invokeAll(newStableSeqNum);
+  onSeqNumIsStableOneTimeCallbacks_.clear();
 }
 void ReplicaImp::sendRepilcaRestartReady(uint8_t reason, const std::string &extraData) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -4051,7 +4053,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   metric_total_committed_sn_ += lastExecutedSeqNum;
   mainLog->resetAll(lastStableSeqNum + 1);
   checkpointsLog->resetAll(lastStableSeqNum);
-
   bool viewIsActive = inView;
   LOG_INFO(GL,
            "Restarted ReplicaImp from persistent storage. " << KVLOG(getCurrentView(),
@@ -4501,25 +4502,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, clientsManager.get(), &timers_};
 
   KeyExchangeManager::instance(&id);
-  DbCheckpointManager::instance(internalBFTClient_.get());
-
-  if (getReplicaConfig().dbCheckpointFeatureEnabled == true) {
-    onSeqNumIsStableCallbacks_.add([this](SeqNum seqNum) {
-      auto currTime = std::chrono::system_clock::now().time_since_epoch();
-      auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
-                                    DbCheckpointManager::instance().getLastCheckpointCreationTime())
-                                       .count();
-      auto seqNumsExecutedSinceLastDbCheckPt = seqNum - DbCheckpointManager::instance().getLastDbCheckpointSeqNum();
-      if (getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
-          (seqNumsExecutedSinceLastDbCheckPt >= getReplicaConfig().dbCheckPointWindowSize) &&
-          (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
-        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);
-        LOG_INFO(GL, "send msg to create Db Checkpoint:" << KVLOG(seqNum));
-      }
-      DbCheckpointManager::instance().onStableSeqNum(seqNum);
-    });
-    DbCheckpointManager::instance().setGetLastStableSeqNumCb([this]() -> SeqNum { return lastStableSeqNum; });
-  }
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
   auto numThreads = 8;
   if (!firstTime) {
@@ -5173,6 +5155,7 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
     epochMgr.setSelfEpochNumber(epochNum);
     epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
+    handleDbCheckpointCreation(lastExecutedSeqNum + 1, ppMsg->getTime());
     stateTransfer->createCheckpointOfCurrentState(
         checkpointNum);  // TODO(GG): should make sure that this operation is idempotent, even if it was partially
                          // executed (because of the recovery)
@@ -5201,7 +5184,31 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
 
   tryToStartOrFinishExecution(false);
 }
-
+void ReplicaImp::handleDbCheckpointCreation(const SeqNum sn, const uint64_t timestamp) {
+  const auto consensus_time_ms = ConsensusTime(timestamp);
+  auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(consensus_time_ms) -
+                                DbCheckpointManager::instance().getLastCheckpointCreationTime())
+                                   .count();
+  const auto &seq_num_to_create_dbcheckpoint = DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot();
+  if ((timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count() &&
+       sn - DbCheckpointManager::instance().getLastDbCheckpointSeqNum() >= getReplicaConfig().dbCheckPointWindowSize) ||
+      (seq_num_to_create_dbcheckpoint.has_value() && *seq_num_to_create_dbcheckpoint == sn)) {
+    std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
+    LOG_INFO(GL,
+             "creating db checkpoint in the next stable sequence number" << KVLOG(timeSinceLastSnapshot, sn, *blockId));
+    DbCheckpointManager::instance().saveDbMetadataToReservedPages(
+        sn, std::chrono::duration_cast<std::chrono::seconds>(consensus_time_ms));
+    // The above should be happen determenistically among all replicas, regardless if they actually create the
+    // checkpoint or not.
+    if (getReplicaConfig().dbCheckpointFeatureEnabled) {
+      DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
+      onSeqNumIsStableOneTimeCallbacks_.add(
+          [blockId](SeqNum seqNum) { DbCheckpointManager::instance().createDbCheckpointAsync(seqNum, blockId); });
+    }
+    if (seq_num_to_create_dbcheckpoint.has_value())
+      DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
+  }
+}
 void ReplicaImp::finalizeExecution() {
   //////////////////////////////////////////////////////////////////////
   // Phase 3: finalize the execution of lastExecutedSeqNum+1
@@ -5375,26 +5382,20 @@ void ReplicaImp::onExecutionFinish() {
     const auto &seq_num_to_create_dbcheckpoint = DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot();
     if (seq_num_to_create_dbcheckpoint.has_value()) {
       if (seq_num_to_create_dbcheckpoint.value() > (lastExecutedSeqNum + activeExecutions_)) {
-        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(lastExecutedSeqNum + activeExecutions_ + 1,
-                                                                          true);  // noop=true
-      } else {
-        onSeqNumIsStableCallbacks_.add([seq_num_to_create_dbcheckpoint](SeqNum seqNum) {
-          if (seqNum == seq_num_to_create_dbcheckpoint) {
-            DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);  // noop=false
-            LOG_INFO(GL,
-                     "sendInternalCreateDbCheckpointMsg with noop: false, "
-                         << KVLOG(seq_num_to_create_dbcheckpoint.value()));
-          }
-        });
-        DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
+        std::string cid = "replicaDbCheckpoint_" + std::to_string(lastExecutedSeqNum + activeExecutions_ + 1) + "_" +
+                          std::to_string(config_.replicaId);
+        sendInternalNoopCommand(cid);
       }
-      LOG_INFO(GL,
-               "sendInternalCreateDbCheckpointMsg: " << KVLOG(
-                   lastExecutedSeqNum, activeExecutions_, seq_num_to_create_dbcheckpoint.value()));
     }
   }
 
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+}
+
+void ReplicaImp::sendInternalNoopCommand(const std::string &cid) {
+  std::string strMsg;
+  internalBFTClient_->sendRequest(bftEngine::NOOP_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  LOG_INFO(GL, "sendInternalNoopCommand: " << KVLOG(cid));
 }
 
 void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &parent_span,
@@ -5500,6 +5501,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     epochMgr.setSelfEpochNumber(epochNum);
     epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
+    handleDbCheckpointCreation(lastExecutedSeqNum + 1, ppMsg->getTime());
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
     checkpoint_times_.start(lastExecutedSeqNum);
   }

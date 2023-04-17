@@ -138,35 +138,12 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INTERNAL_ERROR);
       }
       continue;
-    } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
-      concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
-      concord::messages::db_checkpoint_msg::deserialize(
-          std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
-      if (!createDbChkPtMsg.noop) {
-        const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
-        std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
-        if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
-          DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
-        } else {
-          // this replica has not reached stable seqNum yet to create snapshot at requested seqNum
-          // add a callback to be called when seqNum is stable. We need to create snapshot on stable
-          // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
-          // check of db snapshots
-          const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
-          DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
-          DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp, blockId](SeqNum s) {
-            if (s == static_cast<SeqNum>(seqNumToCreateSanpshot))
-              DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, blockId);
-          });
-        }
-      }
+    } else if (req.flags & MsgFlag::NOOP_FLAG) {
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
-      req.outReply[0] = '1';
-      req.outActualReplySize = 1;
-      LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
+      req.outActualReplySize = 0;
+      LOG_INFO(GL, "executing a noop command");
       continue;
     }
-
     if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;

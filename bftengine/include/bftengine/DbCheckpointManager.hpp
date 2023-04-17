@@ -34,16 +34,17 @@
 #include "storage/db_interface.h"
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
+#include "ReservedPagesClient.hpp"
+
 namespace _fs = fs;
 namespace bftEngine::impl {
 using std::chrono::duration_cast;
 using Status = concordUtils::Status;
 using SystemClock = std::chrono::system_clock;
-using Seconds = std::chrono::seconds;
 using InternalBftClient = bftEngine::impl::InternalBFTClient;
 using DbCheckpointId = uint64_t;
 using BlockId = uint64_t;
-class DbCheckpointManager {
+class DbCheckpointManager : public bftEngine::ResPagesClient<DbCheckpointManager, 1> {
  public:
   /***************************************************
    *@Input parameter1: Request sequnce number
@@ -64,7 +65,6 @@ class DbCheckpointManager {
    *@Return: returns a unique db checkpoint id. Else return std::nullopt
    ***************************************************/
   std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum,
-                                                      const std::optional<Timestamp>& timestamp,
                                                       const std::optional<DbCheckpointId>& blockId);
 
   /***************************************************
@@ -95,7 +95,7 @@ class DbCheckpointManager {
   //  * the path to the checkpoint
   using PrepareCheckpointCallback = std::function<void(BlockId, const std::string&)>;
 
-  Seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
+  std::chrono::seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
@@ -113,27 +113,19 @@ class DbCheckpointManager {
   void setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum);
   std::optional<SeqNum> getNextStableSeqNumToCreateSnapshot() const { return nextSeqNumToCreateCheckPt_; }
 
-  static DbCheckpointManager& instance(InternalBftClient* client = nullptr) {
-    static DbCheckpointManager instance(client);
+  static DbCheckpointManager& instance() {
+    static DbCheckpointManager instance;
     return instance;
   }
-  ~DbCheckpointManager() {
+  ~DbCheckpointManager() override {
     stopped_ = true;
     shutdownCond_.notify_all();  // to wake up monitor thread so it can be destructed
     if (monitorThread_.joinable()) monitorThread_.join();
   }
-  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
   BlockId getLastReachableBlock() const;
-  SeqNum getLastStableSeqNum() const;
   void setCheckpointInProcess(bool, concord::kvbc::BlockId) const;
-  void setOnStableSeqNumCb_(std::function<void(SeqNum)> cb) { onStableSeqNumCb_ = cb; }
-  void onStableSeqNum(SeqNum s) {
-    if (onStableSeqNumCb_) onStableSeqNumCb_(s);
-  }
-  void setGetLastStableSeqNumCb(std::function<SeqNum()> cb) { getLastStableSeqNumCb_ = cb; }
   inline void checkAndCreateDbSnapshot(SeqNum seqNum) {
-    if (ReplicaConfig::instance().dbCheckpointFeatureEnabled)
-      createDbCheckpointAsync(seqNum, std::nullopt, std::nullopt);
+    if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) createDbCheckpointAsync(seqNum, std::nullopt);
   }
   void addOnDbCheckpointCreatedCb(std::function<void(SeqNum)> cb) {
     if (cb) onDbCheckpointCreated_.push_back(cb);
@@ -145,26 +137,25 @@ class DbCheckpointManager {
   // only used for apollo test
   std::map<uint64_t, uint64_t> getDbSize();
   void setIsMetadataErased(bool isMetadataErased) { isMetadataErased_ = isMetadataErased; }
+  void saveDbMetadataToReservedPages(SeqNum, std::chrono::seconds timestamp);
+  void loadDbMetadataFromReservedPages();
 
  private:
   logging::Logger getLogger() {
     static logging::Logger logger_(logging::getLogger("concord.bft.db_checkpoint_manager"));
     return logger_;
   }
-  DbCheckpointManager(InternalBftClient* client)
-      : client_(client),
-        metrics_{concordMetrics::Component("rocksdbCheckpoint", std::make_shared<concordMetrics::Aggregator>())},
+  DbCheckpointManager()
+      : metrics_{concordMetrics::Component("rocksdbCheckpoint", std::make_shared<concordMetrics::Aggregator>())},
         maxDbCheckpointCreationTimeMsec_(metrics_.RegisterGauge("maxDbCheckpointCreationTimeInMsecSoFar", 0)),
         lastDbCheckpointSizeInMb_(metrics_.RegisterGauge("lastDbCheckpointSizeInMb", 0)),
         lastDbCheckpointBlockId_(metrics_.RegisterGauge("lastDbCheckpointBlockId", 0)),
         numOfDbCheckpointsCreated_(metrics_.RegisterCounter("numOfDbCheckpointsCreated", 0)) {
     metrics_.Register();
+    page.resize(sizeOfReservedPage());
   }
   void init();
-  Status createDbCheckpoint(const DbCheckpointId& checkPointId,
-                            const BlockId& lastBlockId,
-                            const SeqNum& seqNum,
-                            const std::optional<Timestamp>& timestamp);
+  Status createDbCheckpoint(const DbCheckpointId& checkPointId, const BlockId& lastBlockId, const SeqNum& seqNum);
   void removeCheckpoint(const DbCheckpointId& checkPointId);
   void removeAllCheckpoints() const;
   void cleanUp();
@@ -179,11 +170,9 @@ class DbCheckpointManager {
   void checkAndRemove();
   void removeOldestDbCheckpoint();
   void updateDbCheckpointMetadata();
-  void updateLastCmdInfo(const SeqNum&, const std::optional<Timestamp>&);
   void removeDbCheckpointFuture(CheckpointId);
   void builMetadataFromFileSystem();
   void updateMetrics();
-  InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
   std::map<CheckpointId, std::future<void>> dbCreateCheckPtFuture_;
@@ -203,9 +192,8 @@ class DbCheckpointManager {
   SeqNum lastCheckpointSeqNum_{0};
   std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> lastCreatedCheckpointMetadata_{std::nullopt};
   std::optional<SeqNum> nextSeqNumToCreateCheckPt_{std::nullopt};
-  std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
+  std::chrono::seconds lastCheckpointCreationTime_;
   std::function<void(SeqNum)> onStableSeqNumCb_;
-  std::function<SeqNum()> getLastStableSeqNumCb_;
   std::vector<std::function<void(SeqNum)>> onDbCheckpointCreated_;
   std::string dbCheckPointDirPath_;
   bool isMetadataErased_ = false;
@@ -214,6 +202,8 @@ class DbCheckpointManager {
   concordMetrics::GaugeHandle lastDbCheckpointSizeInMb_;
   concordMetrics::GaugeHandle lastDbCheckpointBlockId_;
   concordMetrics::CounterHandle numOfDbCheckpointsCreated_;
+  std::string page;
+  DbLastCheckpointMetadata shared_metadata_;
 };
 
 }  // namespace bftEngine::impl

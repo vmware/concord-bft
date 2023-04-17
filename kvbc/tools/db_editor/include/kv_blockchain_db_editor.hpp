@@ -943,11 +943,29 @@ struct ResetMetadata {
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
+
+    // set manually the last executed sequence number and the last primary used sequence number to bypass some asserts
+    SeqNum last_stable_sn{0};
+    uint32_t actualObjectSize = 0;
+    mdtStorage->read(LAST_STABLE_SEQ_NUM, sizeof(last_stable_sn), (char *)&last_stable_sn, actualObjectSize);
+    mdtStorage->beginAtomicWriteOnlyBatch();
+    mdtStorage->writeInBatch(PRIMARY_LAST_USED_SEQ_NUM, (char *)&last_stable_sn, sizeof(last_stable_sn));
+    mdtStorage->writeInBatch(LAST_EXEC_SEQ_NUM, (char *)&last_stable_sn, sizeof(last_stable_sn));
+
+    bftEngine::impl::Bitmap bm;
+    bftEngine::impl::DescriptorOfLastExecution desc{last_stable_sn, bm, 0U};
+    const size_t bufLen = bftEngine::impl::DescriptorOfLastExecution::maxSize();
+    concord::serialize::UniquePtrToChar descBuf(new char[bufLen]);
+    size_t actualSize = 0;
+    char *ptr_buf = descBuf.get();
+    desc.serialize(ptr_buf, bufLen, actualSize);
+    mdtStorage->writeInBatch(LAST_EXEC_DESC, descBuf.get(), actualSize);
+    mdtStorage->commitAtomicWriteOnlyBatch();
+
     ((PersistentStorageImp *)p.get())->init(move(mdtStorage));
     SeqNum stableSeqNum = p->getLastStableSeqNum();
     CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);
     result["new bft mdt"] = std::to_string(isNewStorage);
-    auto lastExecutedSn = p->getLastExecutedSeqNum();
     p->beginWriteTran();
     if (cpm && cpm->senderId() != repId) {
       cpm->setSenderId(repId);
@@ -955,7 +973,6 @@ struct ResetMetadata {
       result["stable seq num"] = std::to_string(stableSeqNum);
     }
     delete cpm;
-    p->setPrimaryLastUsedSeqNum(lastExecutedSn);
     if (removeRsis) {
       for (uint32_t principle = 0; principle < nVal + principles; principle++) {
         uint32_t baseIndex = principle * maxClientBatchSize;
@@ -966,13 +983,13 @@ struct ResetMetadata {
       }
     }
 
-    // remove db checkpoint metadata after updating it with empty dbcheckpoint metadata
-    DbCheckpointMetadata dbchkpt_mdt;
-    std::ostringstream outStream;
-    concord::serialize::Serializable::serialize(outStream, dbchkpt_mdt);
-    auto data = outStream.str();
-    std::vector<uint8_t> v(data.begin(), data.end());
-    p->setDbCheckpointMetadata(v);
+    // // remove db checkpoint metadata after updating it with empty dbcheckpoint metadata
+    // DbCheckpointMetadata dbchkpt_mdt;
+    // std::ostringstream outStream;
+    // concord::serialize::Serializable::serialize(outStream, dbchkpt_mdt);
+    // auto data = outStream.str();
+    // std::vector<uint8_t> v(data.begin(), data.end());
+    // p->setDbCheckpointMetadata(v);
 
     p->endWriteTran();
     return toJson(result);

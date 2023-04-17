@@ -931,7 +931,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
 
         crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))[0]
         bft_network.stop_replica(crashed_replica)
-        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)  # run till the next checkpoint
+        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE + 100)  # run till the next checkpoint
 
         src_replica = list(bft_network.random_set_of_replicas(1, without={crashed_replica}))[0]
         await bft_network.wait_for_stable_checkpoint({src_replica}, stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
@@ -941,13 +941,10 @@ class SkvbcDbSnapshotTest(ApolloTest):
         bft_network.restore_form_older_db_snapshot(snapshot_id, src_replica=src_replica,
                                          dest_replicas=[crashed_replica], prefix=TEMP_DB_SNAPSHOT_PREFIX)
         bft_network.reset_metadata(crashed_replica)
-        await skvbc.send_n_kvs_sequentially(3 * DB_CHECKPOINT_WIN_SIZE)
 
         bft_network.start_replica(crashed_replica)
-        await bft_network.wait_for_state_transfer_to_start()
-        await bft_network.wait_for_state_transfer_to_stop(initial_prim,
-                                                          crashed_replica,
-                                                          stop_on_stable_seq_num=False)
+        await skvbc.send_n_kvs_sequentially(3 * DB_CHECKPOINT_WIN_SIZE)
+
         # make sure that the restored replica participates in consensus
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
                                                   run_ops=lambda: skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE),
