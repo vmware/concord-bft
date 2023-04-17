@@ -213,6 +213,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
   if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
+  page.resize(sizeOfReservedPage());
   loadDbMetadataFromReservedPages();
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
     init();

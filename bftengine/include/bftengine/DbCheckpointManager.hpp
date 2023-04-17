@@ -152,7 +152,6 @@ class DbCheckpointManager : public bftEngine::ResPagesClient<DbCheckpointManager
         lastDbCheckpointBlockId_(metrics_.RegisterGauge("lastDbCheckpointBlockId", 0)),
         numOfDbCheckpointsCreated_(metrics_.RegisterCounter("numOfDbCheckpointsCreated", 0)) {
     metrics_.Register();
-    page.resize(sizeOfReservedPage());
   }
   void init();
   Status createDbCheckpoint(const DbCheckpointId& checkPointId, const BlockId& lastBlockId, const SeqNum& seqNum);
