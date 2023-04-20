@@ -931,7 +931,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
 
         crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))[0]
         bft_network.stop_replica(crashed_replica)
-        await skvbc.send_n_kvs_sequentially((1 + 2/3) * DB_CHECKPOINT_WIN_SIZE)  # run till the next checkpoint
+        await skvbc.send_n_kvs_sequentially(int((1.5) * DB_CHECKPOINT_WIN_SIZE))  # run till the next checkpoint
 
         src_replica = list(bft_network.random_set_of_replicas(1, without={crashed_replica}))[0]
         await bft_network.wait_for_stable_checkpoint({src_replica}, stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)

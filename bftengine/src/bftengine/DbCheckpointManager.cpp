@@ -182,7 +182,6 @@ void DbCheckpointManager::saveDbMetadataToReservedPages(SeqNum sn, std::chrono::
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());
   lastCheckpointCreationTime_ = shared_metadata_.lastCmdTimestamp_;
-  lastCheckpointSeqNum_ = shared_metadata_.lastCmdSeqNum_;
 }
 
 void DbCheckpointManager::loadDbMetadataFromReservedPages() {
