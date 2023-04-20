@@ -87,6 +87,8 @@ install_googletest() {
     cmake -DCMAKE_CXX_FLAGS="-std=c++11 -march=x86-64 -mtune=generic" ..
     make -j$(nproc) install
     cd ${HOME} && rm -r googletest
+}
+
 install_rocksdb_lib() {
     cd ${HOME}
     wget ${WGET_FLAGS} \

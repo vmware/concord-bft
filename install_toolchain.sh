@@ -52,16 +52,13 @@ install_cmake() {
 }
 
 install_cppcheck(){
-  cd ${HOME}
-  CPPCHECK_VER="2.8"
-  wget ${WGET_FLAGS} https://sourceforge.net/projects/cppcheck/files/cppcheck/${CPPCHECK_VER}/cppcheck-${CPPCHECK_VER}.tar.gz/download -O ./cppcheck.tar.gz
-  tar -xvzf cppcheck.tar.gz && rm ./cppcheck.tar.gz
-  cd cppcheck-${CPPCHECK_VER}
-  mkdir build && cd build
-  cmake ..
-  cmake --build .
-  make -j$(nproc) install
-  cd ${HOME} && rm -rf cppcheck-${CPPCHECK_VER}
+	  cd ${HOME}
+	  git clone -b 2.10.2 https://github.com/danmar/cppcheck.git
+	  cd cppcheck && mkdir build && cd build
+	  cmake ..
+	  make -j$(proc)
+	  make install
+	  cd ${HOME} && rm -rf cppcheck
 }
 
 install_ccache(){
