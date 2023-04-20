@@ -77,7 +77,7 @@ class PriorityQueue {
   // Higher priorities are in the back of the array pq_ (e.g priority 1 is popped before priority 0).
   // Calling this function on an empty container triggers an exception.
   void pop() {
-    for (int i{S - 1}; i >= 0; --i) {
+    for (int i = S - 1; i >= 0; --i) {
       if (!pq_[i].empty()) {
         pq_[i].pop();
         --num_elements_;
@@ -93,7 +93,7 @@ class PriorityQueue {
   // Higher priorities are in the back of the array (e.g priority 1 is popped before priority 0).
   // Calling this function on an empty container triggers an exception.
   decltype(auto) front() const {
-    for (int i{S - 1}; i >= 0; --i) {
+    for (int i = S - 1; i >= 0; --i) {
       if (!pq_[i].empty()) {
         const auto& element = pq_[i].front();
         return std::forward<decltype(element)>(element);

@@ -19,6 +19,7 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 #include "crypto/factory.hpp"
+#include <vector>
 
 namespace concord::crypto {
 
