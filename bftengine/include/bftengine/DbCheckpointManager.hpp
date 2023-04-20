@@ -201,7 +201,11 @@ class DbCheckpointManager : public bftEngine::ResPagesClient<DbCheckpointManager
   concordMetrics::GaugeHandle lastDbCheckpointSizeInMb_;
   concordMetrics::GaugeHandle lastDbCheckpointBlockId_;
   concordMetrics::CounterHandle numOfDbCheckpointsCreated_;
-  std::string page;
+
+  // The db checkpoint is created as a local decision in the replica once several conditions are met. Hence we need to
+  // share the knowledge about the latest created db checkpoint such that a recovered replica will able to make the same
+  // decision as all other replicas.
+  std::string page_;
   DbLastCheckpointMetadata shared_metadata_;
 };
 

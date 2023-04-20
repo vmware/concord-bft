@@ -5185,6 +5185,8 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
   tryToStartOrFinishExecution(false);
 }
 void ReplicaImp::handleDbCheckpointCreation(const SeqNum sn, const uint64_t timestamp) {
+  // All replicas suppose to track the db checkpoint metadata, but only the replicas that are configured to actually
+  // create the checkpoint need to create it.
   const auto consensus_time_ms = ConsensusTime(timestamp);
   auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(consensus_time_ms) -
                                 DbCheckpointManager::instance().getLastCheckpointCreationTime())
@@ -5198,8 +5200,6 @@ void ReplicaImp::handleDbCheckpointCreation(const SeqNum sn, const uint64_t time
              "creating db checkpoint in the next stable sequence number" << KVLOG(timeSinceLastSnapshot, sn, *blockId));
     DbCheckpointManager::instance().saveDbMetadataToReservedPages(
         sn, std::chrono::duration_cast<std::chrono::seconds>(consensus_time_ms));
-    // The above should be happen determenistically among all replicas, regardless if they actually create the
-    // checkpoint or not.
     if (getReplicaConfig().dbCheckpointFeatureEnabled) {
       DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
       onSeqNumIsStableOneTimeCallbacks_.add(

@@ -104,7 +104,6 @@ void DbCheckpointManager::loadCheckpointDataFromPersistence() {
     }
     if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
       lastCreatedCheckpointMetadata_ = it->second;
-      lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
       lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
       metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), KVLOG(lastCheckpointSeqNum_));
@@ -183,17 +182,19 @@ void DbCheckpointManager::saveDbMetadataToReservedPages(SeqNum sn, std::chrono::
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());
   lastCheckpointCreationTime_ = shared_metadata_.lastCmdTimestamp_;
+  lastCheckpointSeqNum_ = shared_metadata_.lastCmdSeqNum_;
 }
 
 void DbCheckpointManager::loadDbMetadataFromReservedPages() {
-  if (!loadReservedPage(0, sizeOfReservedPage(), page.data())) {
+  if (!loadReservedPage(0, sizeOfReservedPage(), page_.data())) {
     LOG_WARN(getLogger(), "unable to read db checkpoint shared metadata from reserved pages");
     return;
   }
   std::istringstream inStream;
-  inStream.str(page);
+  inStream.str(page_);
   concord::serialize::Serializable::deserialize(inStream, shared_metadata_);
   lastCheckpointCreationTime_ = shared_metadata_.lastCmdTimestamp_;
+  lastCheckpointSeqNum_ = shared_metadata_.lastCmdSeqNum_;
 }
 
 void DbCheckpointManager::initializeDbCheckpointManager(
@@ -213,7 +214,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
   if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
-  page.resize(sizeOfReservedPage());
+  page_.resize(sizeOfReservedPage());
   loadDbMetadataFromReservedPages();
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
     init();

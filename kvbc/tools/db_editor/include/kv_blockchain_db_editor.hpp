@@ -983,14 +983,6 @@ struct ResetMetadata {
       }
     }
 
-    // // remove db checkpoint metadata after updating it with empty dbcheckpoint metadata
-    // DbCheckpointMetadata dbchkpt_mdt;
-    // std::ostringstream outStream;
-    // concord::serialize::Serializable::serialize(outStream, dbchkpt_mdt);
-    // auto data = outStream.str();
-    // std::vector<uint8_t> v(data.begin(), data.end());
-    // p->setDbCheckpointMetadata(v);
-
     p->endWriteTran();
     return toJson(result);
   }
