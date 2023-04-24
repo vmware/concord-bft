@@ -26,6 +26,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/tree.cpp
     src/sparse_merkle/update_cache.cpp
     src/sparse_merkle/walker.cpp
+    src/sparse_merkle/proof_path_processor.cpp
 
     src/reconfiguration_kvbc_handler.cpp
 

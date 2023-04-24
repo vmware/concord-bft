@@ -97,6 +97,11 @@ std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
   return s;
 }
 
+static constexpr size_t BatchedInternalNodeGetMaxHeight(const size_t children) {
+  if (children == 0) return 0;
+  return 1 + BatchedInternalNodeGetMaxHeight(children / 2);
+}
+
 /*
 // A batched internal node. The node is a representation of a 4-level tree, such
 // that there are a total possibility of 16 leaves.
@@ -166,6 +171,7 @@ std::ostream& operator<<(std::ostream& s, std::optional<T> const& v) {
 class BatchedInternalNode {
  public:
   static constexpr size_t MAX_CHILDREN = 31;
+  static constexpr size_t MAX_HEIGHT = BatchedInternalNodeGetMaxHeight(MAX_CHILDREN);
   using Children = std::array<std::optional<Child>, MAX_CHILDREN>;
 
   // The leaf was inserted into this node successfully.
@@ -317,7 +323,7 @@ class BatchedInternalNode {
 
   // Take a nibble representing the logical location a child at height 0 in a
   // BatchedInternalNode and return the index of that child in `children_`.
-  size_t nibbleToIndex(Nibble nibble) const;
+  static size_t nibbleToIndex(Nibble nibble);
 
   // Return true if the index does not contain a child.
   bool isEmpty(size_t index) const { return !children_.at(index).has_value(); }
@@ -329,13 +335,13 @@ class BatchedInternalNode {
   //
   // The height depends upon MAX_CHILDREN, which dictates the maximum depth of a
   // binary tree.
-  size_t height(size_t index) const;
+  static size_t height(size_t index);
 
   // Return the index of the parent node, given the index of the child node.
   //
   // Return std::nullopt if the index points to the root of this
   // BatchedInternalNode.
-  std::optional<size_t> parentIndex(size_t index) const {
+  static std::optional<size_t> parentIndex(size_t index) {
     if (index == 0) return std::nullopt;
     return (index - 1) / 2;
   }
@@ -347,21 +353,26 @@ class BatchedInternalNode {
   std::optional<size_t> peerIndex(size_t index) const {
     if (index == 0) return std::nullopt;
 
-    auto peer_index = isLeftChild(index) ? index + 1 : index - 1;
+    auto peer_index = calcPeerIndex(index);
     if (isEmpty(peer_index)) {
       return std::nullopt;
     }
     return peer_index;
   }
 
+  static size_t calcPeerIndex(size_t index) {
+    auto peer_index = isLeftChild(index) ? index + 1 : index - 1;
+    return peer_index;
+  }
+
   // Return the index of the left child of a node at a given index.
-  size_t leftChildIndex(size_t index) const { return 2 * index + 1; }
+  static size_t leftChildIndex(size_t index) { return 2 * index + 1; }
 
   // Return the index of the right child of a node at a given index.
-  size_t rightChildIndex(size_t index) const { return 2 * index + 2; }
+  static size_t rightChildIndex(size_t index) { return 2 * index + 2; }
 
   // Is this node a left child?
-  bool isLeftChild(size_t index) const { return index % 2 != 0; }
+  static bool isLeftChild(size_t index) { return index % 2 != 0; }
 
   // The number of children at level 0 of the 4 level tree in this BatchedInternalNode
   size_t numLevel0Children() const;
