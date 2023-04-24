@@ -18,6 +18,7 @@
 
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/db_reader.h"
+#include <boost/container/static_vector.hpp>
 
 namespace concord {
 namespace kvbc {
@@ -29,7 +30,7 @@ namespace proof_path_processor {
 // key/value that we need to check.
 bool verifyProofPath(concordUtils::Sliver key,
                      concordUtils::Sliver value,
-                     const std::vector<Hash>& proofPath,
+                     const boost::container::static_vector<Hash, Hash::SIZE_IN_BITS>& proofPath,
                      const Hash& rootHash);
 
 /*
@@ -49,9 +50,9 @@ Element 0         ComputedHash 2
                                          |
                                        Value
 */
-std::vector<Hash> getProofPath(concordUtils::Sliver key,
-                               std::shared_ptr<IDBReader> db,
-                               const std::string& custom_prefix = "");
+boost::container::static_vector<Hash, Hash::SIZE_IN_BITS> getProofPath(concordUtils::Sliver key,
+                                                                       std::shared_ptr<IDBReader> db,
+                                                                       const std::string& custom_prefix = "");
 
 }  // namespace proof_path_processor
 }  // namespace sparse_merkle

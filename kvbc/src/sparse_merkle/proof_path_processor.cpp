@@ -20,8 +20,12 @@ namespace sparse_merkle {
 namespace proof_path_processor {
 
 using Sliver = concordUtils::Sliver;
+using boost::container::static_vector;
 
-bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPath, const Hash& rootHash) {
+bool verifyProofPath(Sliver key,
+                     Sliver value,
+                     const static_vector<Hash, Hash::SIZE_IN_BITS>& proofPath,
+                     const Hash& rootHash) {
   Hasher hasher{};
   auto keyHash = hasher.hash(key.data(), key.length());
   auto valueHash = hasher.hash(value.data(), value.length());
@@ -29,19 +33,18 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
   enum class Direction : std::uint8_t { Left, Right };
   constexpr auto BatchedInternalNodeLevelsIterated = BatchedInternalNode::MAX_HEIGHT - 1;
 
-  std::vector<Direction> pathOrdering;
-  std::array<Direction, BatchedInternalNodeLevelsIterated> subPath;
+  static_vector<Direction, Hash::SIZE_IN_BITS> pathOrdering;
+  static_vector<Direction, BatchedInternalNodeLevelsIterated> subPath;
   for (size_t nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
     auto current_nibble = keyHash.getNibble(nibble_index).data();
     auto node_index = BatchedInternalNode::nibbleToIndex(current_nibble);
-    size_t foundElemens = 0;
+    subPath.clear();
     for (size_t i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (BatchedInternalNode::isLeftChild(node_index)) {
-        subPath[foundElemens] = Direction::Left;
+        subPath.emplace_back(Direction::Left);
       } else {
-        subPath[foundElemens] = Direction::Right;
+        subPath.emplace_back(Direction::Right);
       }
-      foundElemens++;
       auto current_index_opt = BatchedInternalNode::parentIndex(node_index);
       if (current_index_opt.has_value()) {
         node_index = current_index_opt.value();
@@ -49,8 +52,7 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
         break;
       }
     }
-    pathOrdering.insert(
-        pathOrdering.end(), subPath.rbegin() + (BatchedInternalNodeLevelsIterated - foundElemens), subPath.rend());
+    pathOrdering.insert(pathOrdering.end(), subPath.rbegin(), subPath.rend());
     if (pathOrdering.size() >= proofPath.size()) {
       break;
     }
@@ -72,8 +74,10 @@ bool verifyProofPath(Sliver key, Sliver value, const std::vector<Hash>& proofPat
   return next == rootHash;
 }
 
-std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const std::string& custom_prefix) {
-  std::vector<Hash> retVal;
+static_vector<Hash, Hash::SIZE_IN_BITS> getProofPath(Sliver key,
+                                                     std::shared_ptr<IDBReader> db,
+                                                     const std::string& custom_prefix) {
+  static_vector<Hash, Hash::SIZE_IN_BITS> retVal;
   Hasher hasher;
   Hash valueHash{};
   Hash globalLeaveHash{};
@@ -87,7 +91,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
   Version leafChildVersion{};
   Hash leafHash{};
 
-  std::array<Hash, BatchedInternalNodeLevelsIterated> hashesCollectedFromInternalNode;
+  static_vector<Hash, BatchedInternalNodeLevelsIterated> hashesCollectedFromInternalNode;
   for (size_t nibble_index = 0; nibble_index < Hash::MAX_NIBBLES; nibble_index++) {
     BatchedInternalNode node;
     if (nibble_index == 0) {
@@ -109,7 +113,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
     auto child = node.children()[current_index];
     nextNodetype = Nodetype::None;
     bool firstInternalNodeFount = false;
-    size_t foundElemens = 0;
+    hashesCollectedFromInternalNode.clear();
     for (size_t i = 0; i < BatchedInternalNodeLevelsIterated; i++) {
       if (nextNodetype == Nodetype::None && child.has_value() && std::get_if<InternalChild>(&child.value())) {
         nextNodetype = Nodetype::InternalChild;
@@ -126,11 +130,10 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
             firstInternalNodeFount = true;
             internalChildVersion = v->version;
           }
-          hashesCollectedFromInternalNode[foundElemens] = node.getHash(node.calcPeerIndex(current_index));
+          hashesCollectedFromInternalNode.emplace_back(node.getHash(node.calcPeerIndex(current_index)));
         } else if (std::get_if<LeafChild>(&val)) {
-          hashesCollectedFromInternalNode[foundElemens] = node.getHash(node.calcPeerIndex(current_index));
+          hashesCollectedFromInternalNode.emplace_back(node.getHash(node.calcPeerIndex(current_index)));
         }
-        foundElemens++;
       }
       auto current_index_opt = node.parentIndex(current_index);
       if (current_index_opt.has_value()) {
@@ -138,9 +141,7 @@ std::vector<Hash> getProofPath(Sliver key, std::shared_ptr<IDBReader> db, const 
         child = node.children()[current_index];
       }
     }
-    retVal.insert(retVal.end(),
-                  hashesCollectedFromInternalNode.rbegin() + (BatchedInternalNodeLevelsIterated - foundElemens),
-                  hashesCollectedFromInternalNode.rend());
+    retVal.insert(retVal.end(), hashesCollectedFromInternalNode.rbegin(), hashesCollectedFromInternalNode.rend());
   }
   return retVal;
 }
