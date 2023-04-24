@@ -44,12 +44,12 @@ FullNodeReplica::FullNodeReplica(const ReplicaConfig &config,
                                  concordUtil::Timers &timers,
                                  MetadataStorage *metadataStorage)
     : ReplicaForStateTransfer(config, requestsHandler, stateTransfer, msgComm, msgHandlerReg, true, timers),
-      ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
+      fn_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
                   metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metadataStorage_{metadataStorage} {
-  LOG_INFO(GL, "Initialising ReadOnly Replica");
+  LOG_INFO(GL, "Initialising Full Node Replica");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
       MsgCode::Checkpoint, std::bind(&FullNodeReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
@@ -72,7 +72,7 @@ FullNodeReplica::FullNodeReplica(const ReplicaConfig &config,
                      concord::crypto::KeyFormat::PemFormat}},
                    *repsInfo);
 
-  // Register status handler for Read-Only replica
+  // Register status handler for Full Node replica
   registerStatusHandlers();
   bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
       [&](uint32_t id) { return SigManager::instance()->getPublicKeyOfVerifier(id); });
@@ -98,18 +98,18 @@ void FullNodeReplica::stop() {
 void FullNodeReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   lastExecutedSeqNum = newStateCheckpoint * checkpointWindowSize;
 
-  ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+  fn_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   last_executed_seq_num_ = lastExecutedSeqNum;
 }
 
 void FullNodeReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
-  ro_metrics_.received_invalid_msg_++;
+  fn_metrics_.received_invalid_msg_++;
   LOG_WARN(GL,
            "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
                    << " type=" << msg->type() << " reason: " << reason);
 }
 void FullNodeReplica::sendAskForCheckpointMsg() {
-  ro_metrics_.sent_ask_for_checkpoint_msg_++;
+  fn_metrics_.sent_ask_for_checkpoint_msg_++;
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
@@ -125,7 +125,7 @@ void FullNodeReplica::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> ms
   if (isCollectingState()) {
     return;
   }
-  ro_metrics_.received_checkpoint_msg_++;
+  fn_metrics_.received_checkpoint_msg_++;
   LOG_INFO(GL,
            KVLOG(msg->senderId(),
                  msg->idOfGeneratedReplica(),
@@ -208,12 +208,12 @@ void FullNodeReplica::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestM
   span.setTag("cid", msg->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  // A read only replica can handle only reconfiguration requests. Those requests are signed by the operator and
+  // A full node replica can handle only reconfiguration requests. Those requests are signed by the operator and
   // the validation is done in the reconfiguration engine. Thus, we don't need to check the client validity as in
   // the committers
 
   if (reconfig_flag) {
-    LOG_INFO(GL, "ro replica has received a reconfiguration request");
+    LOG_INFO(GL, "FN replica has received a reconfiguration request");
     executeReadOnlyRequest(span, *(msg.get()));
     return;
   }
@@ -221,7 +221,7 @@ void FullNodeReplica::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestM
 
 void FullNodeReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, const ClientRequestMsg &request) {
   auto span = concordUtils::startChildSpan("bft_execute_read_only_request", parent_span);
-  // Read only replica does not know who is the primary, so it always return 0. It is the client responsibility to treat
+  // full node replica does not know who is the primary, so it always return 0. It is the client responsibility to treat
   // the replies accordingly.
   ClientReplyMsg reply(0, request.requestSeqNum(), config_.getreplicaId());
   const uint16_t clientId = request.clientProxyId();
@@ -247,7 +247,7 @@ void FullNodeReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   const uint32_t actualReplyLength = single_request.outActualReplySize;
   const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
   LOG_DEBUG(GL,
-            "Executed read only request. " << KVLOG(clientId,
+            "Executed full node request. " << KVLOG(clientId,
                                                     lastExecutedSeqNum,
                                                     request.requestLength(),
                                                     reply.maxReplyLength(),
@@ -269,7 +269,7 @@ void FullNodeReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, executionResult));
+    LOG_ERROR(GL, "Received error while executing FN request. " << KVLOG(clientId, executionResult));
   }
   ClientReplyMsg replyMsg(
       0, request.requestSeqNum(), single_request.outReply, single_request.outActualReplySize, executionResult);
@@ -278,7 +278,7 @@ void FullNodeReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
 
 void FullNodeReplica::registerStatusHandlers() {
   auto h = concord::diagnostics::StatusHandler(
-      "replica-sequence-numbers", "Last executed sequence number of the read-only replica", [this]() {
+      "replica-sequence-numbers", "Last executed sequence number of the full node replica", [this]() {
         concordUtils::BuildJson bj;
 
         bj.startJson();

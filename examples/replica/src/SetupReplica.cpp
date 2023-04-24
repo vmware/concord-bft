@@ -202,8 +202,8 @@ bft::communication::ICommunication* SetupReplica::createCommunication(
   logging::Logger logger = getLogger();
   TestCommConfig testCommConfig(logger);
   testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
-  uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 +
-                                      replicaConfig.numRoReplicas + replicaConfig.numFnReplicas);
+  uint16_t numOfReplicas =
+      (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
   auto numOfClients =
       replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
 #ifdef USE_COMM_PLAIN_TCP

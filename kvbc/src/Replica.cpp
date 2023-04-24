@@ -64,9 +64,9 @@ Status Replica::initInternals() {
         bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
         bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
         *this));
-    if (replicaConfig_.isReadOnly || replicaConfig_.isFullNode) {
+    if (replicaConfig_.isReadOnly) {
       LOG_INFO(logger,
-               "Read Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
+               "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
       m_replicaPtr = bftEngine::ReplicaFactory::createRoReplica(
           replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
     } else {

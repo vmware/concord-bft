@@ -34,6 +34,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   void start() override;
   void stop() override;
   virtual bool isReadOnly() const override { return true; }
+  virtual bool isFullNode() const override { return false; }
 
  protected:
   void sendAskForCheckpointMsg();

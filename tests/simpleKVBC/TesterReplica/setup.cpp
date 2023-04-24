@@ -370,8 +370,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 
     TestCommConfig testCommConfig(logger);
     testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
-    uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 +
-                                        replicaConfig.numRoReplicas + replicaConfig.numFnReplicas);
+    uint16_t numOfReplicas =
+        (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
     auto numOfClients =
         replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_ =

@@ -366,6 +366,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   virtual bool isReadOnly() const override { return false; }
 
+  virtual bool isFullNode() const override { return false; }
+
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> getSecretsManager() { return sm_; }
 

@@ -96,7 +96,7 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillisec) {
     }
   }
 
-  if (!replica_->isReadOnly()) {
+  if (!replica_->isReadOnly() && !replica_->isFullNode()) {
     auto replicaImp = dynamic_cast<ReplicaImp *>(replica_.get());
 
     shared_ptr<PersistentStorage> persistentStorage(replicaImp->getPersistentStorage());

@@ -3971,13 +3971,13 @@ void BCStateTran::computeDigestOfPage(
   if (checkpointNumber > 0) {
     digestGenerator.update(page, pageSize);
   }
-  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
+  digestGenerator.writeDigest(outDigest.getForUpdate());
 }
 
 void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor *pagesDesc, Digest &outDigest) {
   DigestGenerator digestGenerator;
   digestGenerator.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
-  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
+  digestGenerator.writeDigest(outDigest.getForUpdate());
 }
 
 void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
@@ -3996,7 +3996,7 @@ void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
                                        const char *block,
                                        const uint32_t blockSize,
                                        Digest *outDigest) {
-  computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest));
+  computeDigestOfBlockImpl(blockNum, block, blockSize, outDigest->getForUpdate());
 }
 
 BlockDigest BCStateTran::computeDigestOfBlock(const uint64_t blockNum, const char *block, const uint32_t blockSize) {

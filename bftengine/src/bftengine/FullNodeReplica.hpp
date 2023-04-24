@@ -33,7 +33,8 @@ class FullNodeReplica : public ReplicaForStateTransfer {
 
   void start() override;
   void stop() override;
-  virtual bool isReadOnly() const override { return true; }
+  virtual bool isReadOnly() const override { return false; }
+  virtual bool isFullNode() const override { return true; }
 
  protected:
   void sendAskForCheckpointMsg();
@@ -64,15 +65,15 @@ class FullNodeReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle sent_ask_for_checkpoint_msg_;
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
-  } ro_metrics_;
+  } fn_metrics_;
 
   std::unique_ptr<MetadataStorage> metadataStorage_;
   std::atomic<SeqNum> last_executed_seq_num_{0};
 
  private:
   // This function serves as an ReplicaStatusHandlers alternative for FullNodeReplica. The reason to use this function
-  // is that regular and read-only replicas expose different metrics and the status handlers are not interchangeable.
-  // The read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // is that regular and full node replicas expose different metrics and the status handlers are not interchangeable.
+  // The full node replica also hasn't got an implementation for InternalMessages which are used by the
   // ReplicaStatusHandler.
   void registerStatusHandlers();
 };

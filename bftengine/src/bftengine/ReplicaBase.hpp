@@ -50,6 +50,8 @@ class ReplicaBase {
 
   virtual bool isReadOnly() const = 0;
 
+  virtual bool isFullNode() const = 0;
+
   std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return msgHandlers_; }
   concordUtil::Timers* getTimers() { return &timers_; }
