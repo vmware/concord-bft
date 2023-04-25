@@ -19,6 +19,7 @@ constexpr auto RESERVED_PAGE_ID = uint32_t{0};
 namespace bftEngine::impl {
 
 TimeServiceResPageClient::TimeServiceResPageClient() {
+  // cppcheck-suppress incorrectStringBooleanError
   ConcordAssert(res_pages_ != nullptr &&
                 "Reserved pages must be initialized before instantiating TimeServiceResPageClient");
   load();

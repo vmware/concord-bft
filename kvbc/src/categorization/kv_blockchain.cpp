@@ -193,6 +193,8 @@ BlockId KeyValueBlockchain::addBlock(CategoryInput&& category_updates,
   Block new_block{block_chain_.getLastReachableBlockId() + 1};
   auto parent_digest_future = computeParentBlockDigest(new_block.id(), std::move(last_raw_block_));
   // initialize the raw block for the next call to computeParentBlockDigest
+  // TODO [TK] - EL please fix access after move
+  // cppcheck-suppress accessMoved
   auto& last_raw_block = last_raw_block_.second.emplace();
   last_raw_block_.first = new_block.id();
   last_raw_block.updates = category_updates;

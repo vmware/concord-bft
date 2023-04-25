@@ -70,10 +70,9 @@ target_include_directories(kvbc PUBLIC ${PROJECT_SOURCE_DIR} include util)
 
 if (BUILD_TESTING)
     add_subdirectory(test)
+    add_subdirectory(benchmark)
 endif()
 
-
-add_subdirectory(benchmark)
 add_subdirectory(tools)
 find_package(CMFC REQUIRED)
 add_subdirectory(cmf)

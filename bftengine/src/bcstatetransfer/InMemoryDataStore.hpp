@@ -31,7 +31,7 @@ class InMemoryDataStore : public DataStore {
  public:
   explicit InMemoryDataStore(uint32_t sizeOfReservedPage);
   ~InMemoryDataStore() override {
-    deleteAllPendingPages();
+    InMemoryDataStore::deleteAllPendingPages();
     pages.clear();
   }
 
