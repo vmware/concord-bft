@@ -390,7 +390,7 @@ module Proof {
     && UnCommitableAgreesWithPrepare(c, v)
     && UnCommitableAgreesWithRecordedPrePrepare(c, v)//Unfinished proof.
     && HonestReplicasLeaveViewsBehind(c, v)
-    && RecordedNewViewMsgsContainSentVCMsgs(c, v)
+    && RecordedNewViewMsgsAreChecked(c, v)
     && RecordedViewChangeMsgsCameFromNetwork(c, v)
     && OneViewChangeMessageFromReplicaPerView(c, v)
     && SentViewChangesMsgsComportWithSentCommits(c, v)//Unfinished proof. This predicate is false.
@@ -1248,13 +1248,14 @@ module Proof {
     && (forall msg | msg in msgs :: c.clusterConfig.IsReplica(msg.sender))
   }
 
-  predicate {:opaque} RecordedNewViewMsgsContainSentVCMsgs(c:Constants, v:Variables) {
+  predicate {:opaque} RecordedNewViewMsgsAreChecked(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
                                         && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
                                         && newViewMsg in replicaVariables.newViewMsgsRecvd.msgs
                                            :: && newViewMsg.payload.vcMsgs.msgs <= v.network.sentMsgs
-                                              && MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs))
+                                              && MessagesAreFromReplicas(c, newViewMsg.payload.vcMsgs.msgs)
+                                              && newViewMsg.payload.checked(c.clusterConfig, v.network.sentMsgs))
   }
 
   predicate {:opaque} RecordedPrePreparesMatchHostView(c:Constants, v:Variables) {
@@ -1560,12 +1561,12 @@ module Proof {
     reveal_HonestReplicasLeaveViewsBehind();
   }
 
-  lemma HonestPreservesRecordedNewViewMsgsContainSentVCMsgs(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
+  lemma HonestPreservesRecordedNewViewMsgsAreChecked(c: Constants, v:Variables, v':Variables, step:Step, h_v:Replica.Variables, h_step:Replica.Step)
     requires Inv(c, v)
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
-    ensures RecordedNewViewMsgsContainSentVCMsgs(c, v')
+    ensures RecordedNewViewMsgsAreChecked(c, v')
   {
-    reveal_RecordedNewViewMsgsContainSentVCMsgs();
+    reveal_RecordedNewViewMsgsAreChecked();
     reveal_RecordedViewChangeMsgsCameFromNetwork();
 
     forall replicaIdx, newViewMsg | && IsHonestReplica(c, replicaIdx)
@@ -1645,9 +1646,12 @@ module Proof {
         var troubleMakers := ReplicasThatCanCommitInView(c, v', seqID, priorView, priorOperationWrapper);
         if |troubleMakers| >= c.clusterConfig.AgreementQuorum() {
           // Contradiction hypothesis
+          assert newViewMsg.payload.checked(c.clusterConfig, v.network.sentMsgs) by {
+            reveal_RecordedNewViewMsgsAreChecked();
+          }
           UniqueSendersCardinality(newViewMsg.payload.vcMsgs.msgs);
           assert viewChangers <= getAllReplicas(c) by {
-            reveal_RecordedNewViewMsgsContainSentVCMsgs();
+            reveal_RecordedNewViewMsgsAreChecked();
           }
           var doubleAgent := FindQuorumIntersection(c, viewChangers, troubleMakers);
           assert !c.clusterConfig.IsFaultyReplica(doubleAgent);
@@ -1656,7 +1660,7 @@ module Proof {
                                && vcMsg.sender == doubleAgent;
           assert vcMsg.payload.ViewChangeMsg?;
           assert vcMsg in v.network.sentMsgs by {
-            reveal_RecordedNewViewMsgsContainSentVCMsgs();
+            reveal_RecordedNewViewMsgsAreChecked();
           }
 
           assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
@@ -1665,21 +1669,44 @@ module Proof {
           }
 
           if (seqID !in vcMsg.payload.certificates) {
-            assume false; // Need help from Oded in this branch.
+            reveal_TemporarilyDisableCheckpointing();
+            assume false;
+          } else if (vcMsg.payload.certificates[seqID].empty()) {
+            // Need help from Oded in this branch.
             // We are looking for an Inv that says every ViewChange msg after a Commit mentions the Committed SeqID.
+            assume false;
           } else {
-            var certView := vcMsg.payload.certificates[seqID].prototype().view; // We need to differentiate the first hop of the VC!!!
-            if certView <= priorView {
+            var certificate := vcMsg.payload.certificates[seqID];
+            var certView := certificate.prototype().view; // We need to differentiate the first hop of the VC!!!
+            if certView < priorView {
               assert !ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
                 // viewchangemessages from honest sender comport with uncommitable in view
                 //reveal_SentViewChangesMsgsComportWithUncommitableInView();
                 //assume false;
                 //reveal_CommitMsgsFromHonestSendersAgree();
                 reveal_EveryCommitMsgIsRememberedByVCMsgs();
-                assume EveryCommitMsgIsRememberedByVCMsgs(c, v);
+                assume EveryCommitMsgIsRememberedByVCMsgs(c, v);// TODO: put this predicate in the Inv.
               }
               assert doubleAgent !in troubleMakers;
               assert false;
+            } else if certView == priorView {
+              // Interesting branch - if there was a commit its operation wraper has to match the prepared certificate.
+              if ReplicaSentCommit(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) {
+                // operation wrapers agree
+                var sentCommit := Network.Message(doubleAgent,
+                                                  Messages.Commit(priorView,
+                                                                  seqID,
+                                                                  priorOperationWrapper));
+                assert sentCommit in v.network.sentMsgs;
+                assert CertificateComportsWithCommit(c, certificate, sentCommit) by {
+                  reveal_EveryCommitMsgIsRememberedByVCMsgs();
+                  assume EveryCommitMsgIsRememberedByVCMsgs(c, v);// TODO: put this predicate in the Inv.
+                }
+                assert sentCommit.payload.operationWrapper == certificate.prototype().operationWrapper;
+              } else {
+                assert doubleAgent !in troubleMakers;
+                assert false;
+              }
             } else { // certView > priorView // Use the mutual induction hypothesis to get UncommitableInView directly.
               /*
                 Grab the cert
@@ -2158,7 +2185,7 @@ module Proof {
       HonestPreservesUnCommitableAgreesWithRecordedPrePrepare(c, v, v', step, h_v, h_step);
       HonestPreservesUnCommitableAgreesWithPrepare(c, v, v', step, h_v, h_step);
       HonestPreservesHonestReplicasLeaveViewsBehind(c, v, v', step, h_v, h_step);
-      HonestPreservesRecordedNewViewMsgsContainSentVCMsgs(c, v, v', step, h_v, h_step);
+      HonestPreservesRecordedNewViewMsgsAreChecked(c, v, v', step, h_v, h_step);
       HonestPreservesRecordedViewChangeMsgsCameFromNetwork(c, v, v', step, h_v, h_step);
       HonestPreservesSentViewChangesMsgsComportWithSentCommits(c, v, v', step, h_v, h_step);
       HonestPreservesEveryCommitMsgIsRememberedByItsSender(c, v, v', step, h_v, h_step);
@@ -2244,8 +2271,8 @@ module Proof {
     assert HonestReplicasLeaveViewsBehind(c, v') by {
       reveal_HonestReplicasLeaveViewsBehind();
     }
-    assert RecordedNewViewMsgsContainSentVCMsgs(c, v') by {
-      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+    assert RecordedNewViewMsgsAreChecked(c, v') by {
+      reveal_RecordedNewViewMsgsAreChecked();
     }
     assert RecordedViewChangeMsgsCameFromNetwork(c, v') by {
       reveal_RecordedViewChangeMsgsCameFromNetwork();
@@ -2294,7 +2321,7 @@ module Proof {
       reveal_UnCommitableAgreesWithPrepare();
       reveal_UnCommitableAgreesWithRecordedPrePrepare();
       reveal_HonestReplicasLeaveViewsBehind();
-      reveal_RecordedNewViewMsgsContainSentVCMsgs();
+      reveal_RecordedNewViewMsgsAreChecked();
       reveal_RecordedViewChangeMsgsCameFromNetwork();
       reveal_SentViewChangesMsgsComportWithSentCommits();
       reveal_EveryCommitMsgIsRememberedByItsSender();
