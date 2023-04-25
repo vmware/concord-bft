@@ -50,7 +50,7 @@ static const int F = 1;
 static const int C = 0;
 ViewChangeSafetyLogic::Restriction restrictions[kWorkWindowSize];
 std::unique_ptr<bftEngine::impl::ReplicasInfo> pRepInfo;
-std::unique_ptr<SigManager> sigManager_;
+std::shared_ptr<SigManager> sigManager_;
 
 class DummyShareSecretKey : public IShareSecretKey {
  public:
@@ -82,14 +82,14 @@ void setUpConfiguration_4() {
     replicaConfig[i].cVal = C;
     replicaConfig[i].replicaId = i;
   }
-  loadPrivateAndPublicKeys(replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas, 0, N);
+  loadPrivateAndPublicKeys(replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas, N);
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
 
-  sigManager_.reset(createSigManager(0,
-                                     replicaConfig[0].replicaPrivateKey,
-                                     concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                     replicaConfig[0].publicKeysOfReplicas,
-                                     *pRepInfo));
+  sigManager_ = createSigManager(0,
+                                 replicaConfig[0].replicaPrivateKey,
+                                 concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                 replicaConfig[0].publicKeysOfReplicas,
+                                 *pRepInfo);
 }
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
@@ -482,7 +482,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
-  bftEngine::CryptoManager::instance(std::make_unique<TestCryptoSystem>());
+  bftEngine::CryptoManager::init(std::make_unique<TestCryptoSystem>());
   int res = RUN_ALL_TESTS();
   // TODO cleanup the generated certificates
   return res;

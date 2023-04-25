@@ -118,6 +118,10 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
+  // Start metrics server before the creation of the replica so that we handle the case where
+  // a replica waits for an unresponsive primary on startup but still updates state-transfer related metrics
+  setup->GetMetricsServer().Start();
+
   replica = std::make_shared<Replica>(
       setup->GetCommunication(),
       setup->GetReplicaConfig(),
@@ -126,6 +130,7 @@ void run_replica(int argc, char** argv) {
       setup->GetPerformanceManager(),
       std::map<std::string, categorization::CATEGORY_TYPE>{
           {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+          {CLIENT_STATE_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
           {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
           {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
       setup->GetSecretManager());
@@ -147,6 +152,7 @@ void run_replica(int argc, char** argv) {
                                                 replica.get(),
                                                 blockMetadata,
                                                 logger,
+                                                replica->getStateTransfer(),
                                                 setup->AddAllKeysAsPublic(),
                                                 replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(cmdHandler);
@@ -167,10 +173,7 @@ void run_replica(int argc, char** argv) {
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
-  // Start metrics server after creation of the replica so that we ensure
-  // registration of metrics from the replica with the aggregator and don't
-  // return empty metrics from the metrics server.
-  setup->GetMetricsServer().Start();
+
   while (replica->isRunning()) {
     if (timeToExit) {
       setup->GetMetricsServer().Stop();
@@ -182,26 +185,42 @@ void run_replica(int argc, char** argv) {
 }
 }  // namespace concord::kvbc::test
 
+static std::unordered_map<int, __sighandler_t> defaultHandlers;
+
 namespace {
 static void signal_handler(int signal_num) {
-  LOG_INFO(GL, "Program received signal " << signal_num);
+  LOG_WARN(GL, "Program received signal " << signal_num);
+  printCallStack();
   concord::kvbc::test::timeToExit = true;
+  defaultHandlers[signal_num](signal_num);
 }
 }  // namespace
 
 int main(int argc, char** argv) {
-  struct sigaction sa;
-  LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) starting...");
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = signal_handler;
-  sigfillset(&sa.sa_mask);
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
+  const auto signals = {SIGABRT,
+                        SIGILL,
+                        SIGFPE,
+                        SIGSEGV,
+                        SIGTERM,
+                        SIGKILL,
+                        SIGQUIT,
+                        SIGHUP,
+                        SIGBUS,
+                        SIGSYS,
+                        SIGPIPE,
+                        SIGSTOP,
+                        SIGTSTP,
+                        SIGXFSZ};
+
+  for (int signalCode : signals) {
+    defaultHandlers[signalCode] = signal(signalCode, signal_handler);
+  }
 
   try {
     concord::kvbc::test::run_replica(argc, argv);
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
+    return 1;
   }
   LOG_INFO(GL, "skvbc_replia (concord-bft tester replica) shutting down...");
   return 0;

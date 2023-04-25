@@ -81,9 +81,8 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   for (const auto& sig : sigs) {
     bool verificationResult = false;
     if (myReplicaId == sig.sender_replica) {
-      std::vector<uint8_t> mySignature(sigManager_->getMySigLength(), '\0');
-      sigManager_->sign(hash.data(), hash.size(), mySignature.data());
-      verificationResult = mySignature == sig.signature;
+      // TODO: why didn't we just validate this signature normally?
+      verificationResult = sigManager_->verifyOwnSignature(hash.data(), hash.size(), sig.signature.data());
     } else {
       verificationResult = sigManager_->verifySig(
           sig.sender_replica, hash.data(), hash.size(), sig.signature.data(), sig.signature.size());

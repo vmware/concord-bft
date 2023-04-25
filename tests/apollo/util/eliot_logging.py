@@ -58,7 +58,6 @@ def set_file_destination():
     to_file(test_log_file)
     atexit.register(lambda: test_log_file.close())
 
-
 def format_eliot_message(message):
     if message.get("action_status", "") == "succeeded":
         return

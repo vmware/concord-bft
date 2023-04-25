@@ -89,6 +89,8 @@ class IStateTransfer : public IReservedPages {
   // Accepts the checkpoint number as a parameter.
   // Callbacks must not throw.
   // Multiple callbacks can be added.
+  // TODO: the callbacks should be stored in a queue/priority queue and run in a
+  // predetermined order to prevent repeating logic such as loading main keys from reserved pages
   virtual void addOnTransferringCompleteCallback(
       const std::function<void(uint64_t)> &cb,
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;

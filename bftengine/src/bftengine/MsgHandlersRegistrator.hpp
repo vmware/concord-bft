@@ -49,6 +49,7 @@ using InternalMsgHandlerCallback = CallbackTypeWithRefArg<InternalMessage>;
 class MsgHandlersRegistrator {
  public:
   void registerMsgHandler(uint16_t msgId, const MsgHandlerCallback& callbackFunc) {
+    LOG_INFO(GL, "Registered message handler with code: " << msgId);
     msgHandlers_[msgId] = callbackFunc;
   }
 

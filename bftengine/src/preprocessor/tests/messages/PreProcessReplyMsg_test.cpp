@@ -38,7 +38,7 @@ class PreProcessReplyMsgTestFixture : public testing::Test {
 
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;
-  std::unique_ptr<SigManager> sigManager;
+  std::shared_ptr<SigManager> sigManager;
   PreProcessorRecorder preProcessorRecorder;
 };
 
@@ -110,7 +110,7 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   const auto hash =
       PreProcessResultHashCreator::create(preProcessResultBuf, preProcessResultBufLen, opResult, clientId, reqSeqNum);
   auto expected_signature = std::vector<concord::Byte>(sigManager->getMySigLength());
-  sigManager->sign(hash.data(), sizeof(hash), expected_signature.data());
+  sigManager->sign(0, hash.data(), sizeof(hash), expected_signature.data());
   EXPECT_THAT(expected_signature, testing::ContainerEq(preProcessReplyMsg.getResultHashSignature()));
   clearDiagnosticsHandlers();
 }

@@ -44,14 +44,13 @@ class Cryptosystem {
   uint16_t numSigners_{0};
   uint16_t threshold_{0};
 
+  static constexpr const uint16_t INVALID_SIGNER_ID = UINT16_MAX;
+
   // If only one signer's private key is known and stored in this cryptosystem,
   // this field records that signer's ID; otherwise (if no or all private keys
   // are known to this cryptosystem), this field stores Cryptosystem::NID to
   // represent it is inapplicable.
-  uint16_t signerID_{0};
-
-  // Note that 0 is not a valid signer ID because signer IDs are 1-indexed.
-  static const uint16_t NID = 0;
+  uint16_t signerID_{INVALID_SIGNER_ID};
 
   std::string publicKey_{""};
   std::vector<std::string> verificationKeys_;
@@ -180,9 +179,7 @@ class Cryptosystem {
    * represented as strings. Their format is cryptosystem type-dependent.
    *
    * @return A vector containing the verification keys, in order of which signer
-   *         they correspond to. To comply with the convention of 1-indexing
-   *         signer IDs, verification keys will begin at index 1 of the vector.
-   *         The contents of index 0 of the vector is left undefined.
+   *         they correspond to.
    *
    * @throws std::runtime_error                 If this cryptosystem does not
    *                                            currently have verification
@@ -191,6 +188,12 @@ class Cryptosystem {
    *                                            loaded.
    */
   std::vector<std::string> getSystemVerificationKeys() const;
+
+  /**
+   *
+   * @return The verification key of the current replica
+   */
+  std::string getMyVerificationKey() const;
 
   /**
    * Get a list of private keys for this threshold cryptosystem, represented as
@@ -317,7 +320,7 @@ class Cryptosystem {
                                          std::string& thrPublicKey,
                                          std::vector<std::string>& thrVerificationKeys);
   /**
-   * Update a key pair
+   * Update own key pair
    */
   void updateKeys(const std::string& shareSecretKey, const std::string& shareVerificationKey);
 

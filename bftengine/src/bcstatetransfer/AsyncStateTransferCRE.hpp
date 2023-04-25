@@ -1,3 +1,4 @@
+
 // Concord
 //
 // Copyright (c) 2021 VMware, Inc. All Rights Reserved.
@@ -17,11 +18,22 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "crypto/signer.hpp"
 
 namespace bftEngine::bcst::asyncCRE {
 class CreFactory {
  public:
   static std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> create(
-      std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers);
+      std::shared_ptr<MsgsCommunicator> msgsCommunicator,
+      std::shared_ptr<MsgHandlersRegistrator> msgHandlers,
+      std::unique_ptr<concord::crypto::ISigner> transactionSigner);
 };
+
+class ReplicaCRESigner : public concord::crypto::ISigner {
+ public:
+  size_t signBuffer(const concord::Byte* dataIn, size_t dataLen, concord::Byte* sigOutBuffer) const override;
+  size_t signatureLength() const override;
+  std::string getPrivKey() const override;
+};
+
 }  // namespace bftEngine::bcst::asyncCRE

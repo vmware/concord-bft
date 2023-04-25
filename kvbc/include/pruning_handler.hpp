@@ -32,7 +32,7 @@ class PruningSigner {
  public:
   // Construct by passing the configuration for the node the signer is running
   // on.
-  PruningSigner(const std::string &key);
+  PruningSigner();
   // Sign() methods sign the passed message and store the signature in the
   // 'signature' field of the message. An exception is thrown on error.
   //
@@ -41,9 +41,6 @@ class PruningSigner {
   // application-level signature rather than a Concord-BFT Principal's RSA/EdDSA
   // signature.
   void sign(concord::messages::LatestPrunableBlock &);
-
- private:
-  std::unique_ptr<concord::crypto::ISigner> signer_;
 };
 
 // This class verifies pruning messages that were signed by serializing message
@@ -55,7 +52,7 @@ class PruningSigner {
 class PruningVerifier {
  public:
   // Construct by passing the system configuration.
-  PruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys);
+  PruningVerifier();
   // Verify() methods verify that the message comes from the advertised sender.
   // Methods return true on successful verification and false on unsuccessful.
   // An exception is thrown on error.
@@ -76,22 +73,6 @@ class PruningVerifier {
   };
 
   bool verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
-
-  using ReplicaVector = std::vector<Replica>;
-
-  // Get a replica from the replicas vector by its index.
-  const Replica &getReplica(ReplicaVector::size_type idx) const;
-
-  // A vector of all the replicas in the system.
-  ReplicaVector replicas_;
-  // We map a principal_id to a replica index in the replicas_ vector to be able
-  // to verify a message through the Replica's verifier that is associated with
-  // its public key.
-  std::unordered_map<std::uint64_t, ReplicaVector::size_type> principal_to_replica_idx_;
-
-  // Contains a set of replica principal_ids for use in verification. Filled in
-  // once during construction.
-  std::unordered_set<std::uint64_t> replica_ids_;
 };
 class PruningHandler : public concord::reconfiguration::OperatorCommandsReconfigurationHandler {
   // This class implements the KVB pruning state machine. Main functionalities
@@ -171,7 +152,6 @@ class PruningHandler : public concord::reconfiguration::OperatorCommandsReconfig
   // Throws on errors.
   void pruneThroughBlockId(kvbc::BlockId block_id) const;
   uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
-  logging::Logger logger_;
   PruningSigner signer_;
   PruningVerifier verifier_;
   kvbc::IReader &ro_storage_;
@@ -198,7 +178,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::OperatorC
                                 IReader &ro_storage)
       : concord::reconfiguration::OperatorCommandsReconfigurationHandler{operator_pkey_path, type},
         ro_storage_{ro_storage},
-        signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
+        signer_{},
         pruning_enabled_{bftEngine::ReplicaConfig::instance().pruningEnabled_},
         replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
   bool handle(const concord::messages::LatestPrunableBlockRequest &,

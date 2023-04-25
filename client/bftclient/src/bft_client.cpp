@@ -29,6 +29,8 @@ using bftEngine::ReplicaConfig;
 
 namespace bft::client {
 
+static constexpr size_t replicaIdentityHistoryCount = 2;
+
 Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : communication_(std::move(comm)),
       config_(config),
@@ -70,9 +72,11 @@ Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<c
   communication_->start();
   if (config_.replicas_master_key_folder_path.has_value()) {
     bft::communication::StateControl::instance().setGetPeerPubKeyMethod([&](uint32_t rid) {
+      // The client reads a public key file which the cre client which runs on the same machine maintains
+      // the cre client updates the file after polling updates about replica key exchanges
       concord::secretsmanager::SecretsManagerPlain psm_;
       std::string key_path = config_.replicas_master_key_folder_path.value() + "/" + std::to_string(rid) + "/pub_key";
-      return psm_.decryptFile(key_path).value_or("");
+      return std::array<std::string, replicaIdentityHistoryCount>{psm_.decryptFile(key_path).value_or(""), ""};
     });
   }
 }

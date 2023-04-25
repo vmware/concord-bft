@@ -25,6 +25,17 @@ SimpleTestReplica::SimpleTestReplica(ICommunication *commObject,
                                      MetadataStorage *metaDataStorage)
     : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state) {
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
+
+  ReplicasInfo repsInfo{rc, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs};
+  SigManager::init(rc.replicaId,
+                   rc.replicaPrivateKey,
+                   rc.publicKeysOfReplicas,
+                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                   rc.getPublicKeysOfClients(),
+                   concord::crypto::KeyFormat::PemFormat,
+                   {{repsInfo.getIdOfOperator(), rc.getOperatorPublicKey(), concord::crypto::KeyFormat::PemFormat}},
+                   repsInfo);
+
   replica = bftEngine::ReplicaFactory::createReplica(rc,
                                                      std::shared_ptr<bftEngine::IRequestsHandler>(state),
                                                      inMemoryST,

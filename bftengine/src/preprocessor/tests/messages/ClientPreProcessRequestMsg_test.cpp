@@ -23,7 +23,7 @@ class ClientPreprocessRequestMsgTestFixture : public ::testing::Test {
 
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;
-  std::unique_ptr<SigManager> sigManager;
+  std::shared_ptr<SigManager> sigManager;
 };
 
 TEST_F(ClientPreprocessRequestMsgTestFixture, create_and_compare) {

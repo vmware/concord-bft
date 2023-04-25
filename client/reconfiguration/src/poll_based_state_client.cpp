@@ -29,7 +29,14 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   concord::messages::ReconfigurationResponse rres;
   try {
     if (read_request) {
-      bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
+      // TODO: State transfer can work with f + 1 as long as there are no byzantine replicas
+      bft::client::ReadConfig read_config;
+      if (use_byzantine_quorum_) {
+        read_config = bft::client::ReadConfig{request_config, bft::client::ByzantineSafeQuorum{}};
+      } else {
+        read_config = bft::client::ReadConfig{request_config, bft::client::LinearizableQuorum{}};
+      }
+
       rep = bftclient_->send(read_config, std::move(msg));
     } else {
       bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
@@ -57,12 +64,14 @@ State PollBasedStateClient::getNextState() const {
 PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
                                            uint64_t interval_timeout_ms,
                                            uint64_t last_known_block,
-                                           const uint16_t id)
+                                           const uint16_t id,
+                                           bool use_byzantine_quorum)
     : bftclient_{client},
       id_{id},
       interval_timeout_ms_{interval_timeout_ms},
       last_known_block_{last_known_block},
-      sn_gen_(bft::client::ClientId{id}) {}
+      sn_gen_(bft::client::ClientId{id}),
+      use_byzantine_quorum_{use_byzantine_quorum} {}
 
 std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   concord::messages::ClientReconfigurationStateRequest creq{id_};
@@ -70,6 +79,7 @@ std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
+  LOG_DEBUG(getLogger(), "sending reconfig request" << KVLOG(sn));
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   if (!rres.success) {
     LOG_WARN(getLogger(), "invalid response from replicas");
@@ -112,6 +122,7 @@ PollBasedStateClient::~PollBasedStateClient() {
 void PollBasedStateClient::start() {
   stopped = false;
   consumer_ = std::thread([&]() {
+    LOG_INFO(getLogger(), "Client started" << KVLOG(interval_timeout_ms_));
     while (!stopped) {
       {
         std::unique_lock<std::mutex> lk(resume_lock_);
@@ -121,9 +132,10 @@ void PollBasedStateClient::start() {
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
-      if (stopped) return;
+      if (stopped) break;
       std::lock_guard<std::mutex> lk(lock_);
       bool succ;
+      LOG_DEBUG(getLogger(), "Getting state update");
       auto new_state = getStateUpdate(succ);
       uint64_t max_update_block{0};
       for (const auto& s : new_state) {
@@ -135,6 +147,7 @@ void PollBasedStateClient::start() {
       new_updates_.notify_one();
       if (max_update_block > last_known_block_) last_known_block_ = max_update_block;
     }
+    LOG_INFO(getLogger(), "Client stopped");
   });
 }
 void PollBasedStateClient::stop() {
@@ -161,10 +174,12 @@ bool PollBasedStateClient::updateState(const WriteState& state) {
   return rres.success;
 }
 void PollBasedStateClient::halt() {
+  LOG_INFO(getLogger(), "Halting client");
   std::unique_lock<std::mutex> lk(resume_lock_);
   halted_ = true;
 }
 void PollBasedStateClient::resume() {
+  LOG_INFO(getLogger(), "Resuming client");
   std::unique_lock<std::mutex> lk(resume_lock_);
   halted_ = false;
   resume_cond_.notify_one();

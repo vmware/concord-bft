@@ -48,7 +48,7 @@ class TimeServiceManager {
   }
 
   // Used on recovery to restore the time prior the request that is about to be re-executed.
-  // In order to suport a correct behaviour of the compareAndUpdate method.
+  // In order to support a correct behaviour of the compareAndUpdate method.
   void recoverTime(const ConsensusTickRep& recovered_time) {
     auto last_timestamp = client_.getLastTimestamp().count();
     ConcordAssertLE(recovered_time, last_timestamp);

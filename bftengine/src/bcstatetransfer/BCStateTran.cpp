@@ -448,8 +448,8 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
 }
 
 void BCStateTran::startRunningImpl(IReplicaForStateTransfer *r) {
-  LOG_INFO(logger_, "Starting");
   FetchingState fs = getFetchingState();
+  LOG_INFO(logger_, "Starting" << KVLOG(fs));
 
   // TODO - The next lines up to comment 'XXX' do not belong here (CRE) - move outside
   if (!config_.isReadOnly && cre_) {

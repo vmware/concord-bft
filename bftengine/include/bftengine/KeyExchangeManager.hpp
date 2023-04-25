@@ -20,6 +20,7 @@
 #include "SysConsts.hpp"
 #include "crypto/crypto.hpp"
 #include <future>
+#include "util/filesystem.hpp"
 
 namespace bftEngine::impl {
 
@@ -31,27 +32,35 @@ class KeyExchangeManager {
  public:
   void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
+  // TODO: persist the candidate
   void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();
-  // Generates and publish the first replica's key,
-  void sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& = 0);
-  // The execution handler implementation that is called when a key exchange msg has passed consensus.
+
+  void waitForQuorum(const ReplicaImp* repImpInstance);
+
+  // Waits for a quorum and calls generateConsensusKeyAndSendInternalClientMsg
+  void waitForQuorumAndTriggerConsensusExchange(const ReplicaImp* repImpInstance, const SeqNum s = 0);
+  // The execution handler implementation that is called after a key exchange msg passed consensus.
+  // The new key pair will be used from two checkpoints after kemsg.generated_sn
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
+  /**
+   * Updates new key pair in both volatile (CryptoManager) and persistent (reserved pages) memory
+   * @param repID - The id of the replica which uses pubkey
+   * @param keyGenerationSn - The sequence number in which the key was generated
+   * @param pubkey - The public key of replica repID
+   * @param cid
+   */
+  void registerNewKeyPair(uint16_t repID, SeqNum keyGenerationSn, const std::string& pubkey, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer
   void loadPublicKeys();
   void loadClientPublicKeys();
-  // whether initial key exchange has occurred
 
-  bool exchanged() const {
-    uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-    bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
-    return ReplicaConfig::instance().getkeyExchangeOnStart()
-               ? (publicKeys_.numOfExchangedReplicas() + 1 >= liveClusterSize) && exchange_self_keys
-               : true;
-  }
+  // True if all of the replicas have completed a key rotation on startup.
+  // The startup key rotation is only executed if ReplicaConfig::instance().getkeyExchangeOnStart() is true.
+  bool isInitialConsensusExchangeComplete() const;
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
   ///////// Clients public keys interface///////////////
@@ -71,6 +80,9 @@ class KeyExchangeManager {
                            concord::crypto::KeyFormat,
                            NodeIdType clientId,
                            bool saveToReservedPages);
+
+  void persistCandidates(const std::set<SeqNum>& candidatesToPersist);
+
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;
@@ -83,7 +95,7 @@ class KeyExchangeManager {
    public:
     // internal persistent private keys impl
     struct KeyData : public concord::serialize::SerializableFactory<KeyData> {
-      struct {
+      struct GeneratedKeyPairInfo {
         // generated private key
         std::string priv;
         // generated public key
@@ -104,8 +116,19 @@ class KeyExchangeManager {
           algorithm = concord::crypto::SignatureAlgorithm::Uninitialized;
         }
       } generated;
+      // TODO: A map containing all generated candidates should replace this single candidate.
+
       // seqnum -> private key
       std::map<SeqNum, std::string> keys;
+
+      std::optional<SeqNum> getGenerationSequenceByPrivateKey(const std::string& hexPrivateKeyToSearch) {
+        for (auto& [generationSeq, privateKeyHex] : keys) {
+          if (hexPrivateKeyToSearch == privateKeyHex) {
+            return generationSeq;
+          }
+        }
+        return std::nullopt;
+      }
 
      protected:
       void serializeDataMembers(std::ostream& outStream) const override {
@@ -132,7 +155,7 @@ class KeyExchangeManager {
     }
     // save to secure store
     void save() {
-      LOG_INFO(KEY_EX_LOG, "Save key");
+      LOG_INFO(KEY_EX_LOG, "Persisting keys in file: " << fs::absolute(secrets_file_));
       std::stringstream ss;
       concord::serialize::Serializable::serialize(ss, data_);
       secretsMgr_->encryptFile(secrets_file_, ss.str());
@@ -183,6 +206,8 @@ class KeyExchangeManager {
     return km;
   }
 
+  std::map<SeqNum, std::pair<std::string, std::string>> getCandidates() const;
+
  private:  // methods
   KeyExchangeManager(InitData* id);
   std::string generateCid(std::string);
@@ -196,6 +221,8 @@ class KeyExchangeManager {
   void waitForLiveQuorum(const ReplicaImp* repImpInstance);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
+  // True if the replica's own consensus keys were exchanged
+  bool exchangedSelfConsensusKeys() const;
   // deleted
   KeyExchangeManager(const KeyExchangeManager&) = delete;
   KeyExchangeManager(const KeyExchangeManager&&) = delete;
@@ -208,7 +235,6 @@ class KeyExchangeManager {
   uint32_t quorumSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
-  PrivateKeys::KeyData candidate_private_keys_;
   ClientKeyStore clientsPublicKeys_;
   // A flag to prevent race on the replica's internal client.
   std::atomic_bool initial_exchange_;
@@ -220,7 +246,7 @@ class KeyExchangeManager {
   bool publishedMasterKey = false;
   std::mutex startup_mutex_;
   // map to store seqNum and its candidate key
-  std::map<SeqNum, PrivateKeys::KeyData> seq_candidate_map_;
+  std::map<SeqNum, PrivateKeys::KeyData::GeneratedKeyPairInfo> seq_candidate_map_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;

@@ -18,6 +18,9 @@
 #include "ReplicaConfig.hpp"
 #include "util/hex_tools.hpp"
 #include "crypto/factory.hpp"
+#include "CryptoManager.hpp"
+#include "crypto/threshsign/eddsa/EdDSAMultisigVerifier.h"
+#include "crypto/threshsign/eddsa/EdDSAMultisigSigner.h"
 
 using namespace std;
 
@@ -30,6 +33,8 @@ using concord::crypto::KeyFormat;
 
 concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
 
+std::shared_ptr<SigManager> SigManager::s_sm;
+
 std::string SigManager::getClientsPublicKeys() {
   std::shared_lock lock(mutex_);
   std::vector<uint8_t> output;
@@ -37,7 +42,19 @@ std::string SigManager::getClientsPublicKeys() {
   return std::string(output.begin(), output.end());
 }
 
-SigManager* SigManager::initImpl(
+SigManager* SigManager::instance() {
+  ConcordAssertNE(s_sm.get(), nullptr);
+  return s_sm.get();
+}
+
+std::shared_ptr<SigManager> SigManager::owningInstance() {
+  ConcordAssertNE(s_sm.get(), nullptr);
+  return s_sm;
+}
+
+void SigManager::reset(std::shared_ptr<SigManager> other) { s_sm = other; }
+
+std::shared_ptr<SigManager> SigManager::init(
     ReplicaId myId,
     const Key& mySigPrivateKey,
     const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
@@ -45,7 +62,7 @@ SigManager* SigManager::initImpl(
     const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
     KeyFormat clientsKeysFormat,
     const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
-    ReplicasInfo& replicasInfo) {
+    const ReplicasInfo& replicasInfo) {
   vector<pair<Key, KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
@@ -72,79 +89,45 @@ SigManager* SigManager::initImpl(
 
   if (publicKeysOfClients) {
     // Multiple clients might be signing with the same private key (1 to many relation)
-    // Also, we do not enforce to have all range between [lowBound, highBound] construcred. We might want to have less
+    // Also, we do not enforce to have all range between [lowBound, highBound] constructed. We might want to have less
     // principal ids mapped to keys than what is stated in the range.
     lowBound = numRoReplicas + numReplicas + numOfClientProxies;
     highBound = lowBound + numOfExternalClients + numOfInternalClients + numOfClientServices - 1;
-    for (const auto& p : (*publicKeysOfClients)) {
-      ConcordAssert(!p.first.empty());
-      publickeys.push_back(make_pair(p.first, clientsKeysFormat));
-      for (const auto e : p.second) {
-        if ((e < lowBound) || (e > highBound)) {
-          LOG_FATAL(GL, "Invalid participant id " << KVLOG(e, lowBound, highBound));
+    for (const auto& [publicKey, idSet] : (*publicKeysOfClients)) {
+      ConcordAssert(!publicKey.empty());
+      publickeys.push_back(make_pair(publicKey, clientsKeysFormat));
+      for (const auto participantId : idSet) {
+        if ((participantId < lowBound) || (participantId > highBound)) {
+          LOG_FATAL(GL, "Invalid participant id " << KVLOG(participantId, lowBound, highBound));
           std::terminate();
         }
-        publicKeysMapping.insert({e, i});
+        publicKeysMapping.insert({participantId, i});
       }
       ++i;
     }
   }
 
   LOG_INFO(GL, "Done Compute Start ctor for SigManager with " << KVLOG(publickeys.size(), publicKeysMapping.size()));
-  return new SigManager(
-      myId,
-      numReplicas,
-      make_pair(mySigPrivateKey, replicasKeysFormat),
-      publickeys,
-      publicKeysMapping,
-      ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
-      operatorKey,
-      replicasInfo);
-}
+  auto ret = std::shared_ptr<SigManager>{
+      new SigManager(myId,
+                     make_pair(mySigPrivateKey, replicasKeysFormat),
+                     publickeys,
+                     publicKeysMapping,
+                     ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
+                     operatorKey,
+                     replicasInfo)};
 
-SigManager* SigManager::init(ReplicaId myId,
-                             const Key& mySigPrivateKey,
-                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                             KeyFormat replicasKeysFormat,
-                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                             KeyFormat clientsKeysFormat,
-                             ReplicasInfo& replicasInfo) {
-  return init(myId,
-              mySigPrivateKey,
-              publicKeysOfReplicas,
-              replicasKeysFormat,
-              publicKeysOfClients,
-              clientsKeysFormat,
-              std::nullopt,
-              replicasInfo);
-}
-SigManager* SigManager::init(ReplicaId myId,
-                             const Key& mySigPrivateKey,
-                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                             KeyFormat replicasKeysFormat,
-                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                             KeyFormat clientsKeysFormat,
-                             const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
-                             ReplicasInfo& replicasInfo) {
-  SigManager* sm = initImpl(myId,
-                            mySigPrivateKey,
-                            publicKeysOfReplicas,
-                            replicasKeysFormat,
-                            publicKeysOfClients,
-                            clientsKeysFormat,
-                            operatorKey,
-                            replicasInfo);
-  return SigManager::instance(sm);
+  reset(ret);
+  return ret;
 }
 
 SigManager::SigManager(PrincipalId myId,
-                       uint16_t numReplicas,
                        const pair<Key, KeyFormat>& mySigPrivateKey,
                        const vector<pair<Key, KeyFormat>>& publickeys,
                        const map<PrincipalId, KeyIndex>& publicKeysMapping,
                        bool clientTransactionSigningEnabled,
                        const std::optional<std::tuple<PrincipalId, Key, concord::crypto::KeyFormat>>& operatorKey,
-                       ReplicasInfo& replicasInfo)
+                       const ReplicasInfo& replicasInfo)
     : myId_(myId),
       clientTransactionSigningEnabled_(clientTransactionSigningEnabled),
       replicasInfo_(replicasInfo),
@@ -192,7 +175,9 @@ SigManager::SigManager(PrincipalId myId,
     }
   }
 
-  clientsPublicKeys_.version = 1;  // version `1` suggests RSAVerifier.
+  /* version `1` suggests RSAVerifier.
+   * version `2` suggests EdDSAVerifier. */
+  clientsPublicKeys_.version = 2;
   LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();
 
@@ -213,9 +198,7 @@ SigManager::SigManager(PrincipalId myId,
     ++i;
   }
 
-  LOG_INFO(GL,
-           "Signature Manager initialized with own private key, "
-               << verifiers_.size() << " verifiers and " << publicKeyIndexToVerifier.size() << " other principals");
+  LOG_INFO(GL, "SigManager initialized: " << KVLOG(myId_, verifiers_.size(), publicKeyIndexToVerifier.size()));
   ConcordAssert(verifiers_.size() >= publickeys.size());
 }
 
@@ -225,7 +208,8 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
   } else {
     std::shared_lock lock(mutex_);
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
-      return pos->second->signatureLength();
+      auto result = pos->second->signatureLength();
+      return result;
     } else {
       LOG_ERROR(GL, "Unrecognized pid " << pid);
       return 0;
@@ -233,11 +217,15 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
   }
 }
 
-bool SigManager::verifySig(
+bool SigManager::verifySigUsingInternalMap(
     PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
+  LOG_DEBUG(GL, "Validating signature using internal map: " << KVLOG(myId_, pid, sigLength));
+  ConcordAssert(!replicasInfo_.isIdOfReplica(myId_) || !ReplicaConfig::instance().singleSignatureScheme ||
+                !replicasInfo_.isIdOfReplica(pid));
   bool result = false;
   {
     std::shared_lock lock(mutex_);
+
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
       result = pos->second->verifyBuffer(data, dataLength, sig, sigLength);
     } else {
@@ -271,18 +259,120 @@ bool SigManager::verifySig(
         metrics_component_.UpdateAggregator();
     }
   }
+  LOG_DEBUG(GL,
+            "Internal map validation result: " << KVLOG(
+                result, myId_, pid, sigLength, idOfReadOnlyReplica, idOfExternalClient));
   return result;
 }
 
-size_t SigManager::sign(const concord::Byte* data, size_t dataLength, concord::Byte* outSig) const {
-  return mySigner_->signBuffer(data, dataLength, outSig);
+size_t SigManager::sign(SeqNum seq, const concord::Byte* data, size_t dataLength, concord::Byte* outSig) const {
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
+  const concord::crypto::ISigner* rawSigner = nullptr;
+  std::shared_ptr<IThresholdSigner> signer;
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    signer = CryptoManager::instance().getSigner(seq);
+    rawSigner = &extractSignerFromMultisig(signer);
+  } else {
+    rawSigner = mySigner_.get();
+  }
+  auto result = rawSigner->signBuffer(data, dataLength, outSig);
+  LOG_DEBUG(GL, "Signing as replica with " << KVLOG(myId_, seq, rawSigner->signatureLength(), result));
+  return result;
 }
 
-size_t SigManager::sign(const char* data, size_t dataLength, char* outSig) const {
-  return sign(reinterpret_cast<const uint8_t*>(data), dataLength, reinterpret_cast<uint8_t*>(outSig));
+size_t SigManager::sign(SeqNum seq, const char* data, size_t dataLength, char* outSig) const {
+  return sign(seq, reinterpret_cast<const uint8_t*>(data), dataLength, reinterpret_cast<uint8_t*>(outSig));
 }
 
-uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
+bool SigManager::verifyReplicaSigUsingMultisigVerifier(PrincipalId replicaID,
+                                                       const concord::Byte* data,
+                                                       size_t dataLength,
+                                                       const concord::Byte* sig,
+                                                       uint16_t sigLength) const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
+  ConcordAssert(replicasInfo_.isIdOfReplica(replicaID));
+  int lastVerifierIndex = 0;
+  for (auto [seq, multisigVerifier] : CryptoManager::instance().getLatestVerifiers()) {
+    UNUSED(seq);
+    if (multisigVerifier.get() == nullptr) {
+      continue;
+    }
+    auto& verifier = extractVerifierFromMultisig(multisigVerifier, replicaID);
+    LOG_DEBUG(GL,
+              "Validating replica signature with: " << KVLOG(
+                  myId_, replicaID, lastVerifierIndex, verifier.getPubKey(), sigLength, verifier.signatureLength()));
+    if (verifier.verifyBuffer(data, dataLength, sig, sigLength)) {
+      LOG_DEBUG(GL,
+                "Replica signature validation Successful "
+                    << KVLOG(myId_, replicaID, lastVerifierIndex, sigLength, verifier.signatureLength()));
+      return true;
+    } else {
+      LOG_DEBUG(GL,
+                "Replica signature validation failed: " << KVLOG(
+                    myId_, replicaID, lastVerifierIndex, sigLength, verifier.signatureLength()));
+    }
+    lastVerifierIndex++;
+  }
+  LOG_WARN(GL, "Validation failed using all cryptosystems" << KVLOG(myId_, replicaID, lastVerifierIndex));
+  return false;
+}
+
+// verify using the two last keys, once the last key's checkpoint is reached, the previous key is removed
+bool SigManager::verifySig(
+    PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
+  if (ReplicaConfig::instance().singleSignatureScheme && replicasInfo_.isIdOfReplica(pid)) {
+    return verifyReplicaSigUsingMultisigVerifier(pid, data, dataLength, sig, sigLength);
+  }
+
+  return verifySigUsingInternalMap(pid, data, dataLength, sig, sigLength);
+}
+
+bool SigManager::verifyOwnSignature(const concord::Byte* data,
+                                    size_t dataLength,
+                                    const concord::Byte* expectedSignature) const {
+  std::vector<concord::Byte> sig(getMySigLength());
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    auto signers = CryptoManager::instance().getLatestSigners();
+    for (auto& signer : signers) {
+      extractSignerFromMultisig(signer).signBuffer(data, dataLength, sig.data());
+
+      if (std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0) {
+        LOG_DEBUG(GL, "Self-sig validation succeeded");
+        return true;
+      } else {
+        LOG_DEBUG(GL, "Self-sig validation failed");
+      }
+    }
+    return false;
+  }
+
+  mySigner_->signBuffer(data, dataLength, sig.data());
+  return std::memcmp(sig.data(), expectedSignature, getMySigLength()) == 0;
+}
+
+const concord::crypto::ISigner& SigManager::extractSignerFromMultisig(
+    std::shared_ptr<IThresholdSigner> thresholdSigner) const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
+  ConcordAssertNE(thresholdSigner.get(), nullptr);
+  return reinterpret_cast<EdDSAMultisigSigner&>(*thresholdSigner.get());
+}
+
+const concord::crypto::IVerifier& SigManager::extractVerifierFromMultisig(
+    std::shared_ptr<IThresholdVerifier> thresholdVerifier, PrincipalId id) const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
+  ConcordAssertNE(thresholdVerifier.get(), nullptr);
+  return reinterpret_cast<EdDSAMultisigVerifier&>(*thresholdVerifier.get()).getVerifier(id);
+}
+
+uint16_t SigManager::getMySigLength() const {
+  if (ReplicaConfig::instance().singleSignatureScheme &&
+      (replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica())) {
+    auto currentSigner = getCurrentReplicaSigner();
+    return extractSignerFromMultisig(currentSigner).signatureLength();
+  }
+  return (uint16_t)mySigner_->signatureLength();
+}
 
 void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyFormat format) {
   LOG_INFO(KEY_EX_LOG, "client: " << id << " key: " << key << " format: " << (uint16_t)format);
@@ -301,13 +391,78 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
     LOG_WARN(KEY_EX_LOG, "Illegal id for client " << id);
   }
 }
-bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != verifiers_.end(); }
+bool SigManager::hasVerifier(PrincipalId pid) {
+  if (ReplicaConfig::instance().singleSignatureScheme && replicasInfo_.isIdOfReplica(pid)) {
+    return true;
+  }
+  return verifiers_.find(pid) != verifiers_.end();
+}
 
 concord::crypto::SignatureAlgorithm SigManager::getMainKeyAlgorithm() const { return concord::crypto::EdDSA; }
-concord::crypto::ISigner& SigManager::getSigner() { return *mySigner_; }
+
+std::shared_ptr<IThresholdSigner> SigManager::getCurrentReplicaSigner() const {
+  ConcordAssert(ReplicaConfig::instance().singleSignatureScheme);
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
+  auto signer = CryptoManager::instance().getSigner(getReplicaLastExecutedSeq());
+  return signer;
+}
+
+std::pair<std::string, std::string> SigManager::getMyLatestKeyPair() const {
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
+
+  if (!ReplicaConfig::instance().singleSignatureScheme) {
+    return {mySigner_->getPrivKey(), getVerifier(myId_).getPubKey()};
+  }
+
+  auto& system = CryptoManager::instance().getLatestCryptoSystem();
+  std::pair<std::string, std::string> ret = {system->getPrivateKey(replicasInfo_.myId()),
+                                             system->getMyVerificationKey()};
+  return ret;
+}
+
+std::string SigManager::getSelfPrivKey() const {
+  if (ReplicaConfig::instance().singleSignatureScheme) {
+    auto currentSigner = getCurrentReplicaSigner();
+    return extractSignerFromMultisig(currentSigner).getPrivKey();
+  }
+  return mySigner_->getPrivKey();
+}
+
+std::array<std::string, replicaIdentityHistoryCount> SigManager::getPublicKeyOfVerifier(uint32_t id) const {
+  std::array<std::string, replicaIdentityHistoryCount> publicKeys;
+
+  if (ReplicaConfig::instance().singleSignatureScheme && replicasInfo_.isIdOfReplica(id)) {
+    int i = 0;
+    for (auto [seq, multisigVerifier] : CryptoManager::instance().getLatestVerifiers()) {
+      UNUSED(seq);
+      if (multisigVerifier.get() == nullptr) {
+        continue;
+      }
+      auto& verifier = extractVerifierFromMultisig(multisigVerifier, id);
+      publicKeys[i] = verifier.getPubKey();
+      ++i;
+    }
+  } else if (verifiers_.count(id)) {
+    publicKeys[0] = verifiers_.at(id)->getPubKey();
+  }
+
+  return publicKeys;
+}
+
 const concord::crypto::IVerifier& SigManager::getVerifier(PrincipalId otherPrincipal) const {
   return *verifiers_.at(otherPrincipal);
 }
+
+void SigManager::setReplicaLastExecutedSeq(SeqNum seq) {
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_));
+  replicaLastExecutedSeq_ = seq;
+}
+
+SeqNum SigManager::getReplicaLastExecutedSeq() const {
+  ConcordAssert(replicasInfo_.isIdOfReplica(myId_) || replicasInfo_.isRoReplica());
+  return replicaLastExecutedSeq_;
+}
+const ReplicasInfo& SigManager::getReplicasInfo() const { return replicasInfo_; }
 
 }  // namespace impl
 }  // namespace bftEngine

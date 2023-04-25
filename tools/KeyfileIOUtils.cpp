@@ -21,6 +21,7 @@
 #include "KeyfileIOUtils.hpp"
 #include "util/yaml_utils.hpp"
 #include "crypto/openssl/EdDSA.hpp"
+#include "util/filesystem.hpp"
 
 using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;
@@ -79,6 +80,7 @@ static void validateRSAPrivateKey(const std::string& key) {
 
 Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaConfig& config) {
   using namespace concord::util;
+  LOG_INFO(GL, "Parsing cryptographic keys configuration file: " << fs::absolute(filename).string());
 
   std::ifstream input(filename);
   if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
@@ -110,6 +112,7 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
   }
   std::cout << "main_key_algorithm=" << mainKeyAlgo << std::endl;
 
+  std::cout << "Reading main keys: " << std::endl;
   config.publicKeysOfReplicas.clear();
   for (size_t i = 0; i < config.numReplicas + config.numRoReplicas; ++i) {
     if ("rsa" == mainKeyAlgo) {
@@ -120,7 +123,9 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
     }
     config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, replicaPublicKeys[i]));
   }
+
   config.replicaPrivateKey = yaml::readValue<std::string>(input, "replica_private_key");
+
   if ("rsa" == mainKeyAlgo) {
     validateRSAPrivateKey(config.replicaPrivateKey);
   } else if ("eddsa" == mainKeyAlgo) {
@@ -130,9 +135,21 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
 
   if (config.isReadOnly) return nullptr;
 
+  if (config.singleSignatureScheme) {
+    config.thresholdVerificationKeys_.resize(config.numReplicas);
+    for (auto& [i, hexKey] : config.publicKeysOfReplicas) {
+      if (i < config.numReplicas) {
+        config.thresholdVerificationKeys_[i] = hexKey;
+        LOG_INFO(GL, KVLOG(i, hexKey));
+      }
+    }
+
+    config.thresholdPrivateKey_ = config.replicaPrivateKey;
+  }
+
   return Cryptosystem::fromConfiguration(input,
                                          "common",
-                                         config.replicaId + 1,
+                                         config.replicaId,
                                          config.thresholdSystemType_,
                                          config.thresholdSystemSubType_,
                                          config.thresholdPrivateKey_,

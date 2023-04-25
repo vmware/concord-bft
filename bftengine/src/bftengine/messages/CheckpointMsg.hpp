@@ -55,7 +55,20 @@ class CheckpointMsg : public MessageBase {
 
   void setEpochNumber(const EpochNum& e) { b()->epochNum = e; }
 
+  // The validation of checkpoints is used both by replicas and by external tools
+  // such as the integrity checker. This implementation is that of the replica.
   void validate(const ReplicasInfo& repInfo) const override;
+  /**
+   *
+   * @param repInfo
+   * @param validateSignature - If set to true, the signature of the message is validated,
+   *                            replicas skip the signature validation when deciding whether to enter state transfer
+   */
+  void validate(const ReplicasInfo& repInfo, bool validateSignature) const;
+  void validateSize(const ReplicasInfo& repInfo) const;
+
+  std::string_view getDataBytes() const;
+  std::string_view getSignatureBytes() const;
 
   bool shouldValidateAsync() const override { return true; }
 

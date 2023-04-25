@@ -19,6 +19,7 @@ set(corebft_source_files
     src/bftengine/IncomingMsgsStorageImp.cpp
     src/bftengine/RetransmissionsManager.cpp
     src/bftengine/SigManager.cpp
+    src/bftengine/ValidationOnlyIdentityManager.cpp
     src/bftengine/ReplicasInfo.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp
     src/bftengine/ViewsManager.cpp
@@ -38,6 +39,7 @@ set(corebft_source_files
     src/bftengine/ReplicaFactory.cpp
     src/bftengine/RequestsBatchingLogic.cpp
     src/bftengine/ReplicaStatusHandlers.cpp
+    src/bftengine/CryptoManager.cpp
     src/bcstatetransfer/BCStateTran.cpp
     src/bcstatetransfer/BCStateTranInterface.cpp
     src/bcstatetransfer/RVBManager.cpp

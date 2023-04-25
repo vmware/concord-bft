@@ -69,6 +69,8 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void onMessage(std::unique_ptr<T>);
 
  protected:
+  virtual void resumeCRE();
+
   std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;
   Timers::Handle stateTranTimer_;
   concordMetrics::CounterHandle metric_received_state_transfers_;

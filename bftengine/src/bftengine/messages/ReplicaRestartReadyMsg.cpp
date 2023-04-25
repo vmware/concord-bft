@@ -42,17 +42,20 @@ ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
 }
 
 ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
-                                                       SeqNum s,
+                                                       SeqNum seqNumToStopAt,
                                                        Reason r,
                                                        const std::string& extraData,
                                                        const concordUtils::SpanContext& spanContext) {
   auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
-  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, r, extraData, spanContext);
+  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, seqNumToStopAt, sigLen, r, extraData, spanContext);
   auto dataSize = sizeof(Header) + m->getExtraDataLength() + spanContext.data().size();
   auto position = m->body() + dataSize;
-  sigManager->sign(reinterpret_cast<const uint8_t*>(m->body()), dataSize, reinterpret_cast<uint8_t*>(position));
+  sigManager->sign(seqNumToStopAt,
+                   reinterpret_cast<const concord::Byte*>(m->body()),
+                   dataSize,
+                   reinterpret_cast<concord::Byte*>(position));
   //+-----------+-----------+----------+
   //| Header    | extraData | Signature|
   //+-----------+-----------+----------+

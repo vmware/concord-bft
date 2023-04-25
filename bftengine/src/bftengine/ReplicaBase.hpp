@@ -26,6 +26,7 @@ namespace bftEngine::impl {
 class MsgHandlersRegistrator;
 class MsgsCommunicator;
 class ReplicasInfo;
+class CheckpointMsg;
 
 using concordMetrics::GaugeHandle;
 using concordMetrics::StatusHandle;
@@ -80,11 +81,26 @@ class ReplicaBase {
 
   void sendRaw(MessageBase* m, NodeIdType dest);
 
-  bool validateMessage(MessageBase* msg) {
+  template <typename MessageType>
+  bool validateMessage(MessageType* msg) {
+    if (config_.debugStatisticsEnabled) {
+      DebugStatistics::onReceivedExMessage(msg->type());
+    }
     try {
-      if (config_.debugStatisticsEnabled) DebugStatistics::onReceivedExMessage(msg->type());
-
-      msg->validate(*repsInfo);
+      /* Checkpoint messages are used by replicas to initiate state transfer.
+       * Since a replica which initiates state transfer might not have the most recent
+       * public keys of other replicas, it might not be able to validate the signature
+       * of checkpoint messages. State transfer only requires that a replica has a valid
+       * communication channel.
+       * Therefore, replicas don't validate signatures of checkpoint messages.
+       * Note: When using UDP communication channels, a byzantine replica can cause
+       * other replicas to initiate state transfer.
+       */
+      if constexpr (std::is_same_v<MessageType, CheckpointMsg>) {
+        msg->validate(*repsInfo, false);
+      } else {
+        msg->validate(*repsInfo);
+      }
       return true;
     } catch (std::exception& e) {
       onReportAboutInvalidMessage(msg, e.what());
@@ -96,7 +112,7 @@ class ReplicaBase {
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
 
   const ReplicaConfig& config_;
-  ReplicasInfo* repsInfo = nullptr;
+  const ReplicasInfo* repsInfo = nullptr;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   std::shared_ptr<IRequestsHandler> bftRequestsHandler_;

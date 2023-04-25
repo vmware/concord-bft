@@ -55,6 +55,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
     : _myId{config.replicaId},
+      _isRoReplica{config.isReadOnly},
       _numberOfReplicas{config.numReplicas},
       _numberOfRoReplicas{config.numRoReplicas},
       _numOfClientProxies{config.numOfClientProxies},
@@ -145,11 +146,12 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         }
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
         return ret;
-      }()} {
-  _operator_id = config.operatorEnabled_
-                     ? static_cast<PrincipalId>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                                                config.numOfExternalClients + config.numOfClientServices - 1)
-                     : 0;
+      }()},
+
+      _operator_id{static_cast<PrincipalId>(
+          config.operatorEnabled_ ? config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                                        config.numOfExternalClients + config.numOfClientServices - 1
+                                  : 0)} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 

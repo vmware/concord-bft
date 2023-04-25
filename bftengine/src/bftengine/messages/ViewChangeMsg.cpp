@@ -162,7 +162,7 @@ void ViewChangeMsg::finalizeMessage() {
   // |               Message Body               |
   // +------------------------------------------+
 
-  sigManager->sign(body(), bodySize, body() + bodySize);
+  sigManager->sign(lastStable(), body(), bodySize, body() + bodySize);
 
   bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);
 

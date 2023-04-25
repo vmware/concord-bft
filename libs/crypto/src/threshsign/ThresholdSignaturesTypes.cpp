@@ -33,7 +33,7 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
       subtype_(sysSubtype),
       numSigners_(sysNumSigners),
       threshold_(sysThreshold),
-      signerID_(NID),
+      signerID_(INVALID_SIGNER_ID),
       publicKey_("uninitialized") {
   if (!isValidCryptosystemSelection(sysType, sysSubtype, sysNumSigners, sysThreshold)) {
     throw std::runtime_error(
@@ -66,20 +66,18 @@ void Cryptosystem::generateNewPseudorandomKeys() {
   auto [signers, verifier] = factory->newRandomSigners(threshold_, numSigners_);
 
   verificationKeys_.clear();
-  verificationKeys_.resize(static_cast<size_t>(numSigners_ + 1));
-  verificationKeys_[0] = "";  // Account for 1-indexing of signer IDs.
-  for (uint16_t i = 1; i <= numSigners_; ++i) {
+  verificationKeys_.resize(static_cast<size_t>(numSigners_));
+  for (uint16_t i = 0; i < numSigners_; ++i) {
     verificationKeys_[i] = verifier->getShareVerificationKey(static_cast<ShareID>(i)).toString();
   }
 
   privateKeys_.clear();
-  privateKeys_.resize(static_cast<size_t>(numSigners_ + 1));
-  privateKeys_[0] = "";  // Account for 1-indexing of signer IDs.
-  for (uint16_t i = 1; i <= numSigners_; ++i) {
+  privateKeys_.resize(static_cast<size_t>(numSigners_));
+  for (uint16_t i = 0; i < numSigners_; ++i) {
     privateKeys_[i] = signers[i]->getShareSecretKey().toString();
   }
 
-  signerID_ = NID;
+  signerID_ = INVALID_SIGNER_ID;
 }
 
 std::pair<std::string, std::string> Cryptosystem::generateNewKeyPair() {
@@ -99,7 +97,7 @@ std::string Cryptosystem::getSystemPublicKey() const {
 
 std::vector<std::string> Cryptosystem::getSystemVerificationKeys() const {
   std::vector<std::string> output;
-  if (verificationKeys_.size() != static_cast<uint16_t>(numSigners_ + 1)) {
+  if (verificationKeys_.size() != static_cast<uint16_t>(numSigners_)) {
     throw std::runtime_error(
         "Verification keys have not been"
         " generated or loaded for this cryptosystem.");
@@ -109,9 +107,11 @@ std::vector<std::string> Cryptosystem::getSystemVerificationKeys() const {
   return verificationKeys_;
 }
 
+std::string Cryptosystem::getMyVerificationKey() const { return getSystemVerificationKeys()[signerID_]; }
+
 std::vector<std::string> Cryptosystem::getSystemPrivateKeys() const {
   std::vector<std::string> output;
-  if (privateKeys_.size() != static_cast<uint16_t>(numSigners_ + 1)) {
+  if (privateKeys_.size() != static_cast<uint16_t>(numSigners_)) {
     throw std::runtime_error(
         "Private keys have not been"
         " generated or loaded for this cryptosystem.");
@@ -122,14 +122,16 @@ std::vector<std::string> Cryptosystem::getSystemPrivateKeys() const {
 }
 
 std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
-  if ((signerIndex < 1) || (signerIndex > numSigners_))
-    throw std::out_of_range(__PRETTY_FUNCTION__ + std::string("Signer index out of range: ") +
+  if (signerIndex >= numSigners_)
+    throw std::out_of_range(__PRETTY_FUNCTION__ + std::string(" Signer index out of range: ") +
                             std::to_string(signerIndex));
 
-  if (privateKeys_.size() == static_cast<uint16_t>(numSigners_ + 1)) {
+  if (privateKeys_.size() == 1) {
+    return privateKeys_[0];
+  }
+
+  if (privateKeys_.size() == numSigners_) {
     return privateKeys_[signerIndex];
-  } else if ((privateKeys_.size() == 1) && (signerID_ == signerIndex)) {
-    return privateKeys_.front();
   }
 
   throw std::runtime_error(
@@ -139,24 +141,24 @@ std::string Cryptosystem::getPrivateKey(uint16_t signerIndex) const {
 
 void Cryptosystem::loadKeys(const std::string& publicKey, const std::vector<std::string>& verificationKeys) {
   validatePublicKey(publicKey);
-  if (verificationKeys.size() != static_cast<uint16_t>(numSigners_ + 1)) {
+  if (verificationKeys.size() != static_cast<uint16_t>(numSigners_)) {
     throw std::runtime_error(
         "Incorrect number of verification keys provided: " + std::to_string(verificationKeys.size()) + " (expected " +
-        std::to_string(numSigners_ + 1) + ").");
+        std::to_string(numSigners_) + ").");
   }
-  for (size_t i = 1; i <= numSigners_; ++i) validateVerificationKey(verificationKeys[i]);
+  for (size_t i = 0; i < numSigners_; ++i) validateVerificationKey(verificationKeys[i]);
 
   verificationKeys_.clear();
   privateKeys_.clear();
   publicKey_ = publicKey;
 
-  signerID_ = NID;
+  signerID_ = INVALID_SIGNER_ID;
 
   verificationKeys_ = verificationKeys;
 }
 
 void Cryptosystem::loadPrivateKey(uint16_t signerIndex, const std::string& key) {
-  if ((signerIndex < 1) || (signerIndex > numSigners_))
+  if (signerIndex > numSigners_)
     throw std::out_of_range(__PRETTY_FUNCTION__ + std::string("Signer index out of range: ") +
                             std::to_string(signerIndex));
 
@@ -184,7 +186,7 @@ IThresholdVerifier* Cryptosystem::createThresholdVerifier(uint16_t threshold) {
         "Attempting to create a threshold"
         " verifier for a cryptosystem with no public key loaded.");
   }
-  if (verificationKeys_.size() != static_cast<uint16_t>(numSigners_ + 1)) {
+  if (verificationKeys_.size() != static_cast<uint16_t>(numSigners_)) {
     throw std::runtime_error(
         "Attempting to create a threshold"
         " verifier for a cryptosystem without verification keys loaded.");
@@ -210,8 +212,6 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
   }
 
   std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
-  // Note we add 1 to the signer ID because IThresholdSigner seems to use a
-  // convention in which signer IDs are 1-indexed.
   return factory->newSigner(signerID_, privateKeys_.front().c_str());
 }
 
@@ -292,10 +292,10 @@ void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& p
   output << prefix << "_cryptosystem_public_key: " << getSystemPublicKey() << "\n";
   std::vector<std::string> verificationKeys = getSystemVerificationKeys();
   output << prefix << "_cryptosystem_verification_keys:\n";
-  for (uint16_t i = 1; i <= numReplicas; ++i) output << "  - " << verificationKeys[i] << "\n";
+  for (uint16_t i = 0; i < numReplicas; ++i) output << "  - " << verificationKeys[i] << "\n";
   output << "\n";
 
-  output << prefix << "_cryptosystem_private_key: " << getPrivateKey((uint16_t)(replicaId + 1)) << "\n\n";
+  output << prefix << "_cryptosystem_private_key: " << getPrivateKey((uint16_t)(replicaId)) << "\n\n";
 }
 
 Cryptosystem* Cryptosystem::fromConfiguration(std::istream& input,
@@ -314,16 +314,21 @@ Cryptosystem* Cryptosystem::fromConfiguration(std::istream& input,
   if (type == MULTISIG_EDDSA_SCHEME)
     threshold = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_threshold");
   thrPublicKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_public_key");
-  thrVerificationKeys = yaml::readCollection<std::string>(input, prefix + "_cryptosystem_verification_keys");
+  auto parsedHexKeys = yaml::readCollection<std::string>(input, prefix + "_cryptosystem_verification_keys");
+  if (thrVerificationKeys.empty()) {
+    thrVerificationKeys = parsedHexKeys;
+  }
   if (thrVerificationKeys.size() != numSigners)
     throw std::runtime_error("expected " + std::to_string(numSigners) + std::string(" verification keys, got: ") +
                              std::to_string(thrVerificationKeys.size()));
 
-  thrPrivateKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_private_key");
+  auto parsedHexPrivateKey = yaml::readValue<std::string>(input, prefix + "_cryptosystem_private_key");
+  if (thrPrivateKey.empty()) {
+    thrPrivateKey = parsedHexPrivateKey;
+  }
 
   Cryptosystem* sys = new Cryptosystem(type, subtype, numSigners, threshold);
 
-  thrVerificationKeys.insert(thrVerificationKeys.begin(), "");
   sys->loadKeys(thrPublicKey, thrVerificationKeys);
   sys->loadPrivateKey(signerIndex, thrPrivateKey);
 

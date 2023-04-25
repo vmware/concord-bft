@@ -46,10 +46,10 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
     loadAllReplicasKeyStoresFromReservedPages();
   }
 
-  void push(const KeyExchangeMsg& kem, const SeqNum& sn) {
-    LOG_INFO(KEY_EX_LOG, kem.toString() << " seqnum: " << sn);
-    clusterKeys_[kem.repID].push(kem.pubkey, sn);
-    saveReplicaKeyStoreToReserevedPages(kem.repID);
+  void push(const uint16_t repID, const std::string& pubkey, const SeqNum& sn) {
+    LOG_INFO(KEY_EX_LOG, "Pushing public key" << KVLOG(repID, sn));
+    clusterKeys_[repID].push(pubkey, sn);
+    saveReplicaKeyStoreToReserevedPages(repID);
     log();
   }
 
@@ -80,7 +80,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
   }
 
   void log() const {
-    LOG_INFO(KEY_EX_LOG, "Cluster Public Keys (size " << clusterSize_ << "):");
+    LOG_INFO(KEY_EX_LOG, "Cluster Public Keys in reserved pages (Cluster size " << clusterSize_ << "):");
     for (auto [repid, PKs] : clusterKeys_)
       for (auto [sn, pubkey] : PKs.keys)
         LOG_INFO(KEY_EX_LOG, "repId:" << repid << "\tseqnum: " << sn << "\tpubkey: " << pubkey);

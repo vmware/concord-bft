@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <variant>
+#include <nlohmann/json.hpp>
 #include "ReplicaConfig.hpp"
 #include "kvbc_key_types.hpp"
 
@@ -48,6 +49,8 @@ using Hash = Hasher::Digest;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
 
+constexpr char CLIENT_STATE_KEY = 0x1;
+
 template <typename Span>
 static Hash createHash(const Span &span) {
   return Hasher{}.digest(span.data(), span.size());
@@ -63,6 +66,52 @@ static const std::string &keyHashToCategory(const Hash &keyHash) {
 }
 
 static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(createHash(key)); }
+
+InternalCommandsHandler::InternalCommandsHandler(concord::kvbc::IReader *storage,
+                                                 concord::kvbc::IBlockAdder *blocksAdder,
+                                                 concord::kvbc::IBlockMetadata *blockMetadata,
+                                                 logging::Logger &logger,
+                                                 bftEngine::IStateTransfer &st,
+                                                 bool addAllKeysAsPublic,
+                                                 concord::kvbc::adapter::ReplicaBlockchain *kvbc)
+    : m_storage(storage),
+      m_blockAdder(blocksAdder),
+      m_blockMetadata(blockMetadata),
+      m_logger(logger),
+      m_addAllKeysAsPublic{addAllKeysAsPublic},
+      m_kvbc{kvbc} {
+  if (ReplicaConfig::instance().isReadOnly) {
+    return;
+  }
+
+  loadClientStateFromStorage();
+  st.addOnTransferringCompleteCallback([this](uint64_t) { this->loadClientStateFromStorage(); });
+
+  if (m_addAllKeysAsPublic) {
+    ConcordAssertNE(m_kvbc, nullptr);
+  }
+}
+
+void InternalCommandsHandler::loadClientStateFromStorage() {
+  ConcordAssert(!ReplicaConfig::instance().isReadOnly);
+  LOG_INFO(GL, "Synchronizing client execution state");
+  auto data = m_storage->getLatest(CLIENT_STATE_CAT_ID, {CLIENT_STATE_KEY});
+  if (!data.has_value()) {
+    LOG_WARN(GL, "empty client execution state, were any client requests executed?");
+    return;
+  }
+  auto raw_json = std::get<concord::kvbc::categorization::VersionedValue>(data.value()).data;
+  nlohmann::json json2 = nlohmann::json::parse(raw_json);
+  nlohmann::json::json_serializer<std::vector<std::pair<uint16_t, uint64_t>>, void> serializer;
+  std::vector<std::pair<uint16_t, uint64_t>> deserialized;
+  serializer.from_json(json2, deserialized);
+  m_clientToMaxExecutedReqId.clear();
+
+  for (auto [clientId, reqId] : deserialized) {
+    m_clientToMaxExecutedReqId[clientId] = reqId;
+  }
+  LOG_DEBUG(GL, "Raw client state: " << KVLOG(raw_json));
+}
 
 void InternalCommandsHandler::add(std::string &&key,
                                   std::string &&value,
@@ -116,6 +165,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
       bool isBlockAccumulationEnabled =
           ((requests.size() > 1) && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG));
       sequenceNum = req.executionSequenceNum;
+      LOG_DEBUG(GL, KVLOG(req.clientId, req.cid, req.requestSequenceNum));
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -125,7 +175,10 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                 req.outActualReplySize,
                                 isBlockAccumulationEnabled,
                                 verUpdates,
-                                merkleUpdates);
+                                merkleUpdates,
+                                std::stoi(req.cid),
+                                req.requestSequenceNum,
+                                req.clientId);
     }
     if (res != OperationResult::SUCCESS) LOG_WARN(m_logger, "Command execution failed!");
 
@@ -263,6 +316,23 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
     }
   }
 
+  // Handle main key updates which should be ignored by the linearizability checker of apollo tests
+  for (auto &filteredCategory : {kConcordReconfigurationCategoryId}) {
+    const auto concordUpdates = updates->categoryUpdates(filteredCategory);
+    if (concordUpdates) {
+      const auto &update = std::get<VersionedInput>(concordUpdates->get());
+      for (const auto &[key, valueWithFlags] : update.kv) {
+        UNUSED(valueWithFlags);
+        if (key[0] == concord::kvbc::keyTypes::reconfiguration_rep_main_key) {
+          // Test categories and deployment categories are expected to be mutually exclusive
+          ConcordAssert(ret.empty());
+          ret[s_ignoreBlockStr] = "";
+          return ret;
+        }
+      }
+    }
+  }
+
   return ret;
 }
 
@@ -297,7 +367,25 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
           "SKVBCWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << write_rep.latest_block);
     }
   }
-  addBlock(verUpdates, merkleUpdates, sn);
+
+  VersionedUpdates clientStateUpdate;
+  clientStateUpdate.addUpdate({CLIENT_STATE_KEY}, serializeClientState());
+
+  addBlock(verUpdates, merkleUpdates, clientStateUpdate, sn);
+}
+
+std::string InternalCommandsHandler::serializeClientState() const {
+  nlohmann::json json;
+  nlohmann::json::json_serializer<std::vector<std::pair<uint16_t, uint64_t>>, void> serializer;
+  // Need to maintain a fixed order in the blocks so that the replica state won't diverge
+  std::vector<std::pair<uint16_t, uint64_t>> serialized;
+  for (auto clientIdReqIdPair : m_clientToMaxExecutedReqId) {
+    serialized.push_back(clientIdReqIdPair);
+  }
+  serializer.to_json(json, serialized);
+  auto serialized_raw_json = json.dump();
+  LOG_DEBUG(GL, KVLOG(serialized_raw_json));
+  return json.dump();
 }
 
 OperationResult InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -343,7 +431,10 @@ void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
   addMetadataKeyValue(verUpdates, sequenceNum);
 }
 
-void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates, uint64_t sn) {
+void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates,
+                                       BlockMerkleUpdates &merkleUpdates,
+                                       VersionedUpdates &clientStateVerUpdates,
+                                       uint64_t sn) {
   BlockId currBlock = m_storage->getLastBlockId();
   Updates updates;
 
@@ -375,6 +466,7 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
   updates.add(kConcordInternalCategoryId, std::move(internal_updates));
   updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
   updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
+  updates.add(CLIENT_STATE_CAT_ID, std::move(clientStateVerUpdates));
   const auto newBlockId = m_blockAdder->add(std::move(updates));
   ConcordAssert(newBlockId == currBlock + 1);
 }
@@ -404,10 +496,16 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
                                                              uint32_t &outReplySize,
                                                              bool isBlockAccumulationEnabled,
                                                              VersionedUpdates &blockAccumulatedVerUpdates,
-                                                             BlockMerkleUpdates &blockAccumulatedMerkleUpdates) {
+                                                             BlockMerkleUpdates &blockAccumulatedMerkleUpdates,
+                                                             uint64_t batchCid,
+                                                             uint64_t requestId,
+                                                             uint16_t clientId) {
   static_assert(sizeof(*request) == sizeof(uint8_t),
                 "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
                 "pointer type used by CMF.");
+  const bool isFirstClientRequest = m_clientToMaxExecutedReqId.find(clientId) == m_clientToMaxExecutedReqId.end();
+  const auto lastExecutedId = isFirstClientRequest ? 0 : m_clientToMaxExecutedReqId[clientId];
+  const bool isBatchedRequest = batchCid != requestId;
   const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     auto res = verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize);
@@ -426,7 +524,8 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
                << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
-               << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
+               << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled
+               << KVLOG(clientId, batchCid, requestId, isFirstClientRequest, lastExecutedId));
   BlockId currBlock = m_storage->getLastBlockId();
 
   // Look for conflicts
@@ -447,7 +546,25 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
     }
   }
 
+  if (isBatchedRequest) {
+    // The batched requests all share batchCid
+    // Batched requests are handled by the preprocessor and should not be sent more than once
+    hasConflict = hasConflict || (!isFirstClientRequest && m_clientToMaxExecutedReqId[clientId] > batchCid);
+  } else {
+    hasConflict = hasConflict || (!isFirstClientRequest && m_clientToMaxExecutedReqId[clientId] >= requestId);
+  }
+
+  SKVBCReply reply;
+  reply.reply = SKVBCWriteReply();
+  SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
+  write_rep.success = !hasConflict;
   if (!hasConflict) {
+    write_rep.latest_block = currBlock + 1;
+    auto [iter, isNew] = m_clientToMaxExecutedReqId.emplace(clientId, 0);
+    UNUSED(iter);
+    UNUSED(isNew);
+    m_clientToMaxExecutedReqId[clientId] = std::max(m_clientToMaxExecutedReqId[clientId], batchCid);
+
     if (isBlockAccumulationEnabled) {
       // If Block Accumulation is enabled then blocks are added after all requests are processed
       addKeys(write_req, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
@@ -455,19 +572,15 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
       // If Block Accumulation is not enabled then blocks are added after all requests are processed
       VersionedUpdates verUpdates;
       BlockMerkleUpdates merkleUpdates;
+      VersionedUpdates clientVerUpdates;
+      clientVerUpdates.addUpdate({CLIENT_STATE_KEY}, serializeClientState());
       addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
-      addBlock(verUpdates, merkleUpdates, sequenceNum);
+      addBlock(verUpdates, merkleUpdates, clientVerUpdates, sequenceNum);
     }
-  }
 
-  SKVBCReply reply;
-  reply.reply = SKVBCWriteReply();
-  SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
-  write_rep.success = (!hasConflict);
-  if (!hasConflict)
-    write_rep.latest_block = currBlock + 1;
-  else
+  } else {
     write_rep.latest_block = currBlock;
+  }
 
   std::vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
@@ -478,8 +591,8 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
 
   if (!isBlockAccumulationEnabled)
     LOG_INFO(m_logger,
-             "ConditionalWrite message handled; writesCounter=" << m_writesCounter
-                                                                << " currBlock=" << write_rep.latest_block);
+             "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock="
+                                                                << write_rep.latest_block << KVLOG(hasConflict));
   return OperationResult::SUCCESS;
 }
 
@@ -491,26 +604,39 @@ OperationResult InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCG
 
   auto block_id = request.block_id;
   const auto updates = getBlockUpdates(block_id);
-  if (!updates) {
+  if (!updates.has_value()) {
     LOG_WARN(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
     return OperationResult::INTERNAL_ERROR;
   }
 
-  // Each block contains a single metadata key holding the sequence number
-  const int numMetadataKeys = 1;
-  auto numOfElements = updates->size() - numMetadataKeys;
-  LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
-
   SKVBCReply reply;
   reply.reply = SKVBCReadReply();
   SKVBCReadReply &read_rep = std::get<SKVBCReadReply>(reply.reply);
-  read_rep.reads.resize(numOfElements);
-  size_t i = 0;
-  for (const auto &[key, value] : *updates) {
-    if (key != concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr) {
-      read_rep.reads[i].first.assign(key.begin(), key.end());
-      read_rep.reads[i].second.assign(value.begin(), value.end());
-      ++i;
+
+  if (auto iter = updates.value().find(s_ignoreBlockStr); iter != updates.value().end()) {
+    read_rep.reads.resize(1);
+    const string &ignoreBlockStr = iter->first;
+    std::vector<uint8_t> ignoreBlockAsBytes;
+    std::transform(ignoreBlockStr.begin(), ignoreBlockStr.end(), std::back_inserter(ignoreBlockAsBytes), [](char c) {
+      return static_cast<uint8_t>(c);
+    });
+    read_rep.reads[0] = {ignoreBlockAsBytes, {}};
+  }
+
+  else {
+    // Each block contains a single metadata key holding the sequence number
+    const int numMetadataKeys = 1;
+    const auto numOfElements = updates->size() - numMetadataKeys;
+    LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
+
+    read_rep.reads.resize(numOfElements);
+    size_t i = 0;
+    for (const auto &[key, value] : *updates) {
+      if (key != concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr) {
+        read_rep.reads[i].first.assign(key.begin(), key.end());
+        read_rep.reads[i].second.assign(value.begin(), value.end());
+        ++i;
+      }
     }
   }
 

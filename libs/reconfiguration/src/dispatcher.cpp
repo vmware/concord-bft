@@ -12,6 +12,7 @@
 
 #include "reconfiguration/dispatcher.hpp"
 #include "util/kvstream.h"
+#include <boost/range/join.hpp>
 
 using namespace concord::messages;
 
@@ -40,37 +41,10 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   rresp.success = true;
   auto sender_id = request.sender;
   executions_++;
+  auto partial_ordered_handlers = boost::join(pre_reconfig_handlers_, reconfig_handlers_);
+  auto all_ordered_handlers = boost::join(partial_ordered_handlers, post_reconfig_handlers_);
   try {
-    // Run pre-reconfiguration handlers
-    for (auto& handler : pre_reconfig_handlers_) {
-      // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
-        error_msg.error_msg = "Invalid signature";
-        continue;
-      }
-      error_msg.error_msg.clear();
-      valid = true;
-      rresp.success &=
-          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, timestamp, rresp, handler); },
-                     request.command);
-    }
-
-    // Run regular reconfiguration handlers
-    for (auto& handler : reconfig_handlers_) {
-      // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
-        error_msg.error_msg = "Invalid signature";
-        continue;
-      }
-      error_msg.error_msg.clear();
-      valid = true;
-      rresp.success &=
-          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, timestamp, rresp, handler); },
-                     request.command);
-    }
-
-    // Run post-reconfiguration handlers
-    for (auto& handler : post_reconfig_handlers_) {
+    for (auto& handler : all_ordered_handlers) {
       // Each reconfiguration handler handles only what it can validate
       if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
@@ -107,6 +81,7 @@ Dispatcher::Dispatcher()
       failures_{component_.RegisterCounter("failures")} {
   component_.Register();
   component_.UpdateAggregator();
+  LOG_INFO(getLogger(), "Dispatcher initialized");
 }
 
 }  // namespace concord::reconfiguration

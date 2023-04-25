@@ -393,7 +393,7 @@ void testCheckDescriptorOfLastStableCheckpoint(bool init) {
 int main() {
   auto &config = createReplicaConfig();
   ReplicasInfo replicaInfo(config, false, false);
-  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+  std::shared_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
                                                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,

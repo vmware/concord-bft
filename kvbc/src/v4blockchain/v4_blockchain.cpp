@@ -99,6 +99,7 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   if (block_id % 100 == 0) {
     v4_metrics_comp_.UpdateAggregator();
   }
+  LOG_DEBUG(GL, "Adding block to DB with" << KVLOG(sequence_number, block_id));
   return block_id;
 }
 

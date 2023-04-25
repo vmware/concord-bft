@@ -49,7 +49,7 @@ class ReplicaRestartReadyMsg : public MessageBase {
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
   static ReplicaRestartReadyMsg* create(ReplicaId senderId,
-                                        SeqNum s,
+                                        SeqNum seqNumToStopAt,
                                         Reason r,
                                         const std::string& extraData,
                                         const concordUtils::SpanContext& spanContext = {});

@@ -45,7 +45,7 @@ uint32_t ViewsManager::PrevViewInfo::maxSize() {
 
 ViewsManager::ViewsManager(const ReplicasInfo* const r)
     : replicasInfo(r),
-      N(r->numberOfReplicas()),
+      N(r->getNumberOfReplicas()),
       F(r->fVal()),
       C(r->cVal()),
       myId(r->myId()),

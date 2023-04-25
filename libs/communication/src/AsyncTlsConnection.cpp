@@ -415,7 +415,7 @@ bool AsyncTlsConnection::verifyCertificateClient(boost::asio::ssl::verify_contex
     return false;
   }
   auto [valid, _] = checkCertificate(*cert, expected_dest_id);
-  (void)_;  // unused variable hack
+  UNUSED(_);  // unused variable hack
   return valid;
 }
 
@@ -447,16 +447,25 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509& received_cer
   LOG_INFO(logger_,
            "Unable to validate certificate against the local storage, falling back to validate against the replica "
            "main key");
-  std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
-  if (pem_pub_key.empty()) return std::make_pair(false, peerId);
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+  auto hex_pub_keys = StateControl::instance().getPeerPubKey(peerId);
+  for (auto& hex_pub_key : hex_pub_keys) {
+    std::string pem_pub_key = hex_pub_key;
+    if (pem_pub_key.empty()) {
+      continue;
+    }
+    ConcordAssertEQ(ReplicaConfig::instance().replicaMsgSigningAlgo, SignatureAlgorithm::EdDSA);
     if (getFormat(pem_pub_key) != concord::crypto::KeyFormat::PemFormat) {
-      pem_pub_key = EdDSAHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId))).second;
+      pem_pub_key = EdDSAHexToPem(std::make_pair("", hex_pub_key)).second;
+    }
+
+    // (2) Try to validate the certificate against the peer's public key
+    LOG_INFO(logger_, "Validating certificate was signed with public key: " << hex_pub_key);
+    res = verifyCertificate(received_cert, pem_pub_key);
+    if (res) {
+      break;
     }
   }
 
-  // (2) Try to validate the certificate against the peer's public key
-  res = verifyCertificate(received_cert, pem_pub_key);
   if (!res) return std::make_pair(false, peerId);
 
   // (3) If valid, exchange the stored certificate

@@ -261,25 +261,6 @@ void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
 }
 
 /**
- * validateMessage This is synchronous validate message.
- *
- * @param msg : Message that can validate itself as quick as possible.
- * @return : returns true if message validation succeeds else return false.
- */
-bool ReplicaImp::validateMessage(MessageBase *msg) {
-  if (config_.debugStatisticsEnabled) {
-    DebugStatistics::onReceivedExMessage(msg->type());
-  }
-  try {
-    msg->validate(*repsInfo);
-    return true;
-  } catch (std::exception &e) {
-    onReportAboutInvalidMessage(msg, e.what());
-    return false;
-  }
-}
-
-/**
  * asyncValidateMessage<T> This is a family of asynchronous message which just schedules
  * the validation in a thread bag and returns peacefully. This will also translate the message
  * into internal message.
@@ -297,15 +278,14 @@ void ReplicaImp::asyncValidateMessage(std::unique_ptr<MSG> msg) {
 
     threadPool.async(
         [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
-          try {
-            unValidatedMsg->validate(*replicaInfo);
-            CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
-            incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
-          } catch (std::exception &e) {
-            onReportAboutInvalidMessage(unValidatedMsg, e.what());
+          UNUSED(this);
+          if (!validateMessage(unValidatedMsg)) {
             delete unValidatedMsg;
             return;
           }
+
+          CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+          incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
         },
         msg.release(),
         repsInfo,
@@ -378,7 +358,6 @@ void ReplicaImp::sendAndIncrementMetric(MessageBase *m, NodeIdType id, CounterHa
 
 void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
   LOG_WARN(CNSUS, "Received invalid message. " << KVLOG(msg->senderId(), msg->type(), reason));
-
   // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem
   // (old version,bug,malicious,...)).
 }
@@ -417,10 +396,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(std::unique_ptr<ClientRequestMsg> m
   // -  in case replica keys haven't been exchanged for all replicas, and it's not a key exchange msg then don't accept
   // the msgs.
   // -  the public keys of the clients haven't been published yet.
-  if (!KeyExchangeManager::instance().exchanged() ||
+  if (!KeyExchangeManager::instance().isInitialConsensusExchangeComplete() ||
       (!KeyExchangeManager::instance().clientKeysPublished() && repsInfo->isIdOfClientProxy(senderId))) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
-      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+      LOG_INFO(KEY_EX_LOG,
+               "Didn't complete yet, dropping msg"
+                   << KVLOG(KeyExchangeManager::instance().isInitialConsensusExchangeComplete(),
+                            KeyExchangeManager::instance().clientKeysPublished(),
+                            repsInfo->isIdOfClientProxy(senderId)));
       return;
     }
   }
@@ -595,7 +578,12 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds concurrency threshold ["
-                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]");
+                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]"
+                 << KVLOG(primaryLastUsedSeqNum,
+                          numOfTransientPreprepareMsgs_,
+                          lastExecutedSeqNum,
+                          config_.getconcurrencyLevel(),
+                          activeExecutions_));
     return false;
   }
   metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastExecutedSeqNum);
@@ -1894,7 +1882,12 @@ void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
     return;
   }
   if ((!currentViewIsActive()) || (getCurrentView() != view) || (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_WARN(CNSUS, "Dropping irrelevant signature." << KVLOG(seqNumber, view));
+    std::stringstream stream;
+    stream << "replicasWithBadSigs: ";
+    for (auto replicaId : replicasWithBadSigs) {
+      stream << replicaId << ",";
+    }
+    LOG_WARN(CNSUS, "Dropping irrelevant signature." << KVLOG(seqNumber, view) << stream.str());
 
     return;
   }
@@ -2258,6 +2251,11 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
 
+/**
+ * Replicas accumulate checkpoints messages to decide whether they should start
+ * state transfer. Checkpoint message signatures are not validated, as replicas
+ * rely on state transfer to fetch the most recent keys.
+ */
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message) {
   auto *msg = message.release();
@@ -2381,14 +2379,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(std::unique_ptr<CheckpointMsg> message
           static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
               config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
 
-          Time timeOfLastEcecution = MinTime;
+          Time timeOfLastExecution = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
-            timeOfLastEcecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
-          if ((getMonotonicTime() - timeOfLastEcecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
+            timeOfLastExecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
+          if ((getMonotonicTime() - timeOfLastExecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
             LOG_INFO(GL,
                      "Number of stable checkpoints in current window: "
                          << numRelevant << " time since last execution: "
-                         << (getMonotonicTime() - timeOfLastEcecution).count() << " ms");
+                         << (getMonotonicTime() - timeOfLastExecution).count() << " ms");
             askForStateTransfer = true;
             startStReason = "Too much time has passed since last execution";
           }
@@ -2625,7 +2623,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(std::unique_ptr<ReplicaStatusMsg> m
   const SeqNum msgLastStable = msg->getLastStableSeqNum();
   const ViewNum msgViewNum = msg->getViewNumber();
 
-  LOG_DEBUG(CNSUS, KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
+  LOG_DEBUG(CNSUS, "Got replica status" << KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
 
   /////////////////////////////////////////////////////////////////////////
   // Checkpoints
@@ -2916,7 +2914,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(std::unique_ptr<ViewChangeMsg> message
   ViewNum maxKnownCorrectView = 0;
   ViewNum maxKnownAgreedView = 0;
   viewsManager->computeCorrectRelevantViewNumbers(&maxKnownCorrectView, &maxKnownAgreedView);
-  LOG_INFO(VC_LOG, "View Number details: " << KVLOG(maxKnownCorrectView, maxKnownAgreedView));
+  LOG_INFO(VC_LOG, "View Number details: " << KVLOG(maxKnownCorrectView, maxKnownAgreedView, getCurrentView()));
 
   if (maxKnownCorrectView > getCurrentView()) {
     // we have at least f+1 view-changes with view number >= maxKnownCorrectView
@@ -3080,6 +3078,17 @@ bool ReplicaImp::tryToEnterView() {
   return enteredView;
 }
 
+size_t ReplicaImp::clearClientRequestQueue() {
+  size_t primaryCombinedReqSize = 0;
+  LOG_INFO(GL, "clearing client requests" << KVLOG(requestsQueueOfPrimary.size()));
+  // clear requestsQueueOfPrimary
+  while (!requestsQueueOfPrimary.empty()) {
+    primaryCombinedReqSize += requestsQueueOfPrimary.front()->size();
+    requestsQueueOfPrimary.pop();
+  }
+  return primaryCombinedReqSize;
+}
+
 void ReplicaImp::onNewView(std::vector<std::shared_ptr<PrePrepareMsg>> &prePreparesForNewView) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   SeqNum firstPPSeq = 0;
@@ -3206,11 +3215,7 @@ void ReplicaImp::onNewView(std::vector<std::shared_ptr<PrePrepareMsg>> &prePrepa
 
   requestsOfNonPrimary.clear();
 
-  // clear requestsQueueOfPrimary
-  while (!requestsQueueOfPrimary.empty()) {
-    primaryCombinedReqSize -= requestsQueueOfPrimary.front()->size();
-    requestsQueueOfPrimary.pop();
-  }
+  primaryCombinedReqSize -= clearClientRequestQueue();
 
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
@@ -3303,6 +3308,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
   requestsOfNonPrimary.clear();
+  clearClientRequestQueue();
+
   if (ps_) {
     ps_->beginWriteTran();
   }
@@ -3316,7 +3323,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     }
     return;
   }
-  lastExecutedSeqNum = newCheckpointSeqNum;
+  setLastExecutedSeqNum(newCheckpointSeqNum);
   if (ps_) {
     ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   }
@@ -3445,7 +3452,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   if (hasStateInformation) {
     if (lastStableSeqNum > lastExecutedSeqNum) {
-      lastExecutedSeqNum = lastStableSeqNum;
+      setLastExecutedSeqNum(lastStableSeqNum);
       metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
       if (config_.getdebugStatisticsEnabled()) {
         DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -3572,7 +3579,6 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   seqNumInfo.setTimeOfLastInfoRequest(curTime);
 
   LOG_INFO(GL, "Try to request missing data. " << KVLOG(seqNumber, getCurrentView()));
-
   ReqMissingDataMsg reqData(config_.getreplicaId(), getCurrentView(), seqNumber);
 
   const bool routerForPartialProofs = repsInfo->isCollectorForPartialProofs(getCurrentView(), seqNumber);
@@ -4043,7 +4049,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   lastStableSeqNum = ld.lastStableSeqNum;
   metric_last_stable_seq_num_.Get().Set(lastStableSeqNum);
-  lastExecutedSeqNum = ld.lastExecutedSeqNum;
+  setLastExecutedSeqNum(ld.lastExecutedSeqNum);
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
@@ -4275,7 +4281,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        const ReplicaConfig &config,
                        shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
-                       SigManager *sigManager,
+                       std::shared_ptr<SigManager> sigManager,
                        ReplicasInfo *replicasInfo,
                        ViewsManager *viewsMgr,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
@@ -4401,9 +4407,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
   LOG_INFO(GL, "Initialising Replica" << KVLOG(firstTime));
 
   onViewNumCallbacks_.add([&](bool) {
-    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
+    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey(this);
+      KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
     }
   });
   stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
@@ -4411,9 +4417,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // which syncs its state through ST, we need to make sure that it completes
     // initial key exchange after completing ST
     if (!isCollectingState()) {
-      if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-        KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
-        LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
+      if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
+          !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
+        KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this, lastExecutedSeqNum);
+        LOG_INFO(GL, "Send key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
     } else {
       LOG_WARN(GL, "State Transfer is still collecting! Initial key exchange cannot yet be initiated!");
@@ -4427,20 +4434,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   if (firstTime) {
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    sigManager_.reset(SigManager::init(config_.replicaId,
-                                       config_.replicaPrivateKey,
-                                       config_.publicKeysOfReplicas,
-                                       concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                       ReplicaConfig::instance().getPublicKeysOfClients(),
-                                       concord::crypto::KeyFormat::PemFormat,
-                                       {{repsInfo->getIdOfOperator(),
-                                         ReplicaConfig::instance().getOperatorPublicKey(),
-                                         concord::crypto::KeyFormat::PemFormat}},
-                                       *repsInfo));
+    sigManager_ = SigManager::owningInstance();
     viewsManager = new ViewsManager(repsInfo);
   } else {
     repsInfo = replicasInfo;
-    sigManager_.reset(sigManager);
+    sigManager_ = sigManager;
     viewsManager = viewsMgr;
   }
   bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
@@ -4646,11 +4644,16 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-    KeyExchangeManager::instance().sendInitialKey(this);
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
+      !KeyExchangeManager::instance().isInitialConsensusExchangeComplete()) {
+    KeyExchangeManager::instance().waitForQuorumAndTriggerConsensusExchange(this);
   } else {
-    // If key exchange is disabled, first publish the replica's main (rsa/eddsa) key to clients
-    if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();
+    // If key exchange is disabled, first publish the replica's main key to clients
+    if (ReplicaConfig::instance().singleSignatureScheme ||
+        ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) {
+      KeyExchangeManager::instance().waitForQuorum(this);
+      KeyExchangeManager::instance().sendMainPublicKey();
+    }
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }
@@ -5067,6 +5070,8 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
+    LOG_DEBUG(GL, "Iterating request" << KVLOG(req.senderId(), req.requestSeqNum()));
+
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       InternalMessage im = RemovePendingForExecutionRequest{req.clientProxyId(), req.requestSeqNum()};
       getIncomingMsgsStorage().pushInternalMsg(std::move(im));
@@ -5215,7 +5220,7 @@ void ReplicaImp::finalizeExecution() {
     ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
   }
 
-  lastExecutedSeqNum = lastExecutedSeqNum + 1;
+  setLastExecutedSeqNum(lastExecutedSeqNum + 1);
 
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -5334,34 +5339,7 @@ void ReplicaImp::onExecutionFinish() {
   handleDeferredRequests();
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
   if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
-  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-    // If after execution, we discover that we need to wedge at some future point, push a noop command to the incoming
-    // messages queue.
-    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
-    concord::messages::ReconfigurationRequest req;
-    req.sender = config_.replicaId;
-    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
-    // Mark this request as an internal one
-    std::vector<uint8_t> data_vec;
-    concord::messages::serialize(data_vec, req);
-    req.signature.resize(SigManager::instance()->getMySigLength());
-    SigManager::instance()->sign(data_vec.data(), data_vec.size(), req.signature.data());
-    data_vec.clear();
-    concord::messages::serialize(data_vec, req);
-    std::string strMsg(data_vec.begin(), data_vec.end());
-    auto requestSeqNum =
-        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
-                                    RECONFIG_FLAG,
-                                    requestSeqNum,
-                                    strMsg.size(),
-                                    strMsg.c_str(),
-                                    60000,
-                                    "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
-    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-    onMessage(std::unique_ptr<ClientRequestMsg>(crm));
-    tryToSendPrePrepareMsg(false);
-  }
+  primaryPushNoOpIfWedgePending(lastExecutedSeqNum + 1);
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
       lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
@@ -5516,7 +5494,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     ps_->setLastExecutedSeqNum(lastExecutedSeqNum + 1);
   }
 
-  lastExecutedSeqNum = lastExecutedSeqNum + 1;
+  setLastExecutedSeqNum(lastExecutedSeqNum + 1);
 
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -5712,6 +5690,7 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
                                                                         req.outReplicaSpecificInfoSize,
                                                                         executionResult);
         if (replyMsg) {
+          LOG_DEBUG(GL, "Sending reply for req " << req.requestSequenceNum);
           send(replyMsg.get(), req.clientId);
           free(req.outReply);
         } else {
@@ -5808,66 +5787,9 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
 
     auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
     if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
-    if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-      // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
-      // messages queue.
-      LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
-      concord::messages::ReconfigurationRequest req;
-      req.sender = config_.replicaId;
-      req.command = concord::messages::WedgeCommand{config_.replicaId, true};
-      // Mark this request as an internal one
-      std::vector<uint8_t> data_vec;
-      concord::messages::serialize(data_vec, req);
-      std::string sig(SigManager::instance()->getMySigLength(), '\0');
-      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
-      req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-      data_vec.clear();
-      concord::messages::serialize(data_vec, req);
-      std::string strMsg(data_vec.begin(), data_vec.end());
-      auto requestSeqNum =
-          std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-      auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
-                                      RECONFIG_FLAG,
-                                      requestSeqNum,
-                                      strMsg.size(),
-                                      strMsg.c_str(),
-                                      60000,
-                                      "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
-      // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-      onMessage(std::unique_ptr<ClientRequestMsg>(crm));
-      tryToSendPrePrepareMsg(false);
-    }
+    primaryPushNoOpIfWedgePending(lastExecutedSeqNum + 1);
   }
-  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
-  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-    // If after execution, we discover that we need to wedge at some future point, push a noop command to the incoming
-    // messages queue.
-    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
-    concord::messages::ReconfigurationRequest req;
-    req.sender = config_.replicaId;
-    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
-    // Mark this request as an internal one
-    std::vector<uint8_t> data_vec;
-    concord::messages::serialize(data_vec, req);
-    std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
-    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-    data_vec.clear();
-    concord::messages::serialize(data_vec, req);
-    std::string strMsg(data_vec.begin(), data_vec.end());
-    auto current_time =
-        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
-                                    RECONFIG_FLAG,
-                                    current_time,
-                                    strMsg.size(),
-                                    strMsg.c_str(),
-                                    60000,
-                                    "wedge-noop-command-" + std::to_string(lastExecutedSeqNum));
-    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
-    onMessage(std::unique_ptr<ClientRequestMsg>(crm));
-    tryToSendPrePrepareMsg(false);
-  }
+  primaryPushNoOpIfWedgePending(lastExecutedSeqNum);
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
       lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
@@ -5905,6 +5827,42 @@ void ReplicaImp::updateCommitMetrics(const CommitPath &commitPath) {
       break;
     default:
       LOG_ERROR(CNSUS, "Invalid commit path value: " << static_cast<int8_t>(commitPath));
+  }
+}
+void ReplicaImp::setLastExecutedSeqNum(SeqNum seq) {
+  lastExecutedSeqNum = seq;
+  SigManager::instance()->setReplicaLastExecutedSeq(seq);
+}
+void ReplicaImp::primaryPushNoOpIfWedgePending(SeqNum seq) {
+  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
+    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+    // messages queue.
+    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint seq:" << seqNumToStopAt.value());
+    concord::messages::ReconfigurationRequest req;
+    req.sender = config_.replicaId;
+    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
+    // Mark this request as an internal one
+    std::vector<concord::Byte> data_vec;
+    concord::messages::serialize(data_vec, req);
+    req.signature.resize(SigManager::instance()->getMySigLength());
+    SigManager::instance()->sign(
+        SigManager::instance()->getReplicaLastExecutedSeq(), data_vec.data(), data_vec.size(), req.signature.data());
+
+    data_vec.clear();
+    concord::messages::serialize(data_vec, req);
+    auto requestSeqNum =
+        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
+                                    RECONFIG_FLAG,
+                                    requestSeqNum,
+                                    data_vec.size(),
+                                    reinterpret_cast<const char *>(data_vec.data()),
+                                    60000,
+                                    "wedge-noop-command-" + std::to_string(seq));
+    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
+    onMessage(std::make_unique<ClientRequestMsg>(crm));
+    tryToSendPrePrepareMsg(false);
   }
 }
 

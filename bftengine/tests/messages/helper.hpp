@@ -26,6 +26,7 @@
 #include "crypto/threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
 #include "SigManager.hpp"
+#include "crypto/threshsign/eddsa/EdDSAMultisigFactory.h"
 
 using bftEngine::impl::ReplicasInfo;
 
@@ -39,9 +40,14 @@ class IShareVerificationKeyDummy : public IShareVerificationKey {
   std::string toString() const override { return "IShareVerificationKeyDummy"; }
 };
 
-class IThresholdSignerDummy : public IThresholdSigner {
+class IThresholdSignerDummy : public IThresholdSigner, concord::crypto::ISigner {
  public:
   int requiredLengthForSignedData() const override { return 2048; }
+  size_t signBuffer(const concord::Byte *dataIn, size_t dataLen, concord::Byte *sigOutBuffer) const override {
+    return 0;
+  }
+  size_t signatureLength() const override { return requiredLengthForSignedData(); };
+  std::string getPrivKey() const override { return shareSecretKey.toString(); };
   void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override {
     std::memset(outSig, 'S', outSigLen);
   }
@@ -114,13 +120,28 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
   EXPECT_TRUE(other->equals(*deserialized));
 }
 
-bftEngine::impl::SigManager *createSigManager(size_t myId,
-                                              std::string &myPrivateKey,
-                                              concord::crypto::KeyFormat replicasKeysFormat,
-                                              std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
-                                              ReplicasInfo &replicasInfo);
+std::shared_ptr<bftEngine::impl::SigManager> createSigManager(
+    size_t myId,
+    std::string &myPrivateKey,
+    concord::crypto::KeyFormat replicasKeysFormat,
+    std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
+    ReplicasInfo &replicasInfo);
 
 void loadPrivateAndPublicKeys(std::string &myPrivateKey,
                               std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
-                              ReplicaId myId,
                               size_t numReplicas);
+
+class TestMultisigCryptoSystem : public Cryptosystem {
+ public:
+  TestMultisigCryptoSystem(NodeIdType id,
+                           const std::vector<std::string> &hexStringEdDSAPublicKeys,
+                           const std::string &hexStringEdDSAPrivateKey);
+  IThresholdVerifier *createThresholdVerifier(uint16_t threshold = 0) override;
+  IThresholdSigner *createThresholdSigner() override;
+
+ private:
+  NodeIdType id_;
+  std::string hexStringEdDSAPrivateKey_;
+  std::vector<std::string> hexStringEdDSAPublicKeys_;
+  EdDSAMultisigFactory factory_;
+};

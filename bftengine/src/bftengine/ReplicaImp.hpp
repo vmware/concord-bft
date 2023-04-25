@@ -94,7 +94,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ControllerBase* controller = nullptr;
 
   // digital signatures
-  std::unique_ptr<SigManager> sigManager_;
+  std::shared_ptr<SigManager> sigManager_;
 
   // view change logic
   ViewsManager* viewsManager = nullptr;
@@ -371,7 +371,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void recoverRequests();
 
-  bool validateMessage(MessageBase* msg);
   std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
@@ -437,7 +436,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              const ReplicaConfig&,
              shared_ptr<IRequestsHandler>,
              IStateTransfer*,
-             SigManager*,
+             std::shared_ptr<SigManager>,
              ReplicasInfo*,
              ViewsManager*,
              shared_ptr<MsgsCommunicator>,
@@ -626,9 +625,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // replica is stopped
   concord::util::CallbackRegistry<> stopCallbacks_;
 
+  void primaryPushNoOpIfWedgePending(SeqNum seq);
+  void setLastExecutedSeqNum(SeqNum seq);
   void addTimers();
   void startConsensusProcess(PrePrepareMsgShPtr& pp, bool isCreatedEarlier);
   void startConsensusProcess(PrePrepareMsgShPtr& pp);
+  size_t clearClientRequestQueue();
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo

@@ -30,6 +30,9 @@ struct EnumHash {
 };
 
 class StateControl {
+ private:
+  static constexpr const size_t replicaIdentityHistoryCount = 2;
+
  public:
   using CallbackRegistry = concord::util::CallbackRegistry<uint32_t>;
   enum class EventType { TLS_COMM, THIN_REPLICA_SERVER };
@@ -70,11 +73,13 @@ class StateControl {
     }
     return str;
   }
-  void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
+  void setGetPeerPubKeyMethod(std::function<std::array<std::string, replicaIdentityHistoryCount>(uint32_t)> m) {
+    get_peer_pub_key_ = std::move(m);
+  }
 
-  std::string getPeerPubKey(uint32_t id) {
+  std::array<std::string, replicaIdentityHistoryCount> getPeerPubKey(uint32_t id) {
     if (get_peer_pub_key_) return get_peer_pub_key_(id);
-    return std::string();
+    return {};
   }
 
  private:
@@ -100,6 +105,6 @@ class StateControl {
   std::mutex lock_comm_;
   // keeping function template to be void(uint32_t) for uniformity
   std::unordered_map<const EventType, std::unique_ptr<CallbackRegistry>, EnumHash> event_registry_;
-  std::function<std::string(uint32_t)> get_peer_pub_key_;
+  std::function<std::array<std::string, replicaIdentityHistoryCount>(uint32_t)> get_peer_pub_key_;
 };
 }  // namespace bft::communication

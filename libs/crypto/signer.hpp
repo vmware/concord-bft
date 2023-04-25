@@ -24,7 +24,7 @@ class ISigner {
  public:
   // This function's name need to be different from ISigner::sign, otherwise inheriting
   // classes will hide ISigner::sign
-  virtual size_t signBuffer(const Byte* dataIn, size_t dataLen, Byte* sigOutBuffer) = 0;
+  virtual size_t signBuffer(const Byte* dataIn, size_t dataLen, Byte* sigOutBuffer) const = 0;
   template <typename Container>
   size_t sign(const Container& dataIn, Byte* sigOutBuffer) {
     static_assert(sizeof(typename Container::value_type) == sizeof(Byte),

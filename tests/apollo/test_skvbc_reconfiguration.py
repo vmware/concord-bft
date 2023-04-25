@@ -2214,7 +2214,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             while succ is False:
                 succ = True
                 for r in replicas:
-                    master_key_path = os.path.join(bft_network.testdir, "replicas_rsa_keys", str(r), "pub_key")
+                    master_key_path = os.path.join(bft_network.testdir, "replicas_main_keys", str(r), "pub_key")
                     if os.path.isfile(master_key_path) is False:
                         succ = False
                         break

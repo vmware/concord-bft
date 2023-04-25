@@ -18,7 +18,9 @@
 #include "db_interfaces.h"
 #include "util/endianness.hpp"
 #include "pruning_handler.hpp"
-
+#include "SigManager.hpp"
+#include "CryptoManager.hpp"
+#include "helper.hpp"
 #include "storage/test/storage_test_common.h"
 
 #include <cassert>
@@ -36,40 +38,23 @@ using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::pruning;
-using concord::crypto::SignatureAlgorithm;
 using bftEngine::ReplicaConfig;
-using concord::crypto::generateEdDSAKeyPair;
+using bftEngine::impl::SigManager;
+using bftEngine::CryptoManager;
 
 namespace {
-const NodeIdType replica_0 = 0;
-const NodeIdType replica_1 = 1;
-const NodeIdType replica_2 = 2;
-const NodeIdType replica_3 = 3;
-constexpr uint8_t noOfReplicas = 4U;
 
-std::pair<std::string, std::string> keyPair[noOfReplicas];
-bftEngine::ReplicaConfig &replicaConfig = bftEngine::ReplicaConfig::instance();
-std::map<uint64_t, std::string> private_keys_of_replicas;
-
-void setUpKeysConfiguration_4() {
-  for (auto i = 0; i < noOfReplicas; ++i) {
-    if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
-      keyPair[i] = generateEdDSAKeyPair();
-    }
-  }
-
-  replicaConfig.publicKeysOfReplicas.insert(std::pair<uint16_t, const std::string>(replica_0, keyPair[0].second));
-  replicaConfig.publicKeysOfReplicas.insert(std::pair<uint16_t, const std::string>(replica_1, keyPair[1].second));
-  replicaConfig.publicKeysOfReplicas.insert(std::pair<uint16_t, const std::string>(replica_2, keyPair[2].second));
-  replicaConfig.publicKeysOfReplicas.insert(std::pair<uint16_t, const std::string>(replica_3, keyPair[3].second));
-  private_keys_of_replicas[replica_0] = keyPair[0].first;
-  private_keys_of_replicas[replica_1] = keyPair[1].first;
-  private_keys_of_replicas[replica_2] = keyPair[2].first;
-  private_keys_of_replicas[replica_3] = keyPair[3].first;
-}
+const auto GENESIS_BLOCK_ID = BlockId{1};
+const auto LAST_BLOCK_ID = BlockId{150};
+const auto REPLICA_PRINCIPAL_ID_START = 0;
+const auto CLIENT_PRINCIPAL_ID_START = 20000;
 
 class test_rocksdb : public ::testing::Test {
+  static constexpr const uint8_t noOfReplicas = 4U;
+
   void SetUp() override {
+    GL.setLogLevel(logging::DEBUG_LOG_LEVEL);
+    setUpKeysConfiguration_4();
     destroyDb();
     db = TestRocksDb::createNative();
   }
@@ -83,13 +68,86 @@ class test_rocksdb : public ::testing::Test {
   }
 
  protected:
+  ReplicaConfig &replicaConfig = ReplicaConfig::instance();
+  std::map<uint64_t, std::string> private_keys_of_replicas;
+  std::array<std::unique_ptr<ReplicasInfo>, noOfReplicas> replicasInfo;
+  std::array<std::shared_ptr<SigManager>, noOfReplicas> sigManagers;
+  std::array<std::shared_ptr<CryptoManager>, noOfReplicas> cryptoManagers;
+  static const std::pair<std::string, std::string> s_eddsaKeyPairs[noOfReplicas];
+
+  void setUpKeysConfiguration_4() {
+    replicaConfig.replicaId = 0;
+    replicaConfig.numReplicas = 4;
+    replicaConfig.fVal = 1;
+    replicaConfig.cVal = 0;
+    replicaConfig.numOfClientProxies = 4;
+    replicaConfig.numOfExternalClients = 15;
+
+    std::vector<std::string> hexPublicKeys(noOfReplicas);
+    replicaConfig.publicKeysOfReplicas.clear();
+    for (auto i = 0; i < noOfReplicas; ++i) {
+      hexPublicKeys[i] = s_eddsaKeyPairs[i].second;
+      private_keys_of_replicas.emplace(i, s_eddsaKeyPairs[i].first);
+      replicaConfig.publicKeysOfReplicas.emplace(i, hexPublicKeys[i]);
+    }
+
+    for (auto i = 0; i < noOfReplicas; i++) {
+      replicasInfo[i] = std::make_unique<ReplicasInfo>(replicaConfig, true, true);
+      sigManagers[i] = SigManager::init(i,
+                                        private_keys_of_replicas.at(i),
+                                        replicaConfig.publicKeysOfReplicas,
+                                        concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                        nullptr,
+                                        concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                        {},
+                                        *replicasInfo[i].get());
+      cryptoManagers[i] = CryptoManager::init(
+          std::make_unique<TestMultisigCryptoSystem>(i, hexPublicKeys, private_keys_of_replicas.at(i)));
+    }
+  }
+
+  void switchReplicaContext(NodeIdType id) {
+    LOG_INFO(GL, "Switching replica context to replica " << id);
+    SigManager::reset(sigManagers[id]);
+    CryptoManager::reset(cryptoManagers[id]);
+  }
+
+  void signAs(NodeIdType id, concord::messages::LatestPrunableBlock &block) {
+    switchReplicaContext(id);
+    PruningSigner{}.sign(block);
+  }
+
+  concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
+                                                        BlockId min_prunable_block_id = LAST_BLOCK_ID) {
+    concord::messages::PruneRequest prune_req;
+    prune_req.sender = client_idx;
+
+    for (uint64_t i = 0u; i < noOfReplicas; i++) {
+      auto &latest_block = prune_req.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
+      latest_block.replica = i;
+      // Send different block IDs.
+      latest_block.block_id = min_prunable_block_id + i;
+
+      signAs(i, latest_block);
+    }
+    return prune_req;
+  }
+
   std::shared_ptr<NativeClient> db;
 };
 
-const auto GENESIS_BLOCK_ID = BlockId{1};
-const auto LAST_BLOCK_ID = BlockId{150};
-const auto REPLICA_PRINCIPAL_ID_START = 0;
-const auto CLIENT_PRINCIPAL_ID_START = 20000;
+// clang-format off
+const std::pair<std::string, std::string> test_rocksdb::s_eddsaKeyPairs[noOfReplicas] = {
+    {"61498efe1764b89357a02e2887d224154006ceacf26269f8695a4af561453eef",
+        "386f4fb049a5d8bb0706d3793096c8f91842ce380dfc342a2001d50dfbc901f4"},
+    {"247a74ab3620ec6b9f5feab9ee1f86521da3fa2804ad45bb5bf2c5b21ef105bc",
+        "3f9e7dbde90477c24c1bacf14e073a356c1eca482d352d9cc0b16560a4e7e469"},
+    {"fb539bc3d66deda55524d903da26dbec1f4b6abf41ec5db521e617c64eb2c341",
+        "2311c6013ff657844669d8b803b2e1ed33fe06eed445f966a800a8fbb8d790e8"},
+    {"55ea66e855b83ec4a02bd8fcce6bb4426ad3db2a842fa2a2a6777f13e40a4717",
+        "1ba7449655784fc9ce193a7887de1e4d3d35f7c82b802440c4f28bf678a34b34"},
+};
+// clang-format on
 
 class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
  public:
@@ -245,42 +303,19 @@ void InitBlockchainStorage(std::size_t replica_count,
   ASSERT_EQ(s.getLastBlockId(), LAST_BLOCK_ID);
 }
 
-concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
-                                                      const std::map<uint64_t, std::string> &private_keys,
-                                                      BlockId min_prunable_block_id = LAST_BLOCK_ID) {
-  concord::messages::PruneRequest prune_req;
-  prune_req.sender = client_idx;
-  uint64_t i = 0u;
-  for (auto &[idx, pkey] : private_keys) {
-    auto &latest_block = prune_req.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
-    latest_block.replica = idx;
-    // Send different block IDs.
-    latest_block.block_id = min_prunable_block_id + i;
-
-    auto block_signer = PruningSigner{pkey};
-    block_signer.sign(latest_block);
-    i++;
-  }
-  return prune_req;
-}
-
 TEST_F(test_rocksdb, sign_verify_correct) {
   const auto replica_count = 4;
   uint64_t sending_id = 0;
   uint64_t client_proxy_count = 4;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
-  std::vector<PruningSigner> signers;
-  signers.reserve(replica_count);
-  for (auto i = 0; i < replica_count; ++i) {
-    signers.emplace_back(PruningSigner{private_keys_of_replicas[i]});
-  }
+  const auto verifier = PruningVerifier{};
 
   // Sign and verify a LatestPrunableBlock message.
   {
     concord::messages::LatestPrunableBlock block;
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id;
     block.block_id = LAST_BLOCK_ID;
-    signers[sending_id].sign(block);
+
+    signAs(sending_id, block);
 
     ASSERT_TRUE(verifier.verify(block));
   }
@@ -293,7 +328,7 @@ TEST_F(test_rocksdb, sign_verify_correct) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].sign(block);
+      signAs(i, block);
     }
     ASSERT_TRUE(verifier.verify(request));
   }
@@ -303,19 +338,14 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   const auto replica_count = 4;
   const auto client_proxy_count = replica_count;
   const auto sending_id = 1;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
-  std::vector<PruningSigner> signers;
-  signers.reserve(replica_count);
-  for (auto i = 0; i < replica_count; ++i) {
-    signers.emplace_back(PruningSigner{private_keys_of_replicas[i]});
-  }
+  const auto verifier = PruningVerifier{};
 
   // Break verification of LatestPrunableBlock messages.
   {
     concord::messages::LatestPrunableBlock block;
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id;
     block.block_id = LAST_BLOCK_ID;
-    signers[sending_id].sign(block);
+    signAs(sending_id, block);
 
     // Change the replica ID after signing.
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id + 1;
@@ -346,7 +376,7 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].sign(block);
+      signAs(i, block);
     }
 
     request.sender = request.sender + 1;
@@ -362,7 +392,7 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].sign(block);
+      signAs(i, block);
     }
 
     ASSERT_FALSE(verifier.verify(request));
@@ -376,7 +406,7 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].sign(block);
+      signAs(i, block);
     }
     request.latest_prunable_block[0].replica = REPLICA_PRINCIPAL_ID_START + replica_count + 8;
 
@@ -393,14 +423,14 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
   replicaConfig.pruningEnabled_ = true;
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  const auto verifier = PruningVerifier{};
+  switchReplicaContext(replica_idx);
   InitBlockchainStorage(replica_count, storage);
 
   // Construct the pruning state machine with a nullptr TimeContract to verify
   // it works in case the time service is disabled.
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
@@ -420,13 +450,14 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = 1;
   replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
+  switchReplicaContext(1);
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{};
 
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
@@ -450,15 +481,16 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = 1;
   replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
+  switchReplicaContext(1);
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{};
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
@@ -482,15 +514,14 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = false;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
   auto storage = TestStorage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
@@ -511,18 +542,18 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = false;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
 
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
                            false};
 
-  const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
+  const auto req = ConstructPruneRequest(client_idx);
   concord::messages::ReconfigurationResponse rres;
   auto res = sm.handle(req, 0, UINT32_MAX, {}, rres);
   ASSERT_TRUE(res);
@@ -535,20 +566,20 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
 
   TestStorage storage(db);
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
                            false};
 
   const auto latest_prunable_block_id = storage.getLastBlockId() - num_blocks_to_keep;
-  const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
+  const auto req = ConstructPruneRequest(client_idx, latest_prunable_block_id);
   blocks_deleter.deleteBlocksUntil(latest_prunable_block_id + 1);
   concord::messages::ReconfigurationResponse rres;
   auto res = sm.handle(req, 0, UINT32_MAX, {}, rres);
@@ -564,13 +595,13 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = keyPair[1].first;
+  replicaConfig.replicaPrivateKey = s_eddsaKeyPairs[1].first;
   TestStorage storage(db);
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
-                           bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
+  auto sm = PruningHandler{ReplicaConfig::instance().pathToOperatorPublicKey_,
+                           ReplicaConfig::instance().operatorMsgSigningAlgo,
                            storage,
                            storage,
                            blocks_deleter,
@@ -578,7 +609,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
 
   // Add a valid N + 1 latest prunable block.
   {
-    auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
+    auto req = ConstructPruneRequest(client_idx);
     const auto &block = req.latest_prunable_block[3];
     auto latest_prunnable_block = concord::messages::LatestPrunableBlock();
     latest_prunnable_block.block_id = block.block_id;
@@ -594,7 +625,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
 
   // Send N - 1 latest prunable blocks.
   {
-    auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
+    auto req = ConstructPruneRequest(client_idx);
     req.latest_prunable_block.pop_back();
     concord::messages::ReconfigurationResponse rres;
     auto res = sm.handle(req, 0, UINT32_MAX, {}, rres);
@@ -605,7 +636,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
 
   // Send a latest prunable block with an invalid signature.
   {
-    auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
+    auto req = ConstructPruneRequest(client_idx);
     auto &block = req.latest_prunable_block[req.latest_prunable_block.size() - 1];
     block.signature[0] += 1;
     concord::messages::ReconfigurationResponse rres;
@@ -618,7 +649,6 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
 }  // namespace
 
 int main(int argc, char **argv) {
-  setUpKeysConfiguration_4();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

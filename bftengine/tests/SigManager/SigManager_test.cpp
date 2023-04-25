@@ -17,51 +17,27 @@
 #include "gtest/gtest.h"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
+#include "crypto/threshsign/eddsa/EdDSAMultisigSigner.h"
+#include "util/types.hpp"
 
 using namespace std;
 using concord::crypto::KeyFormat;
-
-constexpr char KEYS_BASE_PARENT_PATH[] = "/tmp/";
-constexpr char KEYS_BASE_PATH[] = "/tmp/transaction_signing_keys";
-constexpr char PRIV_KEY_NAME[] = "privkey.pem";
-constexpr char PUB_KEY_NAME[] = "pubkey.pem";
-constexpr char KEYS_GEN_SCRIPT_PATH[] = "../../../../scripts/linux/create_concord_clients_transaction_signing_keys.sh";
 constexpr size_t RANDOM_DATA_SIZE = 1000U;
 
 std::default_random_engine generator;
 
 using concord::crypto::ISigner;
-using concord::crypto::IVerifier;
 using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
-using concord::crypto::SignatureAlgorithm;
+using bftEngine::CryptoManager;
 using concord::crypto::generateEdDSAKeyPair;
 
-void generateKeyPairs(size_t count) {
-  ostringstream cmd;
-
-  ASSERT_EQ(0, system(cmd.str().c_str()));
-  cmd << "rm -rf " << KEYS_BASE_PATH;
-  ASSERT_EQ(0, system(cmd.str().c_str()));
-
-  cmd.str("");
-  cmd.clear();
-
-  std::string algo;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
-    algo = "eddsa";
+std::vector<std::pair<std::string, std::string>> generateKeyPairs(size_t count) {
+  std::vector<std::pair<std::string, std::string>> result;
+  for (size_t i = 0; i < count; i++) {
+    result.push_back(generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat));
   }
-  cmd << KEYS_GEN_SCRIPT_PATH << " -n " << count << " -r " << PRIV_KEY_NAME << " -u " << PUB_KEY_NAME << " -o "
-      << KEYS_BASE_PARENT_PATH << " -a " << algo;
-  ASSERT_EQ(0, system(cmd.str().c_str()));
-}
-
-void readFile(string_view path, string& keyOut) {
-  stringstream stream;
-  ifstream file(path.data());
-  ASSERT_TRUE(file.good());
-  stream << file.rdbuf();
-  keyOut = stream.str();
+  return result;
 }
 
 void generateRandomData(char* data, size_t len) {
@@ -73,7 +49,7 @@ void generateRandomData(char* data, size_t len) {
 
 void corrupt(concord::Byte* data, size_t len) {
   for (size_t i{0}; i < len; ++i) {
-    ++data[i];
+    data[i] = ~data[i];
   }
 }
 
@@ -113,22 +89,16 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
 }
 
 TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
-  string publicKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PUB_KEY_NAME});
-  string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PRIV_KEY_NAME});
-
-  string privKey, pubkey;
   char data[RANDOM_DATA_SIZE]{0};
-
-  generateKeyPairs(1);
+  auto keys = generateKeyPairs(1);
+  auto& [privKey, pubkey] = keys[0];
 
   generateRandomData(data, RANDOM_DATA_SIZE);
-  readFile(privateKeyFullPath, privKey);
-  readFile(publicKeyFullPath, pubkey);
 
-  const auto signer_ =
-      Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-  const auto verifier_ =
-      Factory::getVerifier(pubkey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+  const auto signer_ = Factory::getSigner(
+      privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::HexaDecimalStrippedFormat);
+  const auto verifier_ = Factory::getVerifier(
+      pubkey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::HexaDecimalStrippedFormat);
 
   // sign with replica signer.
   size_t expectedSignerSigLen = signer_->signatureLength();
@@ -153,126 +123,137 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   ASSERT_FALSE(verifier_->verify(str_data, sig));
 }
 
-TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
-  constexpr size_t numReplicas{4};
-  constexpr PrincipalId myId{0};
-  string myPrivKey;
-  unique_ptr<ISigner> signers[numReplicas];
-  set<pair<PrincipalId, const string>> publicKeysOfReplicas;
+class SigManagerTest : public ::testing::Test {
+ public:
+  SigManagerTest(bool singleSignatureScheme)
+      : config{createReplicaConfig()},
+        singleSignatureScheme{singleSignatureScheme},
+        replicaInfo{config, false, false} {}
 
-  generateKeyPairs(numReplicas);
+  void SetUp() override {
+    config.singleSignatureScheme = singleSignatureScheme;
 
-  // Load signers to simulate other replicas
-  for (size_t i{1}; i <= numReplicas; ++i) {
-    string privKey, pubKey;
-    string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
-    readFile(privateKeyFullPath, privKey);
-    PrincipalId pid = i - 1;  // folders are 1-indexed
+    hexKeyPairs = generateKeyPairs(config.numReplicas);
+    std::set<std::pair<PrincipalId, const std::string>> publicKeysOfReplicas;
+    std::vector<std::string> hexReplicaPublicKeys;
+    std::vector<std::string> consensusHexReplicaPublicKeys;
 
-    if (pid == myId) {
-      myPrivKey = privKey;
-      continue;
+    // generateKeyPairs(config.numReplicas + config.numRoReplicas + config.)
+    for (size_t i = 0; i < config.numReplicas; ++i) {
+      publicKeysOfReplicas.emplace(i, concord::crypto::EdDSAHexToPem(hexKeyPairs[i]).second);
+      hexReplicaPublicKeys.push_back(hexKeyPairs[i].second);
     }
-    signers[pid] = Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-    string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
-    readFile(pubKeyFullPath, pubKey);
-    publicKeysOfReplicas.insert(make_pair(pid, pubKey));
+
+    sigManager = SigManager::init(config.replicaId,
+                                  concord::crypto::EdDSAHexToPem(hexKeyPairs[config.replicaId]).first,
+                                  publicKeysOfReplicas,
+                                  KeyFormat::PemFormat,
+                                  nullptr,
+                                  KeyFormat::PemFormat,
+                                  {},
+                                  replicaInfo);
+
+    if (singleSignatureScheme) {
+      consensusHexKeyPairs = hexKeyPairs;
+      consensusHexReplicaPublicKeys = hexReplicaPublicKeys;
+    } else {
+      consensusHexKeyPairs = generateKeyPairs(config.numReplicas);
+      for (auto& pair : consensusHexKeyPairs) {
+        auto& publicKey = pair.second;
+        consensusHexReplicaPublicKeys.push_back(publicKey);
+      }
+    }
+
+    cryptoManager = bftEngine::CryptoManager::init(std::make_unique<TestMultisigCryptoSystem>(
+        config.replicaId, consensusHexReplicaPublicKeys, consensusHexKeyPairs[config.replicaId].first));
   }
 
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(
-      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
+ protected:
+  std::vector<std::pair<std::string, std::string>> hexKeyPairs;
+  std::vector<std::pair<std::string, std::string>> consensusHexKeyPairs;
+  std::shared_ptr<SigManager> sigManager;
+  std::shared_ptr<CryptoManager> cryptoManager;
+  ReplicaConfig& config;
+  const bool singleSignatureScheme;
+  ReplicasInfo replicaInfo;
+};
 
-  for (size_t i{0}; i < numReplicas; ++i) {
+class SingleSchemeSigManagerTest : public SigManagerTest {
+ public:
+  SingleSchemeSigManagerTest() : SigManagerTest(true) {}
+};
+
+class MultiSchemeSigManagerTest : public SigManagerTest {
+ public:
+  MultiSchemeSigManagerTest() : SigManagerTest(false) {}
+};
+
+TEST_F(SingleSchemeSigManagerTest, TestSignerExtraction) {
+  ASSERT_EQ(sigManager->extractSignerFromMultisig(cryptoManager->getSigner(0)).getPrivKey(), hexKeyPairs[0].first);
+}
+
+TEST_F(SingleSchemeSigManagerTest, TestVerifierExtraction) {
+  ASSERT_EQ(sigManager->extractVerifierFromMultisig(cryptoManager->getLatestVerifiers()[0].second, 0).getPubKey(),
+            hexKeyPairs[0].second);
+}
+
+TEST_F(SingleSchemeSigManagerTest, TestMySigLength) { ASSERT_GT(sigManager->getMySigLength(), 0); }
+
+TEST_F(SingleSchemeSigManagerTest, ReplicasOnlyCheckVerify) {
+  const size_t numReplicas = config.numReplicas;
+  std::vector<unique_ptr<ISigner>> signers(numReplicas);
+
+  // Load signers to simulate other replicas
+  for (size_t i = 0; i < numReplicas; ++i) {
+    signers[i] = Factory::getSigner(
+        hexKeyPairs[i].first, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::HexaDecimalStrippedFormat);
+  }
+
+  std::vector<char> data(RANDOM_DATA_SIZE);
+  generateRandomData(data.data(), RANDOM_DATA_SIZE);
+
+  for (size_t i = 0; i < numReplicas; ++i) {
     const auto& signer = signers[i];
 
-    char data[RANDOM_DATA_SIZE]{0};
-    size_t lenRetData;
-    size_t expectedSignerSigLen;
-
-    if (i == myId) continue;
-
     // sign with replica signer (other replicas, mock)
-    expectedSignerSigLen = signer->signatureLength();
-    std::vector<concord::Byte> sig(expectedSignerSigLen);
-
-    generateRandomData(data, RANDOM_DATA_SIZE);
-    std::string str_data(data, RANDOM_DATA_SIZE);
-    lenRetData = signer->sign(str_data, sig.data());
-    ASSERT_EQ(lenRetData, expectedSignerSigLen);
+    std::vector<concord::Byte> sig(signer->signatureLength());
+    ASSERT_EQ(signer->sign(data, sig.data()), sig.size());
 
     // Validate with SigManager (my replica)
     ASSERT_EQ(sig.size(), sigManager->getSigLength(i));
-    ASSERT_TRUE(sigManager->verifySig(i, std::string_view{data, RANDOM_DATA_SIZE}, sig));
+    ASSERT_TRUE(sigManager->verifySig(i, data, sig));
 
-    // change data randomally, expect failure
-    char data1[RANDOM_DATA_SIZE];
-    std::copy(std::begin(data), std::end(data), std::begin(data1));
-    corrupt(data1 + 10, 1);
-    ASSERT_FALSE(sigManager->verifySig(i, std::string_view{data1, RANDOM_DATA_SIZE}, sig));
-
-    // change signature randomally, expect failure
-    corrupt(sig.data(), 1);
-    ASSERT_FALSE(sigManager->verifySig(i, std::string_view{data, RANDOM_DATA_SIZE}, sig));
+    size_t offset = i % data.size();
+    corrupt(data.data() + offset, 1);
+    ASSERT_FALSE(sigManager->verifySig(i, data, sig));
   }
 }
 
-TEST(SigManagerTest, ReplicasOnlyCheckSign) {
-  constexpr size_t numReplicas{4};
-  constexpr PrincipalId myId{0};
-  string myPrivKey, privKey, pubKey, sig;
-  unique_ptr<IVerifier> verifier;
-  set<pair<PrincipalId, const string>> publicKeysOfReplicas;
-  char data[RANDOM_DATA_SIZE]{0};
-  size_t expectedSignerSigLen;
+TEST_F(SingleSchemeSigManagerTest, TestSigIdempotency) {
+  std::vector<concord::Byte> msg = {'a', 'b', 'c'};
+  const size_t bufferSize = static_cast<size_t>(sigManager->getMySigLength());
+  std::vector<concord::Byte> firstSig(bufferSize);
+  std::vector<concord::Byte> secondSig(bufferSize);
+  sigManager->sign(0, msg.data(), msg.size(), firstSig.data());
+  sigManager->sign(0, msg.data(), msg.size(), secondSig.data());
+  ASSERT_EQ(firstSig, secondSig);
+}
 
-  generateKeyPairs(numReplicas);
-
-  // Load my private key
-  string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PRIV_KEY_NAME});
-  readFile(privateKeyFullPath, myPrivKey);
-
-  // Load single other replica's verifier (mock)
-  string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PUB_KEY_NAME});
-  readFile(pubKeyFullPath, pubKey);
-
-  verifier = Factory::getVerifier(pubKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-
-  // load public key of other replicas, must be done for SigManager ctor
-  for (size_t i{2}; i <= numReplicas; ++i) {
-    pubKeyFullPath = string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME;
-    readFile(pubKeyFullPath, pubKey);
-    publicKeysOfReplicas.insert(make_pair(i - 1, pubKey));
-  }
-
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(
-      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
-  // sign with SigManager
-  expectedSignerSigLen = sigManager->getSigLength(myId);
-  generateRandomData(data, RANDOM_DATA_SIZE);
-  sig.resize(expectedSignerSigLen);
-  sigManager->sign(data, RANDOM_DATA_SIZE, sig.data());
-
-  // Validate with replica verifier (mock)
-  std::string str_data(data, RANDOM_DATA_SIZE);
-  ASSERT_TRUE(verifier->verify(str_data, sig));
-
-  // change data randomally, expect failure
-  char data1[RANDOM_DATA_SIZE];
-  std::copy(std::begin(data), std::end(data), std::begin(data1));
-  corrupt(data1 + 10, 1);
-  std::string str_data1(data1, RANDOM_DATA_SIZE);
-  ASSERT_FALSE(verifier->verify(str_data1, sig));
-
-  // change signature randomally, expect failure
-  corrupt(sig.data(), 1);
-  ASSERT_FALSE(verifier->verify(str_data1, sig));
+TEST_F(MultiSchemeSigManagerTest, TestSigDiffersWithMultipleSchemes) {
+  std::vector<concord::Byte> msg = {'a', 'b', 'c'};
+  EdDSAMultisigSigner* multisigSigner = reinterpret_cast<EdDSAMultisigSigner*>(cryptoManager->getSigner(0).get());
+  const size_t bufferSize = std::max(static_cast<size_t>(sigManager->getMySigLength()),
+                                     static_cast<size_t>(multisigSigner->signatureLength()));
+  std::vector<concord::Byte> firstSig(bufferSize);
+  std::vector<concord::Byte> secondSig(bufferSize);
+  sigManager->sign(0, msg.data(), msg.size(), firstSig.data());
+  multisigSigner->sign(msg, secondSig.data());
+  ASSERT_NE(firstSig, secondSig);
 }
 
 // Check 1 more replica + 1200 clients on 6 additional participants
 // where each participant hols a client pool of 200 clients
-TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
+TEST(SigManagerTestWithClients, ReplicasAndClientsCheckVerify) {
   constexpr size_t numReplicas{7};
   constexpr size_t numRoReplicas{2};
   constexpr size_t numOfClientProxies{36};  // (numRoReplicas+numRoReplicas) * 4
@@ -280,54 +261,40 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   constexpr size_t numBftClientsInParticipantNodes{200};
   constexpr size_t totalNumberofExternalBftClients{1200};  // numOfExternaClients * numBftClientsInExternalClient
   constexpr PrincipalId myId{0};
-  string myPrivKey;
-  size_t i, signerIndex{0};
+  size_t signerIndex{0};
   unique_ptr<ISigner> signers[numReplicas + numParticipantNodes];  // only external clients and consensus replicas sign
 
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
   set<pair<const string, set<uint16_t>>> publicKeysOfClients;
   unordered_map<PrincipalId, size_t> principalIdToSignerIndex;
 
-  generateKeyPairs(numReplicas + numParticipantNodes);
+  auto keyPairs = generateKeyPairs(numReplicas + numParticipantNodes);
 
   // Load replica signers to simulate other replicas
   PrincipalId currPrincipalId{0};
-  for (i = 1; i <= numReplicas; ++i, ++currPrincipalId) {
-    string privKey, pubKey;
-    string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
-    readFile(privateKeyFullPath, privKey);
+  for (currPrincipalId = 0; currPrincipalId < numReplicas; ++currPrincipalId) {
+    signers[signerIndex] = Factory::getSigner(keyPairs[currPrincipalId].first,
+                                              ReplicaConfig::instance().replicaMsgSigningAlgo,
+                                              KeyFormat::HexaDecimalStrippedFormat);
 
-    if (currPrincipalId == myId) {
-      myPrivKey = privKey;
-      continue;
-    }
-    signers[signerIndex] =
-        Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-
-    string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
-    readFile(pubKeyFullPath, pubKey);
-    publicKeysOfReplicas.insert(make_pair(currPrincipalId, pubKey));
-    principalIdToSignerIndex.insert(make_pair(currPrincipalId, signerIndex));
+    publicKeysOfReplicas.insert(make_pair(currPrincipalId, keyPairs[currPrincipalId].second));
+    principalIdToSignerIndex.emplace(currPrincipalId, signerIndex);
     ++signerIndex;
   }
 
   // Load another group of replica signers to simulate other clients
   currPrincipalId = numReplicas + numRoReplicas + numOfClientProxies;
-  for (; i <= numReplicas + numParticipantNodes; ++i) {
-    string privKey, pubKey;
-    string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
-    readFile(privateKeyFullPath, privKey);
-    signers[signerIndex] =
-        Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-    string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
+  for (size_t i = numReplicas; i < numReplicas + numParticipantNodes; ++i) {
+    signers[signerIndex] = Factory::getSigner(keyPairs[signerIndex].first,
+                                              ReplicaConfig::instance().replicaMsgSigningAlgo,
+                                              KeyFormat::HexaDecimalStrippedFormat);
     set<PrincipalId> principalIds;
     for (size_t j{0}; j < numBftClientsInParticipantNodes; ++j) {
       principalIds.insert(principalIds.end(), currPrincipalId);
       principalIdToSignerIndex.insert(make_pair(currPrincipalId, signerIndex));
       ++currPrincipalId;
     }
-    readFile(pubKeyFullPath, pubKey);
-    publicKeysOfClients.insert(make_pair(std::move(pubKey), std::move(principalIds)));
+    publicKeysOfClients.insert(make_pair(keyPairs[signerIndex].second, std::move(principalIds)));
     ++signerIndex;
   }
 
@@ -338,13 +305,20 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   config.numOfExternalClients = totalNumberofExternalBftClients;
   ReplicasInfo replicaInfo(config, false, false);
 
-  unique_ptr<SigManager> sigManager(SigManager::init(myId,
-                                                     myPrivKey,
+  shared_ptr<SigManager> sigManager(SigManager::init(myId,
+                                                     keyPairs[config.replicaId].first,
                                                      publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
+                                                     KeyFormat::HexaDecimalStrippedFormat,
                                                      &publicKeysOfClients,
-                                                     KeyFormat::PemFormat,
+                                                     KeyFormat::HexaDecimalStrippedFormat,
+                                                     {},
                                                      replicaInfo));
+  std::vector<std::string> replicaHexPublicKeys(config.numReplicas);
+  for (int j = 0; j < config.numReplicas; j++) {
+    replicaHexPublicKeys[j] = keyPairs[j].second;
+  }
+  CryptoManager::init(std::make_unique<TestMultisigCryptoSystem>(
+      config.replicaId, replicaHexPublicKeys, keyPairs[config.replicaId].second));
 
   // principalIdToSignerIndex carries all principal ids for replica, read only replicas and bft-clients.
   // There are some principal Ids in the range [minKey(principalIdToSignerIndex), maxKey(principalIdToSignerIndex)]
@@ -352,34 +326,35 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   // In the next loop we will sign 30K times. Every iteration a random principal ID between minKey and maxKey is
   // generated. If the ID is valid, we locate the right signer using principalIdToSignerIndex. If not - sign with
   // another signer and expect a failure.
-  PrincipalId minPidInclusive = 1, maxPidInclusive = currPrincipalId - 1;
+  PrincipalId minPidInclusive = 0;
+  PrincipalId maxPidInclusive = currPrincipalId;
   std::uniform_int_distribution<int> distribution(minPidInclusive, maxPidInclusive);
-  for (size_t i{0}; i < 3E4; ++i) {
-    char data[RANDOM_DATA_SIZE]{0};
-    size_t lenRetData, expectedVerifierSigLen, expectedSignerSigLen, signerIndex;
-    bool expectFailure = false;
+  std::vector<char> data(RANDOM_DATA_SIZE);
+  std::vector<concord::Byte> sig(1024u);
 
-    PrincipalId signerPrincipalId = static_cast<PrincipalId>(distribution(generator));
-    auto iter = principalIdToSignerIndex.find(signerPrincipalId);
-    if (iter != principalIdToSignerIndex.end()) {
-      signerIndex = iter->second;
-    } else {
-      signerIndex = 1;  // sign with signer index 1, so we can check the target SigManager
-      expectFailure = true;
+  for (size_t principalId = 0; principalId < maxPidInclusive; ++principalId) {
+    size_t lenRetData, signerOffset;
+
+    auto iter = principalIdToSignerIndex.find(principalId);
+    if (iter == principalIdToSignerIndex.end()) {
+      ASSERT_FALSE(sigManager->hasVerifier(principalId));
+      ASSERT_EQ(sigManager->getSigLength(principalId), 0);
+      continue;
     }
+    signerOffset = iter->second;
 
     // sign
-    expectedSignerSigLen = signers[signerIndex]->signatureLength();
-    std::vector<concord::Byte> sig(expectedSignerSigLen);
-    generateRandomData(data, RANDOM_DATA_SIZE);
-    std::string str_data(data, RANDOM_DATA_SIZE);
-    lenRetData = signers[signerIndex]->sign(str_data, sig.data());
+    LOG_DEBUG(GL, KVLOG(principalId, signerOffset, config.replicaId));
+    auto expectedSignerSigLen = signers[signerOffset]->signatureLength();
+    ASSERT_GE(sig.size(), expectedSignerSigLen);
+    generateRandomData(data.data(), RANDOM_DATA_SIZE);
+    lenRetData = signers[signerOffset]->sign(data, sig.data());
     ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
     // Validate with SigManager (my replica)
-    expectedVerifierSigLen = sigManager->getSigLength(signerPrincipalId);
-    ASSERT_TRUE((expectFailure && expectedVerifierSigLen == 0) || (!expectFailure && expectedVerifierSigLen > 0));
-    bool signatureValid = sigManager->verifySig(signerPrincipalId, std::string_view{data, RANDOM_DATA_SIZE}, sig);
-    ASSERT_TRUE((expectFailure && !signatureValid) || (!expectFailure && signatureValid));
+    ASSERT_TRUE(sigManager->getSigLength(principalId) > 0);
+    bool signatureValid = sigManager->verifySig(
+        principalId, data, string_view{reinterpret_cast<char*>(sig.data()), sigManager->getSigLength(principalId)});
+    ASSERT_TRUE(signatureValid);
   }
 }

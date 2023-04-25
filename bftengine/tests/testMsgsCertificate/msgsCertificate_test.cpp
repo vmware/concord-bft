@@ -38,7 +38,7 @@ class msgsCertificateTestsFixture : public ::testing::Test {
   {}
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;
-  std::unique_ptr<SigManager> sigManager;
+  std::shared_ptr<SigManager> sigManager;
 
   void test_state_still_consistent() {
     MsgsCertificate<ClientReplyMsg, false, false, true, SimpleClientImp> replysCertificate(

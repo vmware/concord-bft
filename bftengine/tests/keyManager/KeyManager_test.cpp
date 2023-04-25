@@ -33,13 +33,16 @@ struct DummyKeyGen : public IMultiSigKeyGenerator, public IKeyExchanger {
   std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() {
     return std::make_tuple(prv, pub, concord::crypto::SignatureAlgorithm::Uninitialized);
   }
+
   void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) {
     selfpub = verificationKey;
     selfprv = secretKey;
   }
+
   void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) {
     pubs[signerIndex] = verificationKey;
   }
+
   DummyKeyGen(uint32_t cs) : pubs{cs, ""} {}
   std::string prv;
   std::string pub;
@@ -352,7 +355,7 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
   // get the pub and prv keys from the key handlr and set them to be rotated.
-  test.km_.sendInitialKey();
+  test.km_.waitForQuorumAndTriggerConsensusExchange();
   test.km_.futureRet.get();
   // set public of replica 0
   KeyExchangeMsg kem;
@@ -414,7 +417,7 @@ TEST(KeyExchangeManager, endToEnd) {
   TestKeyManager test{&id};
 
   // set published private key of replica 2
-  test.km_.sendInitialKey();
+  test.km_.waitForQuorumAndTriggerConsensusExchange();
   test.km_.futureRet.get();
 
   // set public of replica 0

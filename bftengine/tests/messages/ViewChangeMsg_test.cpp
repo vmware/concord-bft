@@ -47,7 +47,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+  std::shared_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
                                                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
@@ -191,7 +191,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+  std::shared_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
                                                           concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,

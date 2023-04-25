@@ -17,7 +17,7 @@ int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
   ConcordAssertEQ(len, static_cast<int>(sizeof(SingleEdDSASignature)));
   auto &singleSignature = *reinterpret_cast<const SingleEdDSASignature *>(sigShareWithId);
 
-  if (singleSignature.id == 0 || singleSignature.id > verifier_.maxShareID()) {
+  if (singleSignature.id > verifier_.maxShareID()) {
     LOG_ERROR(EDDSA_MULTISIG_LOG, "Invalid signer id" << KVLOG(singleSignature.id, verifier_.maxShareID()));
     return static_cast<int>(signatures_.size());
   }
@@ -27,8 +27,8 @@ int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
         reinterpret_cast<const uint8_t *>(expectedMsgDigest_.data()), expectedMsgDigest_.size(), singleSignature);
     if (!result) {
       invalidShares_.insert(static_cast<ShareID>(singleSignature.id));
+      LOG_DEBUG(EDDSA_MULTISIG_LOG, "Share id: " << singleSignature.id << " is invalid");
     }
-    LOG_DEBUG(EDDSA_MULTISIG_LOG, "Share id: " << singleSignature.id << "Invalid");
   }
 
   auto result = signatures_.insert({singleSignature.id, singleSignature});
@@ -70,7 +70,7 @@ EdDSAMultisigVerifier::EdDSAMultisigVerifier(const std::vector<SingleVerifier> &
                                              const size_t signersCount,
                                              const size_t threshold)
     : verifiers_(verifiers), signersCount_(signersCount), threshold_(threshold) {
-  ConcordAssertEQ(verifiers.size(), signersCount + 1);
+  ConcordAssertEQ(verifiers.size(), signersCount);
   LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, verifiers_.size(), threshold_));
 }
 
@@ -81,7 +81,7 @@ IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerif
 bool EdDSAMultisigVerifier::verifySingleSignature(const concord::Byte *msg,
                                                   size_t msgLen,
                                                   const SingleEdDSASignature &signature) const {
-  if (signature.id == 0) {
+  if (signature.id >= verifiers_.size()) {
     return false;
   }
   return verifiers_[signature.id].verifyBuffer(
@@ -104,18 +104,18 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
 
   for (int i = 0; i < static_cast<int>(signatureCountInBuffer); i++) {
     auto &currentSignature = allSignatures[i];
-    if (currentSignature.id == 0 || currentSignature.id >= verifiers_.size()) {
+    if (currentSignature.id >= verifiers_.size()) {
       LOG_ERROR(EDDSA_MULTISIG_LOG, "Invalid signer id" << KVLOG(currentSignature.id, verifiers_.size()));
       continue;
     }
     auto result = verifySingleSignature(reinterpret_cast<const uint8_t *>(msg), msgLenUnsigned, currentSignature);
-    LOG_DEBUG(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(currentSignature.id, result));
+    LOG_DEBUG(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(currentSignature.id, result, signatureCountInBuffer));
 
     validSignatureCount += result == true;
   }
 
   bool result = validSignatureCount >= threshold_;
-  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(validSignatureCount, threshold_));
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(validSignatureCount, threshold_, signatureCountInBuffer, signersCount_));
   return result;
 }
 
@@ -126,4 +126,7 @@ const IPublicKey &EdDSAMultisigVerifier::getPublicKey() const { return verifiers
 const IShareVerificationKey &EdDSAMultisigVerifier::getShareVerificationKey(ShareID signer) const {
   return verifiers_[static_cast<size_t>(signer)].publicKey_;
 }
-size_t EdDSAMultisigVerifier::maxShareID() const { return signersCount_ + 1; }
+size_t EdDSAMultisigVerifier::maxShareID() const { return signersCount_; }
+const concord::crypto::IVerifier &EdDSAMultisigVerifier::getVerifier(size_t verifier) const {
+  return verifiers_[verifier];
+}

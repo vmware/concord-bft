@@ -16,7 +16,9 @@
 using concord::crypto::openssl::EdDSASigner;
 
 EdDSAMultisigSigner::EdDSAMultisigSigner(const EdDSAThreshsignPrivateKey &privateKey, const uint32_t id)
-    : EdDSASigner<EdDSAThreshsignPrivateKey>{privateKey}, publicKey_{}, id_{id} {}
+    : EdDSASigner<EdDSAThreshsignPrivateKey>{privateKey}, publicKey_{}, id_{id} {
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, "created eddsa signer with " << KVLOG(id_));
+}
 
 int EdDSAMultisigSigner::requiredLengthForSignedData() const { return sizeof(SingleEdDSASignature); }
 

@@ -106,7 +106,10 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
   if (preProcessResult != OperationResult::SUCCESS) setupPreProcessResultData(preProcessResult);
   auto sm = SigManager::instance();
   std::vector<uint8_t> sig(sm->getMySigLength());
-  sm->sign(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size(), sig.data());
+  sm->sign(sm->getReplicaLastExecutedSeq(),
+           primaryPreProcessResultHash_.data(),
+           primaryPreProcessResultHash_.size(),
+           sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, preProcessResult)
            .second) {
@@ -231,7 +234,10 @@ void RequestProcessingState::modifyPrimaryResult(
   primaryPreProcessResultHash_ = result.second;
   auto sm = SigManager::instance();
   std::vector<uint8_t> sig(sm->getMySigLength());
-  sm->sign(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size(), sig.data());
+  sm->sign(sm->getReplicaLastExecutedSeq(),
+           primaryPreProcessResultHash_.data(),
+           primaryPreProcessResultHash_.size(),
+           sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, primaryPreProcessResult_)
            .second) {

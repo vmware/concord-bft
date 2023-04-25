@@ -22,7 +22,7 @@
 #include "ControlStateManager.hpp"
 #include <chrono>
 #include <thread>
-
+#include <map>
 #include "log/logger.hpp"
 #include "skvbc_messages.cmf.hpp"
 #include "SharedTypes.hpp"
@@ -31,6 +31,8 @@
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
+static constexpr const char *clientReplyStateCategory = "client_state";
+static const std::string CLIENT_STATE_CAT_ID{clientReplyStateCategory};
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
@@ -38,18 +40,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                           concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger,
+                          bftEngine::IStateTransfer &st,
                           bool addAllKeysAsPublic = false,
-                          concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr)
-      : m_storage(storage),
-        m_blockAdder(blocksAdder),
-        m_blockMetadata(blockMetadata),
-        m_logger(logger),
-        m_addAllKeysAsPublic{addAllKeysAsPublic},
-        m_kvbc{kvbc} {
-    if (m_addAllKeysAsPublic) {
-      ConcordAssertNE(m_kvbc, nullptr);
-    }
-  }
+                          concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr);
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
@@ -68,7 +61,31 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
            std::string &&value,
            concord::kvbc::categorization::VersionedUpdates &,
            concord::kvbc::categorization::BlockMerkleUpdates &) const;
-
+  /**
+   *
+   * @param requestSize
+   * @param request
+   * @param sequenceNum
+   * @param flags
+   * @param maxReplySize
+   * @param outReply
+   * @param outReplySize
+   * @param isBlockAccumulationEnabled
+   * @param blockAccumulatedVerUpdates
+   * @param blockAccumulatedMerkleUpdates
+   * @param batchCid - The id of the request batch this request belongs to.
+   *                   This information is not available in the execution layer.
+   *                   The test client sets it as the Cid of the request to make it so.
+   * @param requestId - The id of the request old ids are rejected if a request with a higher id
+   *                    clientId was perviously executed for a request originating in clientId.
+   * @param clientId - The id of the client who issued the request, used in conjunction with requestCid to prevent
+   *                   the execution of old requests.
+   *
+   * @note  Batched client requests are expected to reach execution only once,
+   *        in the current implementation, the preprocessor is the only entity aware of client request
+   *        batches and is responsible for satisfying this assumption
+   * @return
+   */
   bftEngine::OperationResult executeWriteCommand(
       uint32_t requestSize,
       const char *request,
@@ -79,7 +96,10 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
       uint32_t &outReplySize,
       bool isBlockAccumulationEnabled,
       concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
-      concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
+      concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates,
+      uint64_t batchCid,
+      uint64_t requestId,
+      uint16_t clientId);
 
   bftEngine::OperationResult executeReadOnlyCommand(uint32_t requestSize,
                                                     const char *request,
@@ -119,6 +139,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                              uint64_t sn);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
                 concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                concord::kvbc::categorization::VersionedUpdates &clientStateUpdates,
                 uint64_t sn);
   void addKeys(const skvbc::messages::SKVBCWriteRequest &writeReq,
                uint64_t sequenceNum,
@@ -128,6 +149,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
       const std::string &key,
       concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
       concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const;
+
+  std::string serializeClientState() const;
+  void loadClientStateFromStorage();
 
  private:
   concord::kvbc::IReader *m_storage;
@@ -140,4 +164,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
   bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
   concord::kvbc::adapter::ReplicaBlockchain *m_kvbc{nullptr};
+  std::map<uint16_t, uint64_t> m_clientToMaxExecutedReqId;
+
+  // This string is used by clients to distinguish blocks that should be ignored by them.
+  // Some tests expect every block to be created by a request issued by test clients.
+  // However, internal communication between replicas can also create blocks, e.g:
+  // When rotating keys.
+  static constexpr const char *s_ignoreBlockStr = "ignoreBlock";
 };

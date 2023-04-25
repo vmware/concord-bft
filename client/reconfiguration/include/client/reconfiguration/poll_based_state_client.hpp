@@ -24,12 +24,21 @@
 
 namespace concord::client::reconfiguration {
 
+/**
+ * A polling client which fetches reconfiguration updates from replicas.
+ * Used by:
+ * 1. Clients - Clients use this mechanism to get the main key of a replica, which allows
+ *              them to validate tls certificates when replicas replace them.
+ * 2. Replicas - Replicas in state transfer use this polling client in a best effort
+ *               to execute reconfiguration requests which were missed during ST (e.g wedges, scaling)
+ */
 class PollBasedStateClient : public IStateClient {
  public:
   PollBasedStateClient(bft::client::Client* client,
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
-                       const uint16_t id_);
+                       const uint16_t id_,
+                       bool use_byzantine_quorum = false);
   State getNextState() const override;
   bool updateState(const WriteState& state) override;
   ~PollBasedStateClient();
@@ -63,6 +72,8 @@ class PollBasedStateClient : public IStateClient {
   bool halted_ = false;
   std::condition_variable resume_cond_;
   std::mutex resume_lock_;
+  // At the end of State transfer we use a f + 1 quorum
+  bool use_byzantine_quorum_ = false;
 };
 
 }  // namespace concord::client::reconfiguration

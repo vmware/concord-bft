@@ -33,7 +33,10 @@ bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
-  LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
+  LOG_INFO(getLogger(),
+           "Wedge command instructs replica to stop after to checkpoints "
+           "(after sequence number "
+               << bft_seq_num << ")");
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   if (cmd.noop == false) addCreateDbSnapshotCbOnWedge(true);
 

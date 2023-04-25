@@ -54,19 +54,15 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       }
       auto end_ckpnt = Clock::now();
       auto duration_chpnt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_ckpnt - start);
-      LOG_INFO(getLogger(), "just checkpoint duation: " << KVLOG(duration_chpnt_ms.count()));
+      LOG_INFO(getLogger(), "just checkpoint duration: " << KVLOG(duration_chpnt_ms.count()));
       prepareCheckpointCb_(lastBlockId, dbClient_->getPathForCheckpoint(checkPointId));
       auto end = Clock::now();
 
       auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-      LOG_INFO(getLogger(), "checkpoint with cb duation: " << KVLOG(duration_ms.count()));
+      LOG_INFO(getLogger(), "checkpoint with cb duration: " << KVLOG(duration_ms.count()));
       lastDbCheckpointBlockId_.Get().Set(lastBlockId);
-      numOfDbCheckpointsCreated_++;
       auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
       maxDbCheckpointCreationTimeMsec_.Get().Set(std::max(maxSoFar, static_cast<uint64_t>(duration_ms.count())));
-      auto count = numOfDbCheckpointsCreated_.Get().Get();
-      (void)count;
-      metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count(), seqNum));
       lastCheckpointSeqNum_ = seqNum;
       {
@@ -84,6 +80,8 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       if (cb) cb(seqNum);
     }
     checkpointInProcessCb_(false, lastBlockId);
+    numOfDbCheckpointsCreated_++;
+    metrics_.UpdateAggregator();
   }
   updateMetrics();
   return Status::OK();
@@ -341,16 +339,16 @@ void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum
   req.sender = replica_id;
   req.seqNum = seqNum;
   req.noop = noop;
-  std::vector<uint8_t> data_vec;
+  std::vector<concord::Byte> data_vec;
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
-  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  // TODO: this signature does not appear to be validated anywhere in the codebase
+  req.signature.resize(SigManager::instance()->getMySigLength());
+  SigManager::instance()->sign(seqNum, data_vec.data(), data_vec.size(), req.signature.data());
   data_vec.clear();
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string strMsg(data_vec.begin(), data_vec.end());
   std::string cid = "replicaDbCheckpoint_" + std::to_string(seqNum) + "_" + std::to_string(replica_id);
-  if (client_) client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  if (client_)
+    client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, data_vec.size(), reinterpret_cast<char*>(data_vec.data()), cid);
 }
 
 void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum) {

@@ -54,7 +54,7 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
   auto sys = inputReplicaKeyfileMultisig(key_file_name, *out_config);
   if (sys) {
     std::unique_ptr<Cryptosystem> up(sys);
-    bftEngine::CryptoManager::instance(std::move(up));
+    bftEngine::CryptoManager::init(std::move(up));
   }
 }
 

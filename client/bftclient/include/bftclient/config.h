@@ -70,7 +70,7 @@ struct ClientConfig {
   bool use_unified_certs = false;
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
   std::optional<concord::secretsmanager::SecretData> secrets_manager_config = std::nullopt;
-  std::optional<std::string> replicas_master_key_folder_path = "./replicas_rsa_keys";
+  std::optional<std::string> replicas_master_key_folder_path = "./replicas_main_keys";
   concord::crypto::SignatureAlgorithm message_sigs_algorithm = concord::crypto::SignatureAlgorithm::EdDSA;
 };
 
