@@ -69,6 +69,7 @@ message ClaimCoinsRequest {
 
 message ClaimCoinsReponse {
     bool succ = 1;
+    string warning = 2;
 }
 
 message GenerateMintTx {

@@ -447,9 +447,12 @@ void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
 
     // Claim coins
     auto claimedCoins = pImpl_->client_->claimCoins(uttTx, pImpl_->params_, sigs);
-
+    bool invalidCoinsInTransfer(false);
     for (auto& coin : claimedCoins) {
-      if (!pImpl_->client_->validate(coin)) throw std::runtime_error("Invalid normal coin in transfer!");
+      if (!pImpl_->client_->validate(coin)) {
+        invalidCoinsInTransfer = true;
+        continue;
+      }
       pImpl_->storage_->setCoin(coin);
       if (coin.getType() == libutt::api::Coin::Type::Normal) {
         logdbg_user << "claimed normal coin: " << dbgPrintCoins({coin}) << endl;
@@ -463,6 +466,9 @@ void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
           pImpl_->budgetCoin_ = std::nullopt;
         }
       }
+    }
+    if (invalidCoinsInTransfer) {
+      throw libutt::api::operations::InvalidCoinsInTransfer("Invalid normal coin(s) in transfer!");
     }
   }
 }

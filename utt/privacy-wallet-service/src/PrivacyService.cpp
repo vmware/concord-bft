@@ -275,14 +275,16 @@ std::pair<utt::Transaction, utt::TxOutputSigs> PrivacyWalletServiceImpl::buildCl
       response->set_err(err_msg);
       return grpc::Status(grpc::StatusCode::ABORTED, err_msg);
     }
+  } catch (const libutt::api::operations::InvalidCoinsInTransfer& e) {
+    std::cout << e.what() << std::endl;
+    response->mutable_claim_coins_response()->set_warning(e.what());
   } catch (const std::exception& e) {
     std::cout << e.what() << std::endl;
     response->set_err(e.what());
     return grpc::Status(grpc::StatusCode::ABORTED, e.what());
   }
   if (response) {
-    auto resp = response->mutable_claim_coins_response();
-    resp->set_succ(true);
+    response->mutable_claim_coins_response()->set_succ(true);
   }
   return grpc::Status::OK;
 }

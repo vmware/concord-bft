@@ -22,6 +22,7 @@
 #include "Wallet.hpp"
 #include <storage/IStorage.hpp>
 #include <utt-client-api/ClientApi.hpp>
+#include <transaction.hpp>
 
 namespace utt::walletservice {
 //@TODO hide on its own file..
