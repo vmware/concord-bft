@@ -45,9 +45,11 @@ class TestSetup {
   logging::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
   std::string getLogPropertiesFile() { return logPropsFile_; }
+  std::string getCertsRootPath() { return certRootPath_; }
   std::shared_ptr<concord::performance::PerformanceManager> GetPerformanceManager() { return pm_; }
   std::optional<std::uint32_t> GetCronEntryNumberOfExecutes() const { return cronEntryNumberOfExecutes_; }
   bool AddAllKeysAsPublic() const { return addAllKeysAsPublic_; }
+  bool getFNExecuteEnable() const { return fn_execute_enable_; }
 
   static inline constexpr auto kCronTableComponentId = 42;
   static inline constexpr auto kTickGeneratorPeriod = std::chrono::seconds{1};
@@ -60,6 +62,7 @@ class TestSetup {
             bool usePersistentStorage,
             const std::string& s3ConfigFile,
             const std::string& logPropsFile,
+            const std::string& certRootPath,
             const std::optional<std::uint32_t>& cronEntryNumberOfExecutes,
             bool addAllKeysAsPublic)
       : replicaConfig_(config),
@@ -69,6 +72,7 @@ class TestSetup {
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
         logPropsFile_(logPropsFile),
+        certRootPath_(certRootPath),
         pm_{std::make_shared<concord::performance::PerformanceManager>()},
         cronEntryNumberOfExecutes_{cronEntryNumberOfExecutes},
         addAllKeysAsPublic_{addAllKeysAsPublic} {}
@@ -88,10 +92,12 @@ class TestSetup {
   bool usePersistentStorage_;
   std::string s3ConfigFile_;
   std::string logPropsFile_;
+  std::string certRootPath_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
   std::optional<std::uint32_t> cronEntryNumberOfExecutes_;
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
   bool addAllKeysAsPublic_{false};
+  bool fn_execute_enable_{false};
 };
 
 }  // namespace concord::kvbc

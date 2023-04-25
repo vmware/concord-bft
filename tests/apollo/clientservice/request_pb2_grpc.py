@@ -2,8 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import request_pb2 as request__pb2
-
+import clientservice.request_pb2 as request__pb2
 
 class RequestServiceStub(object):
     """Service error handling

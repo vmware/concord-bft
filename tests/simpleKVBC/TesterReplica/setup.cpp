@@ -139,6 +139,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         {"blockchain-version", optional_argument, 0, 'V'},
         {"enable-db-checkpoint", required_argument, 0, 'h'},
         {"use-unified-certs", optional_argument, 0, 'U'},
+        {"fn-cert-dir", optional_argument, 0, 'C'},
 
         // direct options - assign directly ro a non-null flag
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
@@ -428,6 +429,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                               persistMode == PersistencyMode::RocksDB,
                               s3ConfigFile,
                               logPropsFile,
+                              certRootPath,
                               cronEntryNumberOfExecutes,
                               addAllKeysAsPublic != 0));
     setup->sm_ = sm_;

@@ -67,7 +67,8 @@ TestConfig = namedtuple('TestConfig', [
     'key_file_prefix',
     'start_replica_cmd',
     'stop_replica_cmd',
-    'num_ro_replicas'
+    'num_ro_replicas',
+    'num_fn'
 ])
 
 # NOTE: When the value is changed, then ensure to change in ReplicaConfig class'
@@ -169,7 +170,7 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0,
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, num_fn=0,
                      rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
                      num_repeats=int(os.getenv("NUM_REPEATS", 1)),
                      break_on_first_failure=bool(os.getenv('BREAK_ON_FAILURE') == 'TRUE'),
@@ -211,7 +212,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         key_file_prefix=KEY_FILE_PREFIX,
                                         start_replica_cmd=start_replica_cmd,
                                         stop_replica_cmd=None,
-                                        num_ro_replicas=num_ro_replicas)
+                                        num_ro_replicas=num_ro_replicas,
+                                        num_fn=num_fn)
                     subtest_id = None
                     with test_instance.subTest(config=f'{bft_config}',
                                                storage=f"v{os.environ.get('BLOCK_CHAIN_VERSION', default='1')}"):
@@ -309,7 +311,7 @@ class BftTestNetwork:
                 self._eliot_log_file = None
 
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
-                 procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[],
+                 procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[], fn_instances=[],
                  case_name=""):
         self.is_existing = is_existing
         # An existing deployment might pass some of the folders paths as empty so we skip the next assertion.
@@ -342,12 +344,13 @@ class BftTestNetwork:
         self.test_start_time = None
         self.perf_proc = None
         self.ro_replicas = ro_replicas
+        self.fn_instances = fn_instances
         self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() in ["true", "on"])
         self.with_cre = False
         self.use_unified_certs = False
         self.cre_proc = None
         self.cre_fds = None
-        self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_clients + RESERVED_CLIENTS_QUOTA
+        self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_fn + self.config.num_clients + RESERVED_CLIENTS_QUOTA
         self._logs_dir = Path(self.builddir) / "tests" / "apollo" / "logs" / logdir_timestamp()
         self._eliot_log_file = None
         self._suite_name = os.environ.get('TEST_NAME', None)
@@ -391,6 +394,10 @@ class BftTestNetwork:
                                             bft_config.bft_msg_port_from_node_id(i),
                                             bft_config.metrics_port_from_node_id(i))
                          for i in range(config.n, config.n + config.num_ro_replicas)],
+            fn_instances=[bft_config.Replica(i, "127.0.0.1",
+                                            bft_config.bft_msg_port_from_node_id(i),
+                                            bft_config.metrics_port_from_node_id(i))
+                         for i in range(config.n + config.num_ro_replicas, config.n + config.num_ro_replicas + config.num_fn)],
             case_name=case_name
         )
         bft_network.with_cre = with_cre
@@ -405,7 +412,7 @@ class BftTestNetwork:
         bft_network._generate_crypto_keys()
         if bft_network.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
             generate_cre = 0 if bft_network.with_cre is False else 1
-            # Generate certificates for all replicas, clients, and reserved clients
+            # Generate certificates for all replicas, clients, and reserved clients                       `
             bft_network.generate_tls_certs(
                 bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
@@ -417,6 +424,7 @@ class BftTestNetwork:
 
     @classmethod
     def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None):
+        log.log_message(message_type=f"Creating from existing ")
         certdir = None
         builddir = tempfile.mkdtemp(prefix='builddir')
         if not client_factory:
@@ -496,6 +504,86 @@ class BftTestNetwork:
             for fd in self.cre_fds:
                 fd.close()
             p.wait()
+    
+    def start_fullnode(self, fullnode_id):
+        """
+        Start the fullnode if it isn't already started.
+        Otherwise raise an AlreadyStoppedError.
+        """
+        with log.start_action(action_type="start_fullnode"):
+            stdout_file = None
+            stderr_file = None
+
+            keep_logs = os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]
+            print(f"start_fullnode {keep_logs}")
+
+            if keep_logs:
+                test_name = os.environ.get('TEST_NAME')
+                if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+                    test_name = test_name + "_v4"
+
+                fn_test_log_path = f"{self.current_test_case_path / 'stdout_fn.log' }"
+
+                Path(self.current_test_case_path).mkdir(parents=True, exist_ok=True)
+
+                stdout_file = open(fn_test_log_path, 'w+')
+                stderr_file = open(fn_test_log_path, 'w+')
+
+                stdout_file.write("############################################\n")
+                stdout_file.flush()
+                stderr_file.write("############################################\n")
+                stderr_file.flush()
+
+            statusTimerMilli = "500"
+            viewChangeTimeoutMilli = "10000"
+            path = os.path.join(self.builddir, "tests", "simpleKVBC", "TesterFullNode", "skvbc_fullnode")
+
+            if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+                blockchain_version = "4"
+            else :
+                blockchain_version = "1"
+            self.fn_fds = (stdout_file, stderr_file)
+            fn_cmd = [path,
+                        "-k", KEY_FILE_PREFIX,
+                        "-i", str(fullnode_id),
+                        "-s", statusTimerMilli,
+                        "-V", blockchain_version,
+                        "-v", viewChangeTimeoutMilli,
+                        "-c", self.certdir + "/" + str(fullnode_id),
+                        "-e", str(True)
+                        ]
+            digest = self.binary_digest(path) if Path(path).exists() else 'Unknown'
+            with log.start_action(action_type="start_fullnode_process", binary=path,
+                                    binary_digest=digest, cmd=' '.join(fn_cmd)):
+                my_env = os.environ.copy()
+                my_env["RID"] = str(fullnode_id)
+                self.fn_proc = subprocess.Popen(
+                    fn_cmd,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    close_fds=True,
+                    env=my_env)
+
+    def stop_fn(self):
+        with log.start_action(action_type="stop_fn"):
+            p = self.fn_proc
+            if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                p.terminate()
+            else:
+                p.kill()
+            for fd in self.fn_fds:
+                fd.close()
+            p.wait()
+
+    def start_all_fns(self):
+        with log.start_action(action_type="start_fullnodes"):
+            all_fullnodes = self.all_fullnodes()
+            for i in all_fullnodes:
+                try:
+                    self.start_fullnode(i)
+                except AlreadyRunningError:
+                    if not self.is_existing:
+                        raise
 
     def transfer_db_files(self, source_id: int, dest_ids: Sequence[int]):
         with log.start_action(action_type="transfer db files", source_id=source_id, dests=dest_ids):
@@ -546,9 +634,9 @@ class BftTestNetwork:
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
+        args = [keygen, "-n", str(self.config.n + self.config.num_fn), "-f", str(2)]
         if self.config.num_ro_replicas > 0:
-            args.extend(["-r", str(self.config.num_ro_replicas)])
+            args.extend(["-r", str(self.config.num_ro_replicas)]) 
         args.extend(["-o", self.config.key_file_prefix])
         with log.start_action(action_type="Key Generation", cmdline=' '.join(args)):
             subprocess.run(args, check=True)
@@ -614,7 +702,7 @@ class BftTestNetwork:
             shutil.copytree(src_cert, comp_cert_dir)
 
     def _create_clients(self):
-        start_id = self.config.n + self.config.num_ro_replicas
+        start_id = self.num_total_replicas()
         last_id = start_id + self.config.num_clients
         log_message(message_type=f"Creating clients", first_client_id=start_id, last_client_id=last_id,
                     communication=str(BFT_CLIENT_TYPE), config_template=self._bft_config('client_id'))
@@ -662,7 +750,7 @@ class BftTestNetwork:
     def random_client(self, without=None):
         if without == None:
             without = set()
-
+        
         return random.choice(list(set(self.clients.values()) - without))
 
     def random_clients(self, max_clients):
@@ -705,7 +793,7 @@ class BftTestNetwork:
             k, m = divmod(len(a), n)
             return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-        start_id = self.config.n + self.config.num_ro_replicas
+        start_id = self.num_total_replicas()
         client_ids = range(start_id, start_id + self.config.num_clients)
         start_id = self.num_total_replicas() + self.config.num_clients
         reserved_client_ids = range(start_id, start_id + RESERVED_CLIENTS_QUOTA + 1)
@@ -1031,10 +1119,13 @@ class BftTestNetwork:
         raise NotImplementedError(f"{type(self.clients[self.config.n])} is not supported!")
 
     def num_total_replicas(self):
-        return self.config.n + self.config.num_ro_replicas
+        return self.config.n + self.config.num_ro_replicas + self.config.num_fn
 
     def num_total_clients(self):
         return self.config.num_clients + RESERVED_CLIENTS_QUOTA
+
+    def num_total_fns(self):
+        return self.config.num_fn
 
     def node_id_from_bft_msg_port(self, bft_msg_port):
         assert ((bft_msg_port % 2 == 0) and
@@ -1106,6 +1197,16 @@ class BftTestNetwork:
         if with_reserved_clients:
             num_total_clients += RESERVED_CLIENTS_QUOTA
         return list(set(range(num_total_replicas, num_total_replicas + num_total_clients)) - without)
+
+    def all_fullnodes(self, without=None):
+        """
+        Returns a list of all ACTIVE FN IDs excluding the "without" set
+        """
+        if without == None:
+            without = set()
+        num_replicas = self.config.n + self.config.num_ro_replicas
+        num_fns = self.config.num_fn
+        return list(set(range(num_replicas, num_replicas + num_fns)) - without)
 
     def random_set_of_replicas(self, size, without=None):
         """ Returns a random list of ACTIVE replica IDs excluding the "without" set, and without any RO replicas """

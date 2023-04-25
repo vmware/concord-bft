@@ -149,3 +149,5 @@ apollo_test(NAME osexample_demo_tests SUITE test_osexample_demo)
 if(ENABLE_RESTART_RECOVERY_TESTS)
 	apollo_test(NAME skvbc_restart_recovery_tests SUITE test_skvbc_restart_recovery NIGHTLY)
 endif()
+
+apollo_test(NAME skvbc_fullnode_tests SUITE test_skvbc_fullnode)
