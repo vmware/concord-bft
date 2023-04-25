@@ -1059,7 +1059,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr msg) {
              "etc...)");
     return;
   }
-  PrePrepareMsgShPtr message = std::make_shared<PrePrepareMsg>(msg.release());
+  PrePrepareMsgShPtr message(msg.release());
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     if (!validatePreProcessedResults(message.get(), getCurrentView())) {
       // trigger view change
@@ -3916,7 +3916,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(std::unique_ptr<ReplicaRestar
   auto *msg = message.release();
   auto &restart_msgs = restart_ready_msgs_[static_cast<uint8_t>(msg->getReason())];
   if (restart_msgs.find(msg->idOfGeneratedReplica()) == restart_msgs.end()) {
-    restart_msgs[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+    restart_msgs[msg->idOfGeneratedReplica()].reset(msg);
 #ifdef ENABLE_ALL_METRICS
     metric_received_restart_ready_++;
 #endif
