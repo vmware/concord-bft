@@ -450,6 +450,7 @@ void User::updateTransferTx(const Transaction& tx, const TxOutputSigs& sigs) {
     bool invalidCoinsInTransfer(false);
     for (auto& coin : claimedCoins) {
       if (!pImpl_->client_->validate(coin)) {
+        logdbg_user << "Invalid coin found; coin details: " << dbgPrintCoins({coin}) << endl;
         invalidCoinsInTransfer = true;
         continue;
       }
