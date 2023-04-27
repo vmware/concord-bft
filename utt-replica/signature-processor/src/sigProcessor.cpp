@@ -221,6 +221,14 @@ void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
 
 // Called by the timer handler (which is the message processor thread)
 void SigProcessor::onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig) {
+  // timer already holds lock!
+  if (jobs_.find(job_id) != jobs_.end()) {
+    auto entry = &jobs_[job_id];
+    if (entry->client_app_data_generator_cb_ != nullptr && entry->partial_sigs.size() == threshold_) {
+      publishCompleteSignature(*entry);
+      return;
+    }
+  }
   for (uint16_t rid = 0; rid < n_; rid++) {
     if (rid == repId_) continue;
     messages::PartialSigMsg msg(repId_, sig, job_id);

@@ -15,7 +15,7 @@ if(USE_MULTISIG_EDDSA)
 endif()
 
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
-    target_include_directories(threshsign PUBLIC /usr/local/ssl/include ${CMAKE_CURRENT_SOURCE_DIR}/../../util/include/ /usr/local/include/)
+    target_include_directories(threshsign PUBLIC /usr/local/ssl/include ${CONCORD-BFT_LOCAL_PATH}/libs/util/include/ /usr/local/include/  ${CONCORD-BFT_LOCAL_PATH}/libs/)
 endif()
 
 if(BUILD_TESTING)

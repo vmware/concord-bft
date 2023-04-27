@@ -325,7 +325,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
-  addOnTransferringCompleteCallback(
+  BCStateTran::addOnTransferringCompleteCallback(
       [this](uint64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
 

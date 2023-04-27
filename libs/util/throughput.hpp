@@ -47,7 +47,7 @@ class DurationTracker {
     if (do_start) {
       start_time_ = std::chrono::steady_clock::now();
     }
-    if (name.empty()) {
+    if (name_.empty()) {
       name_ = std::to_string(++obj_counter);
     }
     DEBUG_TRP_PRINT(GL, KVLOG(name_, do_start));

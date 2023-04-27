@@ -10,7 +10,7 @@ jobs:
     name: Build
     runs-on: ubuntu-22.04
     container:
-      image: concordbft/concord-bft:0.60
+      image: concordbft/concord-bft:latest
       options: --cap-add=NET_ADMIN
     strategy:
       fail-fast: false
@@ -57,4 +57,4 @@ jobs:
           with:
             name: artifacts-${{ matrix.ci_build_type }}-${{ matrix.comm_type }}-${{ github.sha }}
             path: artifact/
-            retention-days: 1
+            retention-days: 7

@@ -98,6 +98,7 @@ Sliver STKeyManipulator::generateSTReservedPageDynamicKey(uint32_t pageid, uint6
 
 Sliver STKeyManipulator::getReservedPageKeyPrefix() const {
   static Sliver s(std::string(1, static_cast<char>(EDBKeyType::E_DB_KEY_TYPE_BFT_ST_RESERVED_PAGE_DYNAMIC_KEY)));
+  // cppcheck-suppress [returnDanglingLifetime]
   return s;
 }
 /**
@@ -115,12 +116,14 @@ Sliver STKeyManipulator::generateReservedPageKey(EDBKeyType keyType, uint32_t pa
 
 bool DBKeyGeneratorBase::copyToAndAdvance(
     char *_buf, size_t *_offset, size_t _maxOffset, const char *_src, const size_t &_srcSize) {
-  if (!_buf && !_offset && !_src) ConcordAssert(false);
-
-  if (*_offset >= _maxOffset && _srcSize > 0) ConcordAssert(false);
-
-  memcpy(_buf + *_offset, _src, _srcSize);
-  *_offset += _srcSize;
+  if (!_buf && !_offset && !_src) {
+    ConcordAssert(false);
+  } else if (*_offset >= _maxOffset && _srcSize > 0) {
+    ConcordAssert(false);
+  } else {
+    memcpy(_buf + *_offset, _src, _srcSize);
+    *_offset += _srcSize;
+  }
 
   return true;
 }
