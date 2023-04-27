@@ -3916,7 +3916,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(std::unique_ptr<ReplicaRestar
   auto *msg = message.release();
   auto &restart_msgs = restart_ready_msgs_[static_cast<uint8_t>(msg->getReason())];
   if (restart_msgs.find(msg->idOfGeneratedReplica()) == restart_msgs.end()) {
-    restart_msgs[msg->idOfGeneratedReplica()].reset(msg);
+    restart_msgs[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
 #ifdef ENABLE_ALL_METRICS
     metric_received_restart_ready_++;
 #endif
