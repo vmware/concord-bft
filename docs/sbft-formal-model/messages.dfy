@@ -106,7 +106,7 @@ module Messages {
                        :: m1.sender != m2.sender)
   }
 
-  // Define your Message datatype here.
+  // Define your Message datatype here. // TODO: rename to payload.
   datatype Message = | PrePrepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Prepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Commit(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
@@ -170,5 +170,12 @@ module Messages {
                           || Commit? 
                        }
                      }
+  predicate ValidNewViewMsg(clusterConfig:ClusterConfig.Constants, msg:Network.Message<Message>)
+  {
+    && clusterConfig.WF()
+    && msg.payload.NewViewMsg?
+    && msg.payload.valid(clusterConfig)
+    && clusterConfig.PrimaryForView(msg.payload.newView) == msg.sender
+  }
   // ToDo: ClientReply
 }

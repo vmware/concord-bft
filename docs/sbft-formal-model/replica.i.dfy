@@ -243,6 +243,20 @@ module Replica {
       else HighestStable(c, rest)
   }
 
+  function getRelevantPrepareCertificates(c:Constants, seqID:SequenceID, newViewMsg:Network.Message<Message>) : (set<PreparedCertificate>)
+    requires c.WF()
+    requires newViewMsg.payload.NewViewMsg?
+    requires newViewMsg.payload.valid(c.clusterConfig)
+  {
+    set viewChangeMsg, cert:PreparedCertificate |
+                      && viewChangeMsg in newViewMsg.payload.vcMsgs.msgs
+                      && seqID in viewChangeMsg.payload.certificates
+                      && cert == viewChangeMsg.payload.certificates[seqID]
+                      && cert.WF()
+                      && !cert.empty()
+                        :: cert
+  }
+
   function CalculateRestrictionForSeqID(c:Constants, v:Variables, seqID:SequenceID, newViewMsg:Network.Message<Message>) 
     : Option<OperationWrapper> // returns None if any operation is allowed
       requires CurrentNewViewMsg(c, v, newViewMsg)
@@ -258,13 +272,7 @@ module Replica {
     if seqID !in ExtractSeqIDsFromPrevView(c, v, newViewMsg)
     then None
     else
-      var relevantPrepareCertificates := set viewChangeMsg, cert |
-                                     && viewChangeMsg in newViewMsg.payload.vcMsgs.msgs
-                                     && seqID in viewChangeMsg.payload.certificates
-                                     && cert == viewChangeMsg.payload.certificates[seqID]
-                                     && cert.WF()
-                                     && !cert.empty()
-                                       :: cert;
+      var relevantPrepareCertificates := getRelevantPrepareCertificates(c, seqID, newViewMsg);
       if |relevantPrepareCertificates| == 0
       then
         Some(Noop)
@@ -301,11 +309,9 @@ module Replica {
                               newViewMsg:Network.Message<Message>)
   {
     && v.WF(c)
-    && newViewMsg.payload.NewViewMsg?
-    && newViewMsg.payload.valid(c.clusterConfig)
     && newViewMsg in v.newViewMsgsRecvd.msgs
+    && ValidNewViewMsg(c.clusterConfig, newViewMsg)
     && newViewMsg.payload.newView == v.view
-    && CurrentPrimary(c, v) == newViewMsg.sender
   }
 
   predicate IsValidOperationWrapper(c:Constants,
