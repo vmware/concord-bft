@@ -38,6 +38,7 @@
  */
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
+                          uint16_t numFn,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
                           Cryptosystem* commonSys = nullptr);

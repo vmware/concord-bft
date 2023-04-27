@@ -30,6 +30,7 @@ using concord::crypto::Ed25519PublicKeyByteSize;
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
+                          uint16_t numFn,
                           ReplicaConfig& config,
                           const std::string& outputFilename,
                           Cryptosystem* commonSys) {

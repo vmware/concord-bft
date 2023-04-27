@@ -634,9 +634,11 @@ class BftTestNetwork:
 
     def _generate_crypto_keys(self):
         keygen = os.path.join(self.toolsdir, "GenerateConcordKeys")
-        args = [keygen, "-n", str(self.config.n + self.config.num_fn), "-f", str(2)]
+        args = [keygen, "-n", str(self.config.n), "-f", str(self.config.f)]
         if self.config.num_ro_replicas > 0:
-            args.extend(["-r", str(self.config.num_ro_replicas)]) 
+            args.extend(["-r", str(self.config.num_ro_replicas)])
+        if self.config.num_fn > 0:
+            args.extend(["-fn", str(self.config.num_fn)])  
         args.extend(["-o", self.config.key_file_prefix])
         with log.start_action(action_type="Key Generation", cmdline=' '.join(args)):
             subprocess.run(args, check=True)

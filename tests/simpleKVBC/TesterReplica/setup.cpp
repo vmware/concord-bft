@@ -358,6 +358,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       }
     }
 
+    LOG_INFO(logger, "\nRead all the arguments \n");
+
     replicaConfig.singleSignatureScheme = singleSignatureScheme;
     if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
 

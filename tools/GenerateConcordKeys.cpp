@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
     ReplicaConfig& config = ReplicaConfig::instance();
     uint16_t n = 0;
     uint16_t ro = 0;
+    uint16_t fn = 0;
     std::string outputPrefix;
 
     std::string defaultSysType = "UninitializedCryptoSystem";
@@ -128,6 +129,9 @@ int main(int argc, char** argv) {
       } else if (option == "-r") {
         if (i >= argc - 1) throw std::runtime_error("Expected an argument to -r");
         ro = parse<std::uint16_t>(argv[i++ + 1], "-r");
+      } else if (option == "-fn") {
+        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -fn");
+        fn = parse<std::uint16_t>(argv[i++ + 1], "-fn");
       } else if (option == "-o") {
         if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
         outputPrefix = argv[i++ + 1];
@@ -176,7 +180,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::pair<std::string, std::string>> replicaKeyPairs;
 
-    for (uint16_t i = 0; i < n + ro; ++i) {
+    for (uint16_t i = 0; i < n + ro + fn; ++i) {
       if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
         replicaKeyPairs.push_back(generateEdDSAKeyPair());
       }
@@ -193,14 +197,20 @@ int main(int argc, char** argv) {
     for (uint16_t i = 0; i < n; ++i) {
       config.replicaId = i;
       config.replicaPrivateKey = replicaKeyPairs[i].first;
-      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
+      outputReplicaKeyfile(n, ro, fn, config, outputPrefix + std::to_string(i), &cryptoSys);
     }
 
     for (uint16_t i = n; i < n + ro; ++i) {
       config.isReadOnly = true;
       config.replicaId = i;
       config.replicaPrivateKey = replicaKeyPairs[i].first;
-      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i));
+      outputReplicaKeyfile(n, ro, fn, config, outputPrefix + std::to_string(i));
+    }
+
+    for (uint16_t i = n + ro; i < n + ro + fn; ++i) {
+      config.replicaId = i;
+      config.replicaPrivateKey = replicaKeyPairs[i].first;
+      outputReplicaKeyfile(n, ro, fn, config, outputPrefix + std::to_string(i));
     }
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;

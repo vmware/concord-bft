@@ -717,7 +717,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=lambda builddir, replica_id: start_replica_cmd(builddir, replica_id) +
                                                                          ["--key-exchange-on-start", "True"],
-                          stop_replica_cmd=None, num_ro_replicas=0)
+                          stop_replica_cmd=None, num_ro_replicas=0, num_fn=0)
         await bft_network.change_configuration(conf, generate_tls=False)
 
         bft_network.restart_clients(restart_replicas=True)
@@ -1550,7 +1550,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_key_exchange,
                           stop_replica_cmd=None,
-                          num_ro_replicas=0)
+                          num_ro_replicas=0,
+                          num_fn=0)
         await bft_network.change_configuration(conf)
         await op.add_remove_with_wedge(test_config, bft=False)
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
@@ -1598,7 +1599,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_key_exchange,
                           stop_replica_cmd=None,
-                          num_ro_replicas=0)
+                          num_ro_replicas=0,
+                          num_fn=0)
         await bft_network.change_configuration(conf)
         await op.add_remove_with_wedge(test_config, bft=True, restart=True)
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
@@ -1641,7 +1643,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_key_exchange,
                           stop_replica_cmd=None,
-                          num_ro_replicas=0)
+                          num_ro_replicas=0,
+                          num_fn=0)
         await bft_network.change_configuration(conf)
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
@@ -1691,7 +1694,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd,
                           stop_replica_cmd=None,
-                          num_ro_replicas=0)
+                          num_ro_replicas=0,
+                          num_fn=0)
         await bft_network.change_configuration(conf, generate_tls=True)
         bft_network.restart_clients()
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
@@ -1730,7 +1734,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_key_exchange,
                           stop_replica_cmd=None,
-                          num_ro_replicas=0)
+                          num_ro_replicas=0,
+                          num_fn=0)
         await bft_network.change_configuration(conf, generate_tls=True)
         bft_network.restart_clients(restart_replicas=False)
         bft_network.start_replicas(replicas=bft_network.all_replicas(without=late_replica_set))
@@ -1816,7 +1821,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                               key_file_prefix=KEY_FILE_PREFIX,
                               start_replica_cmd=start_replica_cmd_with_key_exchange,
                               stop_replica_cmd=None,
-                              num_ro_replicas=0)
+                              num_ro_replicas=0,
+                              num_fn=0)
             await bft_network.change_configuration(conf, generate_tls=True)
             bft_network.restart_clients(generate_tx_signing_keys=True, restart_replicas=False)
 
@@ -1928,7 +1934,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_object_store_and_ke,
                           stop_replica_cmd=None,
-                          num_ro_replicas=1)
+                          num_ro_replicas=1,
+                          num_fn=0)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
         await bft_network.check_initial_key_exchange(stop_replicas=False)
@@ -1965,7 +1972,8 @@ class SkvbcReconfigurationTest(ApolloTest):
                           key_file_prefix=KEY_FILE_PREFIX,
                           start_replica_cmd=start_replica_cmd_with_object_store_and_ke,
                           stop_replica_cmd=None,
-                          num_ro_replicas=1)
+                          num_ro_replicas=1,
+                          num_fn=0)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
         await bft_network.check_initial_key_exchange(stop_replicas=False)
