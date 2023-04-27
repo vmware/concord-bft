@@ -20,7 +20,7 @@
 namespace bftEngine {
 class EpochManager : public bftEngine::ResPagesClient<EpochManager, 1> {
   struct EpochData : public concord::serialize::SerializableFactory<EpochData> {
-    uint64_t epochNumber_;
+    uint64_t epochNumber_ = 0;
     EpochData() = default;
     EpochData(uint64_t epochNumber) : epochNumber_{epochNumber} {}
 

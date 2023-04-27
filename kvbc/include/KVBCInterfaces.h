@@ -33,17 +33,17 @@ class ICommandsHandler;
 
 struct ClientConfig {
   // F value - max number of faulty/malicious replicas. fVal >= 1
-  uint16_t fVal;
+  uint16_t fVal = 0;
 
   // C value. cVal >=0
-  uint16_t cVal;
+  uint16_t cVal = 0;
 
   // unique identifier of the client.
   // clientId should also represent this client in ICommunication.
   // In the current version, replicaId should be a number between N and
   // N+numOfClientProxies-1 (N is the number replicas in the system.
   // numOfClientProxies is part of the replicas' configuration)
-  uint16_t clientId;
+  uint16_t clientId = 0;
 };
 
 /////////////////////////////////////////////////////////////////////////////

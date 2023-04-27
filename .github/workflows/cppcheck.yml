@@ -22,5 +22,5 @@ jobs:
             mkdir build
             cd build
             echo $(date +%y-%m-%d_%H-%M-%S) > timestamp
-            cmake -DBUILD_TESTING=OFF -DBUILD_UTT=OFF -DUSE_LOG4CPP=OFF -DCPPCHECK=ON ..
+            cmake -DCPPCHECK=ON ..
             make -j$(nproc)

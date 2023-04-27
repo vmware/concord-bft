@@ -41,21 +41,21 @@ class DebugStatistics {
 
  private:
   struct DebugStatDesc {
-    bool initialized;
+    bool initialized = false;
     Time lastCycleTime;
 
-    size_t receivedMessages;
-    std::atomic<size_t> sendMessages;
-    size_t completedReadOnlyRequests;
-    size_t completedReadWriteRequests;
-    size_t numberOfReceivedSTMessages;
-    size_t numberOfReceivedStatusMessages;
-    size_t numberOfReceivedCommitMessages;
-    int64_t lastExecutedSequenceNumber;
+    size_t receivedMessages = 0;
+    std::atomic<size_t> sendMessages = 0;
+    size_t completedReadOnlyRequests = 0;
+    size_t completedReadWriteRequests = 0;
+    size_t numberOfReceivedSTMessages = 0;
+    size_t numberOfReceivedStatusMessages = 0;
+    size_t numberOfReceivedCommitMessages = 0;
+    int64_t lastExecutedSequenceNumber = 0;
 
-    size_t prePrepareMessages;
-    size_t batchRequests;
-    size_t pendingRequests;
+    size_t prePrepareMessages = 0;
+    size_t batchRequests = 0;
+    size_t pendingRequests = 0;
 
     DebugStatDesc() : initialized(false) {}
   };

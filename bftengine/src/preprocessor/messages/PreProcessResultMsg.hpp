@@ -63,7 +63,7 @@ class PreProcessResultMsg : public ClientRequestMsg {
 struct PreProcessResultSignature {
   std::vector<concord::Byte> signature;
   NodeIdType sender_replica;
-  bftEngine::OperationResult pre_process_result;
+  bftEngine::OperationResult pre_process_result = bftEngine::OperationResult::UNKNOWN;
 
   PreProcessResultSignature() = default;
 

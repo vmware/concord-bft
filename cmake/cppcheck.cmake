@@ -1,7 +1,10 @@
 option(CPPCHECK "Perform cppcheck" OFF)
 
 if(CPPCHECK)
-	message(STATUS "CPPCHECK is ON")
+    set(BUILD_TESTING OFF) 
+    set(BUILD_UTT OFF)
+    set(USE_LOG4CPP OFF)	
+    message(STATUS "CPPCHECK is ON")
     find_program(cppcheck cppcheck HINTS "/usr/local/bin/cppcheck" REQUIRED)
     message(STATUS "cppcheck ${cppcheck}")
     # Create <cppcheck> work folder for whole program analysis, for faster analysis and to store some useful debug information
