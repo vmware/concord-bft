@@ -76,11 +76,9 @@ class Factory {
 
       // issue some random 'normal' coins to this user
       Coin prevCoin;
-      size_t totalVal = 0;
       for (size_t k = 0; k < numCoins; k++) {
         // ...of value less than or equal to the allowed max coin value
         size_t val = static_cast<size_t>(rand()) % maxDenom + 1;
-        totalVal += val;
 
         // ...and everything else random
         Coin c = Factory::mintRandomCoin(Coin::NormalType(), val, ask);

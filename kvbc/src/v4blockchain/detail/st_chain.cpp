@@ -34,9 +34,8 @@ StChain::StChain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&
 /////////// BLOCKS/////////////////////////
 bool StChain::hasBlock(BlockId block_id) const {
   if (last_block_id_ < block_id) return false;
-  return native_client_
-      ->getSlice(v4blockchain::detail::ST_CHAIN_CF, v4blockchain::detail::Blockchain::generateKey(block_id))
-      .has_value();
+  return (bool)native_client_
+      ->getSlice(v4blockchain::detail::ST_CHAIN_CF, v4blockchain::detail::Blockchain::generateKey(block_id));
 }
 
 void StChain::addBlock(const BlockId id, const char* block, const uint32_t blockSize) {

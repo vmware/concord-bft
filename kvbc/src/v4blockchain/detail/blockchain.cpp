@@ -265,7 +265,7 @@ bool Blockchain::hasBlock(BlockId block_id) const {
   if ((block_id > last_reachable_block_id_) || (block_id < genesis_block_id_)) {
     return false;
   }
-  return native_client_->getSlice(v4blockchain::detail::BLOCKS_CF, generateKey(block_id)).has_value();
+  return (bool)native_client_->getSlice(v4blockchain::detail::BLOCKS_CF, generateKey(block_id));
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail

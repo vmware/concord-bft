@@ -107,15 +107,16 @@ std::optional<std::string> NativeClient::get(const std::string &cFamily,
 }
 
 template <typename KeySpan>
-std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const std::string &cFamily, const KeySpan &key) const {
-  auto slice = ::rocksdb::PinnableSlice{};
+std::unique_ptr<::rocksdb::PinnableSlice> NativeClient::getSlice(const std::string &cFamily, const KeySpan &key) const {
+  auto slice = std::make_unique<::rocksdb::PinnableSlice>();
   auto s =
-      client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key), &slice);
+      client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key),
+      slice.get());
   if (s.IsNotFound()) {
-    return std::nullopt;
+    return std::unique_ptr<::rocksdb::PinnableSlice>(nullptr);
   }
   detail::throwOnError("get() failed"sv, std::move(s));
-  return std::move(slice);
+  return slice;
 }
 
 template <typename KeySpan>
@@ -135,7 +136,7 @@ std::optional<std::string> NativeClient::get(const KeySpan &key) const {
 }
 
 template <typename KeySpan>
-std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const KeySpan &key) const {
+std::unique_ptr<::rocksdb::PinnableSlice> NativeClient::getSlice(const KeySpan &key) const {
   return getSlice(defaultColumnFamily(), key);
 }
 

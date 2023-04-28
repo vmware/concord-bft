@@ -85,9 +85,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   std::optional<std::string> get(const std::string &cFamily, const KeySpan &key) const;
   template <typename KeySpan>
   std::optional<std::string> get(const std::string &cFamily, const KeySpan &key, ::rocksdb::ReadOptions ro) const;
-  // Returns nullopt if the key is not found.
+  // Returns null if the key is not found.
   template <typename KeySpan>
-  std::optional<::rocksdb::PinnableSlice> getSlice(const std::string &cFamily, const KeySpan &key) const;
+  std::unique_ptr<::rocksdb::PinnableSlice> getSlice(const std::string &cFamily, const KeySpan &key) const;
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const std::string &cFamily, const KeySpan &key);
@@ -98,9 +98,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const KeySpan &key) const;
-  // Returns nullopt if the key is not found.
+  // Returns null if the key is not found.
   template <typename KeySpan>
-  std::optional<::rocksdb::PinnableSlice> getSlice(const KeySpan &key) const;
+  std::unique_ptr<::rocksdb::PinnableSlice> getSlice(const KeySpan &key) const;
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const KeySpan &key);
