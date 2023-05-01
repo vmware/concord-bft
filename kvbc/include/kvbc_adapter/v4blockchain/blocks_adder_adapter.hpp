@@ -17,6 +17,7 @@
 
 #include "db_interfaces.h"
 #include "v4blockchain/v4_blockchain.h"
+#include "block_header.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 
@@ -28,12 +29,12 @@ class BlocksAdderAdapter : public IBlockAdder {
   explicit BlocksAdderAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc)
       : kvbc_{kvbc.get()} {}
 
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // IBlockAdder
-  BlockId add(concord::kvbc::categorization::Updates &&updates) override final {
-    return kvbc_->add(std::move(updates));
-  }
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  BlockId add(concord::kvbc::categorization::Updates &&updates) override final;
+
+ protected:
+  void getParentHeaderHash(const BlockId number, uint256be_t &parent_hash);
+  void writeParentHash(BlockId last_reachable_block_num, uint256be_t &parent_hash);
+  void addHeader(concord::kvbc::categorization::Updates &updates);
 
  private:
   concord::kvbc::v4blockchain::KeyValueBlockchain *kvbc_{nullptr};

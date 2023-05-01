@@ -27,7 +27,7 @@ const char kKvbKeyEthNonce = 0x06;
 const char kKvbKeyEthBlockHash = 0x07;
 const char kKvbKeyEthEventLog = 0x08;
 
-// Unused 0x10 - 0x1f
+// Unused 0x11 - 0x1f
 
 // Concord 0x20 - 0x2f
 const char kKvbKeyTimeSamples = 0x20;
