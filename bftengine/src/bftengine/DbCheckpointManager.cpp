@@ -39,8 +39,7 @@ struct HumanReadable {
 };
 Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
                                                const BlockId& lastBlockId,
-                                               const SeqNum& seqNum,
-                                               const std::optional<Timestamp>& timestamp) {
+                                               const SeqNum& seqNum) {
   ConcordAssert(dbClient_.get() != nullptr);
   ConcordAssert(ps_.get() != nullptr);
   {
@@ -105,12 +104,10 @@ void DbCheckpointManager::loadCheckpointDataFromPersistence() {
     }
     if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
       lastCreatedCheckpointMetadata_ = it->second;
-      lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
       lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
       metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), KVLOG(lastCheckpointSeqNum_));
     }
-    lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
   }
 }
 
@@ -177,6 +174,27 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
   }
   return size;
 }
+void DbCheckpointManager::saveDbMetadataToReservedPages(SeqNum sn, std::chrono::seconds timestamp) {
+  shared_metadata_.lastCmdSeqNum_ = sn;
+  shared_metadata_.lastCmdTimestamp_ = timestamp;
+  std::ostringstream outStream;
+  concord::serialize::Serializable::serialize(outStream, shared_metadata_);
+  auto data = outStream.str();
+  saveReservedPage(0, data.size(), data.data());
+  lastCheckpointCreationTime_ = shared_metadata_.lastCmdTimestamp_;
+}
+
+void DbCheckpointManager::loadDbMetadataFromReservedPages() {
+  if (!loadReservedPage(0, sizeOfReservedPage(), page_.data())) {
+    LOG_WARN(getLogger(), "unable to read db checkpoint shared metadata from reserved pages");
+    return;
+  }
+  std::istringstream inStream;
+  inStream.str(page_);
+  concord::serialize::Serializable::deserialize(inStream, shared_metadata_);
+  lastCheckpointCreationTime_ = shared_metadata_.lastCmdTimestamp_;
+  lastCheckpointSeqNum_ = shared_metadata_.lastCmdSeqNum_;
+}
 
 void DbCheckpointManager::initializeDbCheckpointManager(
     std::shared_ptr<concord::storage::IDBClient> dbClient,
@@ -195,12 +213,9 @@ void DbCheckpointManager::initializeDbCheckpointManager(
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
   if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
+  page_.resize(sizeOfReservedPage());
+  loadDbMetadataFromReservedPages();
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
-    // in case of upgrade, we need to set the lastStableCheckpointSeqNum from persistence
-    // instead of 0. if there is a db checkpoint metatdata present in persistence
-    // then this gets overriden by the lastCheckpointSeqNum loaded from persistence
-    if (getLastStableSeqNumCb_) lastCheckpointSeqNum_ = getLastStableSeqNumCb_();
-
     init();
   } else {
     // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
@@ -232,18 +247,11 @@ DbCheckpointManager::CheckpointState DbCheckpointManager::getCheckpointState(Che
 }
 
 std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum,
-                                                                         const std::optional<Timestamp>& timestamp,
                                                                          const std::optional<DbCheckpointId>& blockId) {
   if (seqNum <= lastCheckpointSeqNum_) {
     LOG_ERROR(getLogger(), "createDb checkpoint failed." << KVLOG(seqNum, lastCheckpointSeqNum_));
     return std::nullopt;
   }
-  // We can have some replicas configured to not create db checkpoint. This is because,
-  // backup functionality can be supported with a minimum of (f+1) replicas also
-  // However, we need to store the last request seqNum and timestamp because, all replicas do consensus
-  // to start the command execution at some seqNum but only replicas with non-zero numOfDbCheckpoints config
-  // actually creates db checkpoint. Hence, primary needs to know what was the last cmd seqNum and timestamp
-  updateLastCmdInfo(seqNum, timestamp);
   if (ReplicaConfig::instance().getmaxNumberOfDbCheckpoints() == 0) {
     LOG_WARN(getLogger(),
              "createDb checkpoint failed. Max allowed db checkpoint is configured to "
@@ -271,8 +279,8 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
   if (!blockId.has_value()) {
     DbCheckpointManager::instance().setCheckpointInProcess(true, lastBlockid);
   }
-  auto ret = std::async(std::launch::async, [this, seqNum, timestamp, lastBlockid]() -> void {
-    createDbCheckpoint(lastBlockid, lastBlockid, seqNum, timestamp);
+  auto ret = std::async(std::launch::async, [this, seqNum, lastBlockid]() -> void {
+    createDbCheckpoint(lastBlockid, lastBlockid, seqNum);
   });
   // store the future for the async task
   dbCreateCheckPtFuture_.emplace(std::make_pair(lastBlockid, std::move(ret)));
@@ -335,23 +343,6 @@ void DbCheckpointManager::updateDbCheckpointMetadata() {
   std::vector<uint8_t> v(data.begin(), data.end());
   ps_->setDbCheckpointMetadata(v);
 }
-void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop) {
-  auto replica_id = bftEngine::ReplicaConfig::instance().getreplicaId();
-  concord::messages::db_checkpoint_msg::CreateDbCheckpoint req;
-  req.sender = replica_id;
-  req.seqNum = seqNum;
-  req.noop = noop;
-  std::vector<uint8_t> data_vec;
-  concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
-  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  data_vec.clear();
-  concord::messages::db_checkpoint_msg::serialize(data_vec, req);
-  std::string strMsg(data_vec.begin(), data_vec.end());
-  std::string cid = "replicaDbCheckpoint_" + std::to_string(seqNum) + "_" + std::to_string(replica_id);
-  if (client_) client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, strMsg.size(), strMsg.c_str(), cid);
-}
 
 void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum) {
   if (seqNum == std::nullopt) {
@@ -375,24 +366,6 @@ void DbCheckpointManager::updateMetrics() {
     LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
     LOG_DEBUG(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
   }
-}
-void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
-  dbCheckptMetadata_.lastCmdSeqNum_ = seqNum;
-  if (timestamp.has_value()) {
-    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(timestamp.value().time_since_epoch);
-  } else {
-    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(SystemClock::now().time_since_epoch());
-  }
-  lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
-  if (maxNumOfCheckpoints_ == 0) {
-    // update lastCmdSeqNum and timestamp
-    std::scoped_lock lock(lock_);
-    updateDbCheckpointMetadata();
-  }
-}
-SeqNum DbCheckpointManager::getLastStableSeqNum() const {
-  if (getLastStableSeqNumCb_) return getLastStableSeqNumCb_();
-  return 0;
 }
 
 void DbCheckpointManager::setCheckpointInProcess(bool flag, concord::kvbc::BlockId blockId) const {
@@ -479,8 +452,6 @@ void DbCheckpointManager::builMetadataFromFileSystem() {
 
       if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
         lastCreatedCheckpointMetadata_ = it->second;
-        dbCheckptMetadata_.lastCmdTimestamp_ = it->second.creationTimeSinceEpoch_;
-        lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
         lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
         metrics_.UpdateAggregator();
         updateMetrics();

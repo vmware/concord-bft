@@ -234,8 +234,9 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
              "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
                                                       << last_checkpoint_desc->checkPointId_);
   } else {
-    const auto checkpoint_id =
-        DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp, std::nullopt);
+    // Here we don't save the shared data about the db checkpoint creation. This is because this snapshot is not meant
+    // to be used for replicas' restore (it is not even aligned with a stable checkpoint).
+    const auto checkpoint_id = DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, std::nullopt);
     if (checkpoint_id) {
       resp.data.emplace();
       resp.data->snapshot_id = *checkpoint_id;

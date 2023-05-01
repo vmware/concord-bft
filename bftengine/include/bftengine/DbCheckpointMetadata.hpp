@@ -24,6 +24,20 @@ using CheckpointId = uint64_t;
 using TimeDuration = std::chrono::duration<long>;
 using SeqNum = bftEngine::impl::SeqNum;
 
+// The data about the latest checkpoint is a shared data, hence it is shared via the reserved pages
+struct DbLastCheckpointMetadata : public concord::serialize::SerializableFactory<DbLastCheckpointMetadata> {
+  uint64_t lastCmdSeqNum_{0};
+  TimeDuration lastCmdTimestamp_{0};
+
+  void serializeDataMembers(std::ostream& outStream) const override {
+    serialize(outStream, lastCmdSeqNum_);
+    serialize(outStream, lastCmdTimestamp_);
+  }
+  void deserializeDataMembers(std::istream& inStream) override {
+    deserialize(inStream, lastCmdSeqNum_);
+    deserialize(inStream, lastCmdTimestamp_);
+  }
+};
 struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbCheckpointMetadata> {
   struct DbCheckPointDescriptor : public concord::serialize::SerializableFactory<DbCheckPointDescriptor> {
     // unique id for the checkpoint
@@ -54,21 +68,10 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
     }
   };
   std::map<CheckpointId, DbCheckPointDescriptor> dbCheckPoints_;
-  uint64_t lastCmdSeqNum_{0};
-  TimeDuration lastCmdTimestamp_{0};
   DbCheckpointMetadata() = default;
-  void serializeDataMembers(std::ostream& outStream) const override {
-    serialize(outStream, lastCmdSeqNum_);
-    serialize(outStream, lastCmdTimestamp_);
-    serialize(outStream, dbCheckPoints_);
-  }
-  void deserializeDataMembers(std::istream& inStream) override {
-    deserialize(inStream, lastCmdSeqNum_);
-    deserialize(inStream, lastCmdTimestamp_);
-    deserialize(inStream, dbCheckPoints_);
-  }
+  void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, dbCheckPoints_); }
+  void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, dbCheckPoints_); }
 };
 constexpr size_t DB_CHECKPOINT_METADATA_MAX_SIZE{
-    MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor>) +
-    sizeof(DbCheckpointMetadata::lastCmdSeqNum_) + sizeof(DbCheckpointMetadata::lastCmdTimestamp_)};
+    MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor>)};
 }  // namespace bftEngine::impl

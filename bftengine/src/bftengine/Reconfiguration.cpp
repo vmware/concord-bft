@@ -165,6 +165,8 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support,
 // so, we create a snapshot of the database, when we stop the replicas
 void ReconfigurationHandler::addCreateDbSnapshotCbOnWedge(bool bft_support) {
   auto wedgePt = bftEngine::ControlStateManager::instance().getCheckpointToStopAt();
+  // We don't save the shared data about the creation time and sequence number of the db checkpoint because this data is
+  // being saved only as part of the automated flow of creating a db checkpoint once in a period.
   if (wedgePt.has_value()) {
     if (bft_support) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(

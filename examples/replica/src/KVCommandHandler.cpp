@@ -84,7 +84,7 @@ void KVCommandHandler::execute(KVCommandHandler::ExecutionRequestsQueue &request
                                const std::string &batchCid,
                                concordUtils::SpanWrapper &parentSpan) {
   if (requests.empty()) return;
-  if (requests.back().flags & bftEngine::DB_CHECKPOINT_FLAG) return;
+  if (requests.back().flags & bftEngine::NOOP_FLAG) return;
 
   // To handle block accumulation if enabled
   VersionedUpdates verUpdates;
@@ -144,7 +144,7 @@ void KVCommandHandler::preExecute(IRequestsHandler::ExecutionRequest &req,
                                   std::optional<bftEngine::Timestamp> timestamp,
                                   const std::string &batchCid,
                                   concordUtils::SpanWrapper &parentSpan) {
-  if (req.flags & bftEngine::DB_CHECKPOINT_FLAG) return;
+  if (req.flags & bftEngine::NOOP_FLAG) return;
 
   OperationResult res;
   if (req.requestSize <= 0) {

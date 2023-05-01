@@ -639,7 +639,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
-
+  void sendInternalNoopCommand(const std::string& cid);
   void setConflictDetectionBlockId(const ClientRequestMsg&, IRequestsHandler::ExecutionRequest&);
   /**
    * Updates execution related metrics
@@ -647,7 +647,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
    * @param numOfRequests - The number of executed requests
    */
   void updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequests);
-
+  void handleDbCheckpointCreation(const SeqNum, const uint64_t timestamp);
   class PostExecJob : public concord::util::SimpleThreadPool::Job {
    private:
     PrePrepareMsg* ppMsg_;
@@ -763,7 +763,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
   concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
-  concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableCallbacks_;
+  concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableOneTimeCallbacks_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
