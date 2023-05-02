@@ -1704,9 +1704,9 @@ module Proof {
                 && UnCommitableInView(c, v', prePrepareMsg.payload.seqID, priorView, priorOperationWrapper) {
       var replicaVariables := v.hosts[replicaIdx].replicaVariables;
       var replicaVariables' := v'.hosts[replicaIdx].replicaVariables;
-      if replicaVariables.workingWindow.prePreparesRcvd[seqID].None? {    // Interesting case is when we record a new PrePrepare.
-        var newViewMsgs := set msg | && msg in h_v.newViewMsgsRecvd.msgs  // The checks that the Replica does before recording
-                                     && msg.payload.newView == h_v.view;  // is sufficient to proove UnCommitableAgreesWithRecordedPrePrepare
+      if replicaVariables.workingWindow.prePreparesRcvd[seqID].None? {    // Interesting case is when we record a new PrePrepare. // The checks that the Replica does before recording // is sufficient to proove UnCommitableAgreesWithRecordedPrePrepare
+        var h_c := c.hosts[replicaIdx].replicaConstants;
+        var newViewMsgs := Replica.GetNewViewMsgsForCurrentView(h_c, h_v);
         // Double check that we have everything  we need for the var newViewMsgs
         var prePrepareMsg := replicaVariables'.workingWindow.prePreparesRcvd[seqID].value;
         assert prePrepareMsg.payload.seqID == seqID;
@@ -1716,8 +1716,7 @@ module Proof {
           assert h_v.view == 0;
           assert false;//This cannot happen because there is a priorView < prePrepareMsg's view.
         }
-        var newViewMsg :| newViewMsg in newViewMsgs;
-        var h_c := c.hosts[replicaIdx].replicaConstants;
+        var newViewMsg := Replica.GetNewViewMsgForCurrentView(h_c, h_v);
         assert Replica.CurrentNewViewMsg(h_c, h_v, newViewMsg) by {
           reveal_RecordedNewViewMsgsAreChecked();
         }
@@ -1726,13 +1725,17 @@ module Proof {
         } else if |Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg)| == 0 {
           UnCommitableIfNoCertificates(c, v, replicaIdx, seqID, priorView, priorOperationWrapper, newViewMsg);
         } else {
-          var relevantCerts := Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg);
-          var highestViewCert := Replica.HighestViewPrepareCertificate(relevantCerts);
-          assert prePrepareMsg.payload.operationWrapper == highestViewCert.prototype().operationWrapper;
           UnCommitableIfSomeCertificates(c, v, replicaIdx, seqID, priorView, priorOperationWrapper, newViewMsg);
         }
       } else {
-        assume false;
+        var prePrepareMsg := v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+        var prePrepareMsg' := v'.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value;
+        assert prePrepareMsg == prePrepareMsg';
+        assert seqID == prePrepareMsg'.payload.seqID by {
+          reveal_RecordedPrePreparesRecvdCameFromNetwork();
+        }
+        assert UnCommitableInView(c, v, prePrepareMsg.payload.seqID, priorView, priorOperationWrapper);
+        assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
       }
       assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
       assert ReplicasThatCanCommitInView(c, v', seqID, priorView, priorOperationWrapper) // Carry the knowledge from v into v'

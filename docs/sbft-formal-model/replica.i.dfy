@@ -329,6 +329,21 @@ module Replica {
     && restriction.Some? ==> restriction.value == operation
   }
 
+  function GetNewViewMsgsForCurrentView(c:Constants, v:Variables) : set<Network.Message<Message>>
+    requires v.WF(c)
+  {
+    set msg | && msg in v.newViewMsgsRecvd.msgs 
+              && msg.payload.newView == v.view
+  }
+
+  function GetNewViewMsgForCurrentView(c:Constants, v:Variables) : Network.Message<Message>
+    requires v.WF(c)
+    requires |GetNewViewMsgsForCurrentView(c, v)| > 0
+  {
+    var newViewMsg :| newViewMsg in GetNewViewMsgsForCurrentView(c, v);
+    newViewMsg
+  }
+
   // For clarity here we have extracted all preconditions that must hold for a Replica to accept a PrePrepare
   predicate IsValidPrePrepare(c:Constants, v:Variables, msg:Network.Message<Message>)
   {
@@ -340,12 +355,11 @@ module Replica {
     && msg.payload.view == v.view
     && msg.sender == CurrentPrimary(c, v)
     && v.workingWindow.prePreparesRcvd[msg.payload.seqID].None?
-    && var newViewMsgs := set msg | && msg in v.newViewMsgsRecvd.msgs 
-                                    && msg.payload.newView == v.view;
+    && var newViewMsgs := GetNewViewMsgsForCurrentView(c, v);
     && (if |newViewMsgs| == 0 
         then true
         else && |newViewMsgs| == 1
-             && var newViewMsg :| newViewMsg in newViewMsgs;
+             && var newViewMsg := GetNewViewMsgForCurrentView(c, v);
              && newViewMsg.payload.valid(c.clusterConfig)
              && c.clusterConfig.PrimaryForView(newViewMsg.payload.newView) == newViewMsg.sender
              && IsValidOperationWrapper(c, v, msg.payload.seqID, newViewMsg, msg.payload.operationWrapper))
