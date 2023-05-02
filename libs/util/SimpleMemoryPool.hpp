@@ -45,7 +45,7 @@ class SimpleMemoryPool {
       : maxNumElements_(maxNumElements), allocCallback_{allocCallback}, freeCallback_(freeCallback) {
     if (maxNumElements == 0) throw std::invalid_argument("maxNumElements cannnot be 0!");
     if (ctorCallback) ctorCallback();
-    for (size_t i = 0; i < maxNumElements_; ++i) {
+    for (size_t i{0}; i < maxNumElements_; ++i) {
       auto element = std::make_shared<T>();
       freeQ_.push_back(element);
     }

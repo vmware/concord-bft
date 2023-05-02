@@ -1152,7 +1152,7 @@ TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   logging::initLogger("logging.properties");
-  logging::getLogger("preprocessor_test").setLogLevel(logging::ERROR_LOG_LEVEL);
+  logging::Logger::getInstance("preprocessor_test").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
   if (replicaConfig.replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     replicaPrivKeys = replicaEdDSAPrivKeys;
     replicaPubKeys = replicaEdDSAPubKeys;

@@ -22,7 +22,10 @@ if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_link_libraries(util PUBLIC stdc++fs)
 endif()
 
-target_include_directories(util PUBLIC ${Boost_INCLUDE_DIR})
+target_include_directories(util PUBLIC include
+  ${libdiagnostics_SOURCE_DIR}/include
+  ${Boost_INCLUDE_DIR}
+)
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(util PUBLIC ${OPENSSL_ROOT_DIR}/include)
 endif()
@@ -40,6 +43,7 @@ if(USE_OPENTRACING)
 endif()
 
 if(BUILD_TESTING)
+#    add_subdirectory(pyclient)
     add_subdirectory(test)
 endif()
 
@@ -52,6 +56,13 @@ set(util_header_files
     include/status.hpp
     include/string.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
+
+if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+    set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
+            ${CMAKE_CURRENT_SOURCE_DIR}/include/)
+endif()
+
+set_property(GLOBAL PROPERTY UTIL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if(USE_PROMETHEUS)
     find_package(prometheus-cpp CONFIG REQUIRED)

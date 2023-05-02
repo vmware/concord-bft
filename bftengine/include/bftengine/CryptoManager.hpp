@@ -143,7 +143,6 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
       it++;
     }
     LOG_FATAL(logger(), "Cryptosystem not found for checkpoint: " << chckp << "seqnum: " << sn);
-    // cppcheck-suppress incorrectStringBooleanError
     ConcordAssert(false && "should never reach here");
   }
   // create CryptoSys for sn if still doesn't exist

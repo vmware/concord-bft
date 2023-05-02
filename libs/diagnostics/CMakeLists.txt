@@ -8,7 +8,7 @@ find_path(HDR_HISTOGRAM_INCLUDE_DIR "hdr_interval_recorder.h" HINTS /usr/local/i
 find_library(HDR_HISTOGRAM_LIBRARY hdr_histogram_static HINTS /usr/local/lib REQUIRED)
 
 set_property(TARGET diagnostics PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(diagnostics PUBLIC ${HDR_HISTOGRAM_INCLUDE_DIR})
+target_include_directories(diagnostics PUBLIC include ${HDR_HISTOGRAM_INCLUDE_DIR})
 if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
     target_include_directories(diagnostics PUBLIC /usr/local/include/ ../ ../util/include/)
 endif()

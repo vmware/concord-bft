@@ -43,15 +43,15 @@ class Histogram {
   std::string ToString() const;
 
  private:
-  double min_ = 0;
-  double max_ = 0;
-  double num_ = 0;
-  double sum_ = 0;
-  double sum_squares_ = 0;
+  double min_;
+  double max_;
+  double num_;
+  double sum_;
+  double sum_squares_;
 
   enum { kNumBuckets = 154 };
   static const double kBucketLimit[kNumBuckets];
-  double buckets_[kNumBuckets] = {0};
+  double buckets_[kNumBuckets];
 
   double Median() const;
   double Percentile(double p) const;

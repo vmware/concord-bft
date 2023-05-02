@@ -66,8 +66,8 @@ class Server {
   std::shared_ptr<Aggregator> aggregator_;
   std::thread thread_;
 
-  int sock_ = 0;
-  uint8_t buf_[MAX_MSG_SIZE] = {0};
+  int sock_;
+  uint8_t buf_[MAX_MSG_SIZE];
 
   void RecvLoop();
   void sendReply(std::string data, sockaddr_in* cliaddr, socklen_t addrlen);

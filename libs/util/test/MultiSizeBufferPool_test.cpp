@@ -70,7 +70,7 @@ class MultiSizeBufferPoolTestFixture : public ::testing::Test {
             MultiSizeBufferPool::Config pool_config,
             std::unique_ptr<MultiSizeBufferPool::ISubpoolSelector>&& subpool_selector = nullptr,
             std::unique_ptr<MultiSizeBufferPool::IPurger>&& purger = nullptr) {
-    logging::getLogger("concord.memory.pool").setLogLevel(logging::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.memory.pool").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
     subpools_config_ = std::make_unique<MultiSizeBufferPool::SubpoolsConfig>(subpools_config);
     pool_config_ = std::make_unique<MultiSizeBufferPool::Config>(pool_config);
 

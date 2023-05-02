@@ -1,14 +1,8 @@
-# Suppressions for concord-bft
-# Checked with the following options:
-# cmake -DBUILD_TESTING=OFF -DBUILD_UTT=OFF -DUSE_LOG4CPP=OFF -DCPPCHECK=ON ..
-# TODO [TK] - do we want enable cppckeck for tests?
+syntaxError
+preprocessorErrorDirective
+unknownMacro
+missingIncludeSystem
+unmatchedSuppression
 
-incorrectStringBooleanError
-uninitMemberVar
-noCopyConstructor
-noOperatorEq
-
-zerodiv:*ReplicasInfo.cpp
-preprocessorErrorDirective:*filesystem.hpp
-*:*/proto/*
-*:*/_deps/*
+*:cryptlib.h:*
+*:gtest.h:*

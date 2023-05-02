@@ -471,7 +471,6 @@ void BatchRequestProcessingJob::execute() {
 
 void SingleRequestProcessingJob::execute() {
   uint32_t reply_size;
-  size_t req_size = request_.size();
   bft::client::Reply res;
   if (flags_ & READ_ONLY_REQ) {
     read_config_.request.timeout = timeout_ms_;
@@ -505,8 +504,12 @@ void SingleRequestProcessingJob::execute() {
       callback_(static_cast<uint32_t>(operation_result));
   }
   external_client::ConcordClient::PendingReplies replies;
-  replies.push_back(ClientReply{
-      static_cast<uint32_t>(req_size), nullptr, reply_size, OperationResult::SUCCESS, correlation_id_, span_context_});
+  replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
+                                nullptr,
+                                reply_size,
+                                OperationResult::SUCCESS,
+                                correlation_id_,
+                                span_context_});
   clients_pool_.processReplies(processing_client_, {0, std::move(replies)});
 }
 

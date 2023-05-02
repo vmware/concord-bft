@@ -324,7 +324,6 @@ inline ::rocksdb::ColumnFamilyHandle *NativeClient::columnFamilyHandle(const std
   if (it == client_->cf_handles_.cend()) {
     detail::throwOnError("no such column family"sv, cFamily, ::rocksdb::Status::ColumnFamilyDropped());
   }
-  // cppcheck-suppress derefInvalidIteratorRedundantCheck
   return it->second.get();
 }
 
