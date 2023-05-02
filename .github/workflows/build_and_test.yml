@@ -10,7 +10,7 @@ jobs:
     name: Build
     runs-on: ubuntu-22.04
     container:
-      image: concordbft/concord-bft:latest
+      image: concordbft/concord-bft:0.60
       options: --cap-add=NET_ADMIN
     strategy:
       fail-fast: false
