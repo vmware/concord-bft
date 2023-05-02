@@ -117,7 +117,7 @@ PruningHandler::PruningHandler(const std::string& operator_pkey_path,
     : concord::reconfiguration::OperatorCommandsReconfigurationHandler{operator_pkey_path, type},
       logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
-      pruningVerifier_{bftEngine::ReplicaConfig::instance().publicKeysOfReplicas},
+      verifier_{bftEngine::ReplicaConfig::instance().publicKeysOfReplicas},
       ro_storage_{ro_storage},
       blocks_adder_{blocks_adder},
       blocks_deleter_{blocks_deleter},
@@ -165,7 +165,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request,
 
   const auto sender = request.sender;
 
-  if (!pruningVerifier_.verify(request)) {
+  if (!verifier_.verify(request)) {
     auto error = "PruningHandler failed to verify PruneRequest from principal_id " + std::to_string(sender) +
                  " on the grounds that the pruning request did not include "
                  "LatestPrunableBlock responses from the required replicas, or "

@@ -32,6 +32,7 @@ target_include_directories(test_replica PUBLIC
          ${libkvbc_SOURCE_DIR}/include
 )
 target_include_directories(test_replica PRIVATE
+         ${CMAKE_SOURCE_DIR}/util/include
          ${concord_bft_tools_SOURCE_DIR}
          ${bftengine_SOURCE_DIR}/include
          ${bftengine_SOURCE_DIR}/src/preprocessor

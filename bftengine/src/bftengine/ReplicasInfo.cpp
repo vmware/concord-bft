@@ -169,15 +169,17 @@ bool ReplicasInfo::getCollectorsForPartialProofs(const ReplicaId refReplica,
     }
     return (collector == refReplica);
   } else {
+    const int16_t n = _numberOfReplicas;
+    const int16_t c = _cVal;
     const int16_t primary = primaryOfView(v);
 
-    if (_cVal == 0) {
-      int16_t collector = (seq % _numberOfReplicas);
+    if (c == 0) {
+      int16_t collector = (seq % n);
 
       // ignore primary
       if (collector >= primary) {
-        collector = ((collector + 1) % _numberOfReplicas);
-        if (collector == primary) collector = ((collector + 1) % _numberOfReplicas);
+        collector = ((collector + 1) % n);
+        if (collector == primary) collector = ((collector + 1) % n);
       }
 
       if (outNumOfCollectors) {
@@ -187,7 +189,7 @@ bool ReplicasInfo::getCollectorsForPartialProofs(const ReplicaId refReplica,
 
       return (collector == refReplica);
     } else {
-      const int16_t half = (_numberOfReplicas / 2);
+      const int16_t half = (n / 2);
       int16_t collector1 = (seq % half);
       int16_t collector2 = collector1 + half;
       //		int16_t collector1 = (seq % n);
@@ -195,13 +197,13 @@ bool ReplicasInfo::getCollectorsForPartialProofs(const ReplicaId refReplica,
 
       // ignore primary
       if (collector1 >= primary) {
-        collector1 = ((collector1 + 1) % _numberOfReplicas);
-        if (collector1 == primary) collector1 = ((collector1 + 1) % _numberOfReplicas);
+        collector1 = ((collector1 + 1) % n);
+        if (collector1 == primary) collector1 = ((collector1 + 1) % n);
       }
 
       if (collector2 >= primary) {
-        collector2 = ((collector2 + 1) % _numberOfReplicas);
-        if (collector2 == primary) collector2 = ((collector2 + 1) % _numberOfReplicas);
+        collector2 = ((collector2 + 1) % n);
+        if (collector2 == primary) collector2 = ((collector2 + 1) % n);
       }
 
       if (outNumOfCollectors) {

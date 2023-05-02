@@ -67,7 +67,6 @@ void Client::init(bool readOnly) {
     context_.protocol = S3ProtocolHTTPS;
   } else {
     LOG_FATAL(logger_, "Invalid protocol: " + s3_protocol + ". Supported values are http or https (case insensitive).");
-    // cppcheck-suppress incorrectStringBooleanError
     ConcordAssert("Invalid S3 protocol" && false);
   }
 
@@ -81,7 +80,6 @@ void Client::init(bool readOnly) {
   S3Status st = S3_initialize(nullptr, S3_INIT_ALL, nullptr);
   if (S3Status::S3StatusOK != st) {
     LOG_FATAL(logger_, "libs3 init failed, status: " + to_string(st));
-    // cppcheck-suppress incorrectStringBooleanError
     ConcordAssert("libs3 init failed" && false);
   }
   LOG_INFO(logger_, "libs3 initialized");

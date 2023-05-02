@@ -107,7 +107,6 @@ class Serializable {
    */
   template <typename T, typename std::enable_if_t<is_std_container_v<T>, T>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& container, int) {
-    // cppcheck-suppress ctuuninitvar
     typename T::size_type size = container.size();
     LOG_TRACE(logger(), " size: " << size);
     serialize(outStream, size);
@@ -198,7 +197,6 @@ class Serializable {
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     T* s = nullptr;
     deserialize_impl(inStream, s, int{});
-    if (s == nullptr) throw std::runtime_error("Deserialization failed");
     t = T(*s);
     delete s;
   }

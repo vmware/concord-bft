@@ -173,7 +173,7 @@ class PruningHandler : public concord::reconfiguration::OperatorCommandsReconfig
   uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
   logging::Logger logger_;
   PruningSigner signer_;
-  PruningVerifier pruningVerifier_;
+  PruningVerifier verifier_;
   kvbc::IReader &ro_storage_;
   kvbc::IBlockAdder &blocks_adder_;
   kvbc::IBlocksDeleter &blocks_deleter_;

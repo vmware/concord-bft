@@ -10,6 +10,7 @@ add_executable(simpleTest_client  ${simpleTest_client_source_files} )
 target_include_directories(simpleTest_client
                            PRIVATE
                            include
+                           ${CMAKE_SOURCE_DIR}/util/include
                            ../config
                            ${concord_bft_tools_SOURCE_DIR}
                            ${bftengine_SOURCE_DIR}/include

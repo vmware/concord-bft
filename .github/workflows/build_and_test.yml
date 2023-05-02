@@ -57,4 +57,4 @@ jobs:
           with:
             name: artifacts-${{ matrix.ci_build_type }}-${{ matrix.comm_type }}-${{ github.sha }}
             path: artifact/
-            retention-days: 7
+            retention-days: 1

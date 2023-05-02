@@ -128,6 +128,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   uint16_t clientSendsRequestToAllReplicasFirstThresh_;
   uint16_t clientSendsRequestToAllReplicasPeriodThresh_;
   uint16_t clientPeriodicResetThresh_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 
   logging::Logger logger_ = logging::getLogger("concord.bft.client");
 };
@@ -219,7 +220,8 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
                                     p.clientSendsRequestToAllReplicasPeriodThresh),
       clientSendsRequestToAllReplicasFirstThresh_{p.clientSendsRequestToAllReplicasFirstThresh},
       clientSendsRequestToAllReplicasPeriodThresh_{p.clientSendsRequestToAllReplicasPeriodThresh},
-      clientPeriodicResetThresh_{p.clientPeriodicResetThresh} {
+      clientPeriodicResetThresh_{p.clientPeriodicResetThresh},
+      pm_{pm} {
   ConcordAssert(fVal_ >= 1);
 
   timeOfLastTransmission_ = MinTime;

@@ -105,7 +105,6 @@ class TimeRecorder {
     record_ = rhs.record;
     rhs.recorder_ = nullptr;
     rhs.record_ = false;
-    return *this;
   }
 
   // In some cases we don't want to record on destruction.

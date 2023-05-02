@@ -80,6 +80,7 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLe
   uint32_t complaintsNum = complaints.size();
   size_t complaintsNumSize = sizeof(complaintsNum);
   memcpy(buf, &complaintsNum, complaintsNumSize);
+  buf += complaintsNumSize;
 
   actualSize = isDefaultSize + viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
                myViewChangeMsgSize + elementsNumSize + complaintsNumSize;
@@ -149,6 +150,7 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t buf
   uint32_t complaintsNum;
   size_t complaintsNumSize = sizeof(complaintsNum);
   memcpy(&complaintsNum, buf, complaintsNumSize);
+  buf += complaintsNumSize;
 
   if (complaintsNum) complaints.resize(complaintsNum);
 
