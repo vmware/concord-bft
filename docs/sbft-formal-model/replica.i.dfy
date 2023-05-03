@@ -309,9 +309,9 @@ module Replica {
                               newViewMsg:Network.Message<Message>)
   {
     && v.WF(c)
-    && newViewMsg in v.newViewMsgsRecvd.msgs
     && ValidNewViewMsg(c.clusterConfig, newViewMsg)
-    && newViewMsg.payload.newView == v.view
+    && |GetNewViewMsgsForCurrentView(c, v)| > 0
+    && newViewMsg == GetNewViewMsgForCurrentView(c, v)
   }
 
   predicate IsValidOperationWrapper(c:Constants,

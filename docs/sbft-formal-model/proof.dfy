@@ -1630,9 +1630,10 @@ module Proof {
     requires Inv(c, v)
     requires IsHonestReplica(c, replicaIdx)
     requires newViewMsg.payload.NewViewMsg?
-    requires priorView < newViewMsg.payload.newView
+    requires priorView < newViewMsg.payload.newView 
     requires && var h_c := c.hosts[replicaIdx].replicaConstants;
              && var h_v := v.hosts[replicaIdx].replicaVariables;
+             && newViewMsg == Replica.GetNewViewMsgForCurrentView(h_c, h_v)
              && newViewMsg in h_v.newViewMsgsRecvd.msgs
              && Replica.CurrentNewViewMsg(h_c, h_v, newViewMsg)
              && seqID in Replica.ExtractSeqIDsFromPrevView(h_c, h_v, newViewMsg)
@@ -1643,10 +1644,48 @@ module Proof {
     var h_c := c.hosts[replicaIdx].replicaConstants;
     var h_v := v.hosts[replicaIdx].replicaVariables;
     var relevantCerts := Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg);
-    var highestViewCert := Replica.HighestViewPrepareCertificate(relevantCerts);
-    {
-      // doubleAgent reasonong similar to the below case.
+    var newViewMsg := Replica.GetNewViewMsgForCurrentView(h_c, h_v);
+    var viewChangers := Messages.sendersOf(newViewMsg.payload.vcMsgs.msgs);
+    assert newViewMsg.payload.checked(c.clusterConfig, v.network.sentMsgs) by {
+      reveal_RecordedNewViewMsgsAreChecked();
     }
+    UniqueSendersCardinality(newViewMsg.payload.vcMsgs.msgs);
+    assert viewChangers <= getAllReplicas(c) by {
+      reveal_RecordedNewViewMsgsAreChecked();
+    }
+    var troubleMakers := ReplicasThatCanCommitInView(c, v, seqID, priorView, priorOperationWrapper);
+    if |troubleMakers| >= c.clusterConfig.AgreementQuorum() {
+      var doubleAgent := FindQuorumIntersection(c, viewChangers, troubleMakers);
+      var vcMsg:Message :| && vcMsg in newViewMsg.payload.vcMsgs.msgs 
+                           && vcMsg.sender == doubleAgent;
+      assert IsHonestReplica(c, doubleAgent);
+      assert !ReplicasInViewOrLower(c, v, seqID, priorView, priorOperationWrapper, doubleAgent) by {
+        reveal_HonestReplicasLeaveViewsBehind();
+        assert v.hosts[doubleAgent].replicaVariables.view >= vcMsg.payload.newView;
+      }
+      var sentCommit := Network.Message(doubleAgent,
+                                        Messages.Commit(priorView,
+                                                        seqID,
+                                                        priorOperationWrapper));
+      assert sentCommit in v.network.sentMsgs;
+      assume seqID in vcMsg.payload.certificates; // Sliding of the WW is disabled for now.
+      var certificate := vcMsg.payload.certificates[seqID];
+      assert CertificateComportsWithCommit(c, certificate, sentCommit) by {
+        assume false; // Left off on a timeout
+        //reveal_EveryCommitMsgIsRememberedByVCMsgs();
+        assert sentCommit.payload.seqID in vcMsg.payload.certificates;
+        assert sentCommit.payload.seqID == seqID;
+        assert CertificateComportsWithCommit(c, certificate, sentCommit);
+      }
+      assert !certificate.empty();
+      assert certificate in Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg);
+      Library.SubsetCardinality({certificate}, Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg));
+      assert |{certificate}| == 1;
+      assert |Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg)| > 0;
+      assert |Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg)| == 0;
+      assert false; // Contradiction
+    }
+    assert UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper);
   }
 
   lemma UnCommitableIfSomeCertificates(c:Constants,
