@@ -33,8 +33,8 @@ class FullNodeReplica : public ReplicaForStateTransfer {
 
   void start() override;
   void stop() override;
-  virtual bool isReadOnly() const override { return false; }
-  virtual bool isFullNode() const override { return true; }
+  virtual bool isReadOnly() const override { return config_.isReadOnly; }
+  virtual bool isFullNode() const override { return config_.isFullNode; }
 
  protected:
   void sendAskForCheckpointMsg();
@@ -54,7 +54,6 @@ class FullNodeReplica : public ReplicaForStateTransfer {
   template <class T>
   void onMessage(std::unique_ptr<T>);
 
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
   void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
 
  protected:
@@ -67,7 +66,7 @@ class FullNodeReplica : public ReplicaForStateTransfer {
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } fn_metrics_;
 
-  std::unique_ptr<MetadataStorage> metadataStorage_;
+  std::unique_ptr<MetadataStorage> metadata_storage_;
   std::atomic<SeqNum> last_executed_seq_num_{0};
 
  private:
@@ -76,6 +75,8 @@ class FullNodeReplica : public ReplicaForStateTransfer {
   // The full node replica also hasn't got an implementation for InternalMessages which are used by the
   // ReplicaStatusHandler.
   void registerStatusHandlers();
+
+  void registerMsgHandlers();
 };
 
 }  // namespace bftEngine::impl

@@ -193,19 +193,21 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.cVal,
               c.numReplicas,
               c.numRoReplicas,
+              c.numFnReplicas,
               c.pedanticChecks,
               c.isReadOnly,
+              c.isFullNode,
               c.maxChunkSize,
               c.maxNumberOfChunksInBatch,
               c.maxBlockSize,
               c.maxPendingDataFromSourceReplica,
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
-              c.gettingMissingBlocksSummaryWindowSize,
-              c.minPrePrepareMsgsForPrimaryAwareness,
-              c.fetchRangeSize);
+              c.gettingMissingBlocksSummaryWindowSize);
   os << ",";
-  os << KVLOG(c.RVT_K,
+  os << KVLOG(c.minPrePrepareMsgsForPrimaryAwareness,
+              c.fetchRangeSize,
+              c.RVT_K,
               c.refreshTimerMs,
               c.checkpointSummariesRetransmissionTimeoutMs,
               c.maxAcceptableMsgDelayMs,
@@ -218,11 +220,9 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.sourcePerformanceSnapshotFrequencySec,
               c.runInSeparateThread,
               c.enableReservedPages,
-              c.enableSourceBlocksPreFetch,
-              c.enableSourceSelectorPrimaryAwareness,
-              c.enableStoreRvbDataDuringCheckpointing);
+              c.enableSourceBlocksPreFetch);
   os << ",";
-  os << KVLOG(c.numFnReplicas, c.isFullNode);
+  os << KVLOG(c.enableSourceSelectorPrimaryAwareness, c.enableStoreRvbDataDuringCheckpointing);
   return os;
 }
 // creates an instance of the state transfer module.
