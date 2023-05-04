@@ -466,16 +466,24 @@ class MultiSizeBufferPool {
       registrar.perf.unRegisterComponent(name_);
     }
 
-    DEFINE_SHARED_RECORDER(
-        time_in_getBufferBySubpoolSelector, 1, MAX_DURATION_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        time_in_getBufferByMinBufferSize, 1, MAX_DURATION_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        time_in_reportBufferUsage, 1, MAX_DURATION_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        time_in_returnBuffer, 1, MAX_DURATION_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(caller_allocated_buffer_size, 1, MAX_BUFFER_SIZE, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(caller_allocated_buffer_usage, 1, MAX_BUFFER_SIZE, 3, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(time_in_getBufferBySubpoolSelector,
+                           500,
+                           MAX_DURATION_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(time_in_getBufferByMinBufferSize,
+                           500,
+                           MAX_DURATION_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(time_in_reportBufferUsage,
+                           500,
+                           MAX_DURATION_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(time_in_returnBuffer,
+                           500,
+                           MAX_DURATION_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(caller_allocated_buffer_size, 500, MAX_BUFFER_SIZE, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(caller_allocated_buffer_usage, 500, MAX_BUFFER_SIZE, concord::diagnostics::Unit::BYTES);
 
     std::string name_;
   };

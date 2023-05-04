@@ -134,8 +134,8 @@ class Client {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent(component_name_, {sign_duration, transaction_size});
     }
-    DEFINE_SHARED_RECORDER(sign_duration, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(transaction_size, 1, MAX_TRANSACTION_SIZE, 3, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(sign_duration, 500, MAX_VALUE_NANOSECONDS, concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(transaction_size, 500, MAX_TRANSACTION_SIZE, concord::diagnostics::Unit::BYTES);
 
     ~Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();

@@ -19,18 +19,6 @@ static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.perf");
 
 namespace concord::diagnostics {
 
-void Recorder::record(int64_t val) {
-  if (!hdr_interval_recorder_record_value(&(recorder), val)) {
-    LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
-  }
-}
-
-void Recorder::recordAtomic(int64_t val) {
-  if (!hdr_interval_recorder_record_value_atomic(&(recorder), val)) {
-    LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
-  }
-}
-
 void PerformanceHandler::registerComponent(const std::string& name,
                                            const std::vector<std::shared_ptr<Recorder>>& recorders) {
   std::lock_guard<std::mutex> guard(mutex_);
@@ -41,8 +29,8 @@ void PerformanceHandler::registerComponent(const std::string& name,
     return;
   }
   Histograms histograms;
-  for (const auto& recorder : recorders) {
-    histograms.emplace(recorder->name, recorder);
+  for (const auto& histogram_ : recorders) {
+    histograms.emplace(histogram_->name, histogram_);
   }
   components_.insert({name, std::move(histograms)});
 }
@@ -220,7 +208,7 @@ std::ostream& operator<<(std::ostream& os, const Unit& unit) {
       os << "mb";
       break;
     case Unit::GB:
-      os << "mb";
+      os << "gb";
       break;
     case Unit::COUNT:
       os << "count";
@@ -230,20 +218,13 @@ std::ostream& operator<<(std::ostream& os, const Unit& unit) {
 }
 
 void Histogram::takeSnapshot() {
+  std::lock_guard<std::mutex> lock(mutex_);
   snapshot_start = snapshot_end;
   snapshot_end = std::chrono::system_clock::now();
   // Add the previous snapshot to the history
-  if (int64_t discarded = hdr_add(history, snapshot) != 0) {
-    // This should be impossible to hit, according to hdrHistogram docs, since the histograms have the same
-    // trackable values.
-    LOG_ERROR(DIAG_LOGGER,
-              "Failed to update history: " << KVLOG(discarded,
-                                                    snapshot->lowest_trackable_value,
-                                                    snapshot->highest_trackable_value,
-                                                    history->lowest_trackable_value,
-                                                    history->highest_trackable_value));
-  }
-  snapshot = hdr_interval_recorder_sample_and_recycle(&(recorder->recorder), snapshot);
+  history = snapshot;
+  snapshot = recorder->histogram_;
+  recorder->histogram_.reset();
 }
 
 }  // namespace concord::diagnostics

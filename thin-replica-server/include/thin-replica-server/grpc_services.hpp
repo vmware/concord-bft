@@ -77,13 +77,15 @@ class ThinReplicaService final : public com::vmware::concord::thin_replica::Thin
       registrar.perf.unRegisterComponent("trs");
     }
 
-    DEFINE_SHARED_RECORDER(readState, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
-    DEFINE_SHARED_RECORDER(readStateHash, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
-    DEFINE_SHARED_RECORDER(ackUpdate, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
-    DEFINE_SHARED_RECORDER(subscribeToUpdates, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
-    DEFINE_SHARED_RECORDER(
-        subscribeToUpdateHashes, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
-    DEFINE_SHARED_RECORDER(unsubscribe, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(readState, 500, MAX_VALUE_MILLISECONDS, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(readStateHash, 500, MAX_VALUE_MILLISECONDS, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(ackUpdate, 500, MAX_VALUE_MILLISECONDS, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(subscribeToUpdates, 500, MAX_VALUE_MILLISECONDS, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(subscribeToUpdateHashes,
+                           500,
+                           MAX_VALUE_MILLISECONDS,
+                           concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(unsubscribe, 500, MAX_VALUE_MILLISECONDS, concord::diagnostics::Unit::MILLISECONDS);
   };
   Recorders histograms_;
 };
