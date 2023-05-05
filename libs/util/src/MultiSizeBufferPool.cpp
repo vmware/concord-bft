@@ -23,7 +23,7 @@ namespace concordUtil {
 
 using namespace std;
 using namespace std::chrono;
-using TimeRecorder = concord::diagnostics::TimeRecorder<true>;
+using TimeRecorder = concord::diagnostics::TimeRecorder;
 
 // uncomment to add debug prints which are too expensive to skip during run time
 // #define MultiSizeBufferPool_DO_DEBUG

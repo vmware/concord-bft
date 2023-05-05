@@ -326,18 +326,20 @@ class KeyValueBlockchain {
       registrar.perf.unRegisterComponent("kvbc");
     }
 
-    // DEFINE_SHARED_RECORDER(may_have_conflict_between, 1, MAX_VALUE_NANOSECONDS, 3,
+    // DEFINE_SHARED_RECORDER(may_have_conflict_between, 500, MAX_VALUE_NANOSECONDS, 3,
     // concord::diagnostics::Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(addBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(addRawBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(getRawBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(deleteBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        deleteLastReachableBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(get, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(getLatest, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(multiGet, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(multiGetLatest, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addBlock, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addRawBlock, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(getRawBlock, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(deleteBlock, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(deleteLastReachableBlock,
+                           500,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(getLatest, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(multiGet, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(multiGetLatest, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
   };
 
   static Recorders histograms_;

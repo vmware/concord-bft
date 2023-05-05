@@ -65,7 +65,7 @@ struct SafeResultBuffer {
 using SafeResultBufferSharedPtr = std::shared_ptr<SafeResultBuffer>;
 // Memory pool allocated (clientId * dataSize) buffers
 using PreProcessResultBuffers = std::deque<SafeResultBufferSharedPtr>;
-using TimeRecorder = concord::diagnostics::TimeRecorder<true>;  // use atomic recorder
+using TimeRecorder = concord::diagnostics::TimeRecorder;
 using RequestStateSharedPtr = std::shared_ptr<RequestState>;
 
 //**************** Class RequestsBatch ****************//

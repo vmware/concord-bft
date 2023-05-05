@@ -19,7 +19,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <optional>
-#include <hdr/hdr_interval_recorder.h>
+#include <boost/histogram.hpp>
 
 #include "log/logger.hpp"
 #include "util/assertUtils.hpp"
@@ -42,55 +42,42 @@ enum class Unit {
   COUNT
 };
 
+using axes_t = std::vector<boost::histogram::axis::regular<>>;
+
 // A recorder is a thread-safe type that should always be created in a shared pointer to ensure
 // proper destruction. The recorder is used to add values to the histogram in the recording thread.
 // Interval histograms can be extracted in other threads.
 struct Recorder {
-  // These values, (except for unit), come directly from hdr histogram.
-  // https://github.com/HdrHistogram/HdrHistogram_c/blob/master/src/hdr_interval_recorder.h#L28-L32
-  Recorder(const std::string& name,
-           int64_t lowest_trackable_value,
-           int64_t highest_trackable_value,
-           int significant_figures,
-           Unit unit)
-      : Recorder(lowest_trackable_value, highest_trackable_value, significant_figures, unit) {
+  Recorder(const std::string& name, int64_t num_bins, int64_t highest_trackable_value, Unit unit)
+      : Recorder(num_bins, highest_trackable_value, unit) {
     this->name = name;
   }
 
-  Recorder(int64_t lowest_trackable_value, int64_t highest_trackable_value, int significant_figures, Unit unit)
-      : unit(unit) {
-    ConcordAssert(lowest_trackable_value > 0);
-    auto rv =
-        hdr_interval_recorder_init_all(&recorder, lowest_trackable_value, highest_trackable_value, significant_figures);
-    ConcordAssertEQ(0, rv);
+  Recorder(int64_t num_bins, int64_t highest_trackable_value, Unit unit) : unit(unit) {
+    histogram_ =
+        boost::histogram::make_histogram(boost::histogram::axis::regular<>(num_bins, 0, highest_trackable_value));
   }
 
-  ~Recorder() { hdr_interval_recorder_destroy(&recorder); }
+  ~Recorder() {}
   Recorder(const Recorder&) = delete;
   Recorder& operator=(const Recorder&) = delete;
 
-  // Record to a histogram in a single thread. This is the common case.
-  // Do NOT mix calls with `recordAtomic` in the same recorder.
-  void record(int64_t val);
+  void record(int64_t val) { histogram_(val); }
 
-  // Record to a histogram safely across threads. Please use this method sparingly. It should not be necessary in most
-  // cases. Do NOT mix calls with `record` in the same recorder.
-  void recordAtomic(int64_t val);
-
-  hdr_interval_recorder recorder;
+  boost::histogram::histogram<axes_t> histogram_;
   Unit unit;
   // Set during registration
   std::string name;
 };
 
-#define MAKE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::make_shared<concord::diagnostics::Recorder>(name, lowest, highest, sigfig, unit)
+#define MAKE_SHARED_RECORDER(name, num_bins, highest, unit) \
+  std::make_shared<concord::diagnostics::Recorder>(name, num_bins, highest, unit)
 
-#define DEFINE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::shared_ptr<concord::diagnostics::Recorder> name = MAKE_SHARED_RECORDER(#name, lowest, highest, sigfig, unit)
+#define DEFINE_SHARED_RECORDER(name, num_bins, highest, unit) \
+  std::shared_ptr<concord::diagnostics::Recorder> name = MAKE_SHARED_RECORDER(#name, num_bins, highest, unit)
 // This class should be instantiated to measure a duration of a scope and add it to a histogram
 // recorder. The measurement is taken and recorded in the destructor.
-template <bool IsAtomic = false>
+
 class TimeRecorder {
  public:
   TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(&recorder), record_(true) {}
@@ -102,7 +89,7 @@ class TimeRecorder {
   TimeRecorder& operator=(TimeRecorder&& rhs) {
     start_ = rhs.start_;
     recorder_ = rhs.recorder_;
-    record_ = rhs.record;
+    record_ = rhs.record_;
     rhs.recorder_ = nullptr;
     rhs.record_ = false;
     return *this;
@@ -117,49 +104,29 @@ class TimeRecorder {
     switch (recorder_->unit) {
       case Unit::NANOSECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
-        if constexpr (IsAtomic) {
-          recorder_->recordAtomic(interval.count());
-        } else {
-          recorder_->record(interval.count());
-        }
+        recorder_->record(interval.count());
         durationInNano = interval.count();
       } break;
       case Unit::MICROSECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_);
-        if constexpr (IsAtomic) {
-          recorder_->recordAtomic(interval.count());
-        } else {
-          recorder_->record(interval.count());
-        }
+        recorder_->record(interval.count());
         durationInNano = interval.count() * 1000;
       } break;
       case Unit::MILLISECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
-        if constexpr (IsAtomic) {
-          recorder_->recordAtomic(interval.count());
-        } else {
-          recorder_->record(interval.count());
-        }
+        recorder_->record(interval.count());
         durationInNano = interval.count() * 1000000;
       } break;
       case Unit::SECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_);
-        if constexpr (IsAtomic) {
-          recorder_->recordAtomic(interval.count());
-        } else {
-          recorder_->record(interval.count());
-        }
+        recorder_->record(interval.count());
         durationInNano = interval.count() * 1000000000;
       } break;
       case Unit::MINUTES: {
         auto interval = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - start_);
-        if constexpr (IsAtomic) {
-          recorder_->recordAtomic(interval.count());
-        } else {
-          recorder_->record(interval.count());
-        }
+        recorder_->record(interval.count());
         durationInNano = interval.count() * 1000000000000;
       } break;
       default:
@@ -183,7 +150,7 @@ class TimeRecorder {
 // It's useful when the timing being recorded can't tracked in a single scope, and there are
 // multiple outstanding requests that need timing, such as consensus slots.
 // We allow atomic operations on the elements of the unordered_map, but the map itself is not thread safe.
-template <typename Key, bool IsAtomic = false>
+template <typename Key>
 class AsyncTimeRecorderMap {
  public:
   AsyncTimeRecorderMap(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
@@ -199,12 +166,12 @@ class AsyncTimeRecorderMap {
 
  private:
   std::shared_ptr<Recorder> recorder_;
-  std::unordered_map<Key, TimeRecorder<IsAtomic>> timers_;
+  std::unordered_map<Key, TimeRecorder> timers_;
 };
 
 // This allows starting and stopping a timer manually rather than using the destructor. It's useful
 // for async operations without a linear control-flow.
-template <bool IsAtomic = false>
+
 class AsyncTimeRecorder {
  public:
   AsyncTimeRecorder(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
@@ -223,27 +190,17 @@ class AsyncTimeRecorder {
 
  private:
   std::shared_ptr<Recorder> recorder_;
-  std::optional<TimeRecorder<IsAtomic>> timer_;
+  std::optional<TimeRecorder> timer_;
 };
 
 struct Histogram {
   Histogram(const std::shared_ptr<Recorder>& recorder)
       : recorder(recorder), start(std::chrono::system_clock::now()), snapshot_start(start), snapshot_end(start) {
-    snapshot = hdr_interval_recorder_sample_and_recycle(&(recorder->recorder), snapshot);
-    auto rv = hdr_init(
-        snapshot->lowest_trackable_value, snapshot->highest_trackable_value, snapshot->significant_figures, &history);
-    ConcordAssertEQ(0, rv);
+    snapshot = recorder->histogram_;
+    history = snapshot;
   }
 
-  ~Histogram() {
-    hdr_close(snapshot);
-    hdr_close(history);
-    snapshot = nullptr;
-    history = nullptr;
-  }
-
-  Histogram(const Histogram&) = delete;
-  Histogram& operator=(const Histogram&) = delete;
+  ~Histogram() {}
 
   void takeSnapshot();
 
@@ -254,39 +211,93 @@ struct Histogram {
   std::chrono::system_clock::time_point snapshot_end;
 
   // The histogram interval starting from when the last snapshot was taken
-  hdr_histogram* snapshot = nullptr;
-
+  boost::histogram::histogram<axes_t> snapshot;
   // History doesn't include the latest snapshot.
-  hdr_histogram* history = nullptr;
+  boost::histogram::histogram<axes_t> history;
+  std::mutex mutex_;
 };
 
 using Name = std::string;
 using Histograms = std::map<Name, Histogram>;
 
-// Useful data extracted from hdr_histogram(s)
+// Useful data extracted from histogram(s)
 //
 // By extracting this data we can return it in a thread-safe manner, without having to copy the
 // entire histogram.
 //
 // We specifically don't return the average, as it's a completely meaningless metric.
 struct HistogramValues {
-  HistogramValues(hdr_histogram* h) : memory_used(hdr_get_memory_size(h)) {
-    max = hdr_max(h);
+  HistogramValues(const boost::histogram::histogram<axes_t>& h) : memory_used(sizeof(h)) {
+    max = get_max_value(h);
     if (max == 0) return;  // Histogram is empty
-    min = hdr_min(h);
-    count = h->total_count;
-    pct_10 = hdr_value_at_percentile(h, 10);
-    pct_25 = hdr_value_at_percentile(h, 25);
-    pct_50 = hdr_value_at_percentile(h, 50);
-    pct_75 = hdr_value_at_percentile(h, 75);
-    pct_90 = hdr_value_at_percentile(h, 90);
-    pct_95 = hdr_value_at_percentile(h, 95);
-    pct_99 = hdr_value_at_percentile(h, 99);
-    pct_99_9 = hdr_value_at_percentile(h, 99.9);
-    pct_99_99 = hdr_value_at_percentile(h, 99.99);
-    pct_99_999 = hdr_value_at_percentile(h, 99.999);
-    pct_99_9999 = hdr_value_at_percentile(h, 99.9999);
-    pct_99_99999 = hdr_value_at_percentile(h, 99.99999);
+    min = get_min_value(h);
+    count = get_total_element(h);
+    pct_10 = get_value_at_percentile(h, 10);
+    pct_25 = get_value_at_percentile(h, 25);
+    pct_50 = get_value_at_percentile(h, 50);
+    pct_75 = get_value_at_percentile(h, 75);
+    pct_90 = get_value_at_percentile(h, 90);
+    pct_95 = get_value_at_percentile(h, 95);
+    pct_99 = get_value_at_percentile(h, 99);
+    pct_99_9 = get_value_at_percentile(h, 99.9);
+    pct_99_99 = get_value_at_percentile(h, 99.99);
+    pct_99_999 = get_value_at_percentile(h, 99.999);
+    pct_99_9999 = get_value_at_percentile(h, 99.9999);
+    pct_99_99999 = get_value_at_percentile(h, 99.99999);
+  }
+
+  int64_t get_total_element(const boost::histogram::histogram<axes_t>& h) {
+    // Compute the cumulative sum of bin heights
+    int64_t total_elem = 0;
+    int count = h.axis().size();
+    for (auto i = 0; i < count; ++i) {
+      total_elem += h.at(i);
+    }
+    return total_elem;
+  }
+
+  int64_t get_max_value(const boost::histogram::histogram<axes_t>& h) {
+    int bin_max = 0;
+    for (auto i = h.axis().size() - 1; i >= 0; i--) {
+      if (h.at(i) > 0) {
+        bin_max = h.axis().bin(i).center();
+        break;
+      }
+    }
+    return bin_max;
+  }
+
+  int64_t get_min_value(const boost::histogram::histogram<axes_t>& h) {
+    int bin_min = 0;
+    for (auto i = 0; i < h.axis().size(); i++) {
+      if (h.at(i) > 0) {
+        bin_min = h.axis().bin(i).center();
+        break;
+      }
+    }
+    return bin_min;
+  }
+
+  int64_t get_value_at_percentile(const boost::histogram::histogram<axes_t>& h, double percent) {
+    // Compute the cumulative sum of bin heights
+    double cumsum = 0.0;
+    int count = h.axis().size();
+    for (auto i = 0; i < count; ++i) {
+      cumsum += h.at(i) * h.axis().bin(i).center();
+    }
+
+    // Find the bin value which is greater than the percentage of all values
+    double threshold = percent / 100.0 * cumsum;
+    int bin_value = 0;
+    double sum = 0.0;
+    for (auto i = 0; i < h.axis().size(); ++i) {
+      sum += h.at(i) * h.axis().bin(i).center();
+      if (sum >= threshold) {
+        bin_value = h.axis().bin(i).center();
+        break;
+      }
+    }
+    return bin_value;
   }
 
   bool operator==(const HistogramValues& other) const {

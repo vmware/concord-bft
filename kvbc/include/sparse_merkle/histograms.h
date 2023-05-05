@@ -77,55 +77,55 @@ struct Recorders {
   }
 
   // Used in tree.cpp
-  DEFINE_SHARED_RECORDER(update, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(insert_key, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(remove_key, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(num_updated_keys, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(num_deleted_keys, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(key_size, 1, 2048, 3, Unit::BYTES);
-  DEFINE_SHARED_RECORDER(val_size, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  DEFINE_SHARED_RECORDER(hash_val, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(num_batch_internal_nodes, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(num_batch_leaf_nodes, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(num_stale_internal_keys, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(num_stale_leaf_keys, 1, 1000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(insert_depth, 1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(remove_depth, 1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(update, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(insert_key, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(remove_key, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(num_updated_keys, 50, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_deleted_keys, 150, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(key_size, 50, 2048, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(val_size, 500, MAX_VAL_SIZE, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(hash_val, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(num_batch_internal_nodes, 50, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_batch_leaf_nodes, 50, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_stale_internal_keys, 50, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_stale_leaf_keys, 50, 1000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(insert_depth, 500, Hash::MAX_NIBBLES, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(remove_depth, 500, Hash::MAX_NIBBLES, Unit::COUNT);
 
   // Used in internal_node.cpp
-  DEFINE_SHARED_RECORDER(internal_node_update_hashes, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(internal_node_insert, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(internal_node_remove, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_update_hashes, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_insert, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_remove, 500, MAX_NS, Unit::NANOSECONDS);
 
   // Used in merkle_tree_db_adapter.cpp
 
-  DEFINE_SHARED_RECORDER(dba_batch_to_db_updates, 1, MAX_NS * 5, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_get_value, 1, MAX_NS * 5, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_create_block_node, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_get_raw_block, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(dba_last_reachable_block_db_updates, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(dba_size_of_updates, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  DEFINE_SHARED_RECORDER(dba_get_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_serialize_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_serialize_leaf, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_deserialize_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_deserialize_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_deserialize_leaf, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_link_st_chain, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(dba_num_blocks_for_st_link, 1, 1000000, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(dba_add_raw_block, 1, MAX_NS * 10, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_delete_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_get_leaf_key_val_at_most_version, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(dba_delete_keys_for_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_has_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_keys_for_version, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_hash_parent_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_hashed_parent_block_size, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  DEFINE_SHARED_RECORDER(dba_add_block_rocksdb_write, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_batch_to_db_updates, 500, MAX_NS * 5, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_value, 500, MAX_NS * 5, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_create_block_node, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_raw_block, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_last_reachable_block_db_updates, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_size_of_updates, 500, MAX_VAL_SIZE, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(dba_get_internal, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_serialize_internal, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_serialize_leaf, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_internal, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_block, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_leaf, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_link_st_chain, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_num_blocks_for_st_link, 500, 1000000, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(dba_add_raw_block, 500, MAX_NS * 10, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_delete_block, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_leaf_key_val_at_most_version, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_delete_keys_for_block, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_has_block, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_keys_for_version, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_hash_parent_block, 500, MAX_NS, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_hashed_parent_block_size, 500, MAX_VAL_SIZE, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(dba_add_block_rocksdb_write, 500, MAX_US, Unit::MICROSECONDS);
 
   // Used in walker.cpp
-  DEFINE_SHARED_RECORDER(walker_descend, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(walker_ascend, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(walker_descend, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(walker_ascend, 500, MAX_US, Unit::MICROSECONDS);
 };
 
 inline const Recorders histograms;

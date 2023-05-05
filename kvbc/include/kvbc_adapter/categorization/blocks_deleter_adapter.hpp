@@ -54,8 +54,10 @@ class BlocksDeleterAdapter : public concord::kvbc::IBlocksDeleter {
 
     ~Recorders() {}
 
-    DEFINE_SHARED_RECORDER(
-        delete_batch_blocks_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(delete_batch_blocks_duration,
+                           500,
+                           MAX_VALUE_MICROSECONDS,
+                           concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 };

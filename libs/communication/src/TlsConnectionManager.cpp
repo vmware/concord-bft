@@ -175,7 +175,7 @@ void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<Ou
     return;
   }
   {
-    concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
+    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.send_post_to_mgr);
     boost::asio::post(strand_, [this, destination, msg]() { handleSend(destination, msg); });
   }
 }
@@ -188,7 +188,7 @@ void ConnectionManager::send(const std::set<NodeNum>& destinations, const std::s
     return;
   }
   {
-    concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
+    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.send_post_to_mgr);
     boost::asio::post(strand_, [this, destinations, msg]() { handleSend(destinations, msg); });
   }
 }

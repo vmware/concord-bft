@@ -111,9 +111,9 @@ struct Recorders {
 
   Recorders(const std::string& selfId, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
       : write_queue_size_in_bytes(
-            MAKE_SHARED_RECORDER("write_queue_size_in_bytes", 1, max_queue_size_in_bytes, 3, Unit::BYTES)),
-        sent_msg_size(MAKE_SHARED_RECORDER("sent_msg_size", 1, max_msg_size, 3, Unit::BYTES)),
-        received_msg_size(MAKE_SHARED_RECORDER("received_msg_size", 1, max_msg_size, 3, Unit::BYTES)) {
+            MAKE_SHARED_RECORDER("write_queue_size_in_bytes", 500, max_queue_size_in_bytes, Unit::BYTES)),
+        sent_msg_size(MAKE_SHARED_RECORDER("sent_msg_size", 500, max_msg_size, Unit::BYTES)),
+        received_msg_size(MAKE_SHARED_RECORDER("received_msg_size", 500, max_msg_size, Unit::BYTES)) {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     registrar.perf.registerComponent("tls" + selfId,
                                      {write_queue_len,
@@ -134,16 +134,16 @@ struct Recorders {
   std::shared_ptr<Recorder> write_queue_size_in_bytes;
   std::shared_ptr<Recorder> sent_msg_size;
   std::shared_ptr<Recorder> received_msg_size;
-  DEFINE_SHARED_RECORDER(write_queue_len, 1, MAX_QUEUE_LENGTH, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(send_time_in_queue, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(read_enqueue_time, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(send_post_to_mgr, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(send_post_to_conn, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(async_write, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(async_read_header_full, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(async_read_header_partial, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(async_read_msg, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(on_connection_authenticated, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(write_queue_len, 500, MAX_QUEUE_LENGTH, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(send_time_in_queue, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(read_enqueue_time, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(send_post_to_mgr, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(send_post_to_conn, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_write, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_header_full, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_header_partial, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_msg, 500, MAX_US, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(on_connection_authenticated, 500, MAX_US, Unit::MICROSECONDS);
 };
 
 }  // namespace bft::communication

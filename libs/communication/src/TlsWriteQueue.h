@@ -66,8 +66,8 @@ class WriteQueue {
   }
 
   std::shared_ptr<OutgoingMsg> pop() {
-    recorders_.write_queue_len->recordAtomic(msgs_.size());
-    recorders_.write_queue_size_in_bytes->recordAtomic(queued_size_in_bytes_);
+    recorders_.write_queue_len->record(msgs_.size());
+    recorders_.write_queue_size_in_bytes->record(queued_size_in_bytes_);
     if (msgs_.empty()) {
       return nullptr;
     }

@@ -48,7 +48,7 @@ BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until, bool delete_files
   }
   auto jobDuration =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  histograms_.delete_batch_blocks_duration->recordAtomic(jobDuration);
+  histograms_.delete_batch_blocks_duration->record(jobDuration);
   return lastDeletedBlock;
 }
 

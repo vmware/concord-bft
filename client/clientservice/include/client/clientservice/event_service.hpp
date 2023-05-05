@@ -61,8 +61,8 @@ struct Recorders {
     registrar.perf.unRegisterComponent("clientservice_event_service");
   }
 
-  DEFINE_SHARED_RECORDER(processing_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(write_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(processing_duration, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(write_duration, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
 };
 
 class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {

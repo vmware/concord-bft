@@ -110,17 +110,17 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
                                         wait_for_cv,
                                         dropped_msgs_in_a_row});
     }
-    DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
-    DEFINE_SHARED_RECORDER(take_lock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(wait_for_cv, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(evaluate_timers, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(dropped_msgs_in_a_row, 1, 100000, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 500, 10000, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 500, 10000, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(take_lock, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(wait_for_cv, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(evaluate_timers, 500, MAX_VALUE_MICROSECONDS, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(dropped_msgs_in_a_row, 500, 100000, concord::diagnostics::Unit::COUNT);
   };
   Recorders histograms_;
 
-  concord::diagnostics::AsyncTimeRecorder<false> take_lock_recorder_;
-  concord::diagnostics::AsyncTimeRecorder<false> wait_for_cv_recorder_;
+  concord::diagnostics::AsyncTimeRecorder take_lock_recorder_;
+  concord::diagnostics::AsyncTimeRecorder wait_for_cv_recorder_;
 };
 
 }  // namespace bftEngine::impl

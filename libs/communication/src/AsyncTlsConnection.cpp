@@ -79,7 +79,7 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
                         "Short read on message header occurred"
                             << KVLOG(peer_id_.value(), bytes_remaining, bytes_transferred));
 
-              histograms_.async_read_header_partial->recordAtomic(durationInMicros(start));
+              histograms_.async_read_header_partial->record(durationInMicros(start));
               readMsgSizeHeader(MSG_HEADER_SIZE - (bytes_remaining - bytes_transferred));
             } else {
               // The message size header was read completely.
@@ -90,9 +90,9 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
                 return dispose();
               }
               if (!bytes_already_read) {
-                histograms_.async_read_header_full->recordAtomic(durationInMicros(start));
+                histograms_.async_read_header_full->record(durationInMicros(start));
               } else {
-                histograms_.async_read_header_partial->recordAtomic(durationInMicros(start));
+                histograms_.async_read_header_partial->record(durationInMicros(start));
               }
 
               readMsg();
@@ -130,12 +130,12 @@ void AsyncTlsConnection::readMsg() {
                    }
 
                    // The Read succeeded.
-                   histograms_.async_read_msg->recordAtomic(durationInMicros(start));
+                   histograms_.async_read_msg->record(durationInMicros(start));
                    LOG_DEBUG(logger_, "Cancelling read timer: " << KVLOG(peer_id_.value(), (void*)read_msg_.data()));
                    read_timer_.cancel();
-                   histograms_.received_msg_size->recordAtomic(bytes_transferred);
+                   histograms_.received_msg_size->record(bytes_transferred);
                    {
-                     concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
+                     concord::diagnostics::TimeRecorder scoped_timer(*histograms_.read_enqueue_time);
                      NodeNum endpoint_num = getReadMsgEndpointNum();
                      receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred, endpoint_num);
                    }
@@ -221,7 +221,7 @@ void AsyncTlsConnection::dispose(bool close_connection) {
 }
 
 void AsyncTlsConnection::send(std::shared_ptr<OutgoingMsg>&& msg) {
-  concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_conn);
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.send_post_to_conn);
   auto self = shared_from_this();
   boost::asio::post(strand_, [this, self, msg{move(msg)}]() { write(msg); });
 }
@@ -246,7 +246,7 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
   }
 
   // We don't want to include tcp transmission time.
-  histograms_.send_time_in_queue->recordAtomic(durationInMicros(write_msg_->send_time));
+  histograms_.send_time_in_queue->record(durationInMicros(write_msg_->send_time));
 
   auto self = shared_from_this();
   auto start = std::chrono::steady_clock::now();
@@ -270,9 +270,9 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
             }
 
             // The write succeeded.
-            histograms_.async_write->recordAtomic(durationInMicros(start));
+            histograms_.async_write->record(durationInMicros(start));
             write_timer_.cancel();
-            histograms_.sent_msg_size->recordAtomic(static_cast<int64_t>(write_msg_->msg.size()));
+            histograms_.sent_msg_size->record(static_cast<int64_t>(write_msg_->msg.size()));
             write_msg_ = nullptr;
             write_msg_used_ = false;
             write(write_queue_.pop());

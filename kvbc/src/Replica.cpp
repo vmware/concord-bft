@@ -652,7 +652,7 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
         LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, jobDuration));
-        histograms_.put_block_duration->recordAtomic(jobDuration);
+        histograms_.put_block_duration->record(jobDuration);
         return result;
       },
       std::forward<decltype(blockId)>(blockId),
@@ -741,7 +741,7 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId,
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
         LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, *outBlockActualSize, jobDuration));
-        histograms_.get_block_duration->recordAtomic(jobDuration);
+        histograms_.get_block_duration->record(jobDuration);
         return result;
       },
       std::forward<decltype(blockId)>(blockId),

@@ -22,10 +22,10 @@ static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
 TEST(histogram_tests, snapshots) {
   const std::string component_name("test_replica");
   const std::string hist_name("some_histogram");
-  auto recorder = std::make_shared<Recorder>(hist_name, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto histogram_ = std::make_shared<Recorder>(hist_name, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
   PerformanceHandler handler;
 
-  handler.registerComponent(component_name, {recorder});
+  handler.registerComponent(component_name, {histogram_});
   auto data = handler.get(component_name);
   // The histograms are empty
   auto hist_data = data.at(hist_name);
@@ -36,9 +36,13 @@ TEST(histogram_tests, snapshots) {
   auto snapshot_end = hist_data.snapshot_end;
 
   // Add a value to the histogram
-  recorder->record(1);
+  histogram_->record(1000);
+  histogram_->record(780000);
+  histogram_->record(120000);
+  histogram_->record(1500);
+  histogram_->record(180000);
 
-  // We haven't taken a snapshot yet to synchronize with the recorder (another thread in production)
+  // We haven't taken a snapshot yet to synchronize with the histogram_ (another thread in production)
 
   hist_data = handler.get(component_name).at(hist_name);
   hist_data2 = handler.get(component_name, hist_name);
@@ -53,8 +57,8 @@ TEST(histogram_tests, snapshots) {
   hist_data2 = handler.get(component_name, hist_name);
   ASSERT_EQ(0, hist_data.history.max);
   ASSERT_EQ(0, hist_data.history.count);
-  ASSERT_EQ(1, hist_data.last_snapshot.max);
-  ASSERT_EQ(1, hist_data.last_snapshot.count);
+  ASSERT_EQ(900000, hist_data.last_snapshot.max);
+  ASSERT_EQ(5, hist_data.last_snapshot.count);
   ASSERT_LT(snapshot_end, hist_data.snapshot_end);
   ASSERT_EQ(hist_data, hist_data2);
 
@@ -64,7 +68,7 @@ TEST(histogram_tests, snapshots) {
   handler.snapshot(component_name);
   hist_data = handler.get(component_name).at(hist_name);
   hist_data2 = handler.get(component_name, hist_name);
-  ASSERT_EQ(1, hist_data.history.max);
+  ASSERT_EQ(900000, hist_data.history.max);
   ASSERT_EQ(0, hist_data.last_snapshot.max);
   ASSERT_LT(snapshot_end, hist_data.snapshot_end);
   ASSERT_EQ(hist_data, hist_data2);

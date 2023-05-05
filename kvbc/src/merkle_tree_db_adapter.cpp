@@ -350,9 +350,8 @@ std::future<BlockDigest> DBAdapter::computeParentBlockDigest(BlockId blockId) co
     // Make sure the digest is zero-initialized by using {} initialization.
     auto parentBlockDigest = BlockDigest{};
     if (parentBlock) {
-      histograms.dba_hashed_parent_block_size->recordAtomic(parentBlock->length());
-      static constexpr bool is_atomic = true;
-      TimeRecorder<is_atomic> scoped(*histograms.dba_hash_parent_block);
+      histograms.dba_hashed_parent_block_size->record(parentBlock->length());
+      TimeRecorder scoped(*histograms.dba_hash_parent_block);
       parentBlockDigest = computeBlockDigest(blockId - 1, parentBlock->data(), parentBlock->length());
     }
     return parentBlockDigest;

@@ -714,41 +714,40 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         sendPartialProofToSelf});
     }
 
-    DEFINE_SHARED_RECORDER(send, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(executeRequestsAndSendResponses, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(prepareAndSendResponses, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(advanceActiveWindowMainLog, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 1, 2500, 3, Unit::COUNT);
+    DEFINE_SHARED_RECORDER(send, 500, MAX_VALUE_NANOSECONDS, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeWriteRequest, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsAndSendResponses, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(prepareAndSendResponses, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(advanceActiveWindowMainLog, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 50, 2500, Unit::COUNT);
     DEFINE_SHARED_RECORDER(requestsQueueOfPrimarySize,
-                           1,
+                           50,
                            // Currently, hardcoded to 700 in ReplicaImp.cpp
                            701,
-                           3,
                            Unit::COUNT);
-    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(onTransferringCompleteImp, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(onTransferringCompleteImp, 500, MAX_VALUE_NANOSECONDS, Unit::NANOSECONDS);
 
     // Only updated by the primary
-    DEFINE_SHARED_RECORDER(consensus, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(consensus, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
 
-    DEFINE_SHARED_RECORDER(timeInActiveView, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
-    DEFINE_SHARED_RECORDER(timeInStateTransfer, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
-    DEFINE_SHARED_RECORDER(checkpointFromCreationToStable, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(timeInActiveView, 500, MAX_VALUE_SECONDS, Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(timeInStateTransfer, 500, MAX_VALUE_SECONDS, Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(checkpointFromCreationToStable, 500, MAX_VALUE_SECONDS, Unit::SECONDS);
 
     // Measurements related to PrePrepare creation and sending
-    DEFINE_SHARED_RECORDER(removeDuplicatedRequestsFromQueue, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(buildPrePrepareMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(startConsensusProcess, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(finishAddingRequestsToPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(addAllRequestsToPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(addSelfMsgPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(prePrepareWriteTransaction, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(broadcastPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(sendPreparePartialToSelf, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(sendPartialProofToSelf, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(removeDuplicatedRequestsFromQueue, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(buildPrePrepareMessage, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(startConsensusProcess, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(finishAddingRequestsToPrePrepareMsg, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addAllRequestsToPrePrepare, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addSelfMsgPrePrepare, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(prePrepareWriteTransaction, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(broadcastPrePrepare, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(sendPreparePartialToSelf, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(sendPartialProofToSelf, 500, MAX_VALUE_MICROSECONDS, Unit::MICROSECONDS);
   };
 
   Recorders histograms_;
@@ -758,8 +757,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::diagnostics::AsyncTimeRecorderMap<SeqNum> consensus_times_;
   concord::diagnostics::AsyncTimeRecorderMap<SeqNum> checkpoint_times_;
 
-  concord::diagnostics::AsyncTimeRecorder<false> time_in_active_view_;
-  concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
+  concord::diagnostics::AsyncTimeRecorder time_in_active_view_;
+  concord::diagnostics::AsyncTimeRecorder time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
   concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
