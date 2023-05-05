@@ -17,7 +17,7 @@
 #include "sparse_merkle/tree.h"
 #include "sparse_merkle/proof_path_processor.h"
 
-#include "test_db.h"
+#include "serialized_test_db.h"
 
 #include <iostream>
 using namespace std;
@@ -27,7 +27,7 @@ using namespace concord::kvbc;
 using namespace concord::kvbc::sparse_merkle;
 using namespace proof_path_processor;
 
-void db_put(const shared_ptr<TestDB>& db, const UpdateBatch& batch) {
+void db_put(const shared_ptr<SerializedTestDB>& db, const UpdateBatch& batch) {
   for (const auto& [key, val] : batch.internal_nodes) {
     db->put(key, val);
   }
@@ -61,7 +61,7 @@ TEST(tree_tests, fill_trees_then_extract_proof_paths_and_verify_them) {
   auto seed = time(0);
   srand(seed);
   cout << "Test seed: " << seed << endl;
-  std::shared_ptr<TestDB> db(new TestDB);
+  std::shared_ptr<SerializedTestDB> db(new SerializedTestDB);
   std::vector<std::string> addresses;
   addresses.push_back("");
   for (int i = 0; i < 200; i++) {
