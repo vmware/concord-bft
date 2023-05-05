@@ -4,7 +4,6 @@
 # TODO [TK] - do we want enable cppckeck for tests?
 
 incorrectStringBooleanError
-uninitMemberVar
 noCopyConstructor
 noOperatorEq
 

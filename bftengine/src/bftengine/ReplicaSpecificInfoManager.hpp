@@ -34,8 +34,8 @@ class RsiItem {
 
  private:
   std::string data_;
-  uint64_t index_;
-  uint64_t req_seq_num_;
+  uint64_t index_ = 0;
+  uint64_t req_seq_num_ = 0;
 };
 
 class RsiDataManager {

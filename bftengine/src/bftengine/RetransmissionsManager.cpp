@@ -169,8 +169,8 @@ class RetransmissionsLogic {
     SeqNum seqNumber = 0;
 
     bool ackOrAbort = false;
-    uint16_t numOfTransmissions;  // valid only if ackOrAbort==false
-    Time timeOfTransmission;      // valid only if ackOrAbort==false
+    uint16_t numOfTransmissions = 0;  // valid only if ackOrAbort==false
+    Time timeOfTransmission;          // valid only if ackOrAbort==false
   };
 
   class ReplicaInfo {

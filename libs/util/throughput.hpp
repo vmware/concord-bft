@@ -191,7 +191,7 @@ class Throughput {
   Stats overall_stats_;
   Stats current_window_stats_;
   Stats previous_window_stats_;
-  uint64_t previous_window_index_;
+  uint64_t previous_window_index_ = 0;
   uint64_t reports_counter_ = 0;
   std::string name_;
 };  // class Throughput

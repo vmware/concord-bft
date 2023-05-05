@@ -78,7 +78,7 @@ class BehaviorThreadRunner {
   void stop() { stop_ = true; }
 
  private:
-  IReceiver* receiver_;
+  IReceiver* receiver_ = nullptr;
   std::atomic<bool> stop_ = false;
 
   Behavior behavior_;
@@ -131,7 +131,7 @@ class FakeCommunication : public bft::communication::ICommunication {
   void restartCommunication(NodeNum i) override {}
 
  private:
-  IReceiver* receiver_;
+  IReceiver* receiver_ = nullptr;
   BehaviorThreadRunner runner_;
   std::thread fakeCommThread_;
 };
