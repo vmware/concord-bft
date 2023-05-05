@@ -58,16 +58,23 @@ Status Replica::initInternals() {
 
   m_currentRepStatus = RepStatus::Starting;
 
-  if (replicaConfig_.isReadOnly) {
-    LOG_INFO(logger,
-             "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
+  if (replicaConfig_.isReadOnly || replicaConfig_.isFullNode) {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(
         bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
         bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
         *this));
-    m_replicaPtr = bftEngine::ReplicaFactory::createRoReplica(
-        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
+    if (replicaConfig_.isReadOnly) {
+      LOG_INFO(logger,
+               "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
+      m_replicaPtr = bftEngine::ReplicaFactory::createRoReplica(
+          replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
+    } else {
+      LOG_INFO(logger,
+               "FullNode Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
+      m_replicaPtr = bftEngine::ReplicaFactory::createFullNodeReplica(
+          replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
+    }
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -330,7 +337,7 @@ void Replica::createReplicaAndSyncState() {
 
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
-  if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
+  if (!replicaConfig_.isReadOnly && !replicaConfig_.isFullNode && !m_stateTransfer->isCollectingState()) {
     try {
       const auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
       const auto removedBlocksNum = replicaStateSync_->execute(
@@ -492,8 +499,10 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.cVal,
     replicaConfig_.numReplicas,
     replicaConfig_.numRoReplicas,
+    replicaConfig_.numFnReplicas,
     replicaConfig_.get("concord.bft.st.pedanticChecks", false),
     replicaConfig_.isReadOnly,
+    replicaConfig_.isFullNode,
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
     replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 30 * 1024 * 1024),
@@ -543,7 +552,7 @@ Replica::Replica(ICommunication *comm,
     stConfig.gettingMissingBlocksSummaryWindowSize = 50;
   }
 
-  if (!replicaConfig.isReadOnly) {
+  if (!replicaConfig.isReadOnly && !replicaConfig.isFullNode) {
     const auto linkStChain = true;
     {
       auto [it, inserted] = kvbc_categories.insert(
@@ -592,12 +601,18 @@ Replica::Replica(ICommunication *comm,
       return oss.str();
     });
     registrar.status.registerHandler(handler);
+  } else if (replicaConfig.isFullNode) {
+    op_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient),
+                            true,
+                            kvbc_categories,
+                            concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_));
+    m_kvBlockchain = &(op_kvBlockchain.value());
   }
   m_dbSet.dataDBClient->setAggregator(aggregator_);
   m_dbSet.metadataDBClient->setAggregator(aggregator_);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
-  if (!replicaConfig.isReadOnly) {
+  if (!replicaConfig.isReadOnly && !replicaConfig.isFullNode) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
     m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   } else {

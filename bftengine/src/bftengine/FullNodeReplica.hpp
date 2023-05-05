@@ -21,9 +21,9 @@ class ClientRequestMsg;
 /**
  *
  */
-class ReadOnlyReplica : public ReplicaForStateTransfer {
+class FullNodeReplica : public ReplicaForStateTransfer {
  public:
-  ReadOnlyReplica(const ReplicaConfig&,
+  FullNodeReplica(const ReplicaConfig&,
                   std::shared_ptr<IRequestsHandler>,
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
@@ -54,7 +54,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   template <class T>
   void onMessage(std::unique_ptr<T>);
 
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
   void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
 
  protected:
@@ -65,17 +64,19 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle sent_ask_for_checkpoint_msg_;
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
-  } ro_metrics_;
+  } fn_metrics_;
 
-  std::unique_ptr<MetadataStorage> metadataStorage_;
+  std::unique_ptr<MetadataStorage> metadata_storage_;
   std::atomic<SeqNum> last_executed_seq_num_{0};
 
  private:
-  // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function
-  // is that regular and read-only replicas expose different metrics and the status handlers are not interchangeable.
-  // The read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // This function serves as an ReplicaStatusHandlers alternative for FullNodeReplica. The reason to use this function
+  // is that regular and full node replicas expose different metrics and the status handlers are not interchangeable.
+  // The full node replica also hasn't got an implementation for InternalMessages which are used by the
   // ReplicaStatusHandler.
   void registerStatusHandlers();
+
+  void registerMsgHandlers();
 };
 
 }  // namespace bftEngine::impl

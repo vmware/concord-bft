@@ -49,8 +49,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 
   // Reserved Pages and State Transfer initialization
   ClientsManager::setNumResPages(
-      (config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients +
-       config.numReplicas + config.numOfClientServices) *
+      (config.numReplicas + config.numRoReplicas + config.numFnReplicas + config.numOfClientProxies +
+       config.numOfExternalClients + config.numReplicas + config.numOfClientServices) *
       ClientsManager::reservedPagesPerClient(
           config.getsizeOfReservedPage(),
           config.maxReplyMessageSize,

@@ -81,6 +81,7 @@ class ReplicasInfo {
 
   uint16_t getNumberOfReplicas() { return _numberOfReplicas; }
   uint16_t getNumberOfRoReplicas() { return _numberOfRoReplicas; }
+  uint16_t getNumberOfFnReplicas() { return _numberOfFnReplicas; }
   uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
   uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
   uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
@@ -90,6 +91,7 @@ class ReplicasInfo {
   const ReplicaId _myId = 0;
   const uint16_t _numberOfReplicas = 0;
   const uint16_t _numberOfRoReplicas = 0;
+  const uint16_t _numberOfFnReplicas = 0;
   const uint16_t _numOfClientProxies = 0;
   const uint16_t _numberOfExternalClients = 0;
   const uint16_t _numberOfClientServices = 0;

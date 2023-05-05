@@ -11,6 +11,7 @@ set(corebft_source_files
     src/bftengine/DebugStatistics.cpp
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/ReadOnlyReplica.cpp
+    src/bftengine/FullNodeReplica.cpp
     src/bftengine/ReplicaBase.cpp
     src/bftengine/ReplicaForStateTransfer.cpp
     src/bftengine/ReplicaImp.cpp
