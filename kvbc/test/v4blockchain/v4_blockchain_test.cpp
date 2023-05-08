@@ -59,6 +59,9 @@ class v4_kvbc : public Test {
     ASSERT_EQ(0, db.use_count());
     cleanup();
   }
+
+  void cleanDb(std::size_t dbId) { cleanup(dbId); }
+
   void create_blocks(uint64_t last_block,
                      uint32_t& num_merkle_each,
                      uint32_t& num_versioned_each,
@@ -1594,6 +1597,228 @@ TEST_F(v4_kvbc, add_altot_of_blocks_to_st_chain) {
   ASSERT_EQ(blockchain->getLastReachableBlockId(), 1000);
 }
 
+TEST_F(v4_kvbc, range_delete_on_st) {
+  std::string cat = "merkle";
+  char hex[15] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'e', 'f'};
+  std::vector<std::pair<std::string, std::string>> kvs;
+  std::vector<std::pair<std::string, std::string>> after_kvs;
+  std::mt19937 rgen;
+  std::uniform_int_distribution<uint32_t> char_dist(0, 15);
+  std::uniform_int_distribution<uint32_t> string_length_dist(30, 60);
+  auto dbid = string_length_dist(rgen);
+  auto other_db = TestRocksDb::createNative(dbid);
+  concord::kvbc::v4blockchain::detail::Blockchain other_blockchain{other_db};
+
+  std::string start;
+  std::string end;
+
+  // Add blocks
+  for (BlockId i = 1; i < 100; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    std::string val{"val"};
+    std::vector<std::pair<std::string, std::string>> local_kvs;
+    for (int i = 0; i < 10; ++i) {
+      std::string key;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        key.push_back(hex[ch]);
+      }
+      local_kvs.push_back({key, val});
+    }
+    for (const auto& [k, v] : local_kvs) {
+      kvs.push_back({k, v});
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    updates.add(cat, std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)i), true});
+    auto write_batch = other_db->getBatch();
+    auto id = other_blockchain.addBlock(updates, write_batch);
+    other_db->write(std::move(write_batch));
+    other_blockchain.setLastReachable(id);
+    ASSERT_EQ(blockchain->add(std::move(updates)), i);
+  }
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), 99);
+  ASSERT_EQ(other_blockchain.getLastReachable(), 99);
+  // validate that all kvs are accessible
+  for (const auto& [k, _] : kvs) {
+    (void)_;
+    auto opt_val = blockchain->getLatest(cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+  }
+  // add blocks to other blockchain
+  for (BlockId i = 100; i < 200; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    std::string val{"val"};
+    std::vector<std::pair<std::string, std::string>> local_kvs;
+    for (int i = 0; i < 10; ++i) {
+      std::string key;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        key.push_back(hex[ch]);
+      }
+      local_kvs.push_back({key, val});
+    }
+    for (const auto& [k, v] : local_kvs) {
+      kvs.push_back({k, v});
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    updates.add(cat, std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)i), true});
+    auto write_batch = other_db->getBatch();
+    auto id = other_blockchain.addBlock(updates, write_batch);
+    other_db->write(std::move(write_batch));
+    other_blockchain.setLastReachable(id);
+  }
+
+  ASSERT_EQ(other_blockchain.getLastReachable(), 199);
+
+  // Add the reange delete marker to the other blockchain
+  {
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::Updates updates;
+    std::string str;
+    std::string str2;
+    auto length = string_length_dist(rgen);
+    for (uint32_t j = 0; j < length; ++j) {
+      auto ch = char_dist(rgen);
+      str.push_back(hex[ch]);
+    }
+    for (uint32_t j = 0; j < length; ++j) {
+      auto ch = char_dist(rgen);
+      str2.push_back(hex[ch]);
+    }
+    if (str < str2) {
+      start = str;
+      end = str2;
+    } else {
+      start = str2;
+      end = str;
+    }
+    merkle_updates.addRangeDelete(std::string(start), std::string(end));
+    updates.add(cat, std::move(merkle_updates));
+
+    auto write_batch = other_db->getBatch();
+    auto id = other_blockchain.addBlock(updates, write_batch);
+    other_db->write(std::move(write_batch));
+    other_blockchain.setLastReachable(id);
+  }
+  ASSERT_EQ(other_blockchain.getLastReachable(), 200);
+
+  // add blocks to other blockchain after the range delete
+  for (BlockId i = 201; i < 300; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    std::string val{"val"};
+    std::vector<std::pair<std::string, std::string>> local_kvs;
+    for (int i = 0; i < 10; ++i) {
+      std::string key;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        key.push_back(hex[ch]);
+      }
+      local_kvs.push_back({key, val});
+    }
+    for (const auto& [k, v] : local_kvs) {
+      after_kvs.push_back({k, v});
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    updates.add(cat, std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)i), true});
+    auto write_batch = other_db->getBatch();
+    auto id = other_blockchain.addBlock(updates, write_batch);
+    other_db->write(std::move(write_batch));
+    other_blockchain.setLastReachable(id);
+  }
+  ASSERT_EQ(other_blockchain.getLastReachable(), 299);
+
+  for (BlockId i = 100; i < 299; ++i) {
+    auto block_data = other_blockchain.getBlockData(i);
+    ASSERT_TRUE(block_data.has_value());
+    blockchain->addBlockToSTChain(i, (*block_data).c_str(), (*block_data).size(), false);
+  }
+  ASSERT_TRUE(blockchain->hasBlock(298));
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), 99);
+  ASSERT_EQ(blockchain->getStChain().getLastBlockId(), 298);
+
+  auto block_data = other_blockchain.getBlockData((BlockId)299);
+  ASSERT_TRUE(block_data.has_value());
+  blockchain->addBlockToSTChain(299, (*block_data).c_str(), (*block_data).size(), true);
+
+  ASSERT_EQ(blockchain->getStChain().getLastBlockId(), 0);
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), 299);
+
+  int hit = 0;
+  int miss = 0;
+  int after = 0;
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(cat, k);
+    if (concord::util::isWithinRange(k, start, end)) {
+      ASSERT_FALSE(opt_val.has_value());
+      ++hit;
+    } else {
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+      ++miss;
+    }
+  }
+
+  for (const auto& [k, v] : after_kvs) {
+    auto opt_val = blockchain->getLatest(cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+    ++after;
+  }
+
+  std::cout << "stats hit " << hit << " miss " << miss << " after " << after << "\n";
+  cleanDb(dbid);
+}
+
 TEST_F(v4_kvbc, st_link_until) {
   std::string block_data;
   // Add blocks
@@ -2654,6 +2879,301 @@ TEST_F(v4_kvbc, get_from_snapshot_all_categories) {
           "immutable_value_" + std::to_string(expected_version) + "_" + std::to_string(kid);
       ASSERT_EQ(immutable_val.block_id, expected_version);
       ASSERT_EQ(immutable_val.data, expected_val);
+    }
+  }
+}
+
+TEST_F(v4_kvbc, apply_range_delete) {
+  std::vector<std::pair<std::string, std::string>> kvs = {
+      {"abc", "val1"}, {"abd", "val2"}, {"aberer", "val3"}, {"abf", "val4"}};
+  std::string merkle_cat{"merkle"};
+  std::string versioned_cat{"versioned"};
+  std::string imm_cat{"immutable"};
+  std::string start{"ab"};
+  std::string end{"abf"};
+
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    categorization::ImmutableUpdates immutable_updates;
+    categorization::VersionedUpdates ver_updates;
+
+    for (const auto& [k, v] : kvs) {
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    for (const auto& [k, v] : kvs) {
+      immutable_updates.addUpdate(std::string(k), {std::string(v), {"1"}});
+    }
+
+    for (const auto& [k, v] : kvs) {
+      ver_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    updates.add(merkle_cat, std::move(merkle_updates));
+    updates.add(versioned_cat, std::move(ver_updates));
+    updates.add(imm_cat, std::move(immutable_updates));
+
+    const auto stale_on_update = true;
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)1),
+                                                    stale_on_update});
+
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)1);
+  }
+
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(merkle_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(versioned_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::VersionedValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(imm_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  // Add the range delete, though it's added with a new SN, it won't be applied yet.
+  // As the range delete is applied in SN+1.
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    std::string start{"ab"};
+    std::string end{"abf"};
+    merkle_updates.addRangeDelete(std::string(start), std::string(end));
+
+    updates.add(merkle_cat, std::move(merkle_updates));
+
+    const auto stale_on_update = true;
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)2),
+                                                    stale_on_update});
+
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)2);
+
+    auto itr = db->getIterator(v4blockchain::detail::LATEST_KEYS_CF);
+    itr.seekAtLeast(blockchain->getLatestKeys().RANGE_DELETE_PREFIX);
+    int i = 0;
+    auto cat_prefix = blockchain->getLatestKeys().getCategoryPrefix(merkle_cat);
+    while (itr && itr.keyView().substr(0, 1) == blockchain->getLatestKeys().RANGE_DELETE_PREFIX) {
+      auto [db_start, db_end] = blockchain->getLatestKeys().extractRange(itr);
+      ASSERT_EQ(cat_prefix + start, db_start);
+      ASSERT_EQ(cat_prefix + end, db_end);
+      ++i;
+      itr.next();
+    }
+    ASSERT_EQ(i, 1);
+  }
+
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(merkle_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(versioned_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::VersionedValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(imm_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  // same sn as the range delete, so we don't apply it yet
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    merkle_updates.addUpdate(std::string("abdr"), std::string("re-added"));
+
+    updates.add(merkle_cat, std::move(merkle_updates));
+
+    const auto stale_on_update = true;
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)2),
+                                                    stale_on_update});
+
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)3);
+  }
+
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(merkle_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(versioned_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::VersionedValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(imm_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+
+  // new sn -> apply
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    merkle_updates.addUpdate(std::string("abdrm"), std::string("fresh"));
+
+    updates.add(merkle_cat, std::move(merkle_updates));
+
+    const auto stale_on_update = true;
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)3),
+                                                    stale_on_update});
+
+    ASSERT_EQ(blockchain->add(std::move(updates)), (BlockId)4);
+  }
+  // Merkle should be impacted by the range delte
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(merkle_cat, k);
+    if (concord::util::isWithinRange(k, start, end)) {
+      ASSERT_FALSE(opt_val.has_value());
+    } else {
+      ASSERT_TRUE(opt_val.has_value());
+      auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+      ASSERT_EQ(val.data, v);
+    }
+  }
+
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(versioned_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::VersionedValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(imm_cat, k);
+    ASSERT_TRUE(opt_val.has_value());
+    auto val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    ASSERT_EQ(val.data, v);
+  }
+
+  // also the updates that were added after the range delete shoule be present
+  auto opt_val = blockchain->getLatest(merkle_cat, "abdr");
+  ASSERT_TRUE(opt_val.has_value());
+  auto val = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val);
+  ASSERT_EQ(val.data, "re-added");
+
+  auto opt_val2 = blockchain->getLatest(merkle_cat, "abdrm");
+  ASSERT_TRUE(opt_val2.has_value());
+  auto val2 = std::get<concord::kvbc::categorization::MerkleValue>(*opt_val2);
+  ASSERT_EQ(val2.data, "fresh");
+}
+
+TEST_F(v4_kvbc, automated_range_delete) {
+  std::string cat = "merkle";
+  char hex[15] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'e', 'f'};
+  std::map<std::string, std::pair<std::string, BlockId>> kvs;
+  std::map<BlockId, std::pair<std::string, std::string>> ranges;
+  std::mt19937 rgen;
+  std::uniform_int_distribution<uint32_t> char_dist(0, 15);
+  std::uniform_int_distribution<uint32_t> string_length_dist(30, 60);
+  auto sn = 1;
+
+  // Add blocks
+  for (BlockId i = 1; i < 1000; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+
+    std::string val{"val"};
+    std::vector<std::pair<std::string, std::string>> local_kvs;
+    for (int i = 0; i < 10; ++i) {
+      std::string key;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        key.push_back(hex[ch]);
+      }
+      local_kvs.push_back({key, val});
+    }
+    for (const auto& [k, v] : local_kvs) {
+      kvs[k] = {v, i};
+      merkle_updates.addUpdate(std::string(k), std::string(v));
+    }
+
+    auto isRange = char_dist(rgen);
+    if (isRange % 6 == 0) {
+      std::string str;
+      std::string str2;
+      std::string start;
+      std::string end;
+      auto length = string_length_dist(rgen);
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        str.push_back(hex[ch]);
+      }
+      for (uint32_t j = 0; j < length; ++j) {
+        auto ch = char_dist(rgen);
+        str2.push_back(hex[ch]);
+      }
+      if (str < str2) {
+        start = str;
+        end = str2;
+      } else {
+        start = str2;
+        end = str;
+      }
+      merkle_updates.addRangeDelete(std::string(start), std::string(end));
+      ranges[i] = {start, end};
+    }
+    updates.add(cat, std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+    updates.appendKeyValue<categorization::VersionedUpdates>(
+        categorization::kConcordInternalCategoryId,
+        std::string{IBlockMetadata::kBlockMetadataKey},
+        categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer((uint64_t)sn), true});
+    if (char_dist(rgen) % 2 == 0) sn++;
+    ASSERT_EQ(blockchain->add(std::move(updates)), i);
+  }
+  for (const auto& [k, v] : kvs) {
+    auto opt_val = blockchain->getLatest(cat, k);
+    auto deleted = false;
+    for (const auto& [version, range_pair] : ranges) {
+      if (v.second <= version && concord::util::isWithinRange(k, range_pair.first, range_pair.second)) {
+        ASSERT_FALSE(opt_val.has_value());
+        deleted = true;
+      }
+    }
+    if (!deleted) {
+      ASSERT_TRUE(opt_val.has_value());
     }
   }
 }

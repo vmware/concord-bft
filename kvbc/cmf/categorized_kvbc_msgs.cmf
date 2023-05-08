@@ -3,6 +3,7 @@
 Msg BlockMerkleInput 1 {
     map string string kv
     list string deletes
+    list kvpair string string range_deletes
 }
 
 Msg ValueWithFlags 2 {

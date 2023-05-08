@@ -14,6 +14,7 @@
 #pragma once
 
 #include "util/assertUtils.hpp"
+#include "util/string.hpp"
 #include "details.h"
 #include "kv_types.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
@@ -160,11 +161,30 @@ struct BlockMerkleUpdates {
 
   using ValueType = std::string;
 
-  void addUpdate(std::string&& key, std::string&& val) { data_.kv[std::move(key)] = std::move(val); }
+  void addUpdate(std::string&& key, std::string&& val) {
+    if (data_.range_deletes.size() > 0) {
+      for (const auto& [start, end] : data_.range_deletes) {
+        if (util::isWithinRange(std::string_view(key.c_str(), key.size()),
+                                std::string_view(start.c_str(), start.size()),
+                                std::string_view(end.c_str(), end.size()))) {
+          throw std::logic_error{std::string("Adding a key to a range that was marked for deletion, is not allowed "
+                                             "within the same block. range:start [") +
+                                 start + std::string("] end [") + end + std::string("], overlapping key [") + key +
+                                 std::string("]")};
+        }
+      }
+    }
+    data_.kv[std::move(key)] = std::move(val);
+  }
 
   void addDelete(std::string&& key) {
     deletes_sorted_and_duplicates_removed = false;
     data_.deletes.emplace_back(std::move(key));
+  }
+
+  void addRangeDelete(std::string&& start, std::string&& end) {
+    deletes_sorted_and_duplicates_removed = false;
+    data_.range_deletes.emplace_back(std::make_pair(std::move(start), std::move(end)));
   }
 
   const BlockMerkleInput& getData() const {
@@ -178,6 +198,7 @@ struct BlockMerkleUpdates {
   void sortAndRemoveDuplicateDeletes() const {
     if (!deletes_sorted_and_duplicates_removed) {
       detail::sortAndRemoveDuplicates(data_.deletes);
+      detail::sortAndRemoveDuplicates(data_.range_deletes);
       deletes_sorted_and_duplicates_removed = true;
     }
   }

@@ -108,5 +108,14 @@ inline bool isValidHexString(const std::string& str) {
   return str.length() % 2 == 0 && (str.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos);
 }
 
+// checks if str is within the range ["start_range", "end_range")
+template <typename T>
+inline bool isWithinRange(T str, T start_range, T end_range) {
+  if (str >= start_range && str < end_range) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace util
 }  // namespace concord
