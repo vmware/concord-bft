@@ -112,6 +112,15 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
     concord-crypto
 )
 
+add_executable(sparse_merkle_multiple_trees_test sparse_merkle/multiple_trees_test.cpp)
+target_link_libraries(sparse_merkle_multiple_trees_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    kvbc
+    corebft
+    concord-crypto
+)
+
 if (BUILD_ROCKSDB_STORAGE)
 add_executable(multiIO_test multiIO_test.cpp )
 add_test(multiIO_test multiIO_test)

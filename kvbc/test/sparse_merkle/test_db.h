@@ -32,6 +32,10 @@ class TestDB : public IDBReader {
     }
   }
 
+  bool del(const LeafKey& key) { return leaf_nodes_.erase(key) == 1; }
+
+  bool del(const InternalNodeKey& key) { return internal_nodes_.erase(key) == 1; }
+
   BatchedInternalNode get_latest_root(std::string custom_prefix = "") const override {
     if (latest_version_.find(custom_prefix) == latest_version_.end()) {
       return BatchedInternalNode();
