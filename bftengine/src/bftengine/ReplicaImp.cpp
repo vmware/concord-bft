@@ -1059,7 +1059,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsgUPtr msg) {
              "etc...)");
     return;
   }
-  PrePrepareMsgShPtr message = std::make_shared<PrePrepareMsg>(msg.release());
+  PrePrepareMsgShPtr message(std::move(msg));
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     if (!validatePreProcessedResults(message.get(), getCurrentView())) {
       // trigger view change
