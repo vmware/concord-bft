@@ -83,7 +83,7 @@ class Blockchain {
   }
 
   bool hasBlock(BlockId block_id) const {
-    return native_client_->getSlice(detail::BLOCKS_CF, Block::generateKey(block_id)).has_value();
+    return (bool)native_client_->getSlice(detail::BLOCKS_CF, Block::generateKey(block_id));
   }
 
   /////////////////////// State transfer Block chain ///////////////////////
@@ -152,7 +152,7 @@ class Blockchain {
     }
 
     bool hasBlock(BlockId block_id) const {
-      return native_client_->getSlice(detail::ST_CHAIN_CF, Block::generateKey(block_id)).has_value();
+      return (bool)native_client_->getSlice(detail::ST_CHAIN_CF, Block::generateKey(block_id));
     }
 
     void updateLastId(const BlockId id) {

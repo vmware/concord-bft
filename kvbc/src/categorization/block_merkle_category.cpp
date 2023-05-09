@@ -724,7 +724,7 @@ void BlockMerkleCategory::deleteStaleData(uint64_t tree_version, detail::LocalWr
 
   // Create a batch to delete stale keys for this tree version
   auto ser_stale = db_->getSlice(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{tree_version}));
-  ConcordAssert(ser_stale.has_value());
+  ConcordAssert((bool)ser_stale);
   addStaleKeysToDeleteBatch(*ser_stale, tree_version, batch);
   putLastDeletedTreeVersion(tree_version, batch);
 }
@@ -747,7 +747,7 @@ MerkleBlockValue BlockMerkleCategory::computeRootHash(BlockId block_id,
     // Calculate a new root hash for all keys in the block
     auto versioned_key = serialize(VersionedKey{key, block_id});
     auto value = db_->getSlice(BLOCK_MERKLE_KEYS_CF, versioned_key);
-    ConcordAssert(value.has_value());
+    ConcordAssert((bool)value);
     auto val_hash = hash(*value);
     hasher.update(key.value.data(), key.value.size());
     hasher.update(val_hash.data(), val_hash.size());
