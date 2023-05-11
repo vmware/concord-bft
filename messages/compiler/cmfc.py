@@ -38,6 +38,12 @@ def translate(ast, language, namespace, output):
         with open(output + ".py", "w") as f:
             f.write(code)
 
+    elif language == "rust":
+        print("Generating Rust source code")
+        from rust import rustgen
+        code = rustgen.translate(ast, namespace)
+        with open(output + ".rs", "w") as f:
+            f.write(code)
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -48,7 +54,7 @@ def parse_args():
     parser.add_argument("--output", help="The output filename", required=True)
     parser.add_argument("--language",
                         help="The output language",
-                        choices=["cpp", "python"],
+                        choices=["cpp", "python", "rust"],
                         required=True)
     parser.add_argument(
         "--namespace",
