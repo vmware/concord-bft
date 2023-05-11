@@ -46,8 +46,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   }
 
   CONFIG_PARAM(isReadOnly, bool, false, "Am I a read-only replica?");
+  CONFIG_PARAM(isFullNode, bool, false, "Am I a fullNode replica?");
   CONFIG_PARAM(numReplicas, uint16_t, 0, "number of regular replicas");
   CONFIG_PARAM(numRoReplicas, uint16_t, 0, "number of read-only replicas");
+  CONFIG_PARAM(numFnReplicas, uint16_t, 0, "number of full-node replicas");
   CONFIG_PARAM(fVal, uint16_t, 0, "F value - max number of faulty/malicious replicas. fVal >= 1");
   CONFIG_PARAM(cVal, uint16_t, 0, "C value. cVal >=0");
   CONFIG_PARAM(replicaId,
@@ -327,8 +329,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   void serializeDataMembers(std::ostream& outStream) const {
     serialize(outStream, isReadOnly);
+    serialize(outStream, isFullNode);
     serialize(outStream, numReplicas);
     serialize(outStream, numRoReplicas);
+    serialize(outStream, numFnReplicas);
     serialize(outStream, fVal);
     serialize(outStream, cVal);
     serialize(outStream, replicaId);
@@ -427,8 +431,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
+    deserialize(inStream, isFullNode);
     deserialize(inStream, numReplicas);
     deserialize(inStream, numRoReplicas);
+    deserialize(inStream, numFnReplicas);
     deserialize(inStream, fVal);
     deserialize(inStream, cVal);
     deserialize(inStream, replicaId);
@@ -605,7 +611,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.maxNumberOfDbCheckpoints,
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
-              rc.dbSnapshotIntervalSeconds.count());
+              rc.dbSnapshotIntervalSeconds.count(),
+              rc.isFullNode);
   os << ",";
   const auto replicaMsgSignAlgo =
       (concord::crypto::SignatureAlgorithm::EdDSA == rc.replicaMsgSigningAlgo) ? "eddsa" : "undefined";

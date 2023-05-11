@@ -364,7 +364,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const { return ticks_gen_; }
 
-  virtual bool isReadOnly() const override { return false; }
+  virtual bool isReadOnly() const override { return config_.isReadOnly; }
+
+  virtual bool isFullNode() const override { return config_.isFullNode; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> getSecretsManager() { return sm_; }

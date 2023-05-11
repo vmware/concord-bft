@@ -51,18 +51,23 @@ SigManager* SigManager::initImpl(
   size_t lowBound, highBound;
   auto numReplicas = replicasInfo.getNumberOfReplicas();
   auto numRoReplicas = replicasInfo.getNumberOfRoReplicas();
+  auto numFnReplicas = replicasInfo.getNumberOfFnReplicas();
   auto numOfClientProxies = replicasInfo.getNumOfClientProxies();
   auto numOfExternalClients = replicasInfo.getNumberOfExternalClients();
   auto numOfInternalClients = replicasInfo.getNumberOfInternalClients();
   auto numOfClientServices = replicasInfo.getNumberOfClientServices();
 
-  LOG_INFO(
-      GL,
-      "Compute publicKeysMapping and publickeys: " << KVLOG(
-          myId, numReplicas, numRoReplicas, numOfClientProxies, numOfExternalClients, publicKeysOfReplicas.size()));
+  LOG_INFO(GL,
+           "Compute publicKeysMapping and publickeys: " << KVLOG(myId,
+                                                                 numReplicas,
+                                                                 numRoReplicas,
+                                                                 numFnReplicas,
+                                                                 numOfClientProxies,
+                                                                 numOfExternalClients,
+                                                                 publicKeysOfReplicas.size()));
 
   SigManager::KeyIndex i{0};
-  highBound = numReplicas + numRoReplicas - 1;
+  highBound = numReplicas + numRoReplicas + numFnReplicas - 1;
   for (const auto& repIdToKeyPair : publicKeysOfReplicas) {
     // each replica sign with a unique private key (1 to 1 relation)
     ConcordAssert(repIdToKeyPair.first <= highBound);
@@ -74,7 +79,7 @@ SigManager* SigManager::initImpl(
     // Multiple clients might be signing with the same private key (1 to many relation)
     // Also, we do not enforce to have all range between [lowBound, highBound] construcred. We might want to have less
     // principal ids mapped to keys than what is stated in the range.
-    lowBound = numRoReplicas + numReplicas + numOfClientProxies;
+    lowBound = numRoReplicas + numFnReplicas + numReplicas + numOfClientProxies;
     highBound = lowBound + numOfExternalClients + numOfInternalClients + numOfClientServices - 1;
     for (const auto& p : (*publicKeysOfClients)) {
       ConcordAssert(!p.first.empty());

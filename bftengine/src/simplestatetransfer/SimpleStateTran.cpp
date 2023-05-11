@@ -313,8 +313,10 @@ SimpleStateTran::SimpleStateTran(
       cVal,                                 // cVal
       (uint16_t)(3 * fVal + 2 * cVal + 1),  // numReplicas
       0,                                    // numRoReplicas
+      0,                                    // numFnReplicas
       pedanticChecks,                       // pedanticChecks
       false,                                // isReadOnly
+      false,                                // isFullNode
       128,                                  // maxChunkSize
       256,                                  // maxNumberOfChunksInBatch
       1024,                                 // maxBlockSize
