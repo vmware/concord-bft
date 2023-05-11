@@ -89,4 +89,13 @@ class Transaction {
   struct Impl;
   Impl* pImpl_;
 };
+
+class InvalidCoinsInTransfer : public std::exception {
+ public:
+  explicit InvalidCoinsInTransfer(const std::string& what) : msg(what){};
+  virtual const char* what() const noexcept override { return msg.c_str(); }
+
+ private:
+  std::string msg;
+};
 }  // namespace libutt::api::operations
