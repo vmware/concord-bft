@@ -198,12 +198,14 @@ void ReplicaImp::messageHandler(std::unique_ptr<MessageBase> msg) {
       return;
     }
   }
+
   if constexpr (std::is_same_v<T, StateTransferMsg>) {
     if (validateMessage(trueTypeObj.get())) {
       onMessage<T>(std::move(trueTypeObj));
     }
     return;
   }
+
   if (!isCollectingState()) {
     // The message validation of few messages require time-consuming processes like
     // digest calculation, signature verification etc. Such messages are identified
