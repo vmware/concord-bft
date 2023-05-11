@@ -128,8 +128,33 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
                                       uint64_t bid) {
-  return handleWedgeCommands(
-      command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
+  // This callback should work together with the asyncCRE scaling handler. If the scale command has broken state
+  // transfer itself, we won't even get to that point, and the CRE is expected to handle this case. However, if we did
+  // manage to complete state transfer, CRE is halted and we need to execute the command based on the state we gained
+  // during state transfer. In order not to execute the command twice, we do check that this configuration was not
+  // already executed by reading the local configuration list.
+  std::ofstream configurations_file;
+  configurations_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
+                               concord::reconfiguration::configurationsFileName + "." +
+                               std::to_string(bftEngine::ReplicaConfig::instance().replicaId),
+                           std::ios_base::app);
+  if (configurations_file.good()) {
+    std::stringstream stream;
+    stream << configurations_file.rdbuf();
+    std::string configs = stream.str();
+    if (configs.find(command.config_descriptor) != std::string::npos) {
+      LOG_INFO(GL, "the scale command was already executed by async CRE, we won't execute it again");
+      return false;
+    }
+  }
+  bool succ = true;
+  concord::messages::ReconfigurationResponse response;
+  for (auto &h : orig_reconf_handlers_) {
+    // If it was written to the blockchain, it means that this is a valid request.
+    // We do need to execute every relevant reconfiguration handler to complete the scale command.
+    succ &= h->handle(command, bft_seq_num, UINT32_MAX, std::nullopt, response);
+  }
+  return succ;
 }
 
 bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &command,

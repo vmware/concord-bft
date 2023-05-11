@@ -492,7 +492,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view, timeout=20 + timeouts)
 
-    @unittest.skip("Unstable")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @verify_linearizability()

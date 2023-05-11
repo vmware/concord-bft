@@ -74,31 +74,13 @@ void ReplicaForStateTransfer::start() {
   stateTransfer->setReconfigurationEngine(cre_);
   stateTransfer->addOnTransferringCompleteCallback(
       [this](std::uint64_t) {
-        // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - consider refactor or move outside
         if (!config_.isReadOnly) {
-          // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
-          // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
-          // scaling) then CRE probably won't work as well.
-          // 1. First, make sure we handled the most recent available updates.
-          concord::client::reconfiguration::PollBasedStateClient *pbc =
-              (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
-          bool succ = false;
-          while (!succ) {
-            auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
-            auto latestReconfUpdates = pbc->getStateUpdate(succ);
-            if (!succ) {
-              LOG_WARN(GL, "unable to get the latest reconfiguration updates");
-            }
-            for (const auto &update : latestReconfUpdates) {
-              if (update.blockid > latestHandledUpdate) {
-                succ = false;
-                break;
-              }  // else if (!isGettingBlocks)
-            }
-          }  // while (!succ) {
+          // CRE may not read all the relevant updates. This may be an issue only in a committer node, which do not run
+          // state transfer continually. If this is the case, we need to execute the the relevant reconfiguration
+          // commands, based on the state we gained during state transfer. In any such case, it is the developer
+          // responsibility to synchronize between the two mechanisms. For example, see the AddRemoveWithWedgeCommand
+          // handler in concordbft/kvbc/include/st_reconfiguraion_sm.hpp
           LOG_INFO(GL, "halting cre");
-          // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
-          // blocks that haven't been handled yet
           cre_->halt();
         }
       },
