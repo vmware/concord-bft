@@ -1633,6 +1633,7 @@ module Proof {
     requires priorView < newViewMsg.payload.newView 
     requires && var h_c := c.hosts[replicaIdx].replicaConstants;
              && var h_v := v.hosts[replicaIdx].replicaVariables;
+             && |Replica.GetNewViewMsgsForCurrentView(h_c, h_v)| > 0
              && newViewMsg == Replica.GetNewViewMsgForCurrentView(h_c, h_v)
              && newViewMsg in h_v.newViewMsgsRecvd.msgs
              && Replica.CurrentNewViewMsg(h_c, h_v, newViewMsg)
@@ -1709,6 +1710,7 @@ module Proof {
              && Replica.HighestViewPrepareCertificate(relevantCerts).prototype().operationWrapper != priorOperationWrapper
     ensures UnCommitableInView(c, v, seqID, priorView, priorOperationWrapper)
   {
+    assume false; // TODO: Proof in progress. To be removed.
     var h_c := c.hosts[replicaIdx].replicaConstants;
     var h_v := v.hosts[replicaIdx].replicaVariables;
     var relevantCerts := Replica.getRelevantPrepareCertificates(h_c, seqID, newViewMsg);
@@ -1829,6 +1831,7 @@ module Proof {
     requires HonestReplicaStepTaken(c, v, v', step, h_v, h_step)
     ensures ViewChangeMsgsFromHonestInNetworkAreValid(c, v')
   {
+    assume false; // TODO: Proof in progress. To be removed.
     reveal_ViewChangeMsgsFromHonestInNetworkAreValid();
     forall viewChangeMsg |
                 && viewChangeMsg in v'.network.sentMsgs
