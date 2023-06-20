@@ -11,14 +11,15 @@
 
 include "network.s.dfy"
 include "library/Library.dfy"
+include "cluster_config.s.dfy"
 
 module Messages {
   import Library
   import opened HostIdentifiers
   import Network
+  import opened ClusterConfig
 
-  type SequenceID = k:nat | 0 < k witness 1
-  type ViewNum = nat
+  type SequenceID = nat
 
   datatype ClientOperation = ClientOperation(sender:HostId, timestamp:nat)
 
@@ -40,26 +41,42 @@ module Messages {
     predicate WF() {
       (forall v | v in votes :: v.payload.Prepare?)
     }
-    predicate valid(quorumSize:nat) {
+    predicate validFull(clusterConfig:ClusterConfig.Constants, seqID:SequenceID)
+      requires clusterConfig.WF()
+    {
+      && |votes| >= clusterConfig.AgreementQuorum()
+      && WF()
+      && prototype().seqID == seqID
+      && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
+      && UniqueSenders(votes)
+      && (forall v | v in votes :: clusterConfig.IsReplica(v.sender))
+    }
+    predicate valid(clusterConfig:ClusterConfig.Constants, seqID:SequenceID)
+      requires clusterConfig.WF()
+    {
       || empty()
-      || (&& |votes| == quorumSize
-          && WF()
-          && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
-          && UniqueSenders(votes))
+      || validFull(clusterConfig, seqID)
     }
     predicate empty() {
       && |votes| == 0
     }
+    predicate votesRespectView(view:ViewNum) 
+      requires WF()
+    {
+      !empty() ==> prototype().view < view
+    }
   }
 
   datatype ViewChangeMsgsSelectedByPrimary = ViewChangeMsgsSelectedByPrimary(msgs:set<Network.Message<Message>>) {
-    predicate valid(view:ViewNum, quorumSize:nat) {
+    predicate valid(view:ViewNum, clusterConfig:ClusterConfig.Constants) 
+      requires clusterConfig.WF()
+    {
       && |msgs| > 0
       && (forall v | v in msgs :: && v.payload.ViewChangeMsg?
-                                  && v.payload.validViewChangeMsg(quorumSize)
+                                  && v.payload.validViewChangeMsg(clusterConfig)
                                   && v.payload.newView == view) // All the ViewChange messages have to be for the same View. 
       && UniqueSenders(msgs)
-      && |msgs| == quorumSize //TODO: once proof is complete try with >=
+      && |msgs| == clusterConfig.AgreementQuorum() //TODO: once proof is complete try with >=
     }
   }
 
@@ -71,12 +88,14 @@ module Messages {
       prot.payload
     }
     predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
-      && |msgs| > 0
-      && UniqueSenders(msgs)
-      && (forall m | m in msgs :: && m.payload.CheckpointMsg?
-                                  && m.payload == prototype()
-                                  && m.payload.seqIDReached == lastStableCheckpoint)
-      && |msgs| >= quorumSize
+      || (&& lastStableCheckpoint == 0
+          && |msgs| == 0)
+      || (&& |msgs| > 0
+          && UniqueSenders(msgs)
+          && (forall m | m in msgs :: && m.payload.CheckpointMsg?
+                                      && m.payload == prototype()
+                                      && m.payload.seqIDReached == lastStableCheckpoint)
+          && |msgs| >= quorumSize)
     }
   }
 
@@ -87,7 +106,7 @@ module Messages {
                        :: m1.sender != m2.sender)
   }
 
-  // Define your Message datatype here.
+  // Define your Message datatype here. // TODO: rename to payload.
   datatype Message = | PrePrepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Prepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Commit(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
@@ -99,20 +118,51 @@ module Messages {
                      | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
                      | CheckpointMsg(seqIDReached:SequenceID, committedClientOperations:CommittedClientOperations)
                      {
-                       predicate valid(quorumSize:nat)
+                       predicate valid(clusterConfig:ClusterConfig.Constants)
+                         requires clusterConfig.WF()
                        {
-                         && (ViewChangeMsg? ==> validViewChangeMsg(quorumSize))
-                         && (NewViewMsg? ==> validNewViewMsg(quorumSize))
+                         && (ViewChangeMsg? ==> validViewChangeMsg(clusterConfig))
+                         && (NewViewMsg? ==> validNewViewMsg(clusterConfig))
                        }
-                       predicate validViewChangeMsg(quorumSize:nat) 
+                       predicate checked(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires clusterConfig.WF()
+                       {
+                         && (ViewChangeMsg? ==> checkedViewChangeMsg(clusterConfig, sigChecks))
+                         && (NewViewMsg? ==> checkedNewViewMsg(clusterConfig, sigChecks))
+                       }
+                       predicate validViewChangeMsg(clusterConfig:ClusterConfig.Constants)
+                         requires clusterConfig.WF()
                          requires ViewChangeMsg?
                        {
-                         proofForLastStable.valid(lastStableCheckpoint, quorumSize)
+                         && (forall seqID | seqID in certificates
+                                     :: && certificates[seqID].valid(clusterConfig, seqID)
+                                        && certificates[seqID].votesRespectView(newView))
+                         && proofForLastStable.valid(lastStableCheckpoint, clusterConfig.AgreementQuorum())
                        }
-                       predicate validNewViewMsg(quorumSize:nat) 
+                       predicate validNewViewMsg(clusterConfig:ClusterConfig.Constants)
+                         requires clusterConfig.WF()
                          requires NewViewMsg?
                        {
-                         vcMsgs.valid(newView, quorumSize)
+                         && vcMsgs.valid(newView, clusterConfig)
+                         && (forall replica | replica in sendersOf(vcMsgs.msgs)
+                                              :: clusterConfig.IsReplica(replica))
+                       }
+                       predicate checkedViewChangeMsg(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires ViewChangeMsg?
+                         requires clusterConfig.WF()
+                       {
+                          && valid(clusterConfig)
+                          // Check Checkpoint msg-s signatures:
+                          && proofForLastStable.msgs <= sigChecks
+                          && (forall seqID | seqID in certificates
+                                  :: && certificates[seqID].votes <= sigChecks)
+                       }
+                       predicate checkedNewViewMsg(clusterConfig:ClusterConfig.Constants, sigChecks:set<Network.Message<Message>>)
+                         requires NewViewMsg?
+                         requires clusterConfig.WF()
+                       {
+                          && valid(clusterConfig)
+                          && vcMsgs.msgs <= sigChecks
                        }
                        predicate IsIntraViewMsg() {
                           || PrePrepare?
@@ -120,5 +170,12 @@ module Messages {
                           || Commit? 
                        }
                      }
+  predicate ValidNewViewMsg(clusterConfig:ClusterConfig.Constants, msg:Network.Message<Message>)
+  {
+    && clusterConfig.WF()
+    && msg.payload.NewViewMsg?
+    && msg.payload.valid(clusterConfig)
+    && clusterConfig.PrimaryForView(msg.payload.newView) == msg.sender
+  }
   // ToDo: ClientReply
 }

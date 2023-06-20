@@ -1,4 +1,25 @@
 module Library {
+  lemma MappedSetCardinality<T, V>(p:set<T>, f:(T)-->V, filtered:set<V>)
+    requires forall t | t in p :: f.requires(t)
+    requires forall x, y | && x in p
+                           && y in p 
+                           && f(x) == f(y)
+                        :: x == y
+    //requires filtered == set t | t in p :: f(t) // TODO: bug in Dafny makes this un-triggerable. Uncomment when we find a workaround!
+    ensures |filtered| == |p|
+  {
+    assert filtered == set t | t in p :: f(t) by {
+      assume false; // TODO: temporary fix for triggering problem in Dafny.
+    }
+    if |p| != 0 {
+      var t0 :| t0 in p;
+      var sub_p := p - {t0};
+      MappedSetCardinality(sub_p, f, set t | t in sub_p :: f(t));
+      assert p == sub_p + {t0}; // Trigger extentionallity
+      assert (set t | t in p :: f(t)) == (set t | t in sub_p :: f(t)) + {f(t0)}; // Trigger extentionallity
+    }
+  }
+
   function DropLast<T>(theSeq: seq<T>) : seq<T>
     requires 0 < |theSeq|
   {
