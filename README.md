@@ -4,7 +4,6 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)<br/>
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Build%20and%20Test/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A%22Build+and+Test%22)<br/>
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Restart%20recovery%20suite/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Restart+recovery+suite")<br/>
 
 <!-- ![Concored-bft Logo](TBD) -->
 
