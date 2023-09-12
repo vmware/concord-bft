@@ -36,11 +36,11 @@ ccron supports multiple cron tables of the form shown below:
 | 2          | BFT seq >= next ? | run smart contract Y | next = seq + N     | remove next   |
 
 A cron table consists of an ordered list of entries. Entries are evaluated in order and contain the following:
- * Rule - a C++ function that returns true if the Action must be executed or false otherwise.
- * Action - a C++ function that executes an application-specific action.
- * opt Schedule Next - an optional C++ function that can be used to schedule (or persist) the next execution.
+ * Rule - A C++ function that returns true if the Action must be executed or false otherwise.
+ * Action - A C++ function that executes an application-specific action.
+ * opt Schedule Next - An optional C++ function that can be used to schedule (or persist) the next execution.
    Schedule Next is only executed if Rule returns true.
- * opt On Remove - an optional C++ function that can be called when removing a cron table entry. Can be useful
+ * opt On Remove - An optional C++ function that can be called when removing a cron table entry. Can be useful
    if Schedule Next has persisted any data and we want to remove it when the entry is no longer used.
 
 The C++ signatures for the functions are:
