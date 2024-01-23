@@ -85,7 +85,7 @@ jobs:
             tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs
             du -h ${{ github.workspace }}/artifact
             sudo df -h
-            echo "::set-output name=test::success"
+            echo "test=success" >> "$GITHUB_OUTPUT"
         - name: Upload error artifacts
           uses: actions/upload-artifact@v2
           if: ${{ env.file_count > 0 }}
